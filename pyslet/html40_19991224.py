@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 
+from .pep8 import MigratedClass, old_method
 from .py2 import py2
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.rfc2396 as uri
 
 if py2:
@@ -33,7 +34,7 @@ HTML40_HTMLspecial_SYSTEMID = "http://www.w3.org/TR/1999/REC-html401-19991224/HT
 XHTML_NAMESPACE = "http://www.w3.org/1999/xhtml"
 
 
-class NamedBoolean:
+class NamedBoolean(MigratedClass):
 
     """An abstract class designed to make generating SGML-like single-value enumeration
     types easier, for example, attributes such as "checked" on <input>.
@@ -48,7 +49,8 @@ class NamedBoolean:
     representations (None for False and the defined name for True)."""
 
     @classmethod
-    def DecodeValue(cls, src):
+    @old_method('DecodeValue')
+    def from_str(cls, src):
         """Decodes a string returning True if it matches the name attribute
         and raising a ValueError otherwise.  If src is None then False is
         returned."""
@@ -63,7 +65,8 @@ class NamedBoolean:
                                  (cls.__name__, src))
 
     @classmethod
-    def DecodeLowerValue(cls, src):
+    @old_method('DecodeLowerValue')
+    def from_str_lower(cls, src):
         """Decodes a string, converting it to lower case first."""
         if src is None:
             return False
@@ -89,7 +92,8 @@ class NamedBoolean:
                                  (cls.__name__, src))
 
     @classmethod
-    def EncodeValue(cls, value):
+    @old_method('EncodeValue')
+    def to_str(cls, value):
         """Encodes a boolean value returning either the defined name or None."""
         if value:
             return cls.name
@@ -438,7 +442,6 @@ class Direction(xsi.Enumeration):
         'ltr': 1,
         'rtl': 2
     }
-xsi.MakeEnumeration(Direction)
 
 
 class I18nMixin(object):
@@ -453,7 +456,7 @@ class I18nMixin(object):
 
             <!ENTITY % LanguageCode "NAME"	-- a language code, as per [RFC1766]	-->"""
     XMLATTR_lang = ('htmlLang', xsi.DecodeName, xsi.EncodeName)
-    XMLATTR_dir = ('dir', Direction.DecodeLowerValue, Direction.EncodeValue)
+    XMLATTR_dir = ('dir', Direction.from_str_lower, Direction.to_str)
 
 
 class EventsMixin(object):
@@ -507,7 +510,6 @@ class Align(xsi.Enumeration):
         'right': 3,
         'justify': 4
     }
-xsi.MakeEnumeration(Align)
 
 
 """fontstyle and phrase become proper base classes later."""
@@ -699,7 +701,7 @@ class BDO(CoreAttrsMixin, SpecialMixin, InlineContainer):
               >"""
     XMLNAME = (XHTML_NAMESPACE, 'bdo')
     XHTMLATTR_lang = ('lang', xsi.DecodeName, xsi.EncodeName)
-    XMLATTR_dir = ('dir', Direction.DecodeLowerValue, Direction.EncodeValue)
+    XMLATTR_dir = ('dir', Direction.from_str_lower, Direction.to_str)
 
     def __init__(self, parent):
         super(BDO, self).__init__(self, parent)
@@ -758,7 +760,9 @@ class Clear(xsi.Enumeration):
         'right': 3,
         'none': 4
     }
-xsi.MakeEnumeration(Clear, "none")
+    aliases = {
+        None: 'none'
+    }
 
 
 class Br(CoreAttrsMixin, SpecialMixin, XHTMLElement):
@@ -772,7 +776,7 @@ class Br(CoreAttrsMixin, SpecialMixin, XHTMLElement):
               clear       (left|all|right|none) none -- control of text flow --
               >"""
     XMLNAME = (XHTML_NAMESPACE, 'br')
-    XMLATTR_clear = ('clear', Clear.DecodeLowerValue, Clear.EncodeValue)
+    XMLATTR_clear = ('clear', Clear.from_str_lower, Clear.to_str)
     XMLCONTENT = xml.ElementType.Empty
 
 
@@ -894,7 +898,7 @@ class Div(AttrsMixin, BlockMixin, FlowContainer):
               %reserved;                           -- reserved for possible future use --
               >"""
     XMLNAME = (XHTML_NAMESPACE, 'div')
-    XMLATTR_align = ('align', Align.DecodeLowerValue, Align.EncodeValue)
+    XMLATTR_align = ('align', Align.from_str_lower, Align.to_str)
 
 
 class Center(AttrsMixin, BlockMixin, FlowContainer):
@@ -920,7 +924,6 @@ class Shape(xsi.Enumeration):
         'poly': 3,
         'default': 4
     }
-xsi.MakeEnumeration(Shape)
 
 
 class LengthType(object):
@@ -1250,9 +1253,9 @@ class A(AttrsMixin, SpecialMixin, InlineContainer):
     XMLATTR_rel = ('rel', ValidateLinkType, None, list)
     XMLATTR_rev = ('rev', ValidateLinkType, None, list)
     XMLATTR_accesskey = 'accessKey'
-    XMLATTR_shape = ('shape', Shape.DecodeLowerValue, Shape.EncodeValue)
+    XMLATTR_shape = ('shape', Shape.from_str_lower, Shape.to_str)
     XMLATTR_coords = ('coords', Coords, Coords.__unicode__)
-    XMLATTR_tabindex = ('tabIndex', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_tabindex = ('tabIndex', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_onfocus = 'onFocus'
     XMLATTR_onblur = 'onBlur'
 
@@ -1336,13 +1339,13 @@ class Area(AttrsMixin, XHTMLElement):
               onblur      %Script;       #IMPLIED  -- the element lost the focus --
               >"""
     XMLNAME = (XHTML_NAMESPACE, 'area')
-    XMLATTR_shape = ('shape', Shape.DecodeLowerValue, Shape.EncodeValue)
+    XMLATTR_shape = ('shape', Shape.from_str_lower, Shape.to_str)
     XMLATTR_coords = ('coords', Coords, Coords.__unicode__)
     XMLATTR_href = ('href', DecodeURI, EncodeURI)
     XMLATTR_target = 'target'
-    XMLATTR_nohref = ('noHRef', NoHRef.DecodeLowerValue, NoHRef.EncodeValue)
+    XMLATTR_nohref = ('noHRef', NoHRef.from_str_lower, NoHRef.to_str)
     XMLATTR_alt = 'alt'
-    XMLATTR_tabindex = ('tabIndex', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_tabindex = ('tabIndex', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_accesskey = 'accessKey'
     XMLATTR_onfocus = 'onFocus'
     XMLATTR_onblur = 'onBlur'
@@ -1512,7 +1515,6 @@ class IAlign(xsi.Enumeration):
         'left': 4,
         'right': 5
     }
-xsi.MakeEnumeration(IAlign)
 
 
 class IsMap(NamedBoolean):
@@ -1551,11 +1553,11 @@ class Img(AttrsMixin, SpecialMixin, XHTMLElement):
     XMLATTR_height = ('height', LengthType, LengthType.__unicode__)
     XMLATTR_width = ('width', LengthType, LengthType.__unicode__)
     XMLATTR_usemap = ('usemap', DecodeURI, EncodeURI)
-    XMLATTR_ismap = ('ismap', IsMap.DecodeLowerValue, IsMap.EncodeValue)
-    XMLATTR_align = ('align', Align.DecodeLowerValue, Align.EncodeValue)
-    XMLATTR_border = ('border', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_border = ('hspace', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_border = ('vspace', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_ismap = ('ismap', IsMap.from_str_lower, IsMap.to_str)
+    XMLATTR_align = ('align', Align.from_str_lower, Align.to_str)
+    XMLATTR_border = ('border', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_border = ('hspace', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_border = ('vspace', xsi.integer_from_str, xsi.integer_to_str)
     XMLCONTENT = xml.ElementType.Empty
 
     def __init__(self, parent):
@@ -1780,12 +1782,14 @@ class Method(xsi.Enumeration):
 
             Method.DEFAULT == GET
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'GET': 1,
         'POST': 2
-    }
-xsi.MakeEnumeration(Method, "GET")
+        }
+    aliases = {
+        None: 'GET'
+        }
 
 
 class Form(AttrsMixin, BlockMixin, BlockContainer):
@@ -1807,7 +1811,7 @@ class Form(AttrsMixin, BlockMixin, BlockContainer):
     """
     XMLNAME = (XHTML_NAMESPACE, 'form')
     XMLATTR_action = ('action', DecodeURI, EncodeURI)
-    XMLATTR_method = ('method', Method.DecodeUpperValue, Method.EncodeValue)
+    XMLATTR_method = ('method', Method.DecodeUpperValue, Method.to_str)
     XMLATTR_enctype = 'enctype'
     XMLATTR_accept = 'accept'
     XMLATTR_name = 'name'
@@ -1847,7 +1851,7 @@ class InputType(xsi.Enumeration):
 
             InputType.DEFAULT == InputType.text
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'text': 1,
         'password': 2,
@@ -1859,8 +1863,10 @@ class InputType(xsi.Enumeration):
         'hidden': 8,
         'image': 9,
         'button': 10
-    }
-xsi.MakeEnumeration(InputType, "text")
+        }
+    aliases = {
+        None: "text"
+        }
 
 
 class Checked(NamedBoolean):
@@ -1912,22 +1918,22 @@ class Input(FormCtrlMixin, AttrsMixin, XHTMLElement):
       >
     """
     XMLNAME = (XHTML_NAMESPACE, 'input')
-    XMLATTR_type = ('type', InputType.DecodeLowerValue, InputType.EncodeValue)
+    XMLATTR_type = ('type', InputType.from_str_lower, InputType.to_str)
     XMLATTR_name = 'name'
     XMLATTR_value = 'value'
     XMLATTR_checked = (
-        'checked', Checked.DecodeLowerValue, Checked.EncodeValue)
+        'checked', Checked.from_str_lower, Checked.to_str)
     XMLATTR_disabled = (
-        'disabled', Disabled.DecodeLowerValue, Disabled.EncodeValue)
+        'disabled', Disabled.from_str_lower, Disabled.to_str)
     XMLATTR_readonly = (
-        'readonly', ReadOnly.DecodeLowerValue, ReadOnly.EncodeValue)
+        'readonly', ReadOnly.from_str_lower, ReadOnly.to_str)
     XMLATTR_size = 'size'
-    XMLATTR_maxLength = ('maxLength', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_maxLength = ('maxLength', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_src = ('src', DecodeURI, EncodeURI)
     XMLATTR_alt = 'alt'
     XMLATTR_usemap = ('usemap', DecodeURI, EncodeURI)
-    XMLATTR_ismap = ('ismap', IsMap.DecodeLowerValue, IsMap.EncodeValue)
-    XMLATTR_tabindex = ('tabindex', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_ismap = ('ismap', IsMap.from_str_lower, IsMap.to_str)
+    XMLATTR_tabindex = ('tabindex', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_accesskey = ('accesskey', DecodeCharacter, None)
     XMLATTR_onfocus = 'onfocus'
     XMLATTR_onblur = 'onblur'
@@ -2103,8 +2109,10 @@ class ButtonType(xsi.Enumeration):
         'button': 1,
         'submit': 2,
         'reset': 3
-    }
-xsi.MakeEnumeration(ButtonType, "submit")
+        }
+    aliases = {
+        None: 'submit'
+        }
 
 
 class Button(AttrsMixin, FormCtrlMixin, FlowContainer):
@@ -2129,10 +2137,10 @@ class Button(AttrsMixin, FormCtrlMixin, FlowContainer):
     XMLATTR_name = 'name'
     XMLATTR_value = 'value'
     XMLATTR_type = (
-        'type', ButtonType.DecodeLowerValue, ButtonType.EncodeValue)
+        'type', ButtonType.from_str_lower, ButtonType.to_str)
     XMLATTR_disabled = (
-        'disabled', Disabled.DecodeLowerValue, Disabled.EncodeValue)
-    XMLATTR_tabindex = ('tabindex', xsi.DecodeInteger, xsi.EncodeInteger)
+        'disabled', Disabled.from_str_lower, Disabled.to_str)
+    XMLATTR_tabindex = ('tabindex', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_accesskey = ('accesskey', DecodeCharacter, None)
     XMLATTR_onfocus = 'onfocus'
     XMLATTR_onblur = 'onblur'
@@ -2177,7 +2185,7 @@ class Object(AttrsMixin, SpecialMixin, HeadMiscMixin, XHTMLElement):
     """
     XMLNAME = (XHTML_NAMESPACE, 'object')
     XMLATTR_declare = (
-        'declare', Declare.DecodeLowerValue, Declare.EncodeValue)
+        'declare', Declare.from_str_lower, Declare.to_str)
     XMLATTR_classid = 'classid'
     XMLATTR_codebase = 'codebase'
     XMLATTR_data = ('data', DecodeURI, EncodeURI)
@@ -2189,7 +2197,7 @@ class Object(AttrsMixin, SpecialMixin, HeadMiscMixin, XHTMLElement):
     XMLATTR_width = ('width', LengthType, LengthType.__unicode__)
     XMLATTR_usemap = ('usemap', DecodeURI, EncodeURI)
     XMLATTR_name = 'name'
-    XMLATTR_tabindex = ('tabindex', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_tabindex = ('tabindex', xsi.integer_from_str, xsi.integer_to_str)
     XMLCONTENT = xml.XMLMixedContent
 
     def get_child_class(self, stag_class):

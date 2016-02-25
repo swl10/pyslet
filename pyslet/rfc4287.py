@@ -23,7 +23,7 @@ import pyslet.iso8601 as iso8601
 import pyslet.html40_19991224 as html
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.rfc2396 as uri
 
 #: The namespace to use for Atom Document elements
@@ -62,14 +62,13 @@ class TextType(xsi.Enumeration):
         'html': 2,
         'xhtml': 3
     }
-xsi.MakeEnumeration(TextType)
 
 
 class Text(AtomElement):
 
     """Base class for atomPlainTextConstruct and atomXHTMLTextConstruct."""
 
-    XMLATTR_type = ('type', TextType.DecodeLowerValue, TextType.EncodeValue)
+    XMLATTR_type = ('type', TextType.from_str_lower, TextType.to_str)
 
     def __init__(self, parent):
         AtomElement.__init__(self, parent)
@@ -228,7 +227,7 @@ class Link(AtomElement):
     XMLATTR_type = 'type'
     XMLATTR_hreflang = 'hreflang'
     XMLATTR_title = 'title'
-    XMLATTR_length = ('length', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_length = ('length', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         AtomElement.__init__(self, parent)
@@ -305,7 +304,7 @@ class Generator(AtomElement):
 
 def DecodeContentType(src):
     try:
-        return TextType.DecodeLowerValue(src)
+        return TextType.from_str_lower(src)
     except ValueError:
         return src.strip()
 
@@ -314,7 +313,7 @@ def EncodeContentType(value):
     if type(value) in types.StringTypes:
         return value
     else:
-        return TextType.EncodeValue(value)
+        return TextType.to_str(value)
 
 
 class Content(Text):

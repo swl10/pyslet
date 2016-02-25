@@ -12,5 +12,6 @@ version of the standard implemented is the Extensible Markup Language
     xml/structures
     xml/namespace
     xml/parser
+    xml/xsdatatypes
 
 

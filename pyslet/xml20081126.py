@@ -1,3 +1,9 @@
 #! /usr/bin/env python
 
-from pyslet.xml import structures, parser
+import warnings
+
+from pyslet.xml import structures, parser   # noqa
+
+warnings.warn(
+    "pyslet.xml20081126 is deprecated, use pyslet.xml.structures "
+    "or pyslet.xml.parser instead", DeprecationWarning, stacklevel=3)

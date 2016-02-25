@@ -4,7 +4,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.imsmdv1p2p1 as imsmd
 import pyslet.imsqtiv2p1 as imsqti
 import pyslet.qtiv2.metadata as qtimd

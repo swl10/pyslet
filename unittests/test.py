@@ -113,8 +113,8 @@ import test_xml_parser
 all_tests.addTest(test_xml_parser.suite())
 import test_xml_structures
 all_tests.addTest(test_xml_structures.suite())
-import test_xsdatatypes20041028
-all_tests.addTest(test_xsdatatypes20041028.suite())
+import test_xml_xsdatatypes
+all_tests.addTest(test_xml_xsdatatypes.suite())
 
 
 def suite():

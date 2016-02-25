@@ -3,7 +3,7 @@
 import pyslet.xml.namespace as xmlns
 import pyslet.html40_19991224 as html
 import pyslet.xml.structures as xml
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.content as content
@@ -98,11 +98,11 @@ class Choice(content.BodyElement):
                     <xsd:attribute name="showHide" type="showHide.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
-    XMLATTR_fixed = ('fixed', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_fixed = ('fixed', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_templateIdentifier = (
         'templateIdentifier', core.ValidateIdentifier, lambda x: x)
     XMLATTR_showHide = (
-        'showHide', core.ShowHide.DecodeLowerValue, core.ShowHide.EncodeValue)
+        'showHide', core.ShowHide.from_str_lower, core.ShowHide.to_str)
 
     def __init__(self, parent):
         content.BodyElement.__init__(self, parent)
@@ -152,9 +152,9 @@ class ChoiceInteraction(BlockInteraction):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'choiceInteraction')
-    XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLATTR_maxChoices = ('maxChoices', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minChoices = ('minChoices', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
+    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -194,13 +194,13 @@ class OrderInteraction(BlockInteraction):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'orderInteraction')
-    XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLATTR_maxChoices = ('maxChoices', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minChoices = ('minChoices', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
+    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_orientation = (
         'orientation',
-        core.Orientation.DecodeLowerValue,
-        core.Orientation.EncodeValue)
+        core.Orientation.from_str_lower,
+        core.Orientation.to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -298,11 +298,11 @@ class AssociateInteraction(BlockInteraction):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'associateInteraction')
-    XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_maxAssociations = (
-        'maxAssociations', xsi.DecodeInteger, xsi.EncodeInteger)
+        'maxAssociations', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_minAssociations = (
-        'minAssociations', xsi.DecodeInteger, xsi.EncodeInteger)
+        'minAssociations', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -344,11 +344,11 @@ class MatchInteraction(BlockInteraction):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'matchInteraction')
-    XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_maxAssociations = (
-        'maxAssociations', xsi.DecodeInteger, xsi.EncodeInteger)
+        'maxAssociations', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_minAssociations = (
-        'minAssociations', xsi.DecodeInteger, xsi.EncodeInteger)
+        'minAssociations', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -387,8 +387,8 @@ class SimpleAssociableChoice(content.FlowContainerMixin, AssociableChoice):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'simpleAssociableChoice')
-    XMLATTR_matchMax = ('matchMax', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_matchMin = ('matchMin', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_matchMax = ('matchMax', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_matchMin = ('matchMin', xsi.integer_from_str, xsi.integer_to_str)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
@@ -445,7 +445,7 @@ class GapMatchInteraction(BlockInteraction):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gapMatchInteraction')
-    XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -485,7 +485,7 @@ class Gap(html.InlineMixin, AssociableChoice):
                     <xsd:attribute name="required" type="boolean.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gap')
-    XMLATTR_required = ('required', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_required = ('required', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
@@ -504,8 +504,8 @@ class GapChoice(AssociableChoice):
                     <xsd:attribute name="matchMax" type="integer.Type" use="required"/>
                     <xsd:attribute name="matchMin" type="integer.Type" use="optional"/>
             </xsd:attributeGroup>"""
-    XMLATTR_matchMax = ('matchMax', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_matchMin = ('matchMin', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_matchMax = ('matchMax', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_matchMin = ('matchMin', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         AssociableChoice.__init__(self, parent)
@@ -581,8 +581,8 @@ class InlineChoiceInteraction(InlineInteraction):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'inlineChoiceInteraction')
-    XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLATTR_required = ('required', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
+    XMLATTR_required = ('required', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -631,11 +631,11 @@ class StringInteractionMixin:
                     <xsd:attribute name="patternMask" type="string.Type" use="optional"/>
                     <xsd:attribute name="placeholderText" type="string.Type" use="optional"/>
             </xsd:attributeGroup>"""
-    XMLATTR_base = ('base', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_base = ('base', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_stringIdentifier = (
         'stringIdentifier', core.ValidateIdentifier, lambda x: x)
     XMLATTR_expectedLength = (
-        'expectedLength', xsi.DecodeInteger, xsi.EncodeInteger)
+        'expectedLength', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_patternMask = 'patternMask'
     XMLATTR_placeholderText = 'placeholderText'
 
@@ -659,7 +659,7 @@ class TextEntryInteraction(StringInteractionMixin, InlineInteraction):
         StringInteractionMixin.__init__(self)
 
 
-class TextFormat(xsi.Enumeration):
+class TextFormat(xsi.EnumerationNoCase):
 
     """Used to control the format of the text entered by the candidate::
 
@@ -679,14 +679,15 @@ class TextFormat(xsi.Enumeration):
 
             TextFormat.DEFAULT == TextFormat.plain
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'plain': 1,
         'preFormatted': 2,
         'xhtml': 3
     }
-xsi.MakeEnumeration(TextFormat, 'plain')
-xsi.MakeLowerAliases(TextFormat)
+    aliases = {
+        None: 'plain'
+        }
 
 
 class ExtendedTextInteraction(StringInteractionMixin, BlockInteraction):
@@ -703,12 +704,12 @@ class ExtendedTextInteraction(StringInteractionMixin, BlockInteraction):
                     <xsd:attribute name="format" type="textFormat.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'extendedTextInteraction')
-    XMLATTR_maxStrings = ('maxStrings', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minStrings = ('minStrings', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_maxStrings = ('maxStrings', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minStrings = ('minStrings', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_expectedLines = (
-        'expectedLines', xsi.DecodeInteger, xsi.EncodeInteger)
+        'expectedLines', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_format = (
-        'format', TextFormat.DecodeLowerValue, TextFormat.EncodeValue)
+        'format', TextFormat.from_str_lower, TextFormat.to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -739,8 +740,8 @@ class HottextInteraction(BlockInteraction):
             </xsd:group>
     """
     XMLNAME = (core.IMSQTI_NAMESPACE, 'hottextInteraction')
-    XMLATTR_maxChoices = ('maxChoices', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minChoices = ('minChoices', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -789,7 +790,7 @@ class HotspotMixin:
                     <xsd:attribute name="hotspotLabel" type="string256.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_shape = (
-        'shape', core.Shape.DecodeLowerValue, core.Shape.EncodeValue)
+        'shape', core.Shape.from_str_lower, core.Shape.to_str)
     XMLATTR_coords = ('coords', html.Coords, html.Coords.__unicode__)
     XMLATTR_hotspotLabel = 'hotspotLabel'
 
@@ -828,8 +829,8 @@ class AssociableHotspot(HotspotMixin, AssociableChoice):
                     <xsd:attribute name="matchMin" type="integer.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'associableHotspot')
-    XMLATTR_matchMax = ('matchMax', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_matchMin = ('matchMin', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_matchMax = ('matchMax', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_matchMin = ('matchMin', xsi.integer_from_str, xsi.integer_to_str)
     XMLCONTENT = xml.XMLEmpty
 
     def __init__(self, parent):
@@ -880,8 +881,8 @@ class HotspotInteraction(GraphicInteraction):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'hotspotInteraction')
-    XMLATTR_maxChoices = ('maxChoices', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minChoices = ('minChoices', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         GraphicInteraction.__init__(self, parent)
@@ -906,8 +907,8 @@ class SelectPointInteraction(GraphicInteraction):
                     <xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'selectPointInteraction')
-    XMLATTR_maxChoices = ('maxChoices', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minChoices = ('minChoices', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         GraphicInteraction.__init__(self, parent)
@@ -932,15 +933,15 @@ class SliderInteraction(BlockInteraction):
                     <xsd:attribute name="reverse" type="boolean.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'sliderInteraction')
-    XMLATTR_lowerBound = ('lowerBound', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_upperBound = ('upperBound', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_step = ('step', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_stepLabel = ('stepLabel', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_lowerBound = ('lowerBound', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_upperBound = ('upperBound', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_step = ('step', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_stepLabel = ('stepLabel', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_orientation = (
         'orientation',
-        core.Orientation.DecodeLowerValue,
-        core.Orientation.EncodeValue)
-    XMLATTR_reverse = ('reverse', xsi.DecodeBoolean, xsi.EncodeBoolean)
+        core.Orientation.from_str_lower,
+        core.Orientation.to_str)
+    XMLATTR_reverse = ('reverse', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)

@@ -7,7 +7,10 @@ a module, pyslet.pep8, which contains a compatibility class for
 remapping missing class attribute names to their new forms and
 generating deprecation warnings, run your code with "python -Wd" to
 force these warnings to appear.  As Pyslet makes the transition to
-Python 3 some of the old names will go away completely. 
+Python 3 some of the old names may go away completely.  The warning
+messages explain any changes you need to make.  Although backwards
+compatible, using the new names is slightly faster as they don't go
+through the extra deprecation wrapper.
  
 It is still possible that some previously documented names could now
 fail (module level functions, function arguments, etc.) but I've tried
@@ -45,18 +48,15 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
-Build 20160224:
-
+Build 20160225:
+ 
 #3 PEP-8 driven refactoring (ongoing)
 
-Refactored the xsdatatypes module - work in progress, will trigger
-Deprecation warnings for changes to Enumeration class and renaming of
-Decode/Encode functions.
+Refactored the xml namespace and xsdatatyeps modules into the xml
+sub-package.
 
-Refactored the xml namespace module into the xml sub-package.
-
-Removed any in-package deprecation warnings caused by method renaming
-in xml sub-package.
+Removed any in-package deprecation warnings caused by previous method
+renaming in xml sub-package.
 
 Updated and completed move to new decorators for method renames. 
 Modified metaclass to surpress inherited documentation for renamed
@@ -65,10 +65,20 @@ sub-classes and not just the class using the @old_method decorator.
 
 #38 Python 3 compatibility work (ongoing)
 
-Added namespace module in xml sub-package to list of Python 3 compatible
-modules.
+Added namespace and xsdatatypes modules in xml sub-package to list of
+Python 3 compatible modules.
 
 Untracked fixes:
+
+CDATA sections were not being generated properly by the (old) function
+:meth:`pyslet.xml.structures.EscapeCDSect`, causing the HTML style
+and script tags to have their content rendered incorrectly.  These tags
+are not part of the QTI content model so this bug is unlikely to have
+had an impact on real data.
+
+XMLEntity class is now a context manager to help ensure that files are
+closed before garbage collection.  Unittests were triggering resource
+leak warnings in Python 3.
 
 Use of nested generators was triggering future warnings in Python 3,
 refactored to catch StopIteration as per:
@@ -86,8 +96,6 @@ names.  Crazy I know, but it works.
 Refactored xml sub-package, including renaming it.  The old name is
 supported through a small compatibility module.
 
-You can get ready for the new names using -Wd option in Python which
-will warn you if you are using old-style names in your own scripts.
 
 #38 Python 3 compatibility work
 

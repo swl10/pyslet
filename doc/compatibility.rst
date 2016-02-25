@@ -69,6 +69,7 @@ the compatibility modules described elsewhere on this page)::
     pyslet.unicode5
     pyslet.urn
     pyslet.vfs
+    pyslet.xml.xsdatatypes
     pyslet.xml.namespace
     pyslet.xml.parser
     pyslet.xml.structures

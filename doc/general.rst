@@ -14,7 +14,6 @@ Contents:
 
    wsgi
    xml
-   xsdatatypes20041028
    html40_19991224
    rfc2396
    urn

@@ -6,7 +6,7 @@ References:
 """
 
 import pyslet.xml.structures as xml
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import string
 import itertools
 
@@ -287,7 +287,7 @@ def FormatTrueFalseEnum(value):
         return None
 
 
-class QMLAlignEnum:
+class QMLAlignEnum(xsi.Enumeration):
     decode = {
         'Left': 1,
         'Right': 2,
@@ -295,7 +295,6 @@ class QMLAlignEnum:
         'Bottom': 4,
         'Middle': 5
     }
-xsi.MakeEnumeration(QMLAlignEnum)
 
 
 def ParseAlignEnum(value):
@@ -327,7 +326,7 @@ def FormatAlignEnum(value):
     return QMLAlignEnum.encode.get(value, None)
 
 
-class QMLShuffleEnum:
+class QMLShuffleEnum(xsi.Enumeration):
     decode = {
         'N': 1,
         'NO': 2,
@@ -338,7 +337,6 @@ class QMLShuffleEnum:
         'T': 7,
         'EXCEPT_LAST_TWO': 8
     }
-xsi.MakeEnumeration(QMLShuffleEnum)
 
 
 def ParseShuffleEnum(value):
@@ -405,13 +403,12 @@ def FormatYesNoEnum(value):
         return None
 
 
-class QMLDirectionEnum:
+class QMLDirectionEnum(xsi.Enumeration):
     decode = {
         'VERT': 1,
         'HORZ': 2,
         'FLASH': 3
     }
-xsi.MakeEnumeration(QMLDirectionEnum)
 
 
 def ParseDirectionEnum(value):

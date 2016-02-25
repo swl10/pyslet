@@ -6,7 +6,7 @@ import unittest
 
 from sys import maxunicode
 
-import pyslet.xsdatatypes20041028 as xsd
+import pyslet.xml.xsdatatypes as xsi
 
 from pyslet.unicode5 import CharClass
 from pyslet.py2 import character, dict_keys, range3, to_text, u8, ul
@@ -24,44 +24,44 @@ def suite():
 class XSDatatypes20041028Tests(unittest.TestCase):
 
     def test_constants(self):
-        self.assertTrue(xsd.XMLSCHEMA_NAMESPACE ==
+        self.assertTrue(xsi.XMLSCHEMA_NAMESPACE ==
                         "http://www.w3.org/2001/XMLSchema-instance",
-                        "XSI namespace: %s" % xsd.XMLSCHEMA_NAMESPACE)
+                        "XSI namespace: %s" % xsi.XMLSCHEMA_NAMESPACE)
 
 
 class XSDatatypesBooleanTests(unittest.TestCase):
 
     def test_dencode(self):
-        self.assertTrue(xsd.boolean_from_str('true') is True, 'true')
-        self.assertTrue(xsd.boolean_from_str('1') is True, '1')
-        self.assertTrue(xsd.boolean_from_str('false') is False, 'false')
-        self.assertTrue(xsd.boolean_from_str('0') is False, '0')
-        self.assertTrue(xsd.boolean_from_str(None) is None, 'None')
+        self.assertTrue(xsi.boolean_from_str('true') is True, 'true')
+        self.assertTrue(xsi.boolean_from_str('1') is True, '1')
+        self.assertTrue(xsi.boolean_from_str('false') is False, 'false')
+        self.assertTrue(xsi.boolean_from_str('0') is False, '0')
+        self.assertTrue(xsi.boolean_from_str(None) is None, 'None')
         try:
-            xsd.boolean_from_str('False')
+            xsi.boolean_from_str('False')
             self.fail('False')
         except ValueError:
             pass
         try:
-            xsd.boolean_from_str('True')
+            xsi.boolean_from_str('True')
             self.fail('True')
         except ValueError:
             pass
         try:
-            xsd.boolean_from_str('yes')
+            xsi.boolean_from_str('yes')
             self.fail('yes')
         except ValueError:
             pass
 
     def test_encode(self):
-        self.assertTrue(xsd.boolean_to_str(True) == "true", 'True')
-        self.assertTrue(xsd.boolean_to_str(False) == "false", 'False')
-        self.assertTrue(xsd.boolean_to_str(1) == "true", '1')
-        self.assertTrue(xsd.boolean_to_str(0) == "false", '0')
-        self.assertTrue(xsd.boolean_to_str(['a']) == "true", 'Non-empty list')
-        self.assertTrue(xsd.boolean_to_str([]) == "false", 'Empty list')
+        self.assertTrue(xsi.boolean_to_str(True) == "true", 'True')
+        self.assertTrue(xsi.boolean_to_str(False) == "false", 'False')
+        self.assertTrue(xsi.boolean_to_str(1) == "true", '1')
+        self.assertTrue(xsi.boolean_to_str(0) == "false", '0')
+        self.assertTrue(xsi.boolean_to_str(['a']) == "true", 'Non-empty list')
+        self.assertTrue(xsi.boolean_to_str([]) == "false", 'Empty list')
         try:
-            xsd.boolean_to_str(None)
+            xsi.boolean_to_str(None)
             self.fail('None')
         except ValueError:
             pass
@@ -91,7 +91,7 @@ class XSDatatypesDecimalTests(unittest.TestCase):
         for src in dict_keys(tests):
             t = tests[src]
             try:
-                result = xsd.decimal_from_str(src)
+                result = xsi.decimal_from_str(src)
                 self.assertTrue(result == t,
                                 "Mismatched decimal: %s expected %s" %
                                 (repr(result), repr(t)))
@@ -133,7 +133,7 @@ class XSDatatypesDecimalTests(unittest.TestCase):
             -99999999999999: "-99999999999999.0"}
         for src in dict_keys(tests):
             try:
-                result = xsd.decimal_to_str(src)
+                result = xsi.decimal_to_str(src)
                 t = tests[src]
                 self.assertTrue(result == t,
                                 "Mismatched decimal: %s expected %s" %
@@ -168,7 +168,7 @@ class XSDatatypesDoubleTests(unittest.TestCase):
         for src in dict_keys(tests):
             t = tests[src]
             try:
-                result = xsd.double_from_str(src)
+                result = xsi.double_from_str(src)
                 self.assertTrue(result == t,
                                 "Mismatched decimal: %s expected %s" %
                                 (repr(result), repr(t)))
@@ -207,7 +207,7 @@ class XSDatatypesDoubleTests(unittest.TestCase):
             -99999999999999: "-9.9999999999999E13"}
         for src in dict_keys(tests):
             try:
-                result = xsd.double_to_str(src)
+                result = xsi.double_to_str(src)
                 t = tests[src]
                 self.assertTrue(result == t,
                                 "Mismatched decimal: %s expected %s" %
@@ -220,14 +220,14 @@ class XSDatatypesDoubleTests(unittest.TestCase):
 class XSRegularExpressionTests(unittest.TestCase):
 
     def test_constructor(self):
-        r = xsd.RegularExpression(".*")
+        r = xsi.RegularExpression(".*")
         self.assertTrue(r.src == ".*", "Source still available")
 
 
 class XSRegularExpressionParserTests(unittest.TestCase):
 
     def test_constructor(self):
-        p = xsd.RegularExpressionParser(".*")
+        p = xsi.RegularExpressionParser(".*")
         self.assertTrue(p.the_char == ".")
         self.assertTrue(p.pos == 0)
         p.setpos(1)
@@ -248,7 +248,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             ".*AAA.*": "[^\\n\\r]*AAA[^\\n\\r]*"
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             t = tests[b]
             try:
                 result = p.require_reg_exp()
@@ -256,8 +256,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                                 "Mismatched regExp: %s expected %s" %
                                 (repr(result), repr(t)))
                 self.assertTrue(p.the_char is None)
-            except xsd.RegularExpressionError:
-                if t is xsd.RegularExpressionParser:
+            except xsi.RegularExpressionError:
+                if t is xsi.RegularExpressionParser:
                     pass
                 else:
                     logging.debug("Failed to parse %s" % repr(b))
@@ -266,7 +266,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
     def test_branch(self):
         """::
         branch ::= piece* """
-        p = xsd.RegularExpressionParser(
+        p = xsi.RegularExpressionParser(
             ul("A[A-z-[\[-\]]](Hello(Mum)|(Dad))A{0,0}[A-Z]{0,1}(Hello)"
                "{0,}B{1,}[@-\xA9]?)"))
         self.assertTrue(
@@ -292,18 +292,18 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '[45]{099,}': "[45]{99,}",
             '(45){0}': "",
             '@{99}': "@{99}",
-            'A{99,1}': xsd.RegularExpressionParser,
+            'A{99,1}': xsi.RegularExpressionParser,
             'A{1,99}': "A{1,99}",
             'A{0,99}': "A{,99}",
-            'A{,99}': xsd.RegularExpressionParser,
+            'A{,99}': xsi.RegularExpressionParser,
             '$': "\\$",
             '^': "\\^",
-            'A{1,99': xsd.RegularExpressionParser,
+            'A{1,99': xsi.RegularExpressionParser,
             '\\{{0,1}': "\\{?",
             '\\??': "\\??"
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             t = tests[b]
             try:
                 result = p.require_piece()
@@ -311,8 +311,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                                 "Mismatched piece: %s expected %s" %
                                 (repr(result), repr(t)))
                 self.assertTrue(p.the_char is None)
-            except xsd.RegularExpressionError:
-                if t is xsd.RegularExpressionParser:
+            except xsi.RegularExpressionError:
+                if t is xsi.RegularExpressionParser:
                     pass
                 else:
                     logging.debug("Failed to parse %s" % repr(b))
@@ -332,15 +332,15 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '{99,}': (99, None),
             '{0}': (0, 0),
             '{99}': (99, 99),
-            '{99,1}': xsd.RegularExpressionParser,
+            '{99,1}': xsi.RegularExpressionParser,
             '{1,99}': (1, 99),
             '{0,99}': (0, 99),
-            '{,99}': xsd.RegularExpressionParser,
-            '$': xsd.RegularExpressionParser,
-            '{1,99': xsd.RegularExpressionParser
+            '{,99}': xsi.RegularExpressionParser,
+            '$': xsi.RegularExpressionParser,
+            '{1,99': xsi.RegularExpressionParser
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             t = tests[b]
             try:
                 x, y = p.require_quantifier()
@@ -348,8 +348,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                                 "Mismatched quantity: %s expected %s" %
                                 (repr((x, y)), repr(t)))
                 self.assertTrue(p.the_char is None)
-            except xsd.RegularExpressionError:
-                if t is xsd.RegularExpressionParser:
+            except xsi.RegularExpressionError:
+                if t is xsi.RegularExpressionParser:
                     pass
                 else:
                     logging.debug("Failed to parse %s" % repr(b))
@@ -366,16 +366,16 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '99,': (99, None),
             '0': (0, 0),
             '99': (99, 99),
-            '99,1': xsd.RegularExpressionParser,
+            '99,1': xsi.RegularExpressionParser,
             '1,99': (1, 99),
             '0,99': (0, 99),
-            ',99': xsd.RegularExpressionParser,
-            '?': xsd.RegularExpressionParser,
-            '*': xsd.RegularExpressionParser,
-            '+': xsd.RegularExpressionParser
+            ',99': xsi.RegularExpressionParser,
+            '?': xsi.RegularExpressionParser,
+            '*': xsi.RegularExpressionParser,
+            '+': xsi.RegularExpressionParser
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             t = tests[b]
             try:
                 x, y = p.require_quantity()
@@ -383,8 +383,8 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                                 "Mismatched quantity: %s expected %s" %
                                 (repr((x, y)), repr(t)))
                 self.assertTrue(p.the_char is None)
-            except xsd.RegularExpressionError:
-                if t is xsd.RegularExpressionParser:
+            except xsi.RegularExpressionError:
+                if t is xsi.RegularExpressionParser:
                     pass
                 else:
                     logging.debug("Failed to parse %s" % repr(b))
@@ -404,21 +404,21 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '99': 99
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             try:
                 result = p.require_quant_exact()
                 self.assertTrue(result == tests[b],
                                 "Mismatched number: %s expected %s" %
                                 (repr(result), repr(tests[b])))
-            except xsd.RegularExpressionError:
+            except xsi.RegularExpressionError:
                 logging.debug("Failed to parse %s" % repr(b))
                 raise
             self.assertTrue(p.the_char is None)
-        p = xsd.RegularExpressionParser("x")
+        p = xsi.RegularExpressionParser("x")
         try:
             p.require_quant_exact()
             self.fail("Parsed x as QuantExact")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
     def test_atom(self):
@@ -430,13 +430,13 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '(Hello(Mum)|(Dad))': "(Hello(Mum)|(Dad))"
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             try:
                 result = p.require_atom()
                 self.assertTrue(result == tests[b],
                                 "Mismatched atom: %s expected %s" %
                                 (repr(result), repr(b)))
-            except xsd.RegularExpressionError:
+            except xsi.RegularExpressionError:
                 logging.debug("Failed to parse %s" % repr(b))
                 raise
             self.assertTrue(p.the_char is None)
@@ -447,7 +447,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
         Char ::= [^.\?*+()|#x5B#x5D]
 
         This definition is clearly in error.  It is missing { and }."""
-        p = xsd.RegularExpressionParser(
+        p = xsi.RegularExpressionParser(
             ul("ABC.ABC\\ABC?123* !\"+#$%(&\',)-/:|;<={>@^}_`~[\xa3\xa0\xf7]"))
         while p.the_char is not None:
             for c in "ABC":
@@ -468,10 +468,10 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '.': ("abcABC ", "\x0a\x0d")
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             try:
                 cclass = p.require_char_class()
-            except xsd.RegularExpressionError:
+            except xsi.RegularExpressionError:
                 logging.debug("Failed to parse %s" % repr(b))
                 raise
             self.assertTrue(p.the_char is None)
@@ -490,10 +490,10 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '[A-z-[\[-\]]]': ("AZaz^_`", "[\\]@{-"),
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             try:
                 cclass = p.require_char_class_expr()
-            except xsd.RegularExpressionError:
+            except xsi.RegularExpressionError:
                 logging.debug("Failed to parse %s" % repr(b))
                 raise
             self.assertTrue(p.the_char is None)
@@ -512,10 +512,10 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '^a-z-[^A-Z]': ("ABZ", "`abz{@[-"),
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             try:
                 cclass = p.require_char_group()
-            except xsd.RegularExpressionError:
+            except xsi.RegularExpressionError:
                 logging.debug("Failed to parse %s" % repr(b))
                 raise
             self.assertTrue(p.the_char is None)
@@ -528,7 +528,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
     def test_pos_char_group(self):
         """::
         posCharGroup ::= ( charRange | charClassEsc )+ """
-        p = xsd.RegularExpressionParser("\\^-b^xa-c\\?-A\\p{Sc}")
+        p = xsi.RegularExpressionParser("\\^-b^xa-c\\?-A\\p{Sc}")
         test = ul("$^_`abcx?@A\xa2\xa3\xa4\xa5")
         cclass = p.require_pos_char_group()
         for i in range3(256):
@@ -537,39 +537,39 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                             "Bad test on character: %s" % repr(c))
         # The - character is a valid character range only at the
         # beginning or end of a positive character group
-        p = xsd.RegularExpressionParser("-a-c")
+        p = xsi.RegularExpressionParser("-a-c")
         cclass = p.require_pos_char_group()
-        p = xsd.RegularExpressionParser("a-c-]")
+        p = xsi.RegularExpressionParser("a-c-]")
         cclass = p.require_pos_char_group()
-        p = xsd.RegularExpressionParser("A-C-a-c")
+        p = xsi.RegularExpressionParser("A-C-a-c")
         try:
             cclass = p.require_pos_char_group()
             self.fail("hypen accepted within range")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
     def test_neg_char_group(self):
         """::
         negCharGroup ::= '^' posCharGroup """
-        p = xsd.RegularExpressionParser("^\\^-b^xa-c\\?-A\\p{Sc}")
+        p = xsi.RegularExpressionParser("^\\^-b^xa-c\\?-A\\p{Sc}")
         test = ul("$^_`abcx?@A\xa2\xa3\xa4\xa5")
         cclass = p.require_neg_char_group()
         for i in range3(256):
             c = character(i)
             self.assertTrue(cclass.test(c) != (c in test),
                             "Bad test on character: %s" % repr(c))
-        p = xsd.RegularExpressionParser("^-a-c")
+        p = xsi.RegularExpressionParser("^-a-c")
         cclass = p.require_neg_char_group()
-        p = xsd.RegularExpressionParser("^a-c-]")
+        p = xsi.RegularExpressionParser("^a-c-]")
         cclass = p.require_neg_char_group()
         # The ^ character is only valid at the beginning of a positive
         # character group if it is part of a negative character group
         # this rule is automatically honoured by the parser
-        p = xsd.RegularExpressionParser("^A-C-a-c")
+        p = xsi.RegularExpressionParser("^A-C-a-c")
         try:
             cclass = p.require_neg_char_group()
             self.fail("hypen accepted within range")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
     def test_char_class_sub(self):
@@ -582,10 +582,10 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             'a-c--[b]': ("ac-", "`bdABC")
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             try:
                 cclass = p.require_char_class_sub()
-            except xsd.RegularExpressionError:
+            except xsi.RegularExpressionError:
                 logging.debug("Failed to parse %s" % repr(b))
                 raise
             self.assertTrue(p.the_char is None)
@@ -598,16 +598,16 @@ class XSRegularExpressionParserTests(unittest.TestCase):
     def test_char_range(self):
         """::
         charRange ::= seRange | XmlCharIncDash """
-        p = xsd.RegularExpressionParser("^\\^-bxa-c-\\?-A")
+        p = xsi.RegularExpressionParser("^\\^-bxa-c-\\?-A")
         for match in ["\\^", "[_-b^]", "x", "[a-c]", "-", "[?-A]"]:
             cclass = p.require_char_range()
             self.assertTrue(to_text(cclass) == match,
                             "Expected %s, found %s" % (match, to_text(cclass)))
-        p = xsd.RegularExpressionParser("[")
+        p = xsi.RegularExpressionParser("[")
         try:
             cclass = p.require_char_range()
             self.fail("Parsed [ as CharRange")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
     def test_se_range(self):
@@ -618,10 +618,10 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             'z-\\|': ("z{|", "y}Z")
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             try:
                 cclass = p.require_se_range()
-            except xsd.RegularExpressionError:
+            except xsi.RegularExpressionError:
                 logging.debug("Failed to parse %s" % repr(b))
                 raise
             self.assertTrue(p.the_char is None)
@@ -630,23 +630,23 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                 self.assertTrue(cclass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
                 self.assertFalse(cclass.test(c), "%s in %s" % (repr(c), b))
-        p = xsd.RegularExpressionParser("c-a")
+        p = xsi.RegularExpressionParser("c-a")
         try:
             cclass = p.require_se_range()
             self.fail("Failed to spot reversed range")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
     def test_char_or_esc(self):
         """charOrEsc ::= XmlChar | SingleCharEsc  """
-        p = xsd.RegularExpressionParser("ABC\\-ABC\\[ABC\\]ABC\\\\-")
+        p = xsi.RegularExpressionParser("ABC\\-ABC\\[ABC\\]ABC\\\\-")
         result = []
         try:
             while p.the_char is not None:
                 savepos = p.pos
                 result.append(p.require_char_or_esc())
                 self.assertFalse(p.pos == savepos, "Failed to parse character")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
         self.assertTrue(p.the_char == "-", "Incomplete parse of CharOrEsc")
         self.assertTrue(
@@ -654,7 +654,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 
     def test_is_xml_char(self):
         """XmlChar ::= [^\#x2D#x5B#x5D] """
-        p = xsd.RegularExpressionParser("ABC-ABC[ABC]ABC\\")
+        p = xsi.RegularExpressionParser("ABC-ABC[ABC]ABC\\")
         while p.the_char is not None:
             for c in "ABC":
                 self.assertTrue(p.is_xml_char(),
@@ -668,7 +668,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
 
     def test_is_xml_char_inc_dash(self):
         """XmlCharIncDash ::= [^\#x5B#x5D] """
-        p = xsd.RegularExpressionParser("ABC[ABC]ABC\\")
+        p = xsi.RegularExpressionParser("ABC[ABC]ABC\\")
         while p.the_char is not None:
             for c in "ABC":
                 self.assertTrue(
@@ -693,7 +693,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '\\p{S}': (u8(b'+<=>\xe2\x81\x84\xe2\x82\xac'), "(){}"),
             '\\P{S}': ("(){}", u8(b'+<=>\xe2\x81\x84\xe2\x82\xac'))}
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             cclass = p.require_char_class_esc()
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
@@ -725,19 +725,19 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '\\^': "^"
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             c = p.require_single_char_esc()
             self.assertTrue(p.the_char is None)
             t = tests[b]
             self.assertTrue(c == t, "%s single char found %s" %
                             (repr(t), repr(c)))
         try:
-            p = xsd.RegularExpressionParser("\\b")
+            p = xsi.RegularExpressionParser("\\b")
             c = p.require_single_char_esc()
             self.assertFalse(
                 p.the_char is None,
                 "Undetected bad single character escape: %s" % repr(c))
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
     def test_cat_esc(self):
@@ -752,7 +752,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '\\p{IsBasicLatin}': ("ABC", ul("\xc0\xdf\xa9"))
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             cclass = p.require_cat_esc()
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
@@ -773,7 +773,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             '\\P{IsBasicLatin}': (ul("\xc0\xdf\xa9"), "ABC")
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             cclass = p.require_compl_esc()
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
@@ -799,7 +799,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                 "1/5 2/5 3/5 4/5")
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             cclass = p.require_char_prop()
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
@@ -825,18 +825,18 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                  "So", "C", "Cc", "Cf", "Co", "Cn"]
         bad = ["A", "Za"]
         for s in tests:
-            p = xsd.RegularExpressionParser(s)
+            p = xsi.RegularExpressionParser(s)
             self.assertTrue(isinstance(p.require_is_category(), CharClass),
                             "Missing category: %s" % s)
             self.assertTrue(
                 p.the_char is None, "Incomplete parse of category: %s" % s)
         for s in bad:
-            p = xsd.RegularExpressionParser(s)
+            p = xsi.RegularExpressionParser(s)
             try:
                 p.require_is_category()
                 self.assertFalse(
                     p.the_char is None, "Undetected bad category: %s" % s)
-            except xsd.RegularExpressionError:
+            except xsi.RegularExpressionError:
                 pass
         tests = {
             # positive and negative tests
@@ -846,7 +846,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             'S': (u8(b'+<=>\xe2\x81\x84\xe2\x82\xac'), "(){}")
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser(b)
+            p = xsi.RegularExpressionParser(b)
             cclass = p.require_is_category()
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
@@ -869,7 +869,7 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                 "1/5 2/5 3/5 4/5")
         }
         for b in dict_keys(tests):
-            p = xsd.RegularExpressionParser("Is" + b)
+            p = xsi.RegularExpressionParser("Is" + b)
             cclass = p.require_is_block()
             self.assertTrue(p.the_char is None)
             t1, t2 = tests[b]
@@ -877,11 +877,11 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                 self.assertTrue(cclass.test(c), "%s not in %s" % (repr(c), b))
             for c in t2:
                 self.assertFalse(cclass.test(c), "%s in Is%s" % (repr(c), b))
-        p = xsd.RegularExpressionParser("IsNumberFoams")
+        p = xsi.RegularExpressionParser("IsNumberFoams")
         try:
             cclass = p.require_is_block()
             self.fail("IsNumberFoams")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
     def test_multi_char_esc(self):
@@ -897,10 +897,10 @@ class XSRegularExpressionParserTests(unittest.TestCase):
             'w': ("ABC", u8(b'!\xcd\xbe \xe2\x80\x82\x0c')),
         }
         for c in dict_keys(tests):
-            p1 = xsd.RegularExpressionParser("\\" + c)
+            p1 = xsi.RegularExpressionParser("\\" + c)
             cclass1 = p1.require_multi_char_esc()
             self.assertTrue(p1.pos == 2)
-            p2 = xsd.RegularExpressionParser("\\" + c.upper())
+            p2 = xsi.RegularExpressionParser("\\" + c.upper())
             cclass2 = p2.require_multi_char_esc()
             self.assertTrue(p2.pos == 2)
             t1, t2 = tests[c]
@@ -914,17 +914,17 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                     cclass1.test(c2), "%s in \\%s" % (repr(c2), c))
                 self.assertTrue(cclass2.test(c2), "%s in \\%s" %
                                 (repr(c2), c.upper()))
-        p = xsd.RegularExpressionParser("\\x")
+        p = xsi.RegularExpressionParser("\\x")
         try:
             p.require_multi_char_esc()
             self.fail("\\x")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
     def test_wildcard_esc(self):
         """::
         [37a] WildcardEsc ::= '.'"""
-        p = xsd.RegularExpressionParser(".*")
+        p = xsi.RegularExpressionParser(".*")
         cclass = p.require_wildcard_esc()
         self.assertTrue(p.pos == 1)
         self.assertFalse(cclass.test("\x0A"), "Line feed in .")
@@ -936,11 +936,11 @@ class XSRegularExpressionParserTests(unittest.TestCase):
                 continue
             self.assertTrue(cclass.test(character(j)),
                             "Random char not in . character(%04X)" % j)
-        p = xsd.RegularExpressionParser("x")
+        p = xsi.RegularExpressionParser("x")
         try:
             cclass = p.require_wildcard_esc()
             self.fail(".")
-        except xsd.RegularExpressionError:
+        except xsi.RegularExpressionError:
             pass
 
 

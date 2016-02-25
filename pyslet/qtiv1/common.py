@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.html40_19991224 as html
 import pyslet.imsqtiv2p1 as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
@@ -275,10 +275,10 @@ class PositionMixin:
             height	CDATA  #IMPLIED
             y0		CDATA  #IMPLIED
             x0		CDATA  #IMPLIED"""
-    XMLATTR_height = ('height', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_width = ('width', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_x0 = ('x0', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_y0 = ('y0', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_height = ('height', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_width = ('width', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_x0 = ('x0', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_y0 = ('y0', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self):
         self.x0 = None
@@ -1071,7 +1071,7 @@ class Objectives(FlowMatContainer):
                                     Candidate | InvigilatorProctor | Psychometrician | Scorer |
                                     Tutor ) 'All' >"""
     XMLNAME = 'objectives'
-    XMLATTR_view = ('view', core.View.DecodeLowerValue, core.View.EncodeValue)
+    XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1084,7 +1084,7 @@ class Objectives(FlowMatContainer):
             qtiv2.content.ItemBody).add_child(qtiv2.RubricBlock)
         rubric.set_attribute(
             'view',
-            qtiv2.core.View.EncodeValueList(
+            qtiv2.core.View.list_to_str(
                 core.MigrateV2View(
                     self.view,
                     log)))
@@ -1112,7 +1112,7 @@ class Rubric(FlowMatContainer):
                                     Candidate | InvigilatorProctor | Psychometrician | Scorer |
                                     Tutor ) 'All' >"""
     XMLNAME = 'rubric'
-    XMLATTR_view = ('view', core.View.DecodeLowerValue, core.View.EncodeValue)
+    XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1131,7 +1131,7 @@ class Rubric(FlowMatContainer):
                 qtiv2.content.ItemBody).add_child(qtiv2.RubricBlock)
             rubric.set_attribute(
                 'view',
-                qtiv2.core.View.EncodeValueList(
+                qtiv2.core.View.list_to_str(
                     core.MigrateV2View(
                         self.view,
                         log)))
@@ -1161,7 +1161,7 @@ class DecVar(core.QTIElement):
     XMLATTR_minvalue = 'minValue'
     XMLATTR_varname = 'varName'
     XMLATTR_vartype = (
-        'varType', core.VarType.DecodeTitleValue, core.VarType.EncodeValue)
+        'varType', core.VarType.from_str_title, core.VarType.to_str)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
@@ -1231,7 +1231,7 @@ class InterpretVar(core.QTIElement, ContentMixin):
                             InvigilatorProctor | Psychometrician | Scorer | Tutor )  'All'
                             varname CDATA  'SCORE' >"""
     XMLNAME = "interpretvar"
-    XMLATTR_view = ('view', core.View.DecodeLowerValue, core.View.EncodeValue)
+    XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
     XMLATTR_varname = 'varName'
     XMLCONTENT = xml.ElementContent
 
@@ -1255,11 +1255,11 @@ class InterpretVar(core.QTIElement, ContentMixin):
         if self.view != core.View.All:
             log.append(
                 'Warning: view restriction on outcome interpretation no longer supported (%s)' %
-                core.View.EncodeValue(
+                core.View.to_str(
                     self.view))
         d = v2Item.declarations.get(identifier)
         di, lang = self.ExtractText()
-        di = xsi.WhiteSpaceCollapse(di)
+        di = xsi.white_space_collapse(di)
         if d.interpretation:
             d.interpretation = d.interpretation + "; " + di
         else:
@@ -1278,7 +1278,7 @@ class SetVar(core.QTIElement):
     XMLNAME = "setvar"
     XMLATTR_varname = 'varName'
     XMLATTR_action = (
-        'action', core.Action.DecodeTitleValue, core.Action.EncodeValue)
+        'action', core.Action.from_str_title, core.Action.to_str)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
@@ -1333,8 +1333,8 @@ class DisplayFeedback(core.QTIElement):
     XMLNAME = "displayfeedback"
     XMLATTR_feedbacktype = (
         'feedbackType',
-        core.FeedbackType.DecodeTitleValue,
-        core.FeedbackType.EncodeValue)
+        core.FeedbackType.from_str_title,
+        core.FeedbackType.to_str)
     XMLATTR_linkrefid = 'linkRefID'
     XMLCONTENT = xml.XMLMixedContent
 
@@ -1418,7 +1418,7 @@ class VarThing(core.QTIElement, ExpressionMixin):
                     respident	CDATA #REQUIRED
                     index		CDATA  #IMPLIED >"""
     XMLATTR_respident = 'responseIdentifier'
-    XMLATTR_index = ('index', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_index = ('index', xsi.integer_from_str, xsi.integer_to_str)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
@@ -1672,7 +1672,7 @@ class VarInside(VarThing):
                     index CDATA  #IMPLIED >"""
     XMLNAME = "varinside"
     XMLATTR_areatype = (
-        'areaType', core.Area.DecodeTitleValue, core.Area.EncodeValue)
+        'areaType', core.Area.from_str_title, core.Area.to_str)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
@@ -1695,7 +1695,7 @@ class VarInside(VarThing):
             else:
                 raise QTIUnimplementedError(
                     "varinside(%s)" %
-                    qtiv2.variables.BaseType.EncodeValue(
+                    qtiv2.variables.BaseType.to_str(
                         d.baseType))
         else:
             raise QTIUnimplementedError(

@@ -4,7 +4,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsdatatypes
+import pyslet.xml.xsdatatypes as xsdatatypes
 import pyslet.html40_19991224 as html
 import pyslet.rfc2396 as uri
 
@@ -58,7 +58,7 @@ class RubricBlock(html.BlockMixin, content.BodyElement):
     """
     XMLNAME = (core.IMSQTI_NAMESPACE, 'rubricBlock')
     XMLATTR_view = (
-        'view', core.View.DecodeLowerValue, core.View.EncodeValue, types.DictType)
+        'view', core.View.from_str_lower, core.View.to_str, types.DictType)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -67,8 +67,8 @@ class RubricBlock(html.BlockMixin, content.BodyElement):
 
     def AddView(self, view):
         if type(view) in StringTypes:
-            view = core.View.DecodeLowerValue(view.strip())
-        viewValue = core.View.EncodeValue(view)
+            view = core.View.from_str_lower(view.strip())
+        viewValue = core.View.to_str(view)
         if viewValue:
             self.view[view] = viewValue
         else:
@@ -112,7 +112,7 @@ class QTIModalFeedback(content.FlowContainerMixin, core.QTIElement):
     XMLATTR_outcomeIdentifier = (
         'outcomeIdentifier', core.ValidateIdentifier, lambda x: x)
     XMLATTR_showHide = (
-        'showHide', core.ShowHide.DecodeLowerValue, core.ShowHide.EncodeValue)
+        'showHide', core.ShowHide.from_str_lower, core.ShowHide.to_str)
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
     XMLATTR_title = 'title'
     XMLCONTENT = xml.XMLMixedContent

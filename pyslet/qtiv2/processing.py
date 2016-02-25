@@ -2,7 +2,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.variables as variables

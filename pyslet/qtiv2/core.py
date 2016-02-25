@@ -2,7 +2,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.html40_19991224 as html
 
 import string
@@ -100,12 +100,11 @@ class Orientation(xsi.Enumeration):
 
             Orientation.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'horizontal': 1,
         'vertical': 2
     }
-xsi.MakeEnumeration(Orientation)
 
 
 class Shape(xsi.Enumeration):
@@ -131,15 +130,17 @@ class Shape(xsi.Enumeration):
 
             Shape.DEFAULT == Shape.default
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'circle': 1,
         'default': 2,
         'ellipse': 3,
         'poly': 4,
         'rect': 5
-    }
-xsi.MakeEnumeration(Shape, 'default')
+        }
+    aliases = {
+        None: 'default'
+        }
 
 
 def CalculateShapeBounds(shape, coords):
@@ -207,7 +208,7 @@ def OffsetShape(shape, coords, xOffset, yOffset):
 
 
 class ShapeElementMixin:
-    XMLATTR_shape = ('shape', Shape.DecodeLowerValue, Shape.EncodeValue)
+    XMLATTR_shape = ('shape', Shape.from_str_lower, Shape.to_str)
     XMLATTR_coords = ('coords', html.Coords, html.Coords.__unicode__)
 
     def __init__(self):
@@ -267,10 +268,12 @@ class ShowHide(xsi.Enumeration):
         'show': 1,
         'hide': 2
     }
-xsi.MakeEnumeration(ShowHide, 'show')
+    aliases = {
+        None: 'show'
+        }
 
 
-class View(xsi.Enumeration):
+class View(xsi.EnumerationNoCase):
 
     """Used to represent roles when restricting view::
 
@@ -299,7 +302,7 @@ class View(xsi.Enumeration):
             # returns...
             "scorer tutor"
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'author': 1,
         'candidate': 2,
@@ -308,8 +311,6 @@ class View(xsi.Enumeration):
         'testConstructor': 5,
         'tutor': 6
     }
-xsi.MakeEnumeration(View)
-xsi.MakeLowerAliases(View)
 
 
 class QTIElement(xmlns.XMLNSElement):

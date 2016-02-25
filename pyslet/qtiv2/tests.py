@@ -2,7 +2,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.html40_19991224 as html
 
 import pyslet.qtiv2.core as core
@@ -119,12 +119,11 @@ class NavigationMode(xsi.Enumeration):
 
             NavigationMode.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'linear': 1,
         'nonlinear': 2
     }
-xsi.MakeEnumeration(NavigationMode)
 
 
 class SubmissionMode(xsi.Enumeration):
@@ -150,12 +149,11 @@ class SubmissionMode(xsi.Enumeration):
 
             SubmissionMode.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'individual': 1,
         'simultaneous': 2
     }
-xsi.MakeEnumeration(SubmissionMode)
 
 
 class TestPart(core.QTIElement):
@@ -183,12 +181,12 @@ class TestPart(core.QTIElement):
     XMLATTR_identifier = 'identifier'
     XMLATTR_navigationMode = (
         'navigationMode',
-        NavigationMode.DecodeValue,
-        NavigationMode.EncodeValue)
+        NavigationMode.from_str,
+        NavigationMode.to_str)
     XMLATTR_submissionMode = (
         'submissionMode',
-        SubmissionMode.DecodeValue,
-        SubmissionMode.EncodeValue)
+        SubmissionMode.from_str,
+        SubmissionMode.to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -272,9 +270,9 @@ class Selection(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'selection')
-    XMLATTR_select = ('select', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_select = ('select', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_withReplacement = (
-        'withReplacement', xsi.DecodeBoolean, xsi.EncodeBoolean)
+        'withReplacement', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -300,7 +298,7 @@ class Ordering(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'ordering')
-    XMLATTR_shuffle = ('shuffle', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -328,8 +326,8 @@ class SectionPart(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLATTR_identifier = 'identifier'
-    XMLATTR_required = ('required', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLATTR_fixed = ('fixed', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_required = ('required', xsi.boolean_from_str, xsi.boolean_to_str)
+    XMLATTR_fixed = ('fixed', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
@@ -423,9 +421,9 @@ class AssessmentSection(SectionPart):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentSection')
     XMLATTR_title = 'title'
-    XMLATTR_visible = ('visible', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_visible = ('visible', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_keepTogether = (
-        'keepTogether', xsi.DecodeBoolean, xsi.EncodeBoolean)
+        'keepTogether', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):

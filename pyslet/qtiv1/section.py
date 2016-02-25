@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.imsqtiv2p1 as qtiv2
 
 import core
@@ -131,7 +131,7 @@ class SectionControl(common.QTICommentContainer):
     XMLATTR_hintswitch = ('hintSwitch', core.ParseYesNo, core.FormatYesNo)
     XMLATTR_solutionswitch = (
         'solutionSwitch', core.ParseYesNo, core.FormatYesNo)
-    XMLATTR_view = ('view', core.View.DecodeLowerValue, core.View.EncodeValue)
+    XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -165,7 +165,7 @@ class SectionFeedback(common.QTICommentContainer, common.ContentMixin):
             ident CDATA  #REQUIRED
             title CDATA  #IMPLIED >"""
     XMLNAME = 'sectionfeedback'
-    XMLATTR_view = ('view', core.View.DecodeLowerValue, core.View.EncodeValue)
+    XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
     XMLATTR_ident = 'ident'
     XMLATTR_title = 'title'
     XMLCONTENT = xml.ElementContent

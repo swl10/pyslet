@@ -54,8 +54,8 @@ The external types used are:
 
 boolean
 	Represented by python's boolean values True and False.  See
-	:py:func:`~pyslet.xsdatatypes20041028.DecodeBoolean` and
-	:py:func:`~pyslet.xsdatatypes20041028.EncodeBoolean`
+	:py:func:`~pyslet.xml.xsdatatypes.boolean_from_str` and
+	:py:func:`~pyslet.xml.xsdatatypes.boolean_to_str`
 
 coords
 	Defined as part of support for HTML.  See :py:class:`~pyslet.html40_19991224.Coords`
@@ -66,22 +66,22 @@ date
 	in the basic :py:class:`~pyslet.iso8601.Date` class.
 
 datetime:
-	See :py:func:`~pyslet.xsdatatypes20041028.DecodeDateTime` and
-	:py:func:`~pyslet.xsdatatypes20041028.EncodeDateTime`
+	See :py:func:`~pyslet.xml.xsdatatypes.DecodeDateTime` and
+	:py:func:`~pyslet.xml.xsdatatypes.EncodeDateTime`
 
 duration:
 	Earlier versions of QTI drew on the ISO8601 representation of duration but
 	QTI v2 simplifies this with a basic representation in seconds bound to XML
 	Schema's double type which we, in turn, represent with python's float.  See
-	:py:func:`~pyslet.xsdatatypes20041028.DecodeDouble` and
-	:py:func:`~pyslet.xsdatatypes20041028.EncodeDouble`
+	:py:func:`~pyslet.xml.xsdatatypes.double_from_str` and
+	:py:func:`~pyslet.xml.xsdatatypes.double_to_str`
 
 float:
 	implemented by python's float.  Note that this is defined as having
 	"machine-level double precision" and the python specification goes on to
 	warn that "You are at the mercy of the underlying machine architecture". See
-	:py:func:`~pyslet.xsdatatypes20041028.DecodeDouble` and
-	:py:func:`~pyslet.xsdatatypes20041028.EncodeDouble`
+	:py:func:`~pyslet.xml.xsdatatypes.double_from_str` and
+	:py:func:`~pyslet.xml.xsdatatypes.double_to_str`
 
 identifier:
 	represented by python's (unicode) string.  The type is effectively just the
@@ -92,8 +92,8 @@ identifier:
 
 integer:
 	XML schema's integer, implemented by python's integer.  See
-	:py:func:`~pyslet.xsdatatypes20041028.DecodeInteger` and
-	:py:func:`~pyslet.xsdatatypes20041028.EncodeInteger`
+	:py:func:`~pyslet.xml.xsdatatypes.DecodeInteger` and
+	:py:func:`~pyslet.xml.xsdatatypes.integer_to_str`
 
 language:
 	Currently implemented as a simple python string.

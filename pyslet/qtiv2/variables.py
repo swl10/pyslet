@@ -2,7 +2,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.html40_19991224 as html
 from pyslet.rfc2396 import URI, URIFactory
 import pyslet.qtiv2.core as core
@@ -34,7 +34,7 @@ class SessionActionMissing(core.QTIError):
     """Exception raised when an unrecognised action is handled by a test session."""
 
 
-class BaseType(xsi.Enumeration):
+class BaseType(xsi.EnumerationNoCase):
 
     """A base-type is simply a description of a set of atomic values (atomic to
     this specification). Note that several of the baseTypes used to define the
@@ -68,7 +68,7 @@ class BaseType(xsi.Enumeration):
 
             BaseType.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'boolean': 1,
         'directedPair': 2,
@@ -82,8 +82,6 @@ class BaseType(xsi.Enumeration):
         'string': 10,
         'uri': 11
     }
-xsi.MakeEnumeration(BaseType)
-xsi.MakeLowerAliases(BaseType)
 
 
 def CheckBaseTypes(*baseType):
@@ -98,8 +96,8 @@ def CheckBaseTypes(*baseType):
             bReturn = b
         elif b != bReturn:
             raise core.ProcessingError("Base type mismatch: %s and %s" % (
-                BaseType.EncodeValue(bReturn),
-                BaseType.EncodeValue(b)))
+                BaseType.to_str(bReturn),
+                BaseType.to_str(b)))
     return bReturn
 
 
@@ -113,7 +111,7 @@ def CheckNumericalTypes(*baseType):
             continue
         elif b not in (BaseType.float, BaseType.integer):
             raise core.ProcessingError(
-                "Numeric type required, found: %s" % BaseType.EncodeValue(b))
+                "Numeric type required, found: %s" % BaseType.to_str(b))
         elif bReturn is None:
             bReturn = b
         elif b != bReturn:
@@ -148,14 +146,13 @@ class Cardinality(xsi.Enumeration):
 
             Cardinality.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'multiple': 1,
         'ordered': 2,
         'record': 3,
         'single': 4
     }
-xsi.MakeEnumeration(Cardinality)
 
 
 def CheckCardinalities(*cardinality):
@@ -171,8 +168,8 @@ def CheckCardinalities(*cardinality):
             cReturn = c
         elif c != cReturn:
             raise core.ProcessingError("Cardinality mismatch: %s and %s" % (
-                Cardinality.EncodeValue(cReturn),
-                Cardinality.EncodeValue(c)))
+                Cardinality.to_str(cReturn),
+                Cardinality.to_str(c)))
     return cReturn
 
 
@@ -187,7 +184,7 @@ class ValueElement(core.QTIElement):
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'value')
     XMLATTR_baseType = (
-        'baseType', BaseType.DecodeLowerValue, BaseType.EncodeValue)
+        'baseType', BaseType.from_str_lower, BaseType.to_str)
     XMLATTR_fieldIdentifier = (
         'fieldIdentifier', core.ValidateIdentifier, lambda x: x)
     XMLCONTENT = xml.XMLMixedContent
@@ -316,8 +313,8 @@ class Value(object):
         """Raises a ValueError with a debug-friendly message string."""
         raise ValueError(
             "Can't set value of %s %s from %s" %
-            (Cardinality.EncodeValue(
-                self.Cardinality()), BaseType.EncodeValue(
+            (Cardinality.to_str(
+                self.Cardinality()), BaseType.to_str(
                 self.baseType), repr(value)))
 
     def Cardinality(self):
@@ -430,7 +427,7 @@ class SingleValue(Value):
             return URIValue(value)
         else:
             raise ValueError("Unknown base type: %s" %
-                             BaseType.EncodeValue(baseType))
+                             BaseType.to_str(baseType))
 
 
 class BooleanValue(SingleValue):
@@ -447,7 +444,7 @@ class BooleanValue(SingleValue):
         if self.value is None:
             return u''
         else:
-            return xsi.EncodeBoolean(self.value)
+            return xsi.boolean_to_str(self.value)
 
     def set_value(self, value):
         """If value is a string it will be decoded according to the rules for representing
@@ -465,7 +462,7 @@ class BooleanValue(SingleValue):
         elif type(value) in (IntType, LongType):
             self.value = True if value else False
         elif type(value) in StringTypes:
-            self.value = xsi.DecodeBoolean(value)
+            self.value = xsi.boolean_from_str(value)
         else:
             self.ValueError(value)
 
@@ -500,7 +497,7 @@ class DirectedPairValue(SingleValue):
             if type(value) in (ListType, TupleType):
                 if len(value) != 2:
                     raise ValueError("%s expected 2 values: %s" % (
-                        BaseType.EncodeValue(self.baseType), repr(value)))
+                        BaseType.to_str(self.baseType), repr(value)))
                 for v in value:
                     if type(v) not in StringTypes or (nameCheck and not xmlns.is_valid_ncname(v)):
                         raise ValueError("Illegal identifier %s" % repr(v))
@@ -575,7 +572,7 @@ class FloatValue(SingleValue):
         if self.value is None:
             return u''
         else:
-            return xsi.EncodeDouble(self.value)
+            return xsi.double_to_str(self.value)
 
     def set_value(self, value):
         """This method will *not* convert integers to float values, you must do
@@ -590,7 +587,7 @@ class FloatValue(SingleValue):
         elif isinstance(value, FloatType):
             self.value = value
         elif type(value) in StringTypes:
-            self.value = xsi.DecodeDouble(value)
+            self.value = xsi.double_from_str(value)
         else:
             self.ValueError(value)
 
@@ -657,7 +654,7 @@ class IntegerValue(SingleValue):
         if self.value is None:
             return u''
         else:
-            return xsi.EncodeInteger(self.value)
+            return xsi.integer_to_str(self.value)
 
     def set_value(self, value):
         """Note that integers and floats are distinct types in QTI: we do not
@@ -674,7 +671,7 @@ class IntegerValue(SingleValue):
             else:
                 self.value = int(value)
         elif type(value) in StringTypes:
-            self.value = xsi.DecodeInteger(value)
+            self.value = xsi.integer_from_str(value)
         else:
             self.ValueError(value)
 
@@ -710,18 +707,18 @@ class PointValue(SingleValue):
         if self.value is None:
             return u''
         else:
-            return string.join(map(xsi.EncodeInteger, self.value), ' ')
+            return string.join(map(xsi.integer_to_str, self.value), ' ')
 
     def set_value(self, value):
         if value is None:
             self.value = None
         else:
             if type(value) in StringTypes:
-                value = map(xsi.DecodeInteger, string.split(value))
+                value = map(xsi.integer_from_str, string.split(value))
             if type(value) in (ListType, TupleType):
                 if len(value) != 2:
                     raise ValueError("%s expected 2 values: %s" % (
-                        BaseType.EncodeValue(self.baseType), repr(value)))
+                        BaseType.to_str(self.baseType), repr(value)))
                 for v in value:
                     if type(v) not in (IntType, LongType):
                         raise ValueError(
@@ -815,12 +812,12 @@ class Container(Value):
 
         We therefore opt for a minimal representation."""
         if self.baseType is None:
-            return u"%s container of unknown base type" % Cardinality.EncodeValue(
+            return u"%s container of unknown base type" % Cardinality.to_str(
                 self.Cardinality)
         else:
-            return u"%s container of base type %s" % (Cardinality.EncodeValue(
+            return u"%s container of base type %s" % (Cardinality.to_str(
                 self.Cardinality),
-                BaseType.EncodeValue(
+                BaseType.to_str(
                 self.baseType))
 
     @classmethod
@@ -1054,9 +1051,9 @@ class VariableDeclaration(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLATTR_baseType = (
-        'baseType', BaseType.DecodeLowerValue, BaseType.EncodeValue)
+        'baseType', BaseType.from_str_lower, BaseType.to_str)
     XMLATTR_cardinality = (
-        'cardinality', Cardinality.DecodeLowerValue, Cardinality.EncodeValue)
+        'cardinality', Cardinality.from_str_lower, Cardinality.to_str)
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
 
     def __init__(self, parent):
@@ -1167,9 +1164,9 @@ class Mapping(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapping')
-    XMLATTR_lowerBound = ('lowerBound', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_upperBound = ('upperBound', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_defaultValue = ('defaultValue', xsi.DecodeFloat, xsi.EncodeFloat)
+    XMLATTR_lowerBound = ('lowerBound', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_upperBound = ('upperBound', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_defaultValue = ('defaultValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1256,7 +1253,7 @@ class MapEntry(core.QTIElement):
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapEntry')
     XMLATTR_mapKey = 'mapKey'
-    XMLATTR_mappedValue = ('mappedValue', xsi.DecodeFloat, xsi.EncodeFloat)
+    XMLATTR_mappedValue = ('mappedValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementType.Empty
 
     def __init__(self, parent):
@@ -1345,9 +1342,9 @@ class AreaMapping(core.QTIElement):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'areaMapping')
-    XMLATTR_lowerBound = ('lowerBound', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_upperBound = ('upperBound', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_defaultValue = ('defaultValue', xsi.DecodeFloat, xsi.EncodeFloat)
+    XMLATTR_lowerBound = ('lowerBound', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_upperBound = ('upperBound', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_defaultValue = ('defaultValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1431,7 +1428,7 @@ class AreaMapEntry(core.QTIElement, core.ShapeElementMixin):
                     <xsd:attribute name="mappedValue" type="float.Type" use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'areaMapEntry')
-    XMLATTR_mappedValue = ('mappedValue', xsi.DecodeFloat, xsi.EncodeFloat)
+    XMLATTR_mappedValue = ('mappedValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementType.Empty
 
     def __init__(self, parent):
@@ -1468,15 +1465,15 @@ class OutcomeDeclaration(VariableDeclaration):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'outcomeDeclaration')
     XMLATTR_view = (
         'view',
-        core.View.DecodeLowerValue,
-        core.View.EncodeValue,
+        core.View.from_str_lower,
+        core.View.to_str,
         types.DictType)
     XMLATTR_interpretation = 'interpretation'
     XMLATTR_longInterpretation = (
         'longInterpretation', html.DecodeURI, html.EncodeURI)
-    XMLATTR_normalMaximum = ('normalMaximum', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_normalMinimum = ('normalMinimum', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_masteryValue = ('masteryValue', xsi.DecodeFloat, xsi.EncodeFloat)
+    XMLATTR_normalMaximum = ('normalMaximum', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_normalMinimum = ('normalMinimum', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_masteryValue = ('masteryValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1509,9 +1506,9 @@ class LookupTable(core.QTIElement):
     XMLATTR_interpretation = 'interpretation'
     XMLATTR_longInterpretation = (
         'longInterpretation', html.DecodeURI, html.EncodeURI)
-    XMLATTR_normalMaximum = ('normalMaximum', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_normalMinimum = ('normalMinimum', xsi.DecodeFloat, xsi.EncodeFloat)
-    XMLATTR_masteryValue = ('masteryValue', xsi.DecodeFloat, xsi.EncodeFloat)
+    XMLATTR_normalMaximum = ('normalMaximum', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_normalMinimum = ('normalMinimum', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_masteryValue = ('masteryValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1570,7 +1567,7 @@ class MatchTable(LookupTable):
         elif value.baseType != BaseType.integer:
             raise ValueError(
                 "MatchTable requires integer, found %s" %
-                BaseType.EncodeValue(
+                BaseType.to_str(
                     value.baseType))
         else:
             srcValue = value.value
@@ -1595,7 +1592,7 @@ class MatchTableEntry(core.QTIElement):
                     <xsd:attribute name="targetValue" type="valueType.Type" use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'matchTableEntry')
-    XMLATTR_sourceValue = ('sourceValue', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_sourceValue = ('sourceValue', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_targetValue = 'targetValue'
     XMLCONTENT = xml.ElementContent
 
@@ -1651,7 +1648,7 @@ class InterpolationTable(LookupTable):
         else:
             raise ValueError(
                 "Interpolation table requires integer or float, found %s" %
-                BaseType.EncodeValue(
+                BaseType.to_str(
                     value.baseType))
         dstValue = SingleValue.NewValue(self.baseType)
         if not nullFlag:
@@ -1684,9 +1681,9 @@ class InterpolationTableEntry(core.QTIElement):
                     <xsd:attribute name="targetValue" type="valueType.Type" use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'interpolationTableEntry')
-    XMLATTR_sourceValue = ('sourceValue', xsi.DecodeFloat, xsi.EncodeFloat)
+    XMLATTR_sourceValue = ('sourceValue', xsi.float_from_str, xsi.float_to_str)
     XMLATTR_includeBoundary = (
-        'includeBoundary', xsi.DecodeBoolean, xsi.EncodeBoolean)
+        'includeBoundary', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_targetValue = 'targetValue'
     XMLCONTENT = xml.ElementContent
 
@@ -1710,9 +1707,9 @@ class TemplateDeclaration(VariableDeclaration):
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateDeclaration')
     XMLATTR_paramVariable = (
-        'paramVariable', xsi.DecodeBoolean, xsi.EncodeBoolean)
+        'paramVariable', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_mathVariable = (
-        'mathVariable', xsi.DecodeBoolean, xsi.EncodeBoolean)
+        'mathVariable', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1788,14 +1785,14 @@ class SessionState(object):
         if value.Cardinality() is not None and value.Cardinality() != v.Cardinality():
             raise ValueError(
                 "Expected %s value, found %s" %
-                (Cardinality.EncodeValue(
-                    v.Cardinality()), Cardinality.EncodeValue(
+                (Cardinality.to_str(
+                    v.Cardinality()), Cardinality.to_str(
                     value.Cardinality())))
         if value.baseType is not None and value.baseType != v.baseType:
             raise ValueError(
                 "Expected %s value, found %s" %
-                (BaseType.EncodeValue(
-                    v.baseType), BaseType.EncodeValue(
+                (BaseType.to_str(
+                    v.baseType), BaseType.to_str(
                     value.baseType)))
         v.set_value(value.value)
 
@@ -1968,10 +1965,10 @@ class ItemSessionState(SessionState):
                             v.set_value(sValue)
                         else:
                             raise ValueError
-                        rank = xsi.DecodeInteger(sValue)
+                        rank = xsi.integer_from_str(sValue)
                         sValue = rName[1]
                     else:
-                        rank = xsi.DecodeInteger(rName[1])
+                        rank = xsi.integer_from_str(rName[1])
                     if saveName in orderedParams:
                         if rank in orderedParams[saveName]:
                             # duplicate entries, we don't allow these

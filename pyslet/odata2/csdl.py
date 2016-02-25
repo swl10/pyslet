@@ -25,7 +25,7 @@ from pyslet.pep8 import PEP8Compatibility, old_method
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
 import pyslet.rfc2396 as uri
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 from pyslet.vfs import OSFilePath
 import pyslet.iso8601 as iso8601
 
@@ -501,7 +501,7 @@ class NameTableMixin(DictionaryLike):
                            (value.name, self.name))
 
 
-class SimpleType(xsi.Enumeration):
+class SimpleType(xsi.EnumerationNoCase):
 
     """SimpleType defines constants for the core data types defined by CSDL
     ::
@@ -509,7 +509,7 @@ class SimpleType(xsi.Enumeration):
             SimpleType.Boolean
             SimpleType.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`
 
     The canonical names for these constants uses the Edm prefix, for
     example, "Edm.String".  As a result, the class has attributes of the form
@@ -519,9 +519,9 @@ class SimpleType(xsi.Enumeration):
     prefix. As a result you can use, e.g., SimpleType.Int32 as the symbolic
     representation in code but the following are all True::
 
-            SimpleType.DecodeValue(u"Edm.Int32")==SimpleType.Int32
-            SimpleType.DecodeValue(u"Int32")==SimpleType.Int32
-            SimpleType.EncodeValue(SimpleType.Int32)==u"Edm.Int32"  """
+            SimpleType.from_str(u"Edm.Int32")==SimpleType.Int32
+            SimpleType.from_str(u"Int32")==SimpleType.Int32
+            SimpleType.to_str(SimpleType.Int32)==u"Edm.Int32"  """
     decode = {
         'Edm.Binary': 1,
         'Edm.Boolean': 2,
@@ -538,7 +538,39 @@ class SimpleType(xsi.Enumeration):
         'Edm.Int64': 13,
         'Edm.String': 14,
         'Edm.SByte': 15
-    }
+        }
+    
+    aliases = {
+        'binary': 'Edm.Binary',
+        'Binary': 'Edm.Binary',
+        'boolean': 'Edm.Boolean',
+        'Boolean': 'Edm.Boolean',
+        'byte': 'Edm.Byte',
+        'Byte': 'Edm.Byte',
+        'datetime': 'Edm.DateTime',
+        'DateTime': 'Edm.DateTime',
+        'decimal': 'Edm.Decimal',
+        'Decimal': 'Edm.Decimal',
+        'double': 'Edm.Double',
+        'Double': 'Edm.Double',
+        'single': 'Edm.Single',
+        'Single': 'Edm.Single',
+        'guid': 'Edm.Guid',
+        'Guid': 'Edm.Guid',
+        'int16': 'Edm.Int16',
+        'Int16': 'Edm.Int16',
+        'int32': 'Edm.Int32',
+        'Int32': 'Edm.Int32',
+        'int64': 'Edm.Int64',
+        'Int64': 'Edm.Int64',
+        'sbyte': 'Edm.SByte',
+        'SByte': 'Edm.SByte',
+        'string': 'Edm.String',
+        'String': 'Edm.String',
+        'time': 'Edm.Time',
+        'Time': 'Edm.Time',
+        'datetimeoffset': 'Edm.DateTimeOffset',
+        'DateTimeOffset': 'Edm.DateTimeOffset'}
 
     PythonType = {}
     """A python dictionary that maps a type code (defined by the types
@@ -579,25 +611,6 @@ class SimpleType(xsi.Enumeration):
 #           raise "TODO"
 #       else:
 #           raise ValueError(typeCode)
-
-xsi.MakeEnumeration(SimpleType)
-xsi.MakeEnumerationAliases(SimpleType, {
-    'Binary': 'Edm.Binary',
-    'Boolean': 'Edm.Boolean',
-    'Byte': 'Edm.Byte',
-    'DateTime': 'Edm.DateTime',
-    'Decimal': 'Edm.Decimal',
-    'Double': 'Edm.Double',
-    'Single': 'Edm.Single',
-    'Guid': 'Edm.Guid',
-    'Int16': 'Edm.Int16',
-    'Int32': 'Edm.Int32',
-    'Int64': 'Edm.Int64',
-    'SByte': 'Edm.SByte',
-    'String': 'Edm.String',
-    'Time': 'Edm.Time',
-    'DateTimeOffset': 'Edm.DateTimeOffset'})
-xsi.MakeLowerAliases(SimpleType)
 
 SimpleType.PythonType = {
     BooleanType: SimpleType.Boolean,
@@ -1190,7 +1203,7 @@ class ByteValue(NumericValue):
     def __unicode__(self):
         if self.value is None:
             raise ValueError("%s is Null" % self.name)
-        return xsi.EncodeInteger(self.value)
+        return xsi.integer_to_str(self.value)
 
     def SetFromNumericLiteral(self, numericValue):
         if (numericValue.sign or                    # no sign allowed at all
@@ -3538,7 +3551,7 @@ class TypeRef(object):
         else:
             typeName = type_def
         try:
-            self.simpleTypeCode = SimpleType.DecodeLowerValue(typeName)
+            self.simpleTypeCode = SimpleType.from_str_lower(typeName)
         except ValueError:
             # must be a complex or entity type defined in scope
             self.simpleTypeCode = None
@@ -3554,7 +3567,7 @@ class TypeRef(object):
             elif value is not None:
                 raise ValueError(
                     "Can't set %s from %s" %
-                    (SimpleType.EncodeValue(self.simpleTypeCode),
+                    (SimpleType.to_str(self.simpleTypeCode),
                      repr(value)))
         else:
             raise NotImplementedError("Parameter value of non-primitive type")
@@ -3579,7 +3592,7 @@ def DecodeMaxLength(value):
     if value.lower() == "max":
         return MAX
     else:
-        result = xsi.DecodeInteger(value)
+        result = xsi.integer_from_str(value)
         if result < 1:
             raise ValueError("Can't read maxLength from %s" % repr(value))
         return result
@@ -3590,10 +3603,10 @@ def EncodeMaxLength(value):
     if value == MAX:
         return "max"
     else:
-        return xsi.EncodeInteger(value)
+        return xsi.integer_to_str(value)
 
 
-class ConcurrencyMode(xsi.Enumeration):
+class ConcurrencyMode(xsi.EnumerationNoCase):
 
     """ConcurrencyMode defines constants for the concurrency modes defined by CSDL
     ::
@@ -3609,13 +3622,11 @@ class ConcurrencyMode(xsi.Enumeration):
             if property.concurrencyMode==ConcurrencyMode.Fixed:
                     # do something with concurrency tokens
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'None': 1,
         'Fixed': 2
     }
-xsi.MakeEnumeration(ConcurrencyMode)
-xsi.MakeLowerAliases(ConcurrencyMode)
 
 
 class Property(CSDLElement):
@@ -3633,20 +3644,20 @@ class Property(CSDLElement):
 
     XMLATTR_Name = 'name'
     XMLATTR_Type = 'type'
-    XMLATTR_Nullable = ('nullable', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_DefaultValue = 'defaultValue'
     XMLATTR_MaxLength = ('maxLength', DecodeMaxLength, EncodeMaxLength)
-    XMLATTR_FixedLength = ('fixedLength', xsi.DecodeBoolean, xsi.EncodeBoolean)
-    XMLATTR_Precision = ('precision', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_Scale = ('scale', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_Unicode = ('unicode', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_FixedLength = ('fixedLength', xsi.boolean_from_str, xsi.boolean_to_str)
+    XMLATTR_Precision = ('precision', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_Scale = ('scale', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_Unicode = ('unicode', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_Collation = 'collation'
     XMLATTR_SRID = 'SRID'
     XMLATTR_CollectionKind = 'collectionKind'
     XMLATTR_ConcurrencyMode = (
         'concurrencyMode',
-        ConcurrencyMode.DecodeLowerValue,
-        ConcurrencyMode.EncodeValue)
+        ConcurrencyMode.from_str_lower,
+        ConcurrencyMode.to_str)
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -3700,7 +3711,7 @@ class Property(CSDLElement):
 
     def UpdateTypeRefs(self, scope, stopOnErrors=False):
         try:
-            self.simpleTypeCode = SimpleType.DecodeLowerValue(self.type)
+            self.simpleTypeCode = SimpleType.from_str_lower(self.type)
             self.complexType = None
         except ValueError:
             # must be a complex type defined elsewhere
@@ -3863,7 +3874,7 @@ class Type(NameTableMixin, CSDLElement):
             Person['Address']['City'] is Person['Address.City']"""
     XMLATTR_Name = ('name', ValidateSimpleIdentifier, None)
     XMLATTR_BaseType = 'baseType'
-    XMLATTR_Abstract = ('abstract', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_Abstract = ('abstract', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -5096,7 +5107,7 @@ class FunctionImport(NameTableMixin, CSDLElement):
             raise NotImplementedError("Unbound FunctionImport: %s" % self.name)
 
 
-class ParameterMode(xsi.Enumeration):
+class ParameterMode(xsi.EnumerationNoCase):
 
     """ParameterMode defines constants for the parameter modes defined by CSDL
     ::
@@ -5104,14 +5115,12 @@ class ParameterMode(xsi.Enumeration):
             ParameterMode.In
             ParameterMode.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'In': 1,
         'Out': 2,
         'InOut': 3
     }
-xsi.MakeEnumeration(ParameterMode)
-xsi.MakeLowerAliases(SimpleType)
 
 
 class Parameter(CSDLElement):
@@ -5122,7 +5131,7 @@ class Parameter(CSDLElement):
     XMLATTR_Name = ('name', ValidateSimpleIdentifier, None)
     XMLATTR_Type = 'type'
     XMLATTR_Mode = (
-        'mode', ParameterMode.DecodeValue, ParameterMode.EncodeValue)
+        'mode', ParameterMode.from_str, ParameterMode.to_str)
     XMLATTR_MaxLength = ('maxLength', DecodeMaxLength, EncodeMaxLength)
     XMLATTR_Precision = 'precision'
     XMLATTR_Scale = 'scale'

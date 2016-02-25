@@ -1,7 +1,7 @@
 XML Schema Datatypes
 ====================
 
-.. py:module:: pyslet.xsdatatypes20041028
+.. py:module:: pyslet.xml.xsdatatypes
 
 This module implements some useful concepts drawn from
 http://www.w3.org/TR/xmlschema-2/
@@ -15,7 +15,7 @@ The result is typically a pair of x_from_str/x_to_str functions that are
 used to define custom attribute handling in classes that are derived from
 :py:class:`~pyslet.xml.structures.Element`.  For example::
 
-	import xsdatatypes20041028 as xsi
+	import xml.xsdatatypes as xsi
 	
 	class MyElement(XMLElement):
 	    XMLNAME = "MyElement"
@@ -29,11 +29,16 @@ Would cause the instance of MyElement representing this element to have
 it's flag attribute set to the Python constant True instead of a string
 value.  Also, when serializing the element instance the flag attribute's
 value would be converted to the canonical representation, which in this
-case would be the string "true". 
+case would be the string "true".  Finally, these functions raise
+ValueError when conversion fails, an error which the XML parser will
+escalate to an XML validation error (allowing the document to be
+rejected in strict parsing modes).
 
     
 Namespace
 ---------
+
+The XML schema namespace is typically used with the prefix xsi.
 
 ..  autodata:: XMLSCHEMA_NAMESPACE
 

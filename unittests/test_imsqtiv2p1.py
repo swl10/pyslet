@@ -1360,7 +1360,7 @@ class ExpressionTests(unittest.TestCase):
         value = e.Evaluate(self.sessionState)
         self.assertTrue(isinstance(value, variables.Value), "Null type")
         self.assertTrue(value.baseType is None, "Null base type: %s" %
-                        variables.BaseType.EncodeValue(value.baseType))
+                        variables.BaseType.to_str(value.baseType))
         self.assertTrue(value.value is None, "Null value: %s" %
                         repr(value.value))
         self.assertFalse(value, "Null is null")
@@ -1650,7 +1650,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertFalse(value, "Random(empty multiple container) is NULL")
         self.assertTrue(value.baseType is None, "Random(NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Random(NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         for i in (2, 5, 8, 11, 8):
             v = em.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.integer
@@ -1680,7 +1680,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertFalse(value, "Random(empty ordered container) is NULL")
         self.assertTrue(value.baseType is None, "Random(NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Random(NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         for i in ("A", "B", "C", "D", "B"):
             v = eo.add_child(expressions.BaseValue)
             v.baseType = variables.BaseType.identifier
@@ -1727,7 +1727,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "Member(Null,RESPONSE3) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Member(NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Member(None)
         v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
@@ -1738,7 +1738,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "Member('B',NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Member('B',NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Member(None)
         v1 = e.add_child(expressions.Null)
         v2 = e.add_child(expressions.Null)
@@ -1747,7 +1747,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "Member(NULL,NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Member(NULL,NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         try:
             e = expressions.Member(None)
             v1 = e.add_child(expressions.Variable)
@@ -1805,7 +1805,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.identifier, "Delete(Null,RESPONSE3) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.ordered,
-                        "Delete(NULL,RESPONSE3) cardinality, found %s" % variables.Cardinality.EncodeValue(value.Cardinality()))
+                        "Delete(NULL,RESPONSE3) cardinality, found %s" % variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Delete(None)
         v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
@@ -1818,7 +1818,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.identifier, "Delete('B',NULL) base type")
         self.assertTrue(value.Cardinality() == None, "Delete('B',NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Delete(None)
         v1 = e.add_child(expressions.Null)
         v2 = e.add_child(expressions.Null)
@@ -1828,7 +1828,7 @@ class ExpressionTests(unittest.TestCase):
             isinstance(value, variables.Container), "Delete(NULL,NULL) class")
         self.assertTrue(value.baseType is None, "Delete(NULL,NULL) base type")
         self.assertTrue(value.Cardinality() == None, "Delete(NULL,NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         try:
             e = expressions.Delete(None)
             v1 = e.add_child(expressions.Variable)
@@ -1874,7 +1874,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.identifier, "Delete('B',RESPONSE3) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.ordered,
-                        "Delete('B',RESPONSE3) cardinality, found %s" % variables.Cardinality.EncodeValue(value.Cardinality()))
+                        "Delete('B',RESPONSE3) cardinality, found %s" % variables.Cardinality.to_str(value.Cardinality()))
         self.assertTrue(value.value == ["A", "C"], "Delete('B',RESPONSE3)")
         v1.set_value("D")
         value = e.Evaluate(self.sessionState)
@@ -1891,7 +1891,7 @@ class ExpressionTests(unittest.TestCase):
             v21.add_data(i)
         value = e.Evaluate(self.sessionState)
         self.assertTrue(value.Cardinality() == variables.Cardinality.multiple,
-                        "Delete('B',{'A','B','C','D'}) cardinality, found %s" % variables.Cardinality.EncodeValue(value.Cardinality()))
+                        "Delete('B',{'A','B','C','D'}) cardinality, found %s" % variables.Cardinality.to_str(value.Cardinality()))
         self.assertTrue(
             value.value == {"A": 2, "C": 1}, "Delete('B',{'A','B','C','D'})")
 
@@ -1905,7 +1905,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "Contains(Null,RESPONSE3) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Contains(NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Contains(None)
         v1 = e.add_child(expressions.Variable)
         v1.identifier = 'RESPONSE3'
@@ -1915,7 +1915,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "Contains(RESPONSE3,NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Contains(RESPONSE3,NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Contains(None)
         v1 = e.add_child(expressions.Null)
         v2 = e.add_child(expressions.Null)
@@ -1924,7 +1924,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "Contains(NULL,NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "Contains(NULL,NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Contains(None)
         v1 = e.add_child(expressions.Variable)
         v1.identifier = 'RESPONSE3'
@@ -2009,7 +2009,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "substring(Null,'Shell') base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "substring(Null,'Shell') cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.SubString(None)
         v2 = e.add_child(expressions.BaseValue)
         v2.baseType = variables.BaseType.string
@@ -2025,7 +2025,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "substring(NULL,NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "substring(NULL,NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.SubString(None)
         v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.string
@@ -2059,7 +2059,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "not(Null) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "not(Null) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Not(None)
         v = e.add_child(expressions.BaseValue)
         v.baseType = variables.BaseType.boolean
@@ -2090,7 +2090,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "and(Null) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "and(Null) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.And(None)
         v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.boolean
@@ -2138,7 +2138,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "or(Null) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "or(Null) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Or(None)
         v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.boolean
@@ -2191,7 +2191,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "anyN(Null) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "anyN(Null) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.AnyN(None)
         e.min = "1"
         e.max = "2"
@@ -2253,7 +2253,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "match(Null) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "match(Null) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Match(None)
         v1 = e.add_child(expressions.BaseValue)
         v1.baseType = variables.BaseType.identifier
@@ -2357,7 +2357,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "stringMatch(Null,'Shell') base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "stringMatch(Null,'Shell') cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.StringMatch(None)
         e.caseSensitive = True
         v2 = e.add_child(expressions.BaseValue)
@@ -2375,7 +2375,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "stringMatch(NULL,NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "stringMatch(NULL,NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.StringMatch(None)
         e.caseSensitive = True
         v1 = e.add_child(expressions.BaseValue)
@@ -2424,7 +2424,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "patternMatch(Null) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "patternMatch(Null) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.PatternMatch(None)
         e.pattern = "\\s*[\\p{Lu}-[DEG]]+\\s*"
         v = e.add_child(expressions.BaseValue)
@@ -2468,7 +2468,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "equal(Null,3.14) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "equal(Null,3.14) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         # --
         e = expressions.Equal(None)
         e.toleranceMode = expressions.ToleranceMode.exact
@@ -2488,7 +2488,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "equal(NULL,NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "equal(NULL,NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         # --
         e = expressions.Equal(None)
         e.toleranceMode = expressions.ToleranceMode.exact
@@ -2554,7 +2554,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "equalRounded(Null,3.14) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "equalRounded(Null,3.14) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         # --
         e = expressions.EqualRounded(None)
         e.roundingMode = expressions.RoundingMode.significantFigures
@@ -2576,7 +2576,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "equalRounded(NULL,NULL) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "equalRounded(NULL,NULL) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         # --
         e = expressions.EqualRounded(None)
         e.roundingMode = expressions.RoundingMode.significantFigures
@@ -2653,7 +2653,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.boolean, "inside(Null) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "inside(Null) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         e = expressions.Inside(None)
         e.shape = core.Shape.default
         v = e.add_child(expressions.BaseValue)
@@ -2771,7 +2771,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.boolean, "<inequality>(Null,3.14) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<inequality>(Null,3.14) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v2 = e.add_child(expressions.BaseValue)
@@ -2789,7 +2789,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.boolean, "<inequality>(NULL,NULL) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<inequality>(NULL,NULL) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v1 = e.add_child(expressions.BaseValue)
@@ -2837,7 +2837,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.boolean, "<durInequality>(Null,3.14) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<durInequality>(Null,3.14) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v2 = e.add_child(expressions.BaseValue)
@@ -2855,7 +2855,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.boolean, "<durInequality>(NULL,NULL) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<durInequality>(NULL,NULL) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v1 = e.add_child(expressions.BaseValue)
@@ -2906,7 +2906,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.float, "<mathMulti>(Null,3.14) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathMulti>(Null,3.14) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v2 = e.add_child(expressions.BaseValue)
@@ -2924,7 +2924,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is None, "<mathMulti>(NULL,NULL) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathMulti>(NULL,NULL) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v1 = e.add_child(expressions.BaseValue)
@@ -2988,7 +2988,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.float, "<mathBinary>(Null,3.14) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathBinary>(Null,3.14) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v2 = e.add_child(expressions.BaseValue)
@@ -3004,7 +3004,7 @@ class ExpressionTests(unittest.TestCase):
             value = e.Evaluate(self.sessionState)
             self.assertFalse(value, "<mathBinary>(NULL,NULL) is NULL")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<mathBinary>(NULL,NULL) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v1 = e.add_child(expressions.BaseValue)
@@ -3073,7 +3073,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.integer, "<integerBinary>(Null,3) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<integerBinary>(Null,3) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v2 = e.add_child(expressions.BaseValue)
@@ -3093,7 +3093,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.integer, "<integerBinary>(Null,Null) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<integerBinary>(NULL,NULL) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v1 = e.add_child(expressions.BaseValue)
@@ -3147,7 +3147,7 @@ class ExpressionTests(unittest.TestCase):
             self.assertTrue(
                 value.baseType is variables.BaseType.integer, "<floatToInteger>(Null) base type")
             self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<floatToInteger>(Null) cardinality, found %s" %
-                            variables.Cardinality.EncodeValue(value.Cardinality()))
+                            variables.Cardinality.to_str(value.Cardinality()))
             # --
             e = etype(None)
             v = e.add_child(expressions.BaseValue)
@@ -3198,7 +3198,7 @@ class ExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.baseType is variables.BaseType.float, "<integerToFloat>(Null) base type")
         self.assertTrue(value.Cardinality() == variables.Cardinality.single, "<integerToFloat>(Null) cardinality, found %s" %
-                        variables.Cardinality.EncodeValue(value.Cardinality()))
+                        variables.Cardinality.to_str(value.Cardinality()))
         # --
         e = expressions.IntegerToFloat(None)
         v = e.add_child(expressions.BaseValue)

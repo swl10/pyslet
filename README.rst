@@ -82,12 +82,12 @@ OData service which can be found at http://odata.pyslet.org/weather
 
 What's next?
 
+*   Python 3 support (40% complete)
+
 *   MySQL shim for the OData SQL storage model (90% complete and
     functional)
 
 *   Improved support for LTI to take it beyond 'basic' (60% complete)
-
-*   Python 3 support (10% complete)
 
 I'm also slowly transforming the code for better PEP-8 compliance as
 reported by the fantastic flake8_.  For important information about how
@@ -95,6 +95,9 @@ this affects existing Pyslet users see the What's New? section of the
 documentation or the CHANGES.rst file in the distribution package. 
 
 ..  _flake8: https://pypi.python.org/pypi/flake8
+
+Once Pyslet works under Python 3 I will start work on updating the
+existing OData package to support OData versions 3 and 4.
 
 I also write about Pyslet on my blog:
 http://swl10.blogspot.co.uk/search/label/Pyslet

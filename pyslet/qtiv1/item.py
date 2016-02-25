@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.html40_19991224 as html
 import pyslet.imsqtiv2p1 as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
@@ -968,8 +968,8 @@ class ResponseThing(Response):
     XMLATTR_ident = 'ident'
     XMLATTR_rcardinality = (
         'rCardinality',
-        core.RCardinality.DecodeTitleValue,
-        core.RCardinality.EncodeValue)
+        core.RCardinality.from_str_title,
+        core.RCardinality.to_str)
     XMLATTR_rtiming = ('rTiming', core.ParseYesNo, core.FormatYesNo)
     XMLATTR_ident = 'ident'
     XMLCONTENT = xml.ElementContent
@@ -1218,7 +1218,7 @@ class ResponseNum(ResponseThing):
     """
     XMLNAME = 'response_num'
     XMLATTR_numtype = (
-        'numType', core.NumType.DecodeTitleValue, core.NumType.EncodeValue)
+        'numType', core.NumType.from_str_title, core.NumType.to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1323,8 +1323,8 @@ class RenderChoice(RenderThing):
             maxnumber	CDATA  #IMPLIED >"""
     XMLNAME = 'render_choice'
     XMLATTR_shuffle = ('shuffle', core.ParseYesNo, core.FormatYesNo)
-    XMLATTR_minnumber = ('minNumber', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_maxnumber = ('maxNumber', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_minnumber = ('minNumber', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_maxnumber = ('maxNumber', xsi.integer_from_str, xsi.integer_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1382,8 +1382,8 @@ class RenderHotspot(RenderThing):
             minnumber	CDATA  #IMPLIED
             showdraw    (Yes | No )  'No' >"""
     XMLNAME = 'render_hotspot'
-    XMLATTR_maxnumber = ('maxNumber', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minnumber = ('minNumber', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_maxnumber = ('maxNumber', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minnumber = ('minNumber', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_showdraw = ('showDraw', core.ParseYesNo, core.FormatYesNo)
     XMLCONTENT = xml.ElementContent
 
@@ -1559,17 +1559,17 @@ class RenderFIB(RenderThing):
     XMLNAME = 'render_fib'
     XMLATTR_encoding = 'encoding'
     XMLATTR_fibtype = (
-        'fibType', core.FIBType.DecodeTitleValue, core.FIBType.EncodeValue)
-    XMLATTR_rows = ('rows', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_maxchars = ('maxChars', xsi.DecodeInteger, xsi.EncodeInteger)
+        'fibType', core.FIBType.from_str_title, core.FIBType.to_str)
+    XMLATTR_rows = ('rows', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_maxchars = ('maxChars', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_prompt = (
         'prompt',
-        core.PromptType.DecodeTitleValue,
-        core.PromptType.EncodeValue)
-    XMLATTR_columns = ('columns', xsi.DecodeInteger, xsi.EncodeInteger)
+        core.PromptType.from_str_title,
+        core.PromptType.to_str)
+    XMLATTR_columns = ('columns', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_charset = 'charset'
-    XMLATTR_maxnumber = ('maxNumber', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minnumber = ('minNumber', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_maxnumber = ('maxNumber', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minnumber = ('minNumber', xsi.integer_from_str, xsi.integer_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1691,15 +1691,15 @@ class RenderSlider(RenderThing):
     XMLNAME = 'render_slider'
     XMLATTR_orientation = (
         'orientation',
-        core.Orientation.DecodeTitleValue,
-        core.Orientation.EncodeValue)
-    XMLATTR_lowerbound = ('lowerBound', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_upperbound = ('upperBound', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_step = ('step', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_startval = ('startVal', xsi.DecodeInteger, xsi.EncodeInteger)
+        core.Orientation.from_str_title,
+        core.Orientation.to_str)
+    XMLATTR_lowerbound = ('lowerBound', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_upperbound = ('upperBound', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_step = ('step', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_startval = ('startVal', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_steplabel = ('stepLabel', core.ParseYesNo, core.FormatYesNo)
-    XMLATTR_maxnumber = ('maxNumber', xsi.DecodeInteger, xsi.EncodeInteger)
-    XMLATTR_minnumber = ('minNumber', xsi.DecodeInteger, xsi.EncodeInteger)
+    XMLATTR_maxnumber = ('maxNumber', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minnumber = ('minNumber', xsi.integer_from_str, xsi.integer_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1785,14 +1785,14 @@ class RenderSlider(RenderThing):
                 qtiv2.variables.DefaultValue).add_child(
                 qtiv2.variables.ValueElement)
             if declaration.baseType == qtiv2.variables.BaseType.integer:
-                value.set_value(xsi.EncodeInteger(self.startVal))
+                value.set_value(xsi.integer_to_str(self.startVal))
             elif declaration.baseType == qtiv2.variables.BaseType.float:
-                value.set_value(xsi.EncodeFloat(self.startVal))
+                value.set_value(xsi.float_to_str(self.startVal))
             else:
                 # slider bound to something else?
                 raise QTIError(
                     "Unexpected slider type for default: %s" %
-                    qtiv2.variables.BaseType.EncodeValue(
+                    qtiv2.variables.BaseType.to_str(
                         declaration.baseType))
 
 
@@ -1826,7 +1826,7 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
     XMLATTR_ident = 'ident'
     XMLATTR_rshuffle = ('rShuffle', core.ParseYesNo, core.FormatYesNo)
     XMLATTR_rarea = (
-        'rArea', core.Area.DecodeTitleValue, core.Area.EncodeValue)
+        'rArea', core.Area.from_str_title, core.Area.to_str)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
@@ -2269,7 +2269,7 @@ class ItemFeedback(core.QTIElement, common.ContentMixin):
             ident CDATA  #REQUIRED
             title CDATA  #IMPLIED >"""
     XMLNAME = 'itemfeedback'
-    XMLATTR_view = ('view', core.View.DecodeLowerValue, core.View.EncodeValue)
+    XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
     XMLATTR_title = 'title'
     XMLATTR_ident = 'ident'
 
@@ -2297,7 +2297,7 @@ class ItemFeedback(core.QTIElement, common.ContentMixin):
         feedback = v2Item.add_child(qtiv2.QTIModalFeedback)
         if not self.view in (core.View.All, core.View.Candidate):
             log.append("Warning: discarding view on feedback (%s)" %
-                       core.View.EncodeValue(self.view))
+                       core.View.to_str(self.view))
         identifier = qtiv2.core.ValidateIdentifier(self.ident, 'FEEDBACK_')
         feedback.outcomeIdentifier = 'FEEDBACK'
         feedback.showHide = qtiv2.core.ShowHide.show
@@ -2318,8 +2318,8 @@ class Solution(common.ContentMixin, common.QTICommentContainer):
     XMLNAME = 'solution'
     XMLATTR_feedbackstyle = (
         'feedbackStyle',
-        core.FeedbackStyle.DecodeTitleValue,
-        core.FeedbackStyle.EncodeValue)
+        core.FeedbackStyle.from_str_title,
+        core.FeedbackStyle.to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -2382,8 +2382,8 @@ class Hint(common.ContentMixin, common.QTICommentContainer):
     XMLNAME = 'hint'
     XMLATTR_feedbackstyle = (
         'feedbackStyle',
-        core.FeedbackStyle.DecodeTitleValue,
-        core.FeedbackStyle.EncodeValue)
+        core.FeedbackStyle.from_str_title,
+        core.FeedbackStyle.to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):

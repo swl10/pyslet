@@ -15,7 +15,7 @@ from types import *
 from pyslet.unicode5 import CharClass, detect_encoding
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.rfc2396 as uri
 import pyslet.http.grammar as grammar
 import pyslet.http.params as params
@@ -151,8 +151,8 @@ def PromoteTypes(typeA, typeB):
     elif typeA not in NUMERIC_TYPES or typeB not in NUMERIC_TYPES:
         raise EvaluationError(
             "Incompatible types: %s and %s" %
-            (edm.SimpleType.EncodeValue(typeA),
-             edm.SimpleType.EncodeValue(typeB)))
+            (edm.SimpleType.to_str(typeA),
+             edm.SimpleType.to_str(typeB)))
     elif edm.SimpleType.Double in (typeA, typeB):
         return edm.SimpleType.Double
     elif edm.SimpleType.Single in (typeA, typeB):
@@ -211,7 +211,7 @@ class OperatorCategory(xsi.Enumeration):
     Note that OperatorCategory.X > OperatorCategory.Y if and only if operator X
     has higher precedence that operator Y.
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
 
     decode = {
         "Grouping": 10,
@@ -224,7 +224,6 @@ class OperatorCategory(xsi.Enumeration):
         "ConditionalAnd": 3,
         "ConditionalOr": 2
     }
-xsi.MakeEnumeration(OperatorCategory)
 
 
 class Operator(xsi.Enumeration):
@@ -264,6 +263,13 @@ class Operator(xsi.Enumeration):
         'or': 1,
     }
 
+    aliases = {
+        'boolParen': 'paren',
+        'boolMethodCall': 'methodCall',
+        'boolNot': 'not',
+        'boolAnd': 'and',
+        'boolOr': 'or'}
+        
     Category = {
     }
     """A mapping from an operator to an operator category identifier
@@ -281,13 +287,6 @@ class Operator(xsi.Enumeration):
     
     For example, isof, negate, method, etc..."""
 
-xsi.MakeEnumeration(Operator)
-xsi.MakeEnumerationAliases(Operator, {
-    'boolParen': 'paren',
-    'boolMethodCall': 'methodCall',
-    'boolNot': 'not',
-    'boolAnd': 'and',
-    'boolOr': 'or'})
 
 Operator.Category = {
     Operator.paren: OperatorCategory.Grouping,
@@ -351,7 +350,6 @@ class Method(xsi.Enumeration):
         'floor': 19,
         'ceiling': 20
     }
-xsi.MakeEnumeration(Method)
 
 
 class CommonExpression(object):
@@ -413,7 +411,7 @@ class UnaryExpression(CommonExpression):
         if self.operator == Operator.negate:
             op = u"-"
         else:
-            op = u"%s " % Operator.EncodeValue(self.operator)
+            op = u"%s " % Operator.to_str(self.operator)
         rValue = self.operands[0]
         if rValue.operator is not None and rValue < self:
             # right expression is weaker than us, use brackets
@@ -482,15 +480,15 @@ class BinaryExpression(CommonExpression):
             if self.operator == Operator.member:
                 op = u"/"
             elif self.operator in (Operator.cast, Operator.isof):
-                opPrefix = u"%s(" % Operator.EncodeValue(self.operator)
+                opPrefix = u"%s(" % Operator.to_str(self.operator)
                 op = ","
                 opSuffix = ")"
             else:
                 raise ValueError(
-                    "Can't format %s as a binary operator" & Operator.EncodeValue(
+                    "Can't format %s as a binary operator" & Operator.to_str(
                         self.operator))
         else:
-            op = u" %s " % Operator.EncodeValue(self.operator)
+            op = u" %s " % Operator.to_str(self.operator)
         lValue = self.operands[0]
         rValue = self.operands[1]
         if lValue.operator is not None and lValue < self:
@@ -537,7 +535,7 @@ class BinaryExpression(CommonExpression):
         else:
             raise EvaluationError(
                 "Expected primitive value for %s" %
-                Operator.EncodeValue(
+                Operator.to_str(
                     self.operator))
 
     def EvaluateCast(self, lValue, rValue):
@@ -545,7 +543,7 @@ class BinaryExpression(CommonExpression):
         if not lValue:
             # cast(NULL, <any type>) results in NULL
             try:
-                typeCode = edm.SimpleType.DecodeValue(rValue.value)
+                typeCode = edm.SimpleType.from_str(rValue.value)
                 result = edm.EDMValue.NewSimpleValue(typeCode)
             except ValueError:
                 result = edm.SimpleValue.NewValue(None)
@@ -563,7 +561,7 @@ class BinaryExpression(CommonExpression):
         elif isinstance(lValue, edm.SimpleValue):
             # look up the name of the primitive type
             try:
-                typeCode = edm.SimpleType.DecodeValue(rValue.value)
+                typeCode = edm.SimpleType.from_str(rValue.value)
             except ValueError:
                 raise EvaluationError(
                     "Unrecognized type: %s" % str(rValue.value))
@@ -571,9 +569,9 @@ class BinaryExpression(CommonExpression):
             if typeCode != newCode:
                 raise EvaluationError(
                     "Can't cast %s to %s" %
-                    (edm.SimpleType.EncodeValue(
+                    (edm.SimpleType.to_str(
                         lValue.typeCode),
-                        edm.SimpleType.EncodeValue(typeCode)))
+                        edm.SimpleType.to_str(typeCode)))
             result = edm.EDMValue.NewSimpleValue(typeCode)
             result.set_from_value(lValue.value)
             return result
@@ -716,7 +714,7 @@ class BinaryExpression(CommonExpression):
         else:
             raise EvaluationError(
                 "Illegal operands for %s" %
-                Operator.EncodeValue(
+                Operator.to_str(
                     self.operator))
 
     def EvaluateIsOf(self, lValue, rValue):
@@ -735,7 +733,7 @@ class BinaryExpression(CommonExpression):
         elif isinstance(lValue, edm.SimpleValue):
             # look up the name of the primitive type
             try:
-                typeCode = edm.SimpleType.DecodeValue(rValue.value)
+                typeCode = edm.SimpleType.from_str(rValue.value)
             except ValueError:
                 raise EvaluationError(
                     "Unrecognized type: %s" % str(rValue.value))
@@ -930,7 +928,7 @@ class CallExpression(CommonExpression):
         self.method = methodCall
 
     def __unicode__(self):
-        return "%s(%s)" % (Method.EncodeValue(self.method), string.join(
+        return "%s(%s)" % (Method.to_str(self.method), string.join(
             map(lambda x: unicode(x), self.operands), ','))
 
     def Evaluate(self, contextEntity):
@@ -945,8 +943,8 @@ class CallExpression(CommonExpression):
                 return arg.SimpleCast(typeCode)
         raise EvaluationError(
             "Expected %s value in %s()" %
-            (edm.SimpleType.EncodeValue(typeCode),
-             Method.EncodeValue(
+            (edm.SimpleType.to_str(typeCode),
+             Method.to_str(
                 self.method)))
 
     def CheckStrictParameter(self, arg, typeCode):
@@ -955,8 +953,8 @@ class CallExpression(CommonExpression):
                 return arg
         raise EvaluationError(
             "Expected %s value in %s()" %
-            (edm.SimpleType.EncodeValue(typeCode),
-             Method.EncodeValue(
+            (edm.SimpleType.to_str(typeCode),
+             Method.to_str(
                 self.method)))
 
     def EvaluateEndswith(self, args):
@@ -1317,7 +1315,7 @@ class Parser(edm.Parser):
                 elif name is not None:
                     self.ParseWSP()
                     if self.match("("):
-                        methodCall = Method.DecodeValue(name)
+                        methodCall = Method.from_str(name)
                         rightOp = self.ParseMethodCallExpression(methodCall)
                     else:
                         rightOp = PropertyExpression(name)
@@ -1334,7 +1332,7 @@ class Parser(edm.Parser):
                     # an operator waiting for an operand is an error
                     raise ValueError(
                         "Expected expression after %s in ...%s" %
-                        (Operator.EncodeValue(
+                        (Operator.to_str(
                             leftOp.operator),
                             self.peek(10)))
                 else:
@@ -1353,7 +1351,7 @@ class Parser(edm.Parser):
                     name = self.ParseSimpleIdentifier()
                     if name is not None:
                         try:
-                            opCode = Operator.DecodeValue(name)
+                            opCode = Operator.from_str(name)
                             if opCode in Operator.IsSpecial:
                                 raise ValueError
                             rightOp = BinaryExpression(opCode)
@@ -1860,7 +1858,7 @@ class SystemQueryOption(xsi.Enumeration):
             SystemQueryOption.filter
             SystemQueryOption.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'expand': 1,
         'filter': 2,
@@ -1873,7 +1871,6 @@ class SystemQueryOption(xsi.Enumeration):
         'select': 9
     }
 
-xsi.MakeEnumeration(SystemQueryOption)
 
 
 class InlineCount(xsi.Enumeration):
@@ -1884,12 +1881,11 @@ class InlineCount(xsi.Enumeration):
             InlineCount.none
             InlineCount.DEFAULT == None
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'allpages': 1,
         'none': 2
     }
-xsi.MakeEnumeration(InlineCount)
 
 
 class PathOption(xsi.Enumeration):
@@ -1902,7 +1898,7 @@ class PathOption(xsi.Enumeration):
 
     Note that these options are mutually exclusive!
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'metadata': 1,
         'batch': 2,
@@ -1910,7 +1906,6 @@ class PathOption(xsi.Enumeration):
         'value': 4,
         'links': 5
     }
-xsi.MakeEnumeration(PathOption)
 
 #   URI1: http://host/service.svc/Customers :   Entity Set
 #   URI2: http://host/service.svc/Customers('ALFKI')    :   Entity
@@ -2127,19 +2122,19 @@ class ODataURI:
                     self.linksProperty = npSegment[0]
                 elif segment.startswith("$"):
                     try:
-                        pathOption = PathOption.DecodeLowerValue(segment[1:])
+                        pathOption = PathOption.from_str_lower(segment[1:])
                     except KeyError:
                         raise InvalidPathOption(segment)
                     if self.pathOption is not None:
                         raise InvalidPathOption(
                             "%s must not be used with $%s" %
                             (segment,
-                             PathOption.EncodeValue(
+                             PathOption.to_str(
                                  self.pathOption)))
                     if self.navPath and self.pathOption in (PathOption.batch, PathOption.metadata):
                         raise InvalidPathOption(
                             "$%s must be the only path segment" %
-                            PathOption.EncodeValue(
+                            PathOption.to_str(
                                 self.pathOption))
                     elif self.pathOption == PathOption.links:
                         if not self.navPath:
@@ -2151,7 +2146,7 @@ class ODataURI:
                     if self.pathOption in (PathOption.count, PathOption.value, PathOption.batch, PathOption.metadata):
                         raise InvalidPathOption(
                             "$%s must be the last path segment" %
-                            PathOption.EncodeValue(
+                            PathOption.to_str(
                                 self.pathOption))
                     self.navPath.append(self.SplitSegment(segment))
             if self.pathOption == PathOption.links and self.linksProperty is None:
@@ -2184,7 +2179,7 @@ class ODataURI:
 
         *   other options return a the param_value unchanged at the moment"""
         try:
-            param = SystemQueryOption.DecodeValue(param_name)
+            param = SystemQueryOption.from_str(param_name)
             # Now parse the parameter value
             paramParser = Parser(param_value)
             if param == SystemQueryOption.filter:
@@ -2224,7 +2219,7 @@ class ODataURI:
                 value = paramParser.require_production_end(
                     paramParser.parse_integer(), "top query option")
             elif param == SystemQueryOption.inlinecount:
-                value = InlineCount.DecodeLowerValue(param_value)
+                value = InlineCount.from_str_lower(param_value)
             elif param == SystemQueryOption.select:
                 value = paramParser.require_production_end(
                     paramParser.ParseSelectOption(), "selection query option")
@@ -2240,7 +2235,7 @@ class ODataURI:
             if p not in rules:
                 raise InvalidSystemQueryOption(
                     '$%s cannot be used with this form of URI' %
-                    SystemQueryOption.EncodeValue(p))
+                    SystemQueryOption.to_str(p))
 
     @classmethod
     def SplitSegment(cls, segment):
@@ -2340,7 +2335,7 @@ class ODataURI:
     def FormatSysQueryOptions(sysQueryOptions):
         return string.join(
             map(lambda x: "$%s=%s" % (
-                str(SystemQueryOption.EncodeValue(x[0])),
+                str(SystemQueryOption.to_str(x[0])),
                 uri.escape_data(x[1].encode('utf-8'))),
                 sysQueryOptions.items()),
             '&')
@@ -3073,7 +3068,7 @@ class Property(ODataElement):
             type = None
         if type:
             try:
-                type = edm.SimpleType.DecodeLowerValue(type.lower())
+                type = edm.SimpleType.from_str_lower(type.lower())
             except ValueError:
                 # assume unknown, probably complex
                 type = None
@@ -3151,7 +3146,7 @@ class Property(ODataElement):
                 self.set_attribute(
                     (ODATA_METADATA_NAMESPACE,
                      'type'),
-                    edm.SimpleType.EncodeValue(
+                    edm.SimpleType.to_str(
                         value.typeCode))
             if value:
                 ODataElement.set_value(self, unicode(value))

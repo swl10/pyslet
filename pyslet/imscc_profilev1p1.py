@@ -5,7 +5,7 @@ from types import StringTypes
 import string
 
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.imscpv1p2 as imscp
 import pyslet.imscc_profilev1p0 as v1p0
 

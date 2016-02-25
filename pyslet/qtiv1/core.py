@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.imsqtiv2p1 as qtiv2
 import pyslet.html40_19991224 as html
 
@@ -78,7 +78,7 @@ class Action(xsi.Enumeration):
 
             Action.DEFAULT == Action.Set
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'Set': 1,
         'Add': 2,
@@ -86,7 +86,6 @@ class Action(xsi.Enumeration):
         'Multiply': 4,
         'Divide': 5
     }
-xsi.MakeEnumeration(Action)
 
 
 class Area(xsi.Enumeration):
@@ -103,13 +102,15 @@ class Area(xsi.Enumeration):
 
             Area.DEFAULT == Area.Ellipse
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
-        u'Ellipse': 1,
-        u'Rectangle': 2,
-        u'Bounded': 3
-    }
-xsi.MakeEnumeration(Area, u'Ellipse')
+        'Ellipse': 1,
+        'Rectangle': 2,
+        'Bounded': 3
+        }
+    aliases = {
+        None: 'Ellipse'
+        }
 
 
 def MigrateV2AreaCoords(area, value, log):
@@ -212,14 +213,13 @@ class FeedbackStyle(xsi.Enumeration):
 
             FeedbackStyle.DEFAULT == FeedbackStyle.Complete
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'Complete': 1,
         'Incremental': 2,
         'Multilevel': 3,
         'Proprietary': 4
     }
-xsi.MakeEnumeration(FeedbackStyle)
 
 
 class FeedbackType(xsi.Enumeration):
@@ -236,13 +236,12 @@ class FeedbackType(xsi.Enumeration):
 
             FeedbackType.DEFAULT == FeedbackType.Response
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'Response': 1,
         'Solution': 2,
         'Hint': 3
     }
-xsi.MakeEnumeration(FeedbackType)
 
 
 class FIBType(xsi.Enumeration):
@@ -259,17 +258,19 @@ class FIBType(xsi.Enumeration):
 
             FIBType.DEFAULT == FIBType.String
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
-        u'String': 1,
-        u'Integer': 2,
-        u'Decimal': 3,
-        u'Scientific': 4
-    }
-xsi.MakeEnumeration(FIBType, u'String')
+        'String': 1,
+        'Integer': 2,
+        'Decimal': 3,
+        'Scientific': 4
+        }
+    aliases = {
+        None: 'String'
+        }
 
 
-class MDOperator(xsi.Enumeration):
+class MDOperator(xsi.EnumerationNoCase):
 
     """Metadata operator enumeration for :py:class:`pyslet.qtiv1.sao.SelectionMetadata`::
 
@@ -281,7 +282,7 @@ class MDOperator(xsi.Enumeration):
 
     Lower-case aliases of the constants are provided for compatibility.
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         u'EQ': 1,
         u'NEQ': 2,
@@ -290,8 +291,6 @@ class MDOperator(xsi.Enumeration):
         u'GT': 5,
         u'GTE': 6
     }
-xsi.MakeEnumeration(MDOperator)
-xsi.MakeLowerAliases(MDOperator)
 
 
 class NumType(xsi.Enumeration):
@@ -308,13 +307,15 @@ class NumType(xsi.Enumeration):
 
             NumType.DEFAULT == NumType.Integer
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
-        u'Integer': 1,
-        u'Decimal': 2,
-        u'Scientific': 3
-    }
-xsi.MakeEnumeration(NumType, u'Integer')
+        'Integer': 1,
+        'Decimal': 2,
+        'Scientific': 3
+        }
+    aliases = {
+        None: 'Integer'
+        }
 
 
 class Orientation(xsi.Enumeration):
@@ -331,12 +332,14 @@ class Orientation(xsi.Enumeration):
 
             Orientation.DEFAULT == Orientation.Horizontal
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
-        u'Horizontal': 1,
-        u'Vertical': 2,
-    }
-xsi.MakeEnumeration(Orientation, u'Horizontal')
+        'Horizontal': 1,
+        'Vertical': 2,
+        }
+    aliases = {
+        None: 'Horizontal'
+        }
 
 
 def MigrateV2Orientation(orientation):
@@ -360,14 +363,13 @@ class PromptType(xsi.Enumeration):
 
             PromptType.Dashline
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
-        u'Box': 1,
-        u'Dashline': 2,
-        u'Asterisk': 3,
-        u'Underline': 4
+        'Box': 1,
+        'Dashline': 2,
+        'Asterisk': 3,
+        'Underline': 4
     }
-xsi.MakeEnumeration(PromptType)
 
 
 class RCardinality(xsi.Enumeration):
@@ -384,14 +386,12 @@ class RCardinality(xsi.Enumeration):
 
             RCardinality.DEFAULT == RCardinality.Single
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'Single': 1,
         'Multiple': 2,
         'Ordered': 3
     }
-
-xsi.MakeEnumeration(RCardinality)
 
 
 def MigrateV2Cardinality(rCardinality):
@@ -425,7 +425,7 @@ class VarType(xsi.Enumeration):
 
             VarType.DEFAULT == VarType.Integer
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
         'Integer': 1,
         'String': 2,
@@ -435,7 +435,6 @@ class VarType(xsi.Enumeration):
         'Enumerated': 5,
         'Set': 6
     }
-xsi.MakeEnumeration(VarType)
 
 
 def MigrateV2VarType(vartype, log):
@@ -468,7 +467,7 @@ def MigrateV2VarType(vartype, log):
     }[vartype]
 
 
-class View(xsi.Enumeration):
+class View(xsi.EnumerationNoCase):
 
     """View enumeration::
 
@@ -488,25 +487,26 @@ class View(xsi.Enumeration):
 
             (Invigilator | Proctor)
 
-    For more methods see :py:class:`~pyslet.xsdatatypes20041028.Enumeration`"""
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
-        u'All': 1,
-        u'Administrator': 2,
-        u'AdminAuthority': 3,
-        u'Assessor': 4,
-        u'Author': 5,
-        u'Candidate': 6,
-        u'InvigilatorProctor': 7,
-        u'Psychometrician': 8,
-        u'Scorer': 9,
-        u'Tutor': 10
-    }
-xsi.MakeEnumeration(View, u'All')
-xsi.MakeEnumerationAliases(View, {
-    u'Proctor': u'InvigilatorProctor',
-    u'Invigilator': u'InvigilatorProctor'
-})
-xsi.MakeLowerAliases(View)
+        'All': 1,
+        'Administrator': 2,
+        'AdminAuthority': 3,
+        'Assessor': 4,
+        'Author': 5,
+        'Candidate': 6,
+        'InvigilatorProctor': 7,
+        'Psychometrician': 8,
+        'Scorer': 9,
+        'Tutor': 10
+        }
+    aliases = {
+        None: 'All',
+        'Proctor': 'InvigilatorProctor',
+        'proctor': 'InvigilatorProctor',
+        'Invigilator': 'InvigilatorProctor',
+        'invigilator': 'InvigilatorProctor'
+        }        
 
 
 def MigrateV2View(view, log):
@@ -542,7 +542,7 @@ def MigrateV2View(view, log):
     }[view]
     if warnFlag:
         log.append("Warning: changing view %s to %s" % (
-            View.EncodeValue(view), qtiv2.core.View.EncodeValueList(newView)))
+            View.to_str(view), qtiv2.core.View.list_to_str(newView)))
     return newView
 
 

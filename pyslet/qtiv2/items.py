@@ -2,7 +2,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.html40_19991224 as html
 import pyslet.rfc2396 as uri
 
@@ -42,11 +42,11 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentItem')
-    XMLATTR_adaptive = ('adaptive', xsi.DecodeBoolean, xsi.EncodeBoolean)
+    XMLATTR_adaptive = ('adaptive', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_identifier = 'identifier'
     XMLATTR_label = 'label'
     XMLATTR_timeDependent = (
-        'timeDependent', xsi.DecodeBoolean, xsi.EncodeBoolean)
+        'timeDependent', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_title = 'title'
     XMLCONTENT = xml.ElementContent
 

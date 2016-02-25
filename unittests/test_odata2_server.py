@@ -437,7 +437,7 @@ class ODataURILiteralTests(unittest.TestCase):
             try:
                 v = core.ParseURILiteral(bad)
                 self.fail("Bad parse: %s resulted in %s (%s)" % (
-                    bad, repr(v.value), edm.SimpleType.EncodeValue(v.typeCode)))
+                    bad, repr(v.value), edm.SimpleType.to_str(v.typeCode)))
             except ValueError:
                 pass
 
@@ -781,7 +781,7 @@ class ODataURILiteralTests(unittest.TestCase):
 # 			]:
 # 			try:
 # 				v=core.ParseURILiteral(bad)
-# 				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.value),edm.SimpleType.EncodeValue(v.typeCode)))
+# 				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.value),edm.SimpleType.to_str(v.typeCode)))
 # 			except ValueError:
 # 				pass
 
@@ -819,7 +819,7 @@ class ODataURILiteralTests(unittest.TestCase):
             try:
                 v = core.ParseURILiteral(bad)
                 self.fail("Bad parse: %s resulted in %s (%s)" % (
-                    bad, str(v.value), edm.SimpleType.EncodeValue(v.typeCode)))
+                    bad, str(v.value), edm.SimpleType.to_str(v.typeCode)))
             except ValueError:
                 pass
 

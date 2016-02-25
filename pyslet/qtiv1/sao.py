@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import pyslet.xml.structures as xml
-import pyslet.xsdatatypes20041028 as xsi
+import pyslet.xml.xsdatatypes as xsi
 import pyslet.imsqtiv2p1 as qtiv2
 
 import core
@@ -140,8 +140,8 @@ class SelectionMetadata(SelectionOperator):
     XMLATTR_mdname = 'mdName'
     XMLATTR_mdoperator = (
         'mdOperator',
-        core.MDOperator.DecodeLowerValue,
-        core.MDOperator.EncodeValue)
+        core.MDOperator.from_str_lower,
+        core.MDOperator.to_str)
     XMLCONTENT = xml.XMLMixedContent
 
     def __init__(self, parent):
