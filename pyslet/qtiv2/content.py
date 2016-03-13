@@ -2,7 +2,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 
 import pyslet.qtiv2.core as core
 
@@ -37,7 +37,7 @@ class BodyElement(core.QTIElement):
     def RenderHTML(self, parent, profile, itemState):
         """Renders this element in html form, adding nodes to *parent*.  This
         method effectively overrides
-        :py:class:`html40_19991224.XHTMLElement.RenderHTML` enabling QTI and
+        :py:class:`html401.XHTMLElement.RenderHTML` enabling QTI and
         XHTML elements to be mixed freely.
 
         The state of the item (e.g., the values of any controls), is taken from

@@ -58,7 +58,7 @@ boolean
 	:py:func:`~pyslet.xml.xsdatatypes.boolean_to_str`
 
 coords
-	Defined as part of support for HTML.  See :py:class:`~pyslet.html40_19991224.Coords`
+	Defined as part of support for HTML.  See :py:class:`~pyslet.html401.Coords`
 
 date
 	Although QTI draws on the definitions in XML schema it restricts values to
@@ -99,7 +99,7 @@ language:
 	Currently implemented as a simple python string.
 
 length:
-	Defined as part of support for HTML.  See :py:class:`~pyslet.html40_19991224.LengthType`
+	Defined as part of support for HTML.  See :py:class:`~pyslet.html401.LengthType`
 
 mimeType:
 	Currently implemented as a simple python string

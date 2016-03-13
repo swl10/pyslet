@@ -2,7 +2,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.xsdatatypes as xsi
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 import pyslet.imsqtiv2p1 as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
 
@@ -119,9 +119,9 @@ class ContentMixin:
 
         *childType* indicates whether the context allows block, inline or a
         mixture of element content types (flow).  It is set to one of the
-        following HTML classes: :py:class:`pyslet.html40_19991224.BlockMixin`,
-        :py:class:`pyslet.html40_19991224.InlineMixin` or
-        :py:class:`pyslet.html40_19991224.FlowMixin`.
+        following HTML classes: :py:class:`pyslet.html401.BlockMixin`,
+        :py:class:`pyslet.html401.InlineMixin` or
+        :py:class:`pyslet.html401.FlowMixin`.
 
         The default implementation adds each of *children* or, if *children* is
         None, each of the local :py:attr:`contentChildren`.  The algorithm

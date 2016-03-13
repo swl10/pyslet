@@ -5,7 +5,7 @@
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
 import pyslet.xml.xsdatatypes as xsdatatypes
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 import pyslet.rfc2396 as uri
 
 xsi = xsdatatypes

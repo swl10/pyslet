@@ -12,9 +12,8 @@ all_tests = unittest.TestSuite()
 if py2:
     import test_blockstore
     all_tests.addTest(test_blockstore.suite())
-if py2:
-    import test_html401
-    all_tests.addTest(test_html401.suite())
+import test_html401
+all_tests.addTest(test_html401.suite())
 import test_http_auth
 all_tests.addTest(test_http_auth.suite())
 import test_http_client
@@ -87,9 +86,8 @@ if py2:
     all_tests.addTest(test_qml420.suite())
 import test_rfc2396
 all_tests.addTest(test_rfc2396.suite())
-if py2:
-    import test_rfc4287
-    all_tests.addTest(test_rfc4287.suite())
+import test_rfc4287
+all_tests.addTest(test_rfc4287.suite())
 if py2:
     import test_rfc5023
     all_tests.addTest(test_rfc5023.suite())

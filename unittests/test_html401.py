@@ -3,15 +3,17 @@
 import unittest
 
 import pyslet.iso8601 as iso
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 import pyslet.rfc2396 as uri
 import pyslet.xml.structures as xml
 
 from pyslet.py2 import (
     dict_items,
     is_text,
+    range3,
     to_text,
-    uempty)
+    uempty,
+    ul)
 from pyslet.http.params import MediaType
 
 
@@ -273,15 +275,13 @@ class CustomTypeTests(unittest.TestCase):
 ....................
 ....................
 ...................."""
-        c = html.Coords(
-            map(lambda x: html.Length(x, html.Length.PIXEL),
-                sample_rect))
+        c = html.Coords(html.Length(l, html.Length.PIXEL) for l in sample_rect)
         result = []
-        for y in xrange(6):
+        for y in range3(6):
             s = []
-            for x in xrange(10):
+            for x in range3(10):
                 v = False
-                for i in xrange(len(sample_rect) // 2):
+                for i in range3(len(sample_rect) // 2):
                     if x == sample_rect[2 * i] and y == sample_rect[2 * i + 1]:
                         v = True
                         break
@@ -293,14 +293,13 @@ class CustomTypeTests(unittest.TestCase):
         result = '\n'.join(result)
         self.assertTrue(result == result1, "Bad Rect test:\n%s" % result)
         c = html.Coords(
-            map(lambda x: html.Length(x, html.Length.PERCENTAGE),
-                sample_rect))
+            html.Length(l, html.Length.PERCENTAGE) for l in sample_rect)
         result = []
-        for y in xrange(18):
+        for y in range3(18):
             s = []
-            for x in xrange(20):
+            for x in range3(20):
                 v = False
-                for i in xrange(len(sample_rect) // 2):
+                for i in range3(len(sample_rect) // 2):
                     if x == 2 * sample_rect[2 * i] and \
                             y == 3 * sample_rect[2 * i + 1]:
                         v = True
@@ -356,12 +355,11 @@ class CustomTypeTests(unittest.TestCase):
 ....................
 ...................."""
         c = html.Coords(
-            map(lambda x: html.Length(x, html.Length.PIXEL),
-                sample_circle))
+            html.Length(l, html.Length.PIXEL) for l in sample_circle)
         result = []
-        for y in xrange(10):
+        for y in range3(10):
             s = []
-            for x in xrange(10):
+            for x in range3(10):
                 v = False
                 if x == sample_circle[0] and y == sample_circle[1]:
                     v = True
@@ -373,12 +371,11 @@ class CustomTypeTests(unittest.TestCase):
         result = '\n'.join(result)
         self.assertTrue(result == result1, "Bad Circle test:\n%s" % result)
         c = html.Coords(
-            map(lambda x: html.Length(x, html.Length.PERCENTAGE),
-                sample_circle))
+            html.Length(l, html.Length.PERCENTAGE) for l in sample_circle)
         result = []
-        for y in xrange(30):
+        for y in range3(30):
             s = []
-            for x in xrange(20):
+            for x in range3(20):
                 v = False
                 if x == 2 * sample_circle[0] and y == 3 * sample_circle[1]:
                     v = True
@@ -432,14 +429,13 @@ class CustomTypeTests(unittest.TestCase):
 ................................
 ................................"""
         c = html.Coords(
-            map(lambda x: html.Length(x, html.Length.PIXEL),
-                sample_poly))
+            html.Length(l, html.Length.PIXEL) for l in sample_poly)
         result = []
-        for y in xrange(10):
+        for y in range3(10):
             s = []
-            for x in xrange(16):
+            for x in range3(16):
                 v = False
-                for i in xrange(len(sample_poly) // 2):
+                for i in range3(len(sample_poly) // 2):
                     if x == sample_poly[2 * i] and y == sample_poly[2 * i + 1]:
                         v = True
                         break
@@ -451,14 +447,13 @@ class CustomTypeTests(unittest.TestCase):
         result = '\n'.join(result)
         self.assertTrue(result == result1, "Bad Poly test:\n%s" % result)
         c = html.Coords(
-            map(lambda x: html.Length(x, html.Length.PERCENTAGE),
-                sample_poly))
+            html.Length(l, html.Length.PERCENTAGE) for l in sample_poly)
         result = []
-        for y in xrange(27):
+        for y in range3(27):
             s = []
-            for x in xrange(32):
+            for x in range3(32):
                 v = False
-                for i in xrange(len(sample_poly) // 2):
+                for i in range3(len(sample_poly) // 2):
                     if x == 2 * sample_poly[2 * i] and \
                             y == 3 * sample_poly[2 * i + 1]:
                         v = True
@@ -3245,7 +3240,7 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(isinstance(tag, html.P), "P Tag: %s" % repr(tag))
         children = list(tag.get_children())
         self.assertTrue(
-            children[0] == u'Hello\xA0', "nbsp: %s" % repr(children[0]))
+            children[0] == ul('Hello\xA0'), "nbsp: %s" % repr(children[0]))
         self.assertTrue(
             isinstance(children[1], html.B), "B Tag: %s" % repr(children[1]))
         self.assertTrue(children[1].get_value() == "World!")

@@ -20,7 +20,7 @@ def suite():
     ))
 
 from pyslet.imsqtiv2p1 import *
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 
 from StringIO import StringIO
 import os

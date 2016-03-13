@@ -19,7 +19,7 @@ import pyslet.iso8601 as iso
 import pyslet.http.client as http
 import pyslet.http.cookie as cookie
 import pyslet.http.params as params
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 import pyslet.odata2.metadata as edmx
 import pyslet.odata2.sqlds as sql
 import pyslet.wsgi as wsgi

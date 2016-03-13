@@ -18,7 +18,7 @@ import pyslet.http.params as params
 import pyslet.http.messages as messages
 import pyslet.rfc2396 as uri
 import pyslet.xml.structures as xml
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 from pyslet.unicode5 import detect_encoding
 import csdl as edm
 import core as core

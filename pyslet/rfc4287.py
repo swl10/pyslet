@@ -12,23 +12,28 @@ so that the comparison works as described in Section 4.2.6.1.
 xml:base attribute [W3C.REC-xmlbase-20010627]
 xml:lang attribute [W3C.REC-xml-20040204], Section 2.12
 
-A Date construct is an element whose content MUST conform to the "date-time" production in [RFC3339]
+A Date construct is an element whose content MUST conform to the
+"date-time" production in [RFC3339]
 """
 
-import string
-import types
 import itertools
-import pyslet.info
-import pyslet.iso8601 as iso8601
-import pyslet.html40_19991224 as html
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.rfc2396 as uri
+
+from . import html401 as html
+from . import info
+from . import iso8601
+from . import rfc2396 as uri
+from .pep8 import old_function
+from .py2 import is_text, to_text
+from .xml import structures as xml
+from .xml import namespace as xmlns
+from .xml import xsdatatypes as xsi
+
 
 #: The namespace to use for Atom Document elements
 ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
-ATOM_MIMETYPE = "application/atom+xml"				#: The mime type for Atom Document
+
+#: The mime type for Atom Document
+ATOM_MIMETYPE = "application/atom+xml"
 
 _ATOM_TEXT_TYPES = {'text': 1, 'html': 1, 'xhtml': 1}
 
@@ -75,17 +80,19 @@ class Text(AtomElement):
         self.type = TextType.text
 
     def set_value(self, value, type=TextType.text):
-        """Sets the value of the element.  *type* must be a value from the :py:class:`TextType` enumeration
+        """Sets the value of the element.  *type* must be a value from
+        the :py:class:`TextType` enumeration
 
         Overloads the basic
         :py:meth:`~pyslet.xml.structures.Element.SetValue`
-        implementation, adding an additional *type* attribute to enable the
-        value to be set to either a plain TextType.text, TextType.html or
-        TextType.xhtml value.  In the case of an xhtml type, *value* is parsed
-        for the required XHTML div element and this becomes the only child of
-        the element.  Given that the div itself is not considered to be part
-        of the content the value can be given without the enclosing div, in
-        which case it is generated automatically."""
+        implementation, adding an additional *type* attribute to enable
+        the value to be set to either a plain TextType.text,
+        TextType.html or TextType.xhtml value.  In the case of an xhtml
+        type, *value* is parsed for the required XHTML div element and
+        this becomes the only child of the element.  Given that the div
+        itself is not considered to be part of the content the value can
+        be given without the enclosing div, in which case it is
+        generated automatically."""
         if type == TextType.text or type == TextType.html:
             AtomElement.set_value(self, value)
             self.type = type
@@ -99,15 +106,15 @@ class Text(AtomElement):
                 # We remove our existing content
                 self.set_value(None)
                 # And do a deep copy of the div instead
-                newDiv = div.deepcopy(self)
+                new_div = div.deepcopy(self)
             else:
-                newDiv = self.add_child(html.Div)
+                new_div = self.add_child(html.Div)
                 for divChild in div:
                     if isinstance(divChild, xml.Element):
-                        divChild.deepcopy(newDiv)
+                        divChild.deepcopy(new_div)
                     else:
-                        newDiv.add_data(divChild)
-            newDiv.make_prefix(html.XHTML_NAMESPACE, '')
+                        new_div.add_data(divChild)
+            new_div.make_prefix(html.XHTML_NAMESPACE, '')
             self.type = type
         else:
             raise ValueError(
@@ -127,12 +134,12 @@ class Text(AtomElement):
         elif self.type == TextType.xhtml:
             # concatenate all children, but should be just a single div
             result = []
-            valueChildren = list(self.get_children())
-            if len(valueChildren) and isinstance(valueChildren[0], html.Div):
-                valueChildren = list(valueChildren[0].get_children())
-            for c in valueChildren:
-                result.append(unicode(c))
-            return string.join(result, '')
+            value_children = list(self.get_children())
+            if len(value_children) and isinstance(value_children[0], html.Div):
+                value_children = list(value_children[0].get_children())
+            for c in value_children:
+                result.append(to_text(c))
+            return ''.join(result)
         else:
             raise ValueError("Unknown text type: %s" % str(self.type))
 
@@ -151,25 +158,29 @@ class Name(AtomElement):
 
 class Title(Text):
 
-    """A :py:class:`Text` construct that conveys a human-readable title for an entry or feed."""
+    """A :py:class:`Text` construct that conveys a human-readable title
+    for an entry or feed."""
     XMLNAME = (ATOM_NAMESPACE, 'title')
 
 
 class Subtitle(Text):
 
-    """A :py:class:`Text` construct that conveys a human-readable description or subtitle for a feed."""
+    """A :py:class:`Text` construct that conveys a human-readable
+    description or subtitle for a feed."""
     XMLNAME = (ATOM_NAMESPACE, 'subtitle')
 
 
 class Summary(Text):
 
-    """A :py:class:`Text` construct that conveys a short summary, abstract, or excerpt of an entry."""
+    """A :py:class:`Text` construct that conveys a short summary,
+    abstract, or excerpt of an entry."""
     XMLNAME = (ATOM_NAMESPACE, 'summary')
 
 
 class Rights(Text):
 
-    """A Text construct that conveys information about rights held in and over an entry or feed."""
+    """A Text construct that conveys information about rights held in
+    and over an entry or feed."""
     XMLNAME = (ATOM_NAMESPACE, 'rights')
 
 
@@ -181,40 +192,50 @@ class Date(AtomElement):
 
     def __init__(self, parent):
         AtomElement.__init__(self, parent)
-        #: a :py:class:`~pyslet.iso8601.TimePoint` instance representing this date
+        #: a :py:class:`~pyslet.iso8601.TimePoint` instance representing
+        #: this date
         self.date = iso8601.TimePoint()
 
     def get_value(self):
-        """Overrides :py:meth:`~pyslet.xml.structures.Element.get_value`, returning a :py:class:`pyslet.iso8601.TimePoint` instance."""
+        """Overrides
+        :py:meth:`~pyslet.xml.structures.Element.get_value`, returning a
+        :py:class:`pyslet.iso8601.TimePoint` instance."""
         return self.date
 
     def set_value(self, value):
-        """Overrides :py:meth:`~pyslet.xml.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.iso8601.TimePoint` instance.
+        """Overrides :py:meth:`~pyslet.xml.structures.Element.SetValue`,
+        enabling the value to be set from a
+        :py:class:`pyslet.iso8601.TimePoint` instance.
 
-        If *value* is a string the behaviour is unchanged, if *value* is a
-        TimePoint instance then it is formatted using the extended format of ISO
-        8601 in accordance with the requirements of the Atom specification."""
+        If *value* is a string the behaviour is unchanged, if *value* is
+        a TimePoint instance then it is formatted using the extended
+        format of ISO 8601 in accordance with the requirements of the
+        Atom specification."""
         if isinstance(value, iso8601.TimePoint):
             self.date = value
-            AtomElement.set_value(self, value.get_calendar_string())
+            super(Date, self).set_value(value.get_calendar_string())
         else:
-            AtomElement.set_value(self, value)
+            super(Date, self).set_value(self, value)
             self.content_changed()
 
     def content_changed(self):
-        """Re-reads the value of the element and sets :py:attr:`date` accordingly."""
+        """Re-reads the value of the element and sets :py:attr:`date`
+        accordingly."""
         self.date = iso8601.TimePoint.from_str(AtomElement.get_value(self))
 
 
 class Updated(Date):
 
-    """A Date construct indicating the most recent instant in time when an entry or feed was modified in a way the publisher considers significant."""
+    """A Date construct indicating the most recent instant in time when
+    an entry or feed was modified in a way the publisher considers
+    significant."""
     XMLNAME = (ATOM_NAMESPACE, 'updated')
 
 
 class Published(Date):
 
-    """A Date construct indicating an instant in time associated with an event early in the life cycle of the entry."""
+    """A Date construct indicating an instant in time associated with an
+    event early in the life cycle of the entry."""
     XMLNAME = (ATOM_NAMESPACE, "published")
 
 
@@ -233,37 +254,38 @@ class Link(AtomElement):
         AtomElement.__init__(self, parent)
         #: a :py:class:`~pyslet.rfc2396.URI` instance, the link's IRI
         self.href = None
-        self.rel = None		#: a string indicating the link relation type
-        self.type = None		#: an advisory media type
-        # : the language of the resource pointed to by :py:attr:`href`
+        self.rel = None         #: a string indicating the link relation type
+        self.type = None        #: an advisory media type
+        #: the language of the resource pointed to by :py:attr:`href`
         self.hreflang = None
-        self.title = None		#: human-readable information about the link
-        # : an advisory length of the linked content in octets
+        self.title = None       #: human-readable information about the link
+        #: an advisory length of the linked content in octets
         self.length = None
 
 
 class Icon(AtomElement):
 
-    """Identifies an image that provides iconic visual identification for a feed."""
+    """An image that provides iconic visual identification for a feed."""
     XMLNAME = (ATOM_NAMESPACE, 'icon')
 
     def __init__(self, parent):
         AtomElement.__init__(self, parent)
-        #: a :py:class:`~pyslet.rfc2396.URI` instance representing the URI of the icon
+        #: a :py:class:`~pyslet.rfc2396.URI` instance representing the
+        #: URI of the icon
         self.uri = None
 
     def get_value(self):
-        """Overrides :py:meth:`~pyslet.xml.structures.Element.get_value`, returning a :py:class:`pyslet.rfc2396.URI` instance."""
+        """Returning a :py:class:`pyslet.rfc2396.URI` instance."""
         return self.uri
 
     def set_value(self, value):
-        """Overrides :py:meth:`~pyslet.xml.structures.Element.SetValue`, enabling the value to be set from a :py:class:`pyslet.rfc2396.URI` instance.
+        """Enables the value to be set from a URI instance.
 
         If *value* is a string it is used to set the element's content,
         :py:meth:`content_changed` is then called to update the value of
-        :py:attr:`uri`.  If *value* is a URI instance then :py:attr:`uri` is set
-        directory and it is then converted to a string and used to set the
-        element's content."""
+        :py:attr:`uri`.  If *value* is a URI instance then
+        :py:attr:`uri` is set directory and it is then converted to a
+        string and used to set the element's content."""
         if isinstance(value, uri.URI):
             self.uri = value
             AtomElement.set_value(self, str(value))
@@ -272,7 +294,7 @@ class Icon(AtomElement):
             self.content_changed()
 
     def content_changed(self):
-        """Re-reads the value of the element and sets :py:attr:`uri` accordingly."""
+        """Sets :py:attr:`uri` accordingly."""
         self.uri = uri.URI.from_octets(AtomElement.get_value(self))
 
 
@@ -284,33 +306,40 @@ class Logo(Icon):
 
 class Generator(AtomElement):
 
-    """Identifies the agent used to generate a feed, for debugging and other purposes."""
+    """Identifies the agent used to generate a feed
+
+    The agent is used for debugging and other purposes."""
     XMLNAME = (ATOM_NAMESPACE, 'generator')
     XMLATTR_uri = ('uri', uri.URI.from_octets, str)
     XMLATTR_version = 'version'
 
     def __init__(self, parent):
         AtomElement.__init__(self, parent)
-        self.uri = None			#: the uri of the tool used to generate the feed
+        #: the uri of the tool used to generate the feed
+        self.uri = None
         #: the version of the tool used to generate the feed
         self.version = None
 
-    def SetPysletInfo(self):
-        """Sets this generator to a default representation of this Pyslet module."""
-        self.uri = uri.URI.from_octets(pyslet.info.home)
-        self.version = pyslet.info.version
-        self.set_value(pyslet.info.title)
+    def set_pyslet_info(self):
+        """Sets this generator to a default value
+
+        A representation of this Pyslet module."""
+        self.uri = uri.URI.from_octets(info.home)
+        self.version = info.version
+        self.set_value(info.title)
 
 
-def DecodeContentType(src):
+@old_function('DecodeContentType')
+def decode_content_type(src):
     try:
         return TextType.from_str_lower(src)
     except ValueError:
         return src.strip()
 
 
-def EncodeContentType(value):
-    if type(value) in types.StringTypes:
+@old_function('EncodeContentType')
+def encode_content_type(value):
+    if is_text(value):
         return value
     else:
         return TextType.to_str(value)
@@ -320,23 +349,24 @@ class Content(Text):
 
     """Contains or links to the content of the entry.
 
-    Although derived from :py:class:`Text` this class overloads the meaning of
-    the :py:attr:`Text.type` attribute allowing it to be a media type."""
+    Although derived from :py:class:`Text` this class overloads the
+    meaning of the :py:attr:`Text.type` attribute allowing it to be a
+    media type."""
     XMLNAME = (ATOM_NAMESPACE, "content")
     XMLATTR_src = ('src', uri.URI.from_octets, str)
-    XMLATTR_type = ('type', DecodeContentType, EncodeContentType)
+    XMLATTR_type = ('type', decode_content_type, encode_content_type)
 
     def __init__(self, parent):
         Text.__init__(self, parent)
-        self.src = None			#: link to remote content
+        self.src = None         #: link to remote content
 
     def get_value(self):
-        """Gets a single unicode string representing the value of the element.
+        """Gets a single string representing the value of the element.
 
-        Overloads the basic
-        :py:meth:`~Text.get_value`, if :py:attr:`type` is a media type rather
-        than one of the text types then a ValueError is raised."""
-        if type(self.type) in types.StringTypes:
+        Overloads the basic :py:meth:`~Text.get_value`, if
+        :py:attr:`type` is a media type rather than one of the text
+        types then a ValueError is raised."""
+        if is_text(self.type):
             raise ValueError("Can't get value of non-text content")
         else:
             Text.get_value(self)
@@ -385,7 +415,10 @@ class Author(Person):
 
 class Contributor(Person):
 
-    """A Person construct that indicates a person or other entity who contributed to the entry or feed."""
+    """A Person construct representing a contributor
+
+    Indicates a person or other entity who contributed to the entry or
+    feed."""
     XMLNAME = (ATOM_NAMESPACE, "contributor")
 
 
@@ -399,15 +432,17 @@ class Category(AtomElement):
 
     def __init__(self, parent):
         AtomElement.__init__(self, parent)
-        #: a string that identifies the category to which the entry or feed belongs
+        #: a string that identifies the category to which the entry or
+        #: feed belongs
         self.term = None
         self.scheme = None
         """an IRI that identifies a categorization scheme.
-		
-		This is not converted to a :py:class:`pyslet.rfc2396.URI` instance as it
-		is not normally resolved to a resource.  Instead it defines a type of
-		namespace."""
-        self.label = None		#: a human-readable label for display in end-user applications
+
+        This is not converted to a :py:class:`pyslet.rfc2396.URI`
+        instance as it is not normally resolved to a resource.  Instead
+        it defines a type of namespace."""
+        #: a human-readable label for display in end-user applications
+        self.label = None
 
 
 class Entity(AtomElement):
@@ -420,20 +455,21 @@ class Entity(AtomElement):
         AtomElement.__init__(self, parent)
         self.AtomId = None
         """the atomId of the object
-		
-		Note that we qualify the class name used to represent the id to avoid
-		confusion with the existing 'id' attribute in
-		:py:class:`~pyslet.xml.structures.Element`."""
-        self.Author = []		#: atomAuthor
-        self.Category = []  # : atomCategory
-        self.Contributor = []  # : atomContributor
-        self.Link = []		#: atomLink
-        self.Rights = None  # : atomRights
-        self.Title = None		#: atomTitle
-        self.Updated = None  # : atomUpdated
+
+        Note that we qualify the class name used to represent the id to
+        avoid confusion with the existing 'id' attribute in
+        :py:class:`~pyslet.xml.structures.Element`."""
+        self.Author = []        #: atomAuthor
+        self.Category = []      #: atomCategory
+        self.Contributor = []   #: atomContributor
+        self.Link = []          #: atomLink
+        self.Rights = None      #: atomRights
+        self.Title = None       #: atomTitle
+        self.Updated = None     #: atomUpdated
 
     def reset(self):
-        for child in itertools.chain(self.Author, self.Category, self.Contributor, self.Link):
+        for child in itertools.chain(self.Author, self.Category,
+                                     self.Contributor, self.Link):
             child.DetachFromParent
         self.Author = []
         self.Category = []
@@ -478,10 +514,10 @@ class Source(Entity):
 
     def __init__(self, parent):
         Entity.__init__(self, parent)
-        self.Generator = None		#: atomGenerator
-        self.Icon = None			#: atomIcon
-        self.Logo = None			#: atomLogo
-        self.Subtitle = None		#: atomSubtitle
+        self.Generator = None       #: atomGenerator
+        self.Icon = None            #: atomIcon
+        self.Logo = None            #: atomLogo
+        self.Subtitle = None        #: atomSubtitle
 
     def get_children(self):
         for child in Entity.get_children(self):
@@ -514,7 +550,7 @@ class Feed(Source):
         self.Updated = self.UpdatedClass(self)
         now = iso8601.TimePoint.from_now_utc()
         self.Updated.set_value(now)
-        self.Entry = []		#: atomEntry
+        self.Entry = []     #: atomEntry
 
     def get_children(self):
         for child in itertools.chain(
@@ -525,7 +561,10 @@ class Feed(Source):
 
 class Entry(Entity):
 
-    """An individual entry, acting as a container for metadata and data associated with the entry."""
+    """Represents an individual entry
+
+    Acts as a container for metadata and data associated with the
+    entry."""
     XMLNAME = (ATOM_NAMESPACE, 'entry')
     XMLCONTENT = xml.ElementType.ElementContent
     AtomIdClass = AtomId
@@ -590,6 +629,8 @@ class AtomDocument(xmlns.XMLNSDocument):
 
     @classmethod
     def get_element_class(cls, name):
-        return AtomDocument.classMap.get(name, AtomDocument.classMap.get((name[0], None), xmlns.XMLNSElement))
+        return AtomDocument.classMap.get(
+            name, AtomDocument.classMap.get((name[0], None),
+                                            xmlns.XMLNSElement))
 
 xmlns.map_class_elements(AtomDocument.classMap, globals())

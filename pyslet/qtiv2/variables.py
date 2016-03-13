@@ -3,7 +3,7 @@
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
 import pyslet.xml.xsdatatypes as xsi
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 from pyslet.rfc2396 import URI, URIFactory
 import pyslet.qtiv2.core as core
 import pyslet.qtiv2.tests as tests

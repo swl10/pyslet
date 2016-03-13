@@ -1,7 +1,7 @@
 HTML
 ====
 
-.. py:module:: pyslet.html40_19991224
+.. py:module:: pyslet.html401
 
 This module defines functions and classes for working with HTML
 documents.  The version of the standard implemented is, loosely

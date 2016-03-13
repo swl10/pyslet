@@ -2,6 +2,7 @@ pep8-regression.py
 pyslet/blockstore.py
 unittests/test_blockstore.py
 pyslet/html40_19991224.py
+pyslet/html401.py
 unittests/test_html401.py
 pyslet/http/auth.py
 unittests/test_http_auth.py
@@ -40,6 +41,8 @@ pyslet/rfc2396.py
 unittests/test_rfc2396.py
 pyslet/rfc2616.py
 pyslet/rfc2617.py
+pyslet/rfc4287.py
+unittests/test_rfc4287.py
 pyslet/rfc5023.py
 unittests/test_rfc5023.py
 pyslet/streams.py

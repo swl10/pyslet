@@ -12,7 +12,7 @@ import pyslet.xml.structures as xml
 import pyslet.xml.parser as xmlparser
 import pyslet.imsqtiv2p1 as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 import pyslet.xml.xsdatatypes as xsi
 import pyslet.rfc2396 as uri
 

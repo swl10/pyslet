@@ -14,7 +14,7 @@ Contents:
 
    wsgi
    xml
-   html40_19991224
+   html401
    rfc2396
    urn
    rfc4287

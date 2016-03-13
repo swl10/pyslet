@@ -52,8 +52,13 @@ Build 20160313:
 
 #3 PEP-8 driven refactoring (ongoing)
 
-HTML module refactored prior to Python 3 compatibility work, test
-coverage increased significantly ready for migration.
+HTML module renamed to html401 and refactored with significantly
+increased test coverage.  Atom module (rfc4287) refactored.
+
+#38 Python 3 compatibility work (ongoing)
+
+rfc4287 and html401 modules migrated and tests passing.
+
 
 Untracked fixes:
 

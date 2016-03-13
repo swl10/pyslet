@@ -3,7 +3,7 @@
 import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
 import pyslet.xml.xsdatatypes as xsi
-import pyslet.html40_19991224 as html
+import pyslet.html401 as html
 
 import string
 
@@ -145,7 +145,7 @@ class Shape(xsi.Enumeration):
 
 def CalculateShapeBounds(shape, coords):
     """Calculates a bounding rectangle from a Shape value and a
-    :py:class:`pyslet.html40_19991224.Coords` instance."""
+    :py:class:`pyslet.html401.Coords` instance."""
     if shape == Shape.circle:
         return [coords[0].GetValue(1024) - coords[2].GetValue(768),
                 coords[1].GetValue(768) - coords[2].GetValue(768),
