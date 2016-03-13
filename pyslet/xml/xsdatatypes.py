@@ -601,7 +601,7 @@ class Enumeration(EnumBase):
         if hasattr(cls, 'aliases'):
             for k, v in dict_items(cls.aliases):
                 if k is None:
-                    cls.DEFAULT = v
+                    cls.DEFAULT = cls.decode[v]
                 else:
                     cls.decode[k] = cls.decode[v]
         for k, v in dict_items(cls.decode):

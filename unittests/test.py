@@ -13,8 +13,8 @@ if py2:
     import test_blockstore
     all_tests.addTest(test_blockstore.suite())
 if py2:
-    import test_html40_19991224
-    all_tests.addTest(test_html40_19991224.suite())
+    import test_html401
+    all_tests.addTest(test_html401.suite())
 import test_http_auth
 all_tests.addTest(test_http_auth.suite())
 import test_http_client

@@ -26,13 +26,12 @@ class BodyElement(core.QTIElement):
                     <xsd:attribute name="label" type="string256.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_id = ('id', core.ValidateIdentifier, lambda x: x)
-    XMLATTR_class = 'styleClass'
+    XMLATTR_class = ('style_class', None, None, list)
     XMLATTR_label = 'label'
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.id = None
-        self.styleClass = None
         self.label = None
 
     def RenderHTML(self, parent, profile, itemState):
@@ -180,7 +179,7 @@ class ItemBody(BodyElement):
             htmlDiv = parent.add_child(html.Div)
         else:
             htmlDiv = html.Div(None)
-        htmlDiv.styleClass = "itemBody"
+        htmlDiv.style_class = ["itemBody"]
         self.RenderHTMLChildren(htmlDiv, profile, itemState)
 
 

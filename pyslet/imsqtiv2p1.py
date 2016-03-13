@@ -144,7 +144,7 @@ xmlns.map_class_elements(core.QTIDocument.classMap, expressions)
 xmlns.map_class_elements(core.QTIDocument.classMap, md)
 # also add in the profile of HTML but with the namespace rewritten to ours
 for name in QTI_HTMLProfile:
-    eClass = html.XHTMLDocument.classMap.get(
+    eClass = html.XHTMLDocument.class_map.get(
         (html.XHTML_NAMESPACE, name), None)
     if eClass:
         core.QTIDocument.classMap[(core.IMSQTI_NAMESPACE, name)] = eClass

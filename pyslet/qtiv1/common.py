@@ -311,7 +311,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
     XMLNAME = 'mattext'
     XMLATTR_label = 'label'
     XMLATTR_charset = 'charset'
-    XMLATTR_uri = ('uri', html.DecodeURI, html.EncodeURI)
+    XMLATTR_uri = ('uri', html.uri.URI.from_octets, html.to_text)
     XMLATTR_texttype = 'texttype'
     XMLCONTENT = xml.XMLMixedContent
 
@@ -363,7 +363,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
             self.matChildren = list(doc.root.Body.get_children())
             if len(self.matChildren) == 1 and isinstance(self.matChildren[0], html.Div):
                 div = self.matChildren[0]
-                if div.styleClass is None:
+                if div.style_class is None:
                     # a single div with no style class is removed...
                     self.matChildren = list(div.get_children())
         elif self.texttype == 'text/rtf':
@@ -579,7 +579,7 @@ class MatImage(core.QTIElement, PositionMixin, MatThingMixin):
     XMLNAME = "matimage"
     XMLATTR_imagtype = 'imageType'
     XMLATTR_label = 'label'
-    XMLATTR_uri = ('uri', html.DecodeURI, html.EncodeURI)
+    XMLATTR_uri = ('uri', html.uri.URI.from_octets, html.to_text)
     XMLATTR_embedded = 'embedded'
     XMLCONTENT = xml.XMLMixedContent
 
@@ -634,7 +634,7 @@ class MatAudio(core.QTIElement, MatThingMixin):
 
     XMLATTR_audiotype = 'audioType'
     XMLATTR_label = 'label'
-    XMLATTR_uri = ('uri', html.DecodeURI, html.EncodeURI)
+    XMLATTR_uri = ('uri', html.uri.URI.from_octets, html.to_text)
     XMLATTR_embedded = 'embedded'
     XMLCONTENT = xml.XMLMixedContent
 
@@ -688,7 +688,7 @@ class MatVideo(core.QTIElement, PositionMixin, MatThingMixin):
     XMLCONTENT = xml.XMLMixedContent
     XMLATTR_videotype = 'videoType'
     XMLATTR_label = 'label'
-    XMLATTR_uri = ('uri', html.DecodeURI, html.EncodeURI)
+    XMLATTR_uri = ('uri', html.uri.URI.from_octets, html.to_text)
     XMLATTR_embedded = 'embedded'
     XMLCONTENT = xml.XMLMixedContent
 
@@ -743,7 +743,7 @@ class MatApplet(core.QTIElement, PositionMixin, MatThingMixin):
     XMLNAME = "matapplet"
     XMLCONTENT = xml.XMLMixedContent
     XMLATTR_label = 'label'
-    XMLATTR_uri = ('uri', html.DecodeURI, html.EncodeURI)
+    XMLATTR_uri = ('uri', html.uri.URI.from_octets, html.to_text)
     XMLATTR_embedded = 'embedded'
     XMLCONTENT = xml.XMLMixedContent
 
@@ -784,7 +784,7 @@ class MatApplication(core.QTIElement, MatThingMixin):
     XMLCONTENT = xml.XMLMixedContent
     XMLATTR_apptype = 'appType'
     XMLATTR_label = 'label'
-    XMLATTR_uri = ('uri', html.DecodeURI, html.EncodeURI)
+    XMLATTR_uri = ('uri', html.uri.URI.from_octets, html.to_text)
     XMLATTR_embedded = 'embedded'
     XMLCONTENT = xml.XMLMixedContent
 
@@ -895,12 +895,11 @@ class FlowMat(FlowMatContainer, FlowMixin):
             <!ELEMENT flow_mat (qticomment? , (flow_mat | material | material_ref)+)>
             <!ATTLIST flow_mat  class CDATA  'Block' >"""
     XMLNAME = "flow_mat"
-    XMLATTR_class = 'flowClass'
+    XMLATTR_class = ('flow_class', None, None, list)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         FlowMatContainer.__init__(self, parent)
-        self.flowClass = None
 
     def ContentMixin(self, childClass):
         if issubclass(childClass, MaterialRef):
@@ -910,9 +909,9 @@ class FlowMat(FlowMatContainer, FlowMixin):
             return FlowMatContainer.ContentMixin(self, childClass)
 
     def IsInline(self):
-        """flowmat is always treated as a block if flowClass is specified, otherwise
+        """flowmat is always treated as a block if flow_class is specified, otherwise
         it is treated as a block unless it is an only child."""
-        if self.flowClass is None:
+        if not self.flow_class:
             return self.InlineChildren()
         else:
             return False
@@ -921,17 +920,17 @@ class FlowMat(FlowMatContainer, FlowMixin):
         """flow typically maps to a div element.
 
         A flow with a specified class always becomes a div."""
-        if self.flowClass is not None:
+        if self.flow_class:
             if childType in (html.BlockMixin, html.FlowMixin):
                 div = parent.add_child(
                     html.Div, (qtiv2.core.IMSQTI_NAMESPACE, 'div'))
-                div.styleClass = self.flowClass
+                div.style_class = self.flow_class
                 FlowMatContainer.MigrateV2Content(
                     self, div, html.FlowMixin, log)
             else:
                 span = parent.add_child(
                     html.Span, (qtiv2.core.IMSQTI_NAMESPACE, 'span'))
-                span.styleClass = self.flowClass
+                span.style_class = self.flow_class
                 FlowMatContainer.MigrateV2Content(
                     self, span, html.InlineMixin, log)
         else:
@@ -1123,11 +1122,11 @@ class Rubric(FlowMatContainer):
         if self.view == core.View.All:
             log.append(
                 'Warning: rubric with view="All" replaced by <div> with class="rubric"')
-            rubric = v2Item.add_child(qtiv2.content.ItemBody).add_child(
+            rubric = v2Item.get_or_add_child(qtiv2.content.ItemBody).add_child(
                 html.Div, (qtiv2.core.IMSQTI_NAMESPACE, 'div'))
-            rubric.styleClass = 'rubric'
+            rubric.style_class = ['rubric']
         else:
-            rubric = v2Item.add_child(
+            rubric = v2Item.get_or_add_child(
                 qtiv2.content.ItemBody).add_child(qtiv2.RubricBlock)
             rubric.set_attribute(
                 'view',

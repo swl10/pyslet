@@ -47,10 +47,10 @@ class XMLNSValidationTests(unittest.TestCase):
 class XMLNSElementTests(unittest.TestCase):
 
     def test_constructor(self):
-        e = xmlns.NSElement(None, 'test')
+        e = xmlns.NSElement(None)
         self.assertTrue(e.ns is None, 'ns set on construction')
-        self.assertTrue(
-            e.xmlname == 'test', 'element name not set on construction')
+        self.assertTrue(e.xmlname is None,
+                        'element name not set on construction')
 
 
 class XMLExampleElement(xmlns.NSElement):

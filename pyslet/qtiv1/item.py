@@ -822,7 +822,7 @@ class Presentation(FlowContainer, common.PositionMixin):
 
     def MigrateV2(self, v2Item, log):
         """Presentation maps to the main content in itemBody."""
-        itemBody = v2Item.add_child(qtiv2.content.ItemBody)
+        itemBody = v2Item.get_or_add_child(qtiv2.content.ItemBody)
         if self.GotPosition():
             log.append(
                 "Warning: discarding absolute positioning information on presentation")
@@ -898,17 +898,16 @@ class Flow(FlowContainer, common.FlowMixin):
             )>
     <!ATTLIST flow  class CDATA  'Block' >"""
     XMLNAME = 'flow'
-    XMLATTR_class = 'flowClass'
+    XMLATTR_class = 'flow_class'
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         FlowContainer.__init__(self, parent)
-        self.flowClass = None
 
     def IsInline(self):
-        """flow is always treated as a block if flowClass is specified, otherwise
+        """flow is always treated as a block if flow_class is specified, otherwise
         it is treated as a block unless it is an only child."""
-        if self.flowClass is None:
+        if not self.flow_class:
             return self.InlineChildren()
         else:
             return False
@@ -919,16 +918,16 @@ class Flow(FlowContainer, common.FlowMixin):
         A flow with a specified class always becomes a div
         A flow with inline children generates a paragraph to hold them
         A flow with no class is ignored."""
-        if self.flowClass is not None:
+        if self.flow_class:
             if childType in (html.BlockMixin, html.FlowMixin):
                 div = parent.add_child(
                     html.Div, (qtiv2.core.IMSQTI_NAMESPACE, 'div'))
-                div.styleClass = self.flowClass
+                div.style_class = self.flow_class
                 FlowContainer.MigrateV2Content(self, div, html.FlowMixin, log)
             else:
                 span = parent.add_child(
                     html.Span, (qtiv2.core.IMSQTI_NAMESPACE, 'span'))
-                span.styleClass = self.flowClass
+                span.style_class = self.flow_class
                 FlowContainer.MigrateV2Content(
                     self, span, html.InlineMixin, log)
         else:
@@ -1731,7 +1730,7 @@ class RenderSlider(RenderThing):
                     "Warning: choice-slider replaced with choiceInteraction.slider")
                 interaction = parent.add_child(
                     qtiv2.interactions.ChoiceInteraction)
-                interaction.styleClass = 'slider'
+                interaction.style_class = ['slider']
                 interaction.minChoices = 1
                 interaction.maxChoices = 1
             elif self.parent.rCardinality == core.RCardinality.Ordered:
@@ -1743,7 +1742,7 @@ class RenderSlider(RenderThing):
                     "Error: multiple-slider replaced with choiceInteraction.slider")
                 interaction = parent.add_child(
                     qtiv2.interactions.ChoiceInteraction)
-                interaction.styleClass = 'slider'
+                interaction.style_class = ['slider']
                 if self.minNumber is not None:
                     interaction.minChoices = self.minNumber
                 else:
@@ -2246,7 +2245,7 @@ class ItemProcExtension(common.ContentMixin, core.QTIElement, ConditionMixin):
                 # humanraterdata extension, migrate content with appropriate
                 # view
                 v2Item = ruleContainer.find_parent(qtiv2.items.AssessmentItem)
-                rubric = v2Item.add_child(
+                rubric = v2Item.get_or_add_child(
                     qtiv2.content.ItemBody).add_child(qtiv2.RubricBlock)
                 rubric.view = qtiv2.core.View.scorer
                 material = list(

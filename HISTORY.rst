@@ -48,6 +48,31 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
+Build 20160313:
+
+#3 PEP-8 driven refactoring (ongoing)
+
+HTML module refactored prior to Python 3 compatibility work, test
+coverage increased significantly ready for migration.
+
+Untracked fixes:
+
+Deprecated XML Element construction with name override to improve
+handling of super.
+
+Fixed broken legacy name Expand in OData package.  Bug introduced with
+improvements to method decorators in 20160223 build.
+
+Fixed a bug in the parsing of HTML content where unexpected elements
+that belong in the <head> were causing any preceding <body> content to
+be ignored.  Added the get_or_add_child method to XML Elements to deal
+with cases where add_child's 'reset' of the elements children is
+undesired.
+
+Fixed a bug in the XML parser where the parsed DTD was not being set
+in the Document instance.
+
+ 
 Build 20160225:
  
 #3 PEP-8 driven refactoring (ongoing)

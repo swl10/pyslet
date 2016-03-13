@@ -1215,18 +1215,18 @@ class Mapping(core.QTIElement):
         else:
             raise ValueError("Can't map %s" % repr(value))
         result = 0.0
-        beenThere = {}
+        been_there = {}
         dstValue = FloatValue(0.0)
         if value.baseType is None:
             # a value of unknown type results in NULL
             nullFlag = True
         for v in srcValues:
-            if v in beenThere:
+            if v in been_there:
                 # If a container contains multiple instances of the same value
                 # then that value is counted once only
                 continue
             else:
-                beenThere[v] = True
+                been_there[v] = True
             result = result + self.map.get(v, self.defaultValue)
         if nullFlag:
             # We save the NULL return up to the end to ensure that we generate errors
@@ -1382,7 +1382,7 @@ class AreaMapping(core.QTIElement):
         else:
             raise ValueError("Can't map %s" % repr(value))
         result = 0.0
-        beenThere = [False] * len(self.AreaMapEntry)
+        been_there = [False] * len(self.AreaMapEntry)
         dstValue = FloatValue(0.0)
         if value.baseType is None:
             # a value of unknown type results in NULL
@@ -1394,10 +1394,10 @@ class AreaMapping(core.QTIElement):
             for i in xrange(len(self.AreaMapEntry)):
                 if self.AreaMapEntry[i].TestPoint(v, width, height):
                     hitPoint = True
-                    if not beenThere[i]:
+                    if not been_there[i]:
                         # When mapping containers each area can be mapped once
                         # only
-                        beenThere[i] = True
+                        been_there[i] = True
                         result = result + self.AreaMapEntry[i].mappedValue
                     break
             if not hitPoint:
@@ -1470,7 +1470,7 @@ class OutcomeDeclaration(VariableDeclaration):
         types.DictType)
     XMLATTR_interpretation = 'interpretation'
     XMLATTR_longInterpretation = (
-        'longInterpretation', html.DecodeURI, html.EncodeURI)
+        'longInterpretation', html.uri.URI.from_octets, html.to_text)
     XMLATTR_normalMaximum = ('normalMaximum', xsi.float_from_str, xsi.float_to_str)
     XMLATTR_normalMinimum = ('normalMinimum', xsi.float_from_str, xsi.float_to_str)
     XMLATTR_masteryValue = ('masteryValue', xsi.float_from_str, xsi.float_to_str)
@@ -1505,7 +1505,7 @@ class LookupTable(core.QTIElement):
     XMLATTR_defaultValue = 'defaultValue'
     XMLATTR_interpretation = 'interpretation'
     XMLATTR_longInterpretation = (
-        'longInterpretation', html.DecodeURI, html.EncodeURI)
+        'longInterpretation', html.uri.URI.from_octets, html.to_text)
     XMLATTR_normalMaximum = ('normalMaximum', xsi.float_from_str, xsi.float_to_str)
     XMLATTR_normalMinimum = ('normalMinimum', xsi.float_from_str, xsi.float_to_str)
     XMLATTR_masteryValue = ('masteryValue', xsi.float_from_str, xsi.float_to_str)
@@ -2352,7 +2352,7 @@ class TestSessionState(SessionState):
     def AddHTMLNavigation(self, form):
         # Now add the navigation
         nav = form.add_child(html.Div)
-        nav.styleClass = "navigation"
+        nav.style_class = ["navigation"]
         save = nav.add_child(html.Button)
         save.type = html.ButtonType.submit
         save.name = "SAVE"

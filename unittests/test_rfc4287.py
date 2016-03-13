@@ -288,8 +288,11 @@ class FeedTests(unittest.TestCase):
         self.assertTrue(isinstance(link, Link) and link.href ==
                         "http://example.org/", "Example 1 link")
         updated = feed.Updated
-        self.assertTrue(isinstance(updated.get_value(), iso8601.TimePoint) and updated.get_value(
-        ) == iso8601.TimePoint.from_str("2003-12-13T18:30:02Z"), "Example 1 updated: found %s" % updated.get_value())
+        self.assertTrue(
+            isinstance(updated.get_value(), iso8601.TimePoint) and
+            updated.get_value() ==
+            iso8601.TimePoint.from_str("2003-12-13T18:30:02Z"),
+            "Example 1 updated: found %s" % updated.get_value())
         author = feed.Author[0]
         self.assertTrue(isinstance(
             author, Person) and author.Name.get_value() == "John Doe", "Example 1 author")

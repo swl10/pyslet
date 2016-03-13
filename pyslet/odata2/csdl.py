@@ -2861,7 +2861,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         in the metadata model."""
         return self.entity_set.GetFQName()
 
-    @old_method('SetExpand')
+    @old_method('Expand')
     def set_expand(self, expand, select=None):
         """Sets the expand and select query options for this collection.
 

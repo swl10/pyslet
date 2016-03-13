@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import logging
+import warnings
 
 from ..pep8 import old_function, old_method
 from ..py2 import (
@@ -81,9 +82,10 @@ class NSNode(Node):
     namespaces, typically done by the __init__ method on classes derived
     from NSDocument."""
 
-    def __init__(self):
+    def __init__(self, parent=None):
         self._prefix_to_ns = {}
         self._ns_to_prefix = {}
+        super(NSNode, self).__init__(parent)
 
     def reset_prefix_map(self, recursive=False):
         self._prefix_to_ns = {}
@@ -294,17 +296,14 @@ class NSElement(NSNode, Element):
     provided."""
 
     def __init__(self, parent, name=None):
-        if is_string(name):
-            self.ns = None
-        elif name is None:
-            if hasattr(self.__class__, 'XMLNAME'):
-                self.ns, name = self.__class__.XMLNAME
-            else:
-                self.ns = self.name = None
-        else:
-            self.ns, name = name
-        Element.__init__(self, parent, name)
-        NSNode.__init__(self)
+        super(NSElement, self).__init__(parent)
+        if name is not None:
+            warnings.warn(
+                "NSElement: passing name to constructor is deprecated (%s); "
+                "use set_xmlname instead" % name)
+            import traceback
+            traceback.print_stack()
+            self.set_xmlname(name)
 
     def set_xmlname(self, name):
         """Sets the name of this element
@@ -315,6 +314,8 @@ class NSElement(NSNode, Element):
         if is_string(name):
             self.ns = None
             self.xmlname = name
+        elif name is None:
+            self.ns = self.xmlname = None
         else:
             self.ns, self.xmlname = name
 
@@ -538,7 +539,7 @@ class NSElement(NSNode, Element):
 XMLNSElement = NSElement
 
 
-class NSDocument(NSNode, Document):
+class NSDocument(Document, NSNode):
 
     default_ns = None
     """The default namespace for this document class
@@ -547,11 +548,6 @@ class NSDocument(NSNode, Document):
     elements created within the document that are parsed without an
     effective namespace declaration.  Set to None, but typically
     overridden by derived classes."""
-
-    def __init__(self, **args):
-        """Initialises a new Document from optional keyword arguments."""
-        Document.__init__(self, **args)
-        NSNode.__init__(self)
 
     def XMLParser(self, entity):    # noqa
         """Namespace documents use the special :py:class:`XMLNSParser`.
@@ -743,7 +739,7 @@ class XMLNSParser(XMLParser):
         # go through attributes and process namespace declarations
         if attrs and not ((NO_NAMESPACE, ".ns") in attrs):
             # This deserves an explanation.  It is possible that
-            # get_stag_class will infer an element in sgmlOmittag mode
+            # get_stag_class will infer an element in sgml_omittag mode
             # forcing the parser to buffer this qname and its associated
             # attributes after we've done namespace expansion of them.
             # There is a real question over whether or not it is safe to
@@ -770,14 +766,20 @@ class XMLNSParser(XMLParser):
         context = self.get_context()
         if qname and xname[0] is None:
             xname = (doc_class.default_ns, xname[1])
-        if self.sgmlOmittag:
+        if self.sgml_omittag:
             if qname:
                 stag_class = self.doc.get_element_class(xname)
             else:
-                stag_class = None
+                stag_class = str
             element_class = context.get_child_class(stag_class)
             if element_class is not stag_class:
                 return element_class, None, True
+            elif element_class is str:
+                # unhanded data, end tag omission not supported
+                self.validity_error(
+                    "data not allowed in %s (and end-tag omission not "
+                    "supported)" % context.__class__.__name__)
+                return None, xname, False
             else:
                 return element_class, xname, False
         else:

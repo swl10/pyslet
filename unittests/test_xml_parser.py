@@ -136,98 +136,98 @@ class XMLValidationTests(unittest.TestCase):
 
     def test_well_formed(self):
         dpath = os.path.join(TEST_DATA_DIR, 'wellformed')
-        for fName in os.listdir(dpath):
-            if fName[-4:] != ".xml":
+        for fname in os.listdir(dpath):
+            if fname[-4:] != ".xml":
                 continue
-            f = uri.URI.from_path(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fname))
             with structures.XMLEntity(f) as e:
                 d = structures.Document()
                 p = parser.XMLParser(e)
-                p.checkValidity = False
+                p.check_validity = False
                 try:
                     p.parse_document(d)
                     self.assertTrue(
                         p.valid is None,
                         "Well-Formed Example: %s marked valid but "
-                        "checkValidity was False" % fName)
+                        "check_validity was False" % fname)
                 except parser.XMLWellFormedError as e:
                     self.fail("Well-Formed Example: %s raised "
-                              "XMLWellFormedError\n%s" % (fName, str(e)))
+                              "XMLWellFormedError\n%s" % (fname, str(e)))
         dpath = os.path.join(TEST_DATA_DIR, 'notwellformed')
-        for fName in os.listdir(dpath):
-            if fName[-4:] != ".xml":
+        for fname in os.listdir(dpath):
+            if fname[-4:] != ".xml":
                 continue
-            f = uri.URI.from_path(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fname))
             with structures.XMLEntity(f) as e:
                 d = structures.Document()
                 try:
                     d.read(e)
                     self.fail("%s is not Well-Formed but failed to raise "
-                              "XMLWellFormedError" % fName)
+                              "XMLWellFormedError" % fname)
                 except parser.XMLWellFormedError as e:
-                    logging.info("\n%s: Well-formed Errors:", fName)
+                    logging.info("\n%s: Well-formed Errors:", fname)
                     logging.info(str(e))
 
     def test_valid(self):
         dpath = os.path.join(TEST_DATA_DIR, 'valid')
-        for fName in os.listdir(dpath):
-            if fName[-4:] != ".xml":
+        for fname in os.listdir(dpath):
+            if fname[-4:] != ".xml":
                 continue
-            f = uri.URI.from_path(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fname))
             with structures.XMLEntity(f) as e:
                 p = parser.XMLParser(e)
-                p.checkValidity = True
+                p.check_validity = True
                 p.raiseValidityErrors = True
                 try:
                     p.parse_document()
                     self.assertTrue(p.valid, "Valid Example: %s not marked as "
-                                    "valid in the parser" % fName)
+                                    "valid in the parser" % fname)
                     self.assertTrue(
                         len(p.nonFatalErrors) == 0,
-                        "Valid Example: %s reported validity errors" % fName)
+                        "Valid Example: %s reported validity errors" % fname)
                 except structures.XMLValidityError as e:
                     self.fail(
                         "Valid Example: %s raised "
-                        "structures.XMLValidityError\n%s" % (fName, str(e)))
+                        "structures.XMLValidityError\n%s" % (fname, str(e)))
                 except parser.XMLWellFormedError as e:
                     self.fail("Valid Example: %s raised "
-                              "XMLWellFormedError" % fName)
+                              "XMLWellFormedError" % fname)
         dpath = os.path.join(TEST_DATA_DIR, 'wellformed')
-        for fName in os.listdir(dpath):
-            if fName[-4:] != ".xml":
+        for fname in os.listdir(dpath):
+            if fname[-4:] != ".xml":
                 continue
-            f = uri.URI.from_path(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fname))
             with structures.XMLEntity(f) as e:
                 p = parser.XMLParser(e)
-                p.checkValidity = True
+                p.check_validity = True
                 # By default we don't raise validity errors...
                 try:
                     p.parse_document()
                     self.assertFalse(p.valid, "Invalid Example: %s marked as "
-                                     "valid in the parser" % fName)
+                                     "valid in the parser" % fname)
                     self.assertFalse(
                         len(p.nonFatalErrors) == 0,
                         "Invalid Example: %s reported no validity errors" %
-                        fName)
-                    logging.info("\n%s: Validity Errors:", fName)
+                        fname)
+                    logging.info("\n%s: Validity Errors:", fname)
                     for e in p.nonFatalErrors:
                         logging.info(str(e))
                 except structures.XMLValidityError as e:
                     self.fail("structures.XMLValidityError raised when "
-                              "raiseVaidityErrors is False (%s)" % fName)
+                              "raiseVaidityErrors is False (%s)" % fname)
                 except parser.XMLWellFormedError as e:
                     self.fail("Invalid but Well-Formed Example raised "
-                              "XMLWellFormedError (%s)\n%s" % (fName, str(e)))
+                              "XMLWellFormedError (%s)\n%s" % (fname, str(e)))
                 except structures.XMLError as e:
                     self.fail("Other XMLError raised by invalid but "
-                              "Well-Formed Example (%s)" % fName)
+                              "Well-Formed Example (%s)" % fname)
 
     def test_incompatible(self):
         dpath = os.path.join(TEST_DATA_DIR, 'compatible')
-        for fName in os.listdir(dpath):
-            if fName[-4:] != ".xml":
+        for fname in os.listdir(dpath):
+            if fname[-4:] != ".xml":
                 continue
-            f = uri.URI.from_path(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fname))
             with structures.XMLEntity(f) as e:
                 p = parser.XMLParser(e)
                 p.checkCompatibility = True
@@ -236,21 +236,21 @@ class XMLValidationTests(unittest.TestCase):
                     self.assertTrue(
                         len(p.nonFatalErrors) == 0,
                         "Compatible Example: %s reported compatibility "
-                        "errors" % fName)
+                        "errors" % fname)
                 except structures.XMLValidityError as e:
                     self.fail("Compatible Example: %s raised "
-                              "structures.XMLValidityError" % fName)
+                              "structures.XMLValidityError" % fname)
                 except parser.XMLWellFormedError as e:
                     self.fail("Compatible Example: %s raised "
-                              "XMLWellFormedError" % fName)
+                              "XMLWellFormedError" % fname)
                 except structures.XMLError as e:
                     self.fail("Compatible Example: %s raised other XMLError" %
-                              fName)
+                              fname)
         dpath = os.path.join(TEST_DATA_DIR, 'incompatible')
-        for fName in os.listdir(dpath):
-            if fName[-4:] != ".xml":
+        for fname in os.listdir(dpath):
+            if fname[-4:] != ".xml":
                 continue
-            f = uri.URI.from_path(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fname))
             with structures.XMLEntity(f) as e:
                 p = parser.XMLParser(e)
                 p.checkCompatibility = True
@@ -259,44 +259,44 @@ class XMLValidationTests(unittest.TestCase):
                     self.assertFalse(
                         len(p.nonFatalErrors) == 0,
                         "Incompatible Example: %s reported no non-fatal "
-                        "errors" % fName)
-                    logging.info("\n%s: Compatibility Errors:", fName)
+                        "errors" % fname)
+                    logging.info("\n%s: Compatibility Errors:", fname)
                     for e in p.nonFatalErrors:
                         logging.info(str(e))
                 except structures.XMLValidityError as e:
                     self.fail("structures.XMLValidityError raised when "
-                              "raiseVaidityErrors is False (%s)" % fName)
+                              "raiseVaidityErrors is False (%s)" % fname)
                 except parser.XMLWellFormedError as e:
                     self.fail("Incompatible but Well-Formed Example raised "
-                              "XMLWellFormedError (%s)" % fName)
+                              "XMLWellFormedError (%s)" % fname)
                 except structures.XMLError as e:
                     self.fail("Other XMLError raised by incompatible but "
-                              "Well-Formed Example (%s)" % fName)
+                              "Well-Formed Example (%s)" % fname)
 
     def test_error(self):
         dpath = os.path.join(TEST_DATA_DIR, 'noerrors')
-        for fName in os.listdir(dpath):
-            if fName[-4:] != ".xml":
+        for fname in os.listdir(dpath):
+            if fname[-4:] != ".xml":
                 continue
-            f = uri.URI.from_path(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fname))
             with structures.XMLEntity(
-                    f, 'latin-1' if "latin" in fName else None) as e:
+                    f, 'latin-1' if "latin" in fname else None) as e:
                 p = parser.XMLParser(e)
                 p.checkAllErrors = True
                 try:
                     p.parse_document()
                     self.assertTrue(
                         len(p.nonFatalErrors) == 0,
-                        "No errors example: %s reported errors" % fName)
+                        "No errors example: %s reported errors" % fname)
                 except structures.XMLError as e:
-                    self.fail("No errors example: %s raised XMLError" % fName)
+                    self.fail("No errors example: %s raised XMLError" % fname)
         dpath = os.path.join(TEST_DATA_DIR, 'errors')
-        for fName in os.listdir(dpath):
-            if fName[-4:] != ".xml":
+        for fname in os.listdir(dpath):
+            if fname[-4:] != ".xml":
                 continue
-            f = uri.URI.from_path(os.path.join(dpath, fName))
+            f = uri.URI.from_path(os.path.join(dpath, fname))
             with structures.XMLEntity(
-                    f, 'latin-1' if "latin" in fName else None) as e:
+                    f, 'latin-1' if "latin" in fname else None) as e:
                 p = parser.XMLParser(e)
                 p.checkAllErrors = True
                 try:
@@ -304,13 +304,13 @@ class XMLValidationTests(unittest.TestCase):
                     self.assertFalse(
                         len(p.nonFatalErrors) == 0,
                         "Error example: %s reported no non-fatal errors" %
-                        fName)
-                    logging.info("\n%s: Errors:", fName)
+                        fname)
+                    logging.info("\n%s: Errors:", fname)
                     for e in p.nonFatalErrors:
                         logging.info(str(e))
                 except structures.XMLError as e:
                     self.fail("XMLError raised by (non-fatal) error "
-                              "example (%s)" % fName)
+                              "example (%s)" % fname)
 
 
 class XMLParserTests(unittest.TestCase):
@@ -345,7 +345,7 @@ class XMLParserTests(unittest.TestCase):
             p = parser.XMLParser(e)
             self.assertFalse(p.parse_literal("HELLO"),
                              "Case insensitve literal in default parser")
-            p.sgmlNamecaseGeneral = True
+            p.sgml_namecase_general = True
             self.assertTrue(p.parse_literal("HELLO"), "Upper-case literals")
             p.parse_s()
             # self.assertTrue(p.parse_name()=="GOODBYE",
@@ -473,7 +473,7 @@ class XMLParserTests(unittest.TestCase):
         with structures.XMLEntity("'first'\"second\"'3&gt;2''2%ltpe;3'") as e:
             m = ['first', 'second', '3&gt;2', '2<3']
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             p.dtd = structures.XMLDTD()
             p.dtd.declare_entity(structures.XMLParameterEntity('ltpe', '<'))
             for match in m:
@@ -865,7 +865,7 @@ class XMLParserTests(unittest.TestCase):
             p = parser.XMLParser(e)
             p.dtd = structures.XMLDTD()
             p.dtd.declare_entity(structures.XMLParameterEntity('stuff', ' '))
-            p.checkValidity = True
+            p.check_validity = True
             p.refMode = parser.XMLParser.RefModeInDTD
             while p.the_char != 'x':
                 p.parse_decl_sep()
@@ -900,7 +900,7 @@ class XMLParserTests(unittest.TestCase):
 \t\tx"""
         with structures.XMLEntity(s) as e:
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             # ensures that elements are declared in the DTD
             p.dtd = structures.XMLDTD()
             while p.the_char == '<':
@@ -943,7 +943,7 @@ class XMLParserTests(unittest.TestCase):
             p.dtd = structures.XMLDTD()
             p.dtd.declare_entity(
                 structures.XMLParameterEntity('moreStuff', ' <?stuff?>'))
-            p.checkValidity = True
+            p.check_validity = True
             p.refMode = parser.XMLParser.RefModeInDTD
             p.parse_ext_subset_decl()
             self.assertTrue(p.the_char is None,
@@ -1011,13 +1011,13 @@ class XMLParserTests(unittest.TestCase):
                             attrs['ciao'] == 'tutti' and not empty)
         with structures.XMLEntity("<tag hello/>") as e:
             p = parser.XMLParser(e)
-            p.sgmlShorttag = True
+            p.sgml_shorttag = True
             name, attrs, empty = p.parse_stag()
-            self.assertTrue(name == 'tag' and attrs['@hello'] == 'hello' and
+            self.assertTrue(name == 'tag' and attrs['hello'] == 'hello' and
                             empty is True)
         with structures.XMLEntity("<tag width=20%>") as e:
             p = parser.XMLParser(e)
-            p.dontCheckWellFormedness = True
+            p.dont_check_wellformedness = True
             name, attrs, empty = p.parse_stag()
             self.assertTrue(name == 'tag' and attrs['width'] == '20%' and
                             empty is False)
@@ -1046,10 +1046,10 @@ class XMLParserTests(unittest.TestCase):
                 pass
         with structures.XMLEntity(s) as e:
             m = [('a', 'b'), ('c', 'd'), ('e', 'f'),
-                 ('@i', 'i'), ('@j', 'j'), ('g', 'h%')]
+                 ('i', 'i'), ('j', 'j'), ('g', 'h%')]
             p = parser.XMLParser(e)
-            p.dontCheckWellFormedness = True
-            p.sgmlShorttag = True
+            p.dont_check_wellformedness = True
+            p.sgml_shorttag = True
             for match in m:
                 p.parse_s()
                 name, value = p.parse_attribute()
@@ -1134,7 +1134,7 @@ class XMLParserTests(unittest.TestCase):
 \t\t"""
         with structures.XMLEntity(s) as e:
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             # ensures that elements are declared in the DTD
             p.dtd = structures.XMLDTD()
             try:
@@ -1665,7 +1665,7 @@ class XMLParserTests(unittest.TestCase):
             p.dtd = structures.XMLDTD()
             p.dtd.declare_entity(
                 structures.XMLParameterEntity('include', 'INCLUDE'))
-            p.checkValidity = True
+            p.check_validity = True
             p.refMode = parser.XMLParser.RefModeInDTD
             try:
                 p.parse_conditional_sect()
@@ -1692,7 +1692,7 @@ class XMLParserTests(unittest.TestCase):
                 p.dtd = structures.XMLDTD()
                 p.dtd.declare_entity(
                     structures.XMLParameterEntity('include', 'INCLUDE'))
-                p.checkValidity = True
+                p.check_validity = True
                 p.refMode = parser.XMLParser.RefModeInDTD
                 try:
                     p.parse_include_sect()
@@ -1726,7 +1726,7 @@ class XMLParserTests(unittest.TestCase):
                 p.dtd.declare_entity(
                     structures.XMLParameterEntity('include3',
                                                   '<?included?> ]]>'))
-                p.checkValidity = True
+                p.check_validity = True
                 p.raiseValidityErrors = True
                 p.refMode = parser.XMLParser.RefModeInDTD
                 try:
@@ -1752,7 +1752,7 @@ class XMLParserTests(unittest.TestCase):
                 p.dtd = structures.XMLDTD()
                 p.dtd.declare_entity(structures.XMLParameterEntity('ignore',
                                                                    'IGNORE'))
-                p.checkValidity = True
+                p.check_validity = True
                 p.refMode = parser.XMLParser.RefModeInDTD
                 try:
                     p.parse_ignore_sect()
@@ -1785,7 +1785,7 @@ class XMLParserTests(unittest.TestCase):
                     structures.XMLParameterEntity('ignore2', '<![IGNORE '))
                 p.dtd.declare_entity(
                     structures.XMLParameterEntity('ignore3', 'ignored ]]>'))
-                p.checkValidity = True
+                p.check_validity = True
                 p.raiseValidityErrors = True
                 p.refMode = parser.XMLParser.RefModeInDTD
                 try:
@@ -1994,7 +1994,7 @@ class XMLParserTests(unittest.TestCase):
         """[69] PEReference ::= '%' Name ';' """
         with structures.XMLEntity("%animal;") as e:
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             p.refMode = parser.XMLParser.RefModeInContent
             data = p.parse_pe_reference()
             self.assertTrue(data == '%animal;',
@@ -2002,21 +2002,21 @@ class XMLParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None, "Short parse on PEReference")
         with structures.XMLEntity("%animal;") as e:
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             p.refMode = parser.XMLParser.RefModeInAttributeValue
             self.assertTrue(p.parse_pe_reference() == '%animal;',
                             "PEReference recognized in attribute value")
             self.assertTrue(p.the_char is None, "Short parse on PEReference")
         with structures.XMLEntity("%animal;") as e:
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             p.refMode = parser.XMLParser.RefModeAsAttributeValue
             self.assertTrue(p.parse_pe_reference() == "%animal;",
                             "PEReference recognized as attribute value")
             self.assertTrue(p.the_char is None, "Short parse on PEReference")
         with structures.XMLEntity("%animal;") as e:
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             p.dtd = structures.XMLDTD()
             p.dtd.declare_entity(structures.XMLParameterEntity('animal',
                                                                'dog'))
@@ -2031,7 +2031,7 @@ class XMLParserTests(unittest.TestCase):
                             "Short parse on PEReference replacement text")
         with structures.XMLEntity("%animal;") as e:
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             p.dtd = structures.XMLDTD()
             p.dtd.declare_entity(structures.XMLParameterEntity('animal',
                                                                'dog'))
@@ -2049,7 +2049,7 @@ class XMLParserTests(unittest.TestCase):
             self.assertTrue(p.the_char is None, "Short parse on PEReference")
         with structures.XMLEntity('<!ENTITY WhatHeSaid "He said %YN;" >') as e:
             p = parser.XMLParser(e)
-            p.checkValidity = True
+            p.check_validity = True
             p.dtd = structures.XMLDTD()
             p.dtd.declare_entity(structures.XMLParameterEntity('YN', '"Yes"'))
             try:

@@ -473,7 +473,7 @@ class AssessmentItemRef(SectionPart):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentItemRef')
-    XMLATTR_href = ('href', html.DecodeURI, html.EncodeURI)
+    XMLATTR_href = ('href', html.uri.URI.from_octets, html.to_text)
     XMLATTR_category = ('category', None, None, types.ListType)
     XMLCONTENT = xml.ElementContent
 

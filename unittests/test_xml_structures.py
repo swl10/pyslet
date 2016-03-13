@@ -375,8 +375,6 @@ class ElementTests(unittest.TestCase):
             self.fail("Children present on construction")
         except StopIteration:
             pass
-        e = structures.Element(None, 'test')
-        self.assertTrue(e.xmlname == 'test', 'element named on construction')
 
     def test_default_name(self):
         e = NamedElement(None)
@@ -384,12 +382,14 @@ class ElementTests(unittest.TestCase):
             e.xmlname == 'test', 'element default name on construction')
 
     def test_set_xml_name(self):
-        e = NamedElement(None, 'test2')
+        e = NamedElement(None)
+        e.set_xmlname('test2')
         self.assertTrue(
             e.xmlname == 'test2', 'element named explicitly in construction')
 
     def test_attributes(self):
-        e = structures.Element(None, 'test')
+        e = structures.Element(None)
+        e.set_xmlname('test')
         e.set_attribute('atest', 'value')
         attrs = e.get_attributes()
         self.assertTrue(len(list(dict_keys(attrs))) == 1, "Attribute not set")
@@ -463,7 +463,8 @@ class ElementTests(unittest.TestCase):
 
     def test_child_elements(self):
         """Test child element behaviour"""
-        e = structures.Element(None, 'test')
+        e = structures.Element(None)
+        e.set_xmlname('test')
         e.add_child(structures.Element, 'test1')
         children = list(e.get_children())
         self.assertTrue(

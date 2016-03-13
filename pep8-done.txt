@@ -1,6 +1,8 @@
 pep8-regression.py
 pyslet/blockstore.py
 unittests/test_blockstore.py
+pyslet/html40_19991224.py
+unittests/test_html401.py
 pyslet/http/auth.py
 unittests/test_http_auth.py
 pyslet/http/client.py

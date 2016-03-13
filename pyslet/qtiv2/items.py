@@ -147,5 +147,5 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
         resource.SetEntryPoint(f)
         for child in self.get_children():
             if isinstance(child, core.QTIElement):
-                child.AddToCPResource(cp, resource, {})
+                child.add_to_cpresource(cp, resource, {})
         return resource

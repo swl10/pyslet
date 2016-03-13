@@ -384,8 +384,9 @@ class Node(UnicodeMixin, MigratedClass):
     XML documents are defined hierarchicaly, each element has a parent
     which is either another element or an XML document."""
 
-    def __init__(self, parent):
+    def __init__(self, parent=None):
         self.parent = parent
+        super(Node, self).__init__()
         """The parent of this element, for XML documents this attribute
         is used as a sentinel to simplify traversal of the hierarchy and
         is set to None."""
@@ -429,26 +430,32 @@ class Node(UnicodeMixin, MigratedClass):
 
         stag_class
             The class of an element that is about to be created in the
-            current context with :meth:`add_child`.
-
-        Returns the class of an element that has been omitted from the
-        content model and should be added instead.
+            current context with :meth:`add_child` or the builtin *str*
+            if data has been recieved in a context where only element
+            content was expected.
 
         This method is only called when the
-        :attr:`XMLParser.sgmlOmittag` option is in effect.  It is called
+        :attr:`XMLParser.sgml_omittag` option is in effect.  It is called
         prior to :py:meth:`add_child` and gives the context (the parent
         element or document) a chance to modify the child element that
-        will be created (or reject it out-right, by returning None).
+        will be created or indicate the end of the current element through
+        use of the OMITTAG feature of SGML.
 
-        For well-formed XML documents the default implementation is
-        sufficient as it simply returns *stag_class*.
+        It returns the class of an element whose start tag has been
+        omitted from the the document and should be added at this point
+        or None if stag_class implies the end of the current element
+        *and* the end tag may be omitted.
 
-        The XML parser will pass None for *stag_class* to indicate that
-        PCDATA has been found in a class labelled as accepting only
-        element content.  This method should return the first child
-        element that may contain (directly or indirectly) PCDATA or None
-        if no children may contain PCDATA (or SGML-style omittag is not
-        supported).
+        Otherwise this method should return stag_class unchanged (the
+        default implementation does this) indicating that the parser
+        should proceed as normal.  In the case of unexpected data this
+        is treated as a validity error and handled according to the
+        parser's validity checking options.
+
+        Validation errors are dealt with by the parser or, where the
+        model is encoded into the classes themselves, by
+        :meth;`add_child` and *not* by this method which should never
+        raise validation errors.
 
         Although not necessary for true XML parsing this method allows
         us to support the parsing of XML-like documents that omit tags,
@@ -458,9 +465,16 @@ class Node(UnicodeMixin, MigratedClass):
             <title>My Blank HTML Page</title>
 
         The parser would recognise the start tag for <title> and then
-        call this method.  For HTML documents, this method is overridden
-        to check the rules in the HTML content model where <title>
-        can only appear inside <head>."""
+        call this method (on the HTML document) passing the
+        :class:`pyslet.html.Title` class.  For HTML documents, this
+        method always returns the :class:`pyslet.html401.HTML` class
+        (ignoring stag_class completely).  The result is that an HTML
+        element is opened instead and the parser tries again, calling
+        this method for the new HTML element.  That does not accept
+        Title either and returns the :class:`pyslet.html.Head` class.
+        Finally, a Head element is opened and that will accept Title as
+        a child so it returns stag_class unchanged and the parser
+        continues having inferred the omitted tags: <html> and <head>."""
         return stag_class
 
     @old_method('ChildElement')
@@ -526,6 +540,15 @@ class Node(UnicodeMixin, MigratedClass):
         value."""
         raise NotImplementedError
 
+    @old_method('GetSpace')
+    def get_space(self):
+        """Gets the space policy of a node
+
+        Abstract method, when used on a :class:`Document` it gets the
+        default space policy to use in the absence of an explicit
+        xml:space value."""
+        raise NotImplementedError
+
 
 class Document(Node):
 
@@ -552,7 +575,7 @@ class Document(Node):
     def __init__(self, root=None, base_uri=None, req_manager=None, **kws):
         base_uri = kws.get('baseURI', base_uri)
         req_manager = kws.get('reqManager', req_manager)
-        Node.__init__(self, None)
+        super(Document, self).__init__()
         self.req_manager = req_manager
         self.base_uri = None
         """The base uri of the document (as an
@@ -686,6 +709,14 @@ class Document(Node):
     def set_lang(self, lang):
         """Sets the default language for the document."""
         self.lang = lang
+
+    def get_space(self):
+        """Returns the default space policy for the document.
+
+        By default we reutrn None, indicating that no policy is in
+        force.  Derived documents can oveerrid this behaviour to return
+        either "preserve" or "default" to affect space handling."""
+        raise NotImplementedError
 
     @old_method('ValidationError')
     def validation_error(self, msg, element, data=None, aname=None):
@@ -1152,9 +1183,9 @@ class ElementType(object):
     ANY = 1
     Any = 1
 
+    #: Content type constant for mixed content
     MIXED = 2
     Mixed = 2
-    #: Content type constant for mixed content
 
     #: Content type constant for element content
     ELEMENT_CONTENT = 3
@@ -1240,6 +1271,12 @@ class Element(Node):
     In addition to truth testing, custom attribute serialisation
     requires a custom implementation of __getattr__, see below for more
     details.
+
+    Elements are usually constructed by calling the parent element's (or
+    document's) :meth:`Node.add_child` method.  When constructed
+    directly, the constructor requires that the parent :class:`Node` be
+    passed as an argument.  If you pass None then an orphan element is
+    created (see :meth:`attach_to_parent`).
 
     Some aspects of the element's XML serialisation behaviour are
     controlled by special class attributes that can be set on derived
@@ -1337,7 +1374,7 @@ class Element(Node):
                 <element primes="2 3 5 7"/>
 
                 # class attribute definition
-                XMLATTR_primes = ('primes', int, str)
+                XMLATTR_primes = ('primes', int, str, list)
 
                 # resulting object behaves like this...
                 element.primes == [2, 3, 5, 7]      # True
@@ -1392,22 +1429,32 @@ class Element(Node):
             (<xml attribute name>, encode_function)
 
     XML attribute names may contain many characters that are not legal
-    in Python syntax and automated attribute processing is not supported
-    for these attributes.  In practice, the only significant limitation
-    is the colon.  The common xml-prefixed attributes such as xml:lang
-    are handled using special purposes methods."""
+    in Python syntax but automated attribute processing is still
+    supported for these attributes even though the declaration cannot be
+    written into the class definition.  Use the builtin function setattr
+    immediately after the class is defined, for example::
+
+        class MyElement(Element):
+            pass
+
+        setattr(MyElement, 'XMLATTR_hyphen-attr', 'hyphen_attr')"""
 
     #: We default to a mixed content model
     XMLCONTENT = ElementType.MIXED
 
     def __init__(self, parent, name=None):
-        Node.__init__(self, parent)
+        super(Element, self).__init__(parent)
         if name is None:
             if hasattr(self.__class__, 'XMLNAME'):
-                self.xmlname = self.__class__.XMLNAME
+                self.set_xmlname(self.XMLNAME)
             else:
-                self.xmlname = None
+                self.set_xmlname(None)
         else:
+            warnings.warn(
+                "Element: passing name to constructor is deprecated (%s); "
+                "use set_xmlname instead" % name)
+            import traceback
+            traceback.print_stack()
             self.xmlname = name
         self.id = None
         self._attrs = {}
@@ -1438,21 +1485,6 @@ class Element(Node):
         In the default implementation this is a simple character
         string."""
         return self.xmlname
-
-    def reset(self, reset_attrs=False):
-        """Clears all attributes and (optional) children.
-
-        The default implementation removes *unmapped* attributes and all
-        children from the internal list.  Mapped atrributes and child
-        elements are not reset.  Derived classes should override this
-        method and restore any mapped items to their default values."""
-        if reset_attrs:
-            self._attrs = {}
-        for child in self._children:
-            if isinstance(child, Element):
-                child.detach_from_doc()
-                child.parent = None
-        self._children = []
 
     @old_method('GetDocument')
     def get_document(self):
@@ -1830,6 +1862,16 @@ class Element(Node):
                     return fname
             return None
 
+    def get_or_add_child(self, child_class):
+        """Returns the first child of type child_class
+
+        If there is no child of that class then a new child is added."""
+        children = self.find_children_depth_first(child_class, max_depth=1)
+        try:
+            return children.next()
+        except StopIteration:
+            return self.add_child(child_class)
+
     def add_child(self, child_class, name=None):
         """Adds a new child of the given class attached to this element.
 
@@ -1898,6 +1940,7 @@ class Element(Node):
                     factory.append(child)
                 elif isinstance(factory, child_class):
                     child = factory
+                    child.reset(True)
                 else:
                     raise TypeError(
                         factory_name, repr(factory), repr(child_class))
@@ -2306,9 +2349,9 @@ class Element(Node):
             before setting the content.
 
         The default implementation is only supported for elements where
-        mixed content is permitted (:py:meth:`is_mixed`) and only affects
-        the internally maintained list of children.  Elements with more
-        complex mixed models MUST override this method.
+        mixed content is permitted (see :py:meth:`is_mixed`) and only
+        affects the internally maintained list of children.  Elements
+        with more complex mixed models MUST override this method.
 
         If *value* is None then the element becomes empty."""
         if not self.is_mixed():
@@ -2318,6 +2361,45 @@ class Element(Node):
             self._children = []
         else:
             self._children = [to_text(value)]
+
+    def reset(self, reset_attrs=False):
+        """Resets all children (and optionally attribute values).
+
+        reset_attrs
+            Whether or not to reset attribute values too.
+
+            Called by the default implementation of :meth:`set_value`
+            with reset_attrs=False, removes all children from the
+            internally maintained list of children.
+
+            Called by the default implementation of :meth:`add_child`
+            with reset_attrs=True when an existing element instance is
+            being recycled (obviating the constructor).  The default
+            implementation removes only *unmapped* attribute values.
+            Mapped atrribute values are not reset.
+
+        Derived classes should call this method if they override the
+        implementation of :meth:`set_value`.
+
+        Derived classes with custom content models, i.e., those that
+        provide a custom implementation for :meth:`get_children`, must
+        override this method and treat it as an event associated with
+        parsing the start tag of the element.  (This method is also a
+        useful signal for resetting an state used for validating custom
+        content models.)
+
+        Required children should be reset and optional children should
+        be orphaned using :meth:`detach_from_parent` and any references
+        to them in instance attributes removed. Failure to override this
+        method will can result in the child elements accumulating from
+        one read to the next."""
+        if reset_attrs:
+            self._attrs = {}
+        for child in self._children:
+            if isinstance(child, Element):
+                child.detach_from_doc()
+                child.parent = None
+        self._children = []
 
     @old_method('ValidationError')
     def validation_error(self, msg, data=None, aname=None):
@@ -2575,7 +2657,6 @@ class Element(Node):
             baser = baser.parent
         return None
 
-    @old_method('GetSpace')
     def get_space(self):
         """Gets the value of the xml:space attribute"""
         return self._attrs.get(_xml_space, None)
@@ -2592,13 +2673,40 @@ class Element(Node):
         else:
             self._attrs[_xml_space] = space
 
+    def resolve_space(self, space):
+        """Returns the effective space policy for the current element.
+
+        The policy is resolved using the value returned by
+        :meth:`get_space` on this element or its ancestors.  If no space
+        policy is in effect then None is returned."""
+        baser = self
+        while baser:
+            spc = baser.get_space()
+            if spc:
+                return spc
+            baser = baser.parent
+        return None
+
     @old_method('PrettyPrint')
     def can_pretty_print(self):
         """True if this element's content may be pretty-printed.
 
         This method is used when formatting XML files to text streams.
-        The behaviour can be affected by the xml:space attribute or by
-        derived classes that can override the default behaviour.
+        The output is also affected by the xml:space attribute.  Derived
+        classes can override the default behaviour.
+
+        The difference between this method and the xml:space attribute
+        is that this method indicates if white space can be safely
+        *added* to the output to improve formatting by inserting line
+        feeds to break it over multiple lines and to insert spaces
+        or tab characters to indent tags.
+
+        On the other hand, xml:space='preserve' indicates that white
+        space in the original document must not be taken away.  It
+        therefore makes sense that if :meth:`get_space` returns
+        'preserve' we will return False.  Derived classes may consider
+        providing an implementation of get_space that always return
+        'preserve' and using the default implementation of this method.
 
         This method will return False if one of the following is true:
 
@@ -2608,7 +2716,7 @@ class Element(Node):
             indicates that the element may contain mixed content (this
             is the default for generic instances of :class:`Element`)
 
-        *   xml:space is set to 'preserve'
+        *   :meth:`get_space` is set to 'preserve' (xml:space)
 
         *   self.parent.can_pretty_print() returns False
 

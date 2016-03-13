@@ -642,38 +642,77 @@ class XMLParser(PEP8Compatibility):
 
     def __init__(self, entity):
         PEP8Compatibility.__init__(self)
-        #: checks XML validity constraints
-        #: If *checkValidity* is True, and all other options are left at
-        #: their default (False) setting then the parser will behave as
-        #: a validating XML parser.
-        self.checkValidity = False
+        self.check_validity = False
+        """Checks XML validity constraints
+
+        If *check_validity* is True, and all other options are left at
+        their default (False) setting then the parser will behave as a
+        validating XML parser."""
+
         #: Flag indicating if the document is valid, only set if
-        #: :py:attr:`checkValidity` is True
+        #: :py:attr:`check_validity` is True
         self.valid = None
         #: A list of non-fatal errors discovered during parsing, only
-        #: populated if :py:attr:`checkValidity` is True
+        #: populated if :py:attr:`check_validity` is True
         self.nonFatalErrors = []
         #: checks XML compatibility constraints; will cause
-        #: :py:attr:`checkValidity` to be set to True when parsing
+        #: :py:attr:`check_validity` to be set to True when parsing
         self.checkCompatibility = False
-        #: checks all constraints; will cause :py:attr:`checkValidity`
+        #: checks all constraints; will cause :py:attr:`check_validity`
         #: and :py:attr:`checkCompatibility` to be set to True when
         #: parsing.
         self.checkAllErrors = False
         #: treats validity errors as fatal errors
         self.raiseValidityErrors = False
         #: provides a loose parser for XML-like documents
-        self.dontCheckWellFormedness = False
+        self.dont_check_wellformedness = False
         #: See http://www.w3.org/TR/unicode-xml/
         self.unicodeCompatibility = False
-        #: option that simulates SGML's NAMECASE GENERAL YES
-        self.sgmlNamecaseGeneral = False
-        #: option that simulates SGML's NAMECASE ENTITY YES
-        self.sgmlNamecaseEntity = False
-        self.sgmlOmittag = False    #: option that simulates SGML's OMITTAG YES
+        self.sgml_namecase_general = False
+        """Option that simulates SGML's NAMECASE GENERAL YES
+
+        Defaults to False for XML behaviour.  When True, literals within
+        the document are treated as case insensitive.  Although the SGML
+        specification refers to names being folded to uppercase, we actually
+        fold to lower-case internally in keeping with XML common practice.
+
+        Therefore, an attribute called 'NAME' will be treated as if it
+        had been called 'name' in the document."""
+        self.sgml_omittag = False
+        """Option that simulates SGML's OMITTAG YES
+
+        With ths option the parser will call
+        :meth:`structures.Element.get_child_class` to determine if an
+        element indicates a missing start or end tag."""
         #: option that simulates SGML's SHORTTAG YES
-        self.sgmlShorttag = False
-        self.sgmlContent = False
+        self.sgml_shorttag = False
+        """This option simulates the special attribute handling of the
+        SGML shorttag feature.  If an attribute is declared without a
+        value::
+
+            <section title="Notes to Editor" hidden>
+
+        then the tag is treated as if it had been written::
+
+            <section title="Notes to Editor" hidden="hidden">
+
+        In most cases this enables simple attribute mappings to be used,
+        even if there are multiple possible tokens permissible, for
+        example::
+
+            class Book(Element):
+                XMLATTR_hidden = 'visible'
+                XMLATTR_shown = 'visible'
+
+        Will result in the instance attribute *visible* being set to
+        either 'hidden' or 'shown' even though the attribute name is
+        minimized away with use of the shorttag feature.  This technique
+        is used extensively in HTML where many attributes are declared
+        using single-token #IMPLIED form, such as the disabled attribute
+        of INPUT::
+
+             disabled    (disabled)     #IMPLIED"""
+        self.sgml_content = False
         """This option simulates some aspects of SGML content handling
         based on class attributes of the element being parsed.
 
@@ -682,7 +721,7 @@ class XMLParser(PEP8Compatibility):
         they were introduced with an empty element tag even if they
         weren't, as per SGML's rules.  Note that this SGML feature "has
         nothing to do with markup minimization" (i.e.,
-        :py:attr:`sgmlOmittag`.)"""
+        :py:attr:`sgml_omittag`.)"""
         self.refMode = XMLParser.RefModeNone
         """The current parser mode for interpreting references.
 
@@ -936,7 +975,7 @@ class XMLParser(PEP8Compatibility):
             object derived from py:class:`XMLValidityError`.
 
         The behaviour varies depending on the setting of the
-        :py:attr:`checkValidity` and :py:attr:`raiseValidityErrors`
+        :py:attr:`check_validity` and :py:attr:`raiseValidityErrors`
         options. The default (both False) causes validity errors to be
         ignored.  When checking validity an error message is logged to
         :py:attr:`nonFatalErrors` and :py:attr:`valid` is set to False.
@@ -946,7 +985,7 @@ class XMLParser(PEP8Compatibility):
 
         This method can be overridden by derived parsers to implement
         more sophisticated error logging."""
-        if self.checkValidity:
+        if self.check_validity:
             self.valid = False
             if isinstance(error, xml.XMLValidityError):
                 self.nonFatalErrors.append(
@@ -1009,7 +1048,7 @@ class XMLParser(PEP8Compatibility):
         then the parser is left in its original position."""
         match_len = 0
         for m in match:
-            if m != self.the_char and (not self.sgmlNamecaseGeneral or
+            if m != self.the_char and (not self.sgml_namecase_general or
                                        self.the_char is None or
                                        m.lower() != self.the_char.lower()):
                 self.buff_text(match[:match_len])
@@ -1125,8 +1164,8 @@ class XMLParser(PEP8Compatibility):
         if self.checkAllErrors:
             self.checkCompatibility = True
         if self.checkCompatibility:
-            self.checkValidity = True
-        if self.checkValidity:
+            self.check_validity = True
+        if self.check_validity:
             self.valid = True
         else:
             self.valid = None
@@ -1136,14 +1175,19 @@ class XMLParser(PEP8Compatibility):
             if self.dtd.name is not None:
                 # create the document based on information in the DTD
                 self.doc = self.get_document_class(self.dtd)()
+                # set the document's dtd
+                self.doc.dtd = self.dtd
+        elif self.doc.dtd is None:
+            # override the document's DTD
+            self.doc.dtd = self.dtd
         self.parse_element()
-        if self.checkValidity:
+        if self.check_validity:
             for idref in dict_keys(self.idRefTable):
                 if idref not in self.idTable:
                     self.validity_error(
                         "IDREF: %s does not match any ID attribute value")
         self.parse_misc()
-        if self.the_char is not None and not self.dontCheckWellFormedness:
+        if self.the_char is not None and not self.dont_check_wellformedness:
             self.well_formedness_error(
                 "Unparsed characters in entity after document: %s" %
                 repr(
@@ -1286,7 +1330,7 @@ class XMLParser(PEP8Compatibility):
 
         If there is no white space then a well-formedness error is
         raised."""
-        if not self.parse_s() and not self.dontCheckWellFormedness:
+        if not self.parse_s() and not self.dont_check_wellformedness:
             self.well_formedness_error(
                 production + ": Expected white space character")
 
@@ -1426,7 +1470,7 @@ class XMLParser(PEP8Compatibility):
         any references expanded.
 
         The behaviour of this method is affected significantly by the
-        setting of the :py:attr:`dontCheckWellFormedness` flag.  When
+        setting of the :py:attr:`dont_check_wellformedness` flag.  When
         set, attribute values can be parsed without surrounding quotes.
         For compatibility with SGML these values should match one of the
         formal value types (e.g., Name) but this is not enforced so
@@ -1437,7 +1481,7 @@ class XMLParser(PEP8Compatibility):
             q = self.parse_quote()
             end = ''
         except XMLWellFormedError:
-            if not self.dontCheckWellFormedness:
+            if not self.dont_check_wellformedness:
                 raise
             q = None
             end = '<"\'> \t\r\n'
@@ -1470,7 +1514,7 @@ class XMLParser(PEP8Compatibility):
                     value.append(self.the_char)
                     self.next_char()
             except XMLWellFormedError:
-                if not self.dontCheckWellFormedness:
+                if not self.dont_check_wellformedness:
                     raise
                 elif self.the_char == '<':
                     value.append(self.the_char)
@@ -1535,7 +1579,7 @@ class XMLParser(PEP8Compatibility):
         to the current element.  In the default parsing mode it returns
         None.
 
-        When the parser option :py:attr:`sgmlOmittag` is selected the
+        When the parser option :py:attr:`sgml_omittag` is selected the
         method returns any parsed character data that could not be added
         to the current element due to a model violation.  Note that in
         this SGML-like mode any S is treated as being in the current
@@ -1558,7 +1602,7 @@ class XMLParser(PEP8Compatibility):
                 try:
                     self.handle_data(data)
                 except xml.XMLValidityError:
-                    if self.sgmlOmittag:
+                    if self.sgml_omittag:
                         return strip_leading_s(data)
                     raise
                 data = []
@@ -1566,7 +1610,7 @@ class XMLParser(PEP8Compatibility):
         try:
             self.handle_data(data)
         except xml.XMLValidityError:
-            if self.sgmlOmittag:
+            if self.sgml_omittag:
                 return strip_leading_s(data)
             raise
         return None
@@ -1589,7 +1633,7 @@ class XMLParser(PEP8Compatibility):
             if self.the_char == '-':
                 self.next_char()
                 nhyphens += 1
-                if nhyphens > 2 and not self.dontCheckWellFormedness:
+                if nhyphens > 2 and not self.dont_check_wellformedness:
                     self.well_formedness_error("-- in Comment")
             elif self.the_char == '>':
                 if nhyphens == 2:
@@ -1600,7 +1644,7 @@ class XMLParser(PEP8Compatibility):
                     self.next_char()
                     data.append('-' * nhyphens + '>')
                     nhyphens = 0
-                # we must be in dontCheckWellFormedness here, we don't
+                # we must be in dont_check_wellformedness here, we don't
                 # need to check.
                 else:
                     data.append('-' * (nhyphens - 2))
@@ -1614,7 +1658,7 @@ class XMLParser(PEP8Compatibility):
                 self.next_char()
             else:
                 if nhyphens:
-                    if nhyphens >= 2 and not self.dontCheckWellFormedness:
+                    if nhyphens >= 2 and not self.dont_check_wellformedness:
                         self.well_formedness_error("-- in Comment")
                     data.append('-' * nhyphens)
                     nhyphens = 0
@@ -1744,7 +1788,7 @@ class XMLParser(PEP8Compatibility):
             self.validity_error(
                 production + ": missing document type declaration")
             self.dtd = xml.XMLDTD()
-        if self.checkValidity:
+        if self.check_validity:
             # Some checks can only be done after the prolog is complete.
             for ename in dict_keys(self.dtd.element_list):
                 etype = self.dtd.element_list[ename]
@@ -1891,7 +1935,7 @@ class XMLParser(PEP8Compatibility):
             self.parse_int_subset()
             self.parse_required_literal(']', production)
             self.parse_s()
-        if self.checkValidity and self.dtd.external_id:
+        if self.check_validity and self.dtd.external_id:
             # Before we parse the closing literal we load any external subset
             # but only if we are checking validity
             src = self.resolve_external_id(self.dtd.external_id)
@@ -2012,11 +2056,11 @@ class XMLParser(PEP8Compatibility):
 
         Checks the well-formedness constraint on use of PEs between
         declarations."""
-        if self.checkValidity and self.entity is not check_entity:
+        if self.check_validity and self.entity is not check_entity:
             self.validity_error(
                 "Proper Declaration/PE Nesting: found '>' in entity %s" %
                 self.entity.get_name())
-        if (not self.dontCheckWellFormedness and
+        if (not self.dont_check_wellformedness and
                 self.entity is not check_entity and
                 check_entity.flags.get('DeclSep', False)):
             # a badly nested declaration in an entity opened within a
@@ -2071,7 +2115,7 @@ class XMLParser(PEP8Compatibility):
         False
             the element is not allowed in this context
 
-        The second case only occurs when the :py:attr:`sgmlOmittag`
+        The second case only occurs when the :py:attr:`sgml_omittag`
         option is in use and it indicates that the content of the
         enclosing element has ended.  The Tag is buffered so that it can
         be reparsed when the stack of nested :py:meth:`parse_content`
@@ -2081,7 +2125,7 @@ class XMLParser(PEP8Compatibility):
         save_element = self.element
         save_element_type = self.elementType
         save_cursor = None
-        if self.sgmlOmittag and self.the_char != '<':
+        if self.sgml_omittag and self.the_char != '<':
             # Leading data means the start tag was omitted (perhaps at the
             # start of the doc)
             name = None
@@ -2090,7 +2134,7 @@ class XMLParser(PEP8Compatibility):
         else:
             name, attrs, empty = self.parse_stag()
             self.check_attributes(name, attrs)
-            if self.checkValidity:
+            if self.check_validity:
                 if (self.element is None and
                         self.dtd.name is not None and self.dtd.name != name):
                     self.validity_error(
@@ -2114,6 +2158,9 @@ class XMLParser(PEP8Compatibility):
                 self.stagBuffer = None
         element_class, element_name, bufferTag = self.get_stag_class(name,
                                                                      attrs)
+        # wait until get_stag_class before getting context as it may be
+        # None right up until that time
+        context = self.get_context()
         if element_class:
             if bufferTag and name:
                 # element_class represents an omitted start tag
@@ -2126,18 +2173,14 @@ class XMLParser(PEP8Compatibility):
                 attrs = {}
                 empty = False
         else:
-            # this start tag indicates an omitted end tag: always
-            # buffered
+            # this start tag (or data) indicates an omitted end tag
             if name:
                 self.stagBuffer = (name, attrs, empty)
                 self.buff_text("<:>")
             return False
-        if self.element is None:
-            self.element = self.doc.add_child(element_class, element_name)
-        else:
-            self.element = self.element.add_child(element_class, element_name)
-        self.element.reset()
-        if (self.sgmlContent and
+        self.element = context.add_child(element_class, element_name)
+        # self.element.reset()
+        if (self.sgml_content and
                 getattr(element_class, 'XMLCONTENT', xml.XMLMixedContent) ==
                 xml.XMLEmpty):
             empty = True
@@ -2155,7 +2198,7 @@ class XMLParser(PEP8Compatibility):
                     raise
         if not empty:
             save_data_count = self.dataCount
-            if (self.sgmlContent and
+            if (self.sgml_content and
                     getattr(self.element, 'SGMLCONTENT', None) ==
                     xml.ElementType.SGMLCDATA):
                 # Alternative parsing of SGMLCDATA elements...
@@ -2181,9 +2224,9 @@ class XMLParser(PEP8Compatibility):
                     if end_name == name:
                         break
                     spurious_tag = True
-                    if self.sgmlOmittag:
+                    if self.sgml_omittag:
                         # do we have a matching open element?
-                        if self.dontCheckWellFormedness:
+                        if self.dont_check_wellformedness:
                             # by starting the check at the current
                             # element we allow mismatched but broadly
                             # equivalent STags and ETags
@@ -2199,7 +2242,7 @@ class XMLParser(PEP8Compatibility):
                             else:
                                 ielement = ielement.parent
                     if spurious_tag:
-                        if self.dontCheckWellFormedness:
+                        if self.dont_check_wellformedness:
                             # ignore spurious end tags, we probably
                             # inferred them earlier
                             continue
@@ -2281,7 +2324,7 @@ class XMLParser(PEP8Compatibility):
                         self.validity_error(
                             "Fixed Attribute Default: %s must match the "
                             "#FIXED value %s" % (value, adef.defaultValue))
-        if self.checkValidity:
+        if self.check_validity:
             for a in dict_keys(attrs):
                 if alist:
                     adef = alist.get(a, None)
@@ -2413,7 +2456,7 @@ class XMLParser(PEP8Compatibility):
         root element and selects an appropriate class based on the
         contents of the prolog and/or *name*.
 
-        When using the :py:attr:`sgmlOmittag` option *name* may be None
+        When using the :py:attr:`sgml_omittag` option *name* may be None
         indicating that the method should return information about the
         element implied by PCDATA in the current context (only called
         when an attempt to add data to the current context has already
@@ -2442,17 +2485,25 @@ class XMLParser(PEP8Compatibility):
                 # document starts with PCDATA, use name declared in DOCTYPE
                 name = self.dtd.name
             self.doc = self.get_document_class(self.dtd)()
+            # copy the dtd to the document
+            self.doc.dtd = self.dtd
         context = self.get_context()
-        if self.sgmlOmittag:
+        if self.sgml_omittag:
             if name:
                 stag_class = context.get_element_class(name)
                 if stag_class is None:
                     stag_class = self.doc.get_element_class(name)
             else:
-                stag_class = None
+                stag_class = str
             element_class = context.get_child_class(stag_class)
             if element_class is not stag_class:
                 return element_class, None, True
+            elif element_class is str:
+                # unhanded data, end tag omission not supported
+                self.validity_error(
+                    "data not allowed in %s (and end-tag omission not "
+                    "supported)" % context.__class__.__name__)
+                return None, name, False
             else:
                 return element_class, name, False
         else:
@@ -2491,7 +2542,7 @@ class XMLParser(PEP8Compatibility):
                     break
                 if s:
                     aname, aValue = self.parse_attribute()
-                    if not self.dontCheckWellFormedness and aname in attrs:
+                    if not self.dont_check_wellformedness and aname in attrs:
                         self.well_formedness_error(
                             "Unique Att Spec: attribute %s appears more than "
                             "once" % aname)
@@ -2500,7 +2551,7 @@ class XMLParser(PEP8Compatibility):
                     self.well_formedness_error(
                         "Expected S, '>' or '/>', found '%s'" % self.the_char)
             except XMLWellFormedError:
-                if not self.dontCheckWellFormedness:
+                if not self.dont_check_wellformedness:
                     raise
                 # spurious character inside a start tag, in
                 # compatibility mode we just discard it and keep going
@@ -2515,23 +2566,25 @@ class XMLParser(PEP8Compatibility):
 
         name
             is the name of the attribute or None if
-            :py:attr:`sgmlShorttag` is True and a short form attribute
+            :py:attr:`sgml_shorttag` is True and a short form attribute
             value was supplied.
 
         value
             the attribute value.
 
-        If :py:attr:`dontCheckWellFormedness` is set the parser uses a
+        If :py:attr:`dont_check_wellformedness` is set the parser uses a
         very generous form of parsing attribute values to accomodate
         common syntax errors."""
         production = "[41] Attribute"
         name = self.parse_required_name(production)
-        if self.sgmlShorttag:
+        if self.sgml_namecase_general:
+            name = name.lower()
+        if self.sgml_shorttag:
             # name on its own may be OK
             s = self.parse_s()
             if self.the_char != '=':
                 self.buff_text(s)
-                return '@' + name, name
+                return name, name
         self.parse_eq(production)
         value = self.parse_att_value()
         return name, value
@@ -2549,7 +2602,7 @@ class XMLParser(PEP8Compatibility):
             self.parse_required_literal('</')
         name = self.parse_required_name(production)
         self.parse_s()
-        if self.dontCheckWellFormedness:
+        if self.dont_check_wellformedness:
             # ignore all rubbish in end tags
             while self.the_char is not None:
                 if self.the_char == '>':
@@ -2572,7 +2625,7 @@ class XMLParser(PEP8Compatibility):
             indicates that the content contained data or markup not
             allowed in this context
 
-        The second case only occurs when the :py:attr:`sgmlOmittag`
+        The second case only occurs when the :py:attr:`sgml_omittag`
         option is in use and it indicates that the enclosing element has
         ended (i.e., the element's ETag has been omitted).  See
         py:meth:`parse_element` for more information."""
@@ -2586,7 +2639,7 @@ class XMLParser(PEP8Compatibility):
                     if self.the_char == '-':
                         self.parse_required_literal('--')
                         self.parse_comment(True)
-                        if (self.checkValidity and
+                        if (self.check_validity and
                                 self.elementType.content_type ==
                                 xml.ElementType.Empty):
                             self.validity_error(
@@ -2596,7 +2649,7 @@ class XMLParser(PEP8Compatibility):
                     elif self.the_char == '[':
                         self.parse_required_literal('[CDATA[')
                         # can CDATA sections imply missing markup?
-                        if self.sgmlOmittag and not self.element.is_mixed():
+                        if self.sgml_omittag and not self.element.is_mixed():
                             # CDATA can only be put in elements that can
                             # contain data!
                             self.buff_text(xml.CDATA_START)
@@ -2610,7 +2663,7 @@ class XMLParser(PEP8Compatibility):
                     # PI
                     self.next_char()
                     self.parse_pi(True)
-                    if (self.checkValidity and
+                    if (self.check_validity and
                             self.elementType.content_type ==
                             xml.ElementType.Empty):
                         self.validity_error(
@@ -2628,7 +2681,7 @@ class XMLParser(PEP8Compatibility):
                     break
             elif self.the_char == '&':
                 # Reference
-                if self.sgmlOmittag and not self.element.is_mixed():
+                if self.sgml_omittag and not self.element.is_mixed():
                     # we step in before resolving the reference, just in
                     # case this reference results in white space that is
                     # supposed to be the first data character after the
@@ -2636,7 +2689,7 @@ class XMLParser(PEP8Compatibility):
                     self.unhandled_data('')
                 else:
                     data = self.parse_reference()
-                    if (self.checkValidity and
+                    if (self.check_validity and
                             self.elementType and
                             self.elementType.content_type ==
                             xml.ElementType.Empty):
@@ -2646,7 +2699,7 @@ class XMLParser(PEP8Compatibility):
                     self.handle_data(data, True)
             elif self.the_char is None:
                 # end of entity
-                if self.sgmlOmittag:
+                if self.sgml_omittag:
                     return False
                 else:
                     # leave the absence of an end tag for parse_element
@@ -2673,7 +2726,7 @@ class XMLParser(PEP8Compatibility):
         :py:meth:`~pyslet.xml.structures.Element.add_data`
         even if the data is optional white space."""
         if data and self.element:
-            if self.checkValidity and self.elementType:
+            if self.check_validity and self.elementType:
                 check_standalone = (
                     self.declared_standalone() and
                     self.elementType.entity is not self.docEntity)
@@ -2704,7 +2757,7 @@ class XMLParser(PEP8Compatibility):
         data
             A string of unhandled data
 
-        This method is only called when the :py:attr:`sgmlOmittag`
+        This method is only called when the :py:attr:`sgml_omittag`
         option is in use. It processes *data* that occurs in a context
         where data is not allowed.
 
@@ -2757,7 +2810,7 @@ class XMLParser(PEP8Compatibility):
         self.parse_s()
         self.check_pe_between_declarations(etype.entity)
         self.parse_required_literal('>', production)
-        if self.checkValidity and self.dtd:
+        if self.check_validity and self.dtd:
             etype.build_model()
             if not etype.is_deterministic():
                 self.compatibility_error(
@@ -2911,7 +2964,7 @@ class XMLParser(PEP8Compatibility):
             if self.the_char == '|':
                 self.next_char()
             elif self.the_char == ')':
-                if self.checkValidity and self.entity is not group_entity:
+                if self.check_validity and self.entity is not group_entity:
                     self.validity_error(
                         "Proper Group/PE Nesting: found ')' in entity %s" %
                         self.entity.get_name())
@@ -2967,7 +3020,7 @@ class XMLParser(PEP8Compatibility):
             if self.the_char == ',':
                 self.next_char()
             elif self.the_char == ')':
-                if self.checkValidity and self.entity is not group_entity:
+                if self.check_validity and self.entity is not group_entity:
                     self.validity_error(
                         "Proper Group/PE Nesting: found ')' in entity %s" %
                         self.entity.get_name())
@@ -3016,7 +3069,7 @@ class XMLParser(PEP8Compatibility):
         while True:
             self.parse_s()
             if self.the_char == ')':
-                if self.checkValidity and self.entity is not group_entity:
+                if self.check_validity and self.entity is not group_entity:
                     self.validity_error(
                         "Proper Group/PE Nesting: found ')' in entity %s" %
                         self.entity.get_name())
@@ -3026,7 +3079,7 @@ class XMLParser(PEP8Compatibility):
                 self.parse_s()
                 cp_child = xml.XMLNameParticle()
                 cp_child.name = self.parse_required_name(production)
-                if self.checkValidity:
+                if self.check_validity:
                     if cp_child.name in names:
                         self.validity_error(
                             "No Duplicate Types: %s appears multiple times "
@@ -3066,7 +3119,7 @@ class XMLParser(PEP8Compatibility):
                     break
                 a = self.parse_att_def(True)
                 if self.dtd:
-                    if self.checkValidity:
+                    if self.check_validity:
                         if a.type == xml.XMLAttributeDefinition.ID:
                             if (a.presence !=
                                     xml.XMLAttributeDefinition.IMPLIED and
@@ -3264,7 +3317,7 @@ class XMLParser(PEP8Compatibility):
         while True:
             self.parse_s()
             name = self.parse_required_name(production)
-            if self.checkValidity and name in value:
+            if self.check_validity and name in value:
                 self.validity_error(
                     "No Duplicate Tokens: %s already declared" % name)
             value[name] = True
@@ -3295,7 +3348,7 @@ class XMLParser(PEP8Compatibility):
             self.parse_s()
             token = self.parse_nmtoken()
             if token:
-                if self.checkValidity and token in value:
+                if self.check_validity and token in value:
                     self.validity_error(
                         "No Duplicate Tokens: %s already declared" % token)
                 value[token] = True
@@ -3344,7 +3397,7 @@ class XMLParser(PEP8Compatibility):
             a.defaultValue = self.parse_att_value()
             if a.type != xml.XMLAttributeDefinition.CDATA:
                 a.defaultValue = normalize_space(a.defaultValue)
-            if self.checkValidity:
+            if self.check_validity:
                 if (a.type == xml.XMLAttributeDefinition.IDREF or
                         a.type == xml.XMLAttributeDefinition.ENTITY):
                     if not xml.is_valid_name(a.defaultValue):
@@ -3425,12 +3478,12 @@ class XMLParser(PEP8Compatibility):
             self.parse_s()
             self.parse_required_literal('INCLUDE', production)
         self.parse_s()
-        if self.checkValidity and self.entity is not got_literal_entity:
+        if self.check_validity and self.entity is not got_literal_entity:
             self.validity_error(
                 production + ": Proper Conditional Section/PE Nesting")
         self.parse_required_literal('[', production)
         self.parse_ext_subset_decl()
-        if self.checkValidity and self.entity is not got_literal_entity:
+        if self.check_validity and self.entity is not got_literal_entity:
             self.validity_error(
                 production + ": Proper Conditional Section/PE Nesting")
         self.parse_required_literal(xml.CDATA_END, production)
@@ -3453,13 +3506,13 @@ class XMLParser(PEP8Compatibility):
             self.parse_s()
             self.parse_required_literal('IGNORE', production)
         self.parse_s()
-        if self.checkValidity and self.entity is not got_literal_entity:
+        if self.check_validity and self.entity is not got_literal_entity:
             self.validity_error(
                 "Proper Conditional Section/PE Nesting: [ must not be in "
                 "replacement text of %s" % self.entity.get_name())
         self.parse_required_literal('[', production)
         self.parse_ignore_sect_contents()
-        if self.checkValidity and self.entity is not got_literal_entity:
+        if self.check_validity and self.entity is not got_literal_entity:
             self.validity_error(
                 "Proper Conditional Section/PE Nesting: ]]> must not be in "
                 "replacement text of %s" % self.entity.get_name())
@@ -3573,13 +3626,13 @@ class XMLParser(PEP8Compatibility):
         if not got_literal:
             self.parse_required_literal('&', production)
         entity = self.entity
-        if self.dontCheckWellFormedness:
+        if self.dont_check_wellformedness:
             name = self.parse_name()
             if not name:
                 return '&'
         else:
             name = self.parse_required_name(production)
-        if self.dontCheckWellFormedness:
+        if self.dont_check_wellformedness:
             self.parse_literal(';')
         else:
             self.parse_required_literal(';', production)
@@ -3609,7 +3662,7 @@ class XMLParser(PEP8Compatibility):
                             "Parsed Entity: &%s; reference to unparsed "
                             "entity not allowed" % name)
                     else:
-                        if (not self.dontCheckWellFormedness and
+                        if (not self.dont_check_wellformedness and
                                 self.refMode ==
                                 XMLParser.RefModeInAttributeValue and
                                 e.is_external()):
@@ -3710,7 +3763,7 @@ class XMLParser(PEP8Compatibility):
                             "Standalone Document Declaration: reference to "
                             "entity %s not allowed (externally defined)" %
                             e.get_name())
-                if self.checkValidity:
+                if self.check_validity:
                     # An external markup declaration is defined as a
                     # markup declaration occurring in the external
                     # subset or in a parameter entity (external or
@@ -3899,7 +3952,7 @@ class XMLParser(PEP8Compatibility):
         else:
             self.parse_required_s(production)
             system_id = self.parse_system_literal()
-        # catch for dontCheckWellFormedness ??
+        # catch for dont_check_wellformedness ??
         return xml.XMLExternalID(pub_id, system_id)
 
     def resolve_external_id(self, external_id, entity=None):
@@ -4037,8 +4090,8 @@ class XMLParser(PEP8Compatibility):
         self.check_pe_between_declarations(dentity)
         self.parse_required_literal('>')
         if self.dtd:
-            if self.checkValidity and not (self.dtd.get_notation(name) is
-                                           None):
+            if self.check_validity and not (self.dtd.get_notation(name) is
+                                            None):
                 self.validity_error(
                     "Unique Notation Name: %s has already been declared" %
                     name)

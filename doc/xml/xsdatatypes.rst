@@ -1,5 +1,5 @@
-XML Schema Datatypes
-====================
+XML: Schema Datatypes
+=====================
 
 .. py:module:: pyslet.xml.xsdatatypes
 

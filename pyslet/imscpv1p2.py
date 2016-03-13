@@ -563,13 +563,13 @@ class ContentPackage:
     def RebuildFileTable(self):
         """Rescans the file system and manifest and rebuilds the :py:attr:`fileTable`."""
         self.fileTable = {}
-        beenThere = {}
+        been_there = {}
         for f in self.dPath.listdir():
             if self.IgnoreFile(unicode(f)):
                 continue
             if f.normcase() == 'imsmanifest.xml':
                 continue
-            self.FileScanner(f, beenThere)
+            self.FileScanner(f, been_there)
         # Now scan the manifest and identify which file objects refer to which
         # files
         for r in self.manifest.root.Resources.Resource:
@@ -582,17 +582,17 @@ class ContentPackage:
                 else:
                     self.fileTable[fPath] = [f]
 
-    def FileScanner(self, fPath, beenThere):
+    def FileScanner(self, fPath, been_there):
         fullPath = self.dPath.join(fPath)
         rFullPath = fullPath.realpath()
-        if rFullPath in beenThere:
+        if rFullPath in been_there:
             raise CPPackageBeenThereError(rFullPath)
-        beenThere[rFullPath] = True
+        been_there[rFullPath] = True
         if fullPath.isdir():
             for f in fullPath.listdir():
                 if self.IgnoreFile(unicode(f)):
                     continue
-                self.FileScanner(fPath.join(f), beenThere)
+                self.FileScanner(fPath.join(f), been_there)
         elif fullPath.isfile():
             self.fileTable[fPath.normcase()] = []
         else:  # skip non-regular files.
@@ -656,20 +656,20 @@ class ContentPackage:
         with different native file path encodings, encoding erros may occurr."""
         zf = zipfile.ZipFile(zPath, 'w')
         base = ''
-        beenThere = {}
+        been_there = {}
         try:
             for f in self.dPath.listdir():
                 if self.IgnoreFile(unicode(f)):
                     continue
-                self.AddToZip(self.dPath.join(f), zf, base, beenThere)
+                self.AddToZip(self.dPath.join(f), zf, base, been_there)
         finally:
             zf.close()
 
-    def AddToZip(self, fPath, zf, zbase, beenThere):
+    def AddToZip(self, fPath, zf, zbase, been_there):
         rfName = fPath.realpath()
-        if rfName in beenThere:
+        if rfName in been_there:
             raise CPZIPBeenThereError(fPath)
-        beenThere[rfName] = True
+        been_there[rfName] = True
         fName = unicode(fPath.split()[1])
         zfName = fName.replace('/', ':')
 # 		if type(zfName) is StringType:
@@ -681,7 +681,7 @@ class ContentPackage:
             for f in fPath.listdir():
                 if self.IgnoreFile(unicode(f)):
                     continue
-                self.AddToZip(fPath.join(f), zf, zpath, beenThere)
+                self.AddToZip(fPath.join(f), zf, zpath, been_there)
         elif fPath.isfile():
             with vfs.ZipHooks():
                 zf.write(fPath, zpath)

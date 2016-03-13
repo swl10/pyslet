@@ -81,7 +81,7 @@ class Prompt(content.BodyElement):
 
     def RenderHTML(self, parent, profile, itemState):
         htmlP = parent.add_child(html.P)
-        htmlP.styleClass = "prompt"
+        htmlP.style_class = ["prompt"]
         self.RenderHTMLChildren(htmlP, profile, itemState)
 
 
@@ -169,7 +169,7 @@ class ChoiceInteraction(BlockInteraction):
 
     def RenderHTML(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
-        htmlDiv.styleClass = "choiceInteraction"
+        htmlDiv.style_class = ["choiceInteraction"]
         for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
@@ -218,7 +218,7 @@ class OrderInteraction(BlockInteraction):
 
     def RenderHTML(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
-        htmlDiv.styleClass = "orderInteraction"
+        htmlDiv.style_class = ["orderInteraction"]
         for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
@@ -250,7 +250,7 @@ class SimpleChoice(content.FlowContainerMixin, Choice):
         if isinstance(interaction, ChoiceInteraction):
             # represented as a DL with DD for each choice
             htmlDiv = parent.add_child(html.Div)
-            htmlDiv.styleClass = 'simpleChoice'
+            htmlDiv.style_class = ['simpleChoice']
             htmlInput = htmlDiv.add_child(html.Input)
             sName = interaction.responseIdentifier + ".SAVED"
             if sName in itemState:
@@ -319,7 +319,7 @@ class AssociateInteraction(BlockInteraction):
 
     def RenderHTML(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
-        htmlDiv.styleClass = "associateInteraction"
+        htmlDiv.style_class = ["associateInteraction"]
         for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
@@ -365,7 +365,7 @@ class MatchInteraction(BlockInteraction):
 
     def RenderHTML(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
-        htmlDiv.styleClass = "matchInteraction"
+        htmlDiv.style_class = ["matchInteraction"]
         for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
@@ -470,7 +470,7 @@ class GapMatchInteraction(BlockInteraction):
 
     def RenderHTML(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
-        htmlDiv.styleClass = "gapMatchInteraction"
+        htmlDiv.style_class = ["gapMatchInteraction"]
         for child in self.get_children():
             child.RenderHTML(htmlDiv, profile, itemState)
 
@@ -791,7 +791,7 @@ class HotspotMixin:
             </xsd:attributeGroup>"""
     XMLATTR_shape = (
         'shape', core.Shape.from_str_lower, core.Shape.to_str)
-    XMLATTR_coords = ('coords', html.Coords, html.Coords.__unicode__)
+    XMLATTR_coords = ('coords', html.Coords.from_str, html.Coords.__unicode__)
     XMLATTR_hotspotLabel = 'hotspotLabel'
 
     def __init__(self):

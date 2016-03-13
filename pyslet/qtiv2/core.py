@@ -209,7 +209,7 @@ def OffsetShape(shape, coords, xOffset, yOffset):
 
 class ShapeElementMixin:
     XMLATTR_shape = ('shape', Shape.from_str_lower, Shape.to_str)
-    XMLATTR_coords = ('coords', html.Coords, html.Coords.__unicode__)
+    XMLATTR_coords = ('coords', html.Coords.from_str, html.Coords.__unicode__)
 
     def __init__(self):
         self.shape = Shape.DEFAULT  # : The shape
@@ -219,7 +219,7 @@ class ShapeElementMixin:
         """Tests *point* to see if it is in this area."""
         x, y = point
         if self.shape == Shape.circle:
-            return self.coords.TestCircle(x, y, width, height)
+            return self.coords.test_circle(x, y, width, height)
         elif self.shape == Shape.default:
             # The entire region
             return x >= 0 and y >= 0 and (
@@ -229,9 +229,9 @@ class ShapeElementMixin:
             # Ellipse is deprecated because there is no HTML equivalent test
             return self.TestEllipse(x, y, width, height)
         elif self.shape == Shape.poly:
-            return self.coords.TestPoly(x, y, width, height)
+            return self.coords.test_poly(x, y, width, height)
         elif self.shape == Shape.rect:
-            return self.coords.TestRect(x, y, width, height)
+            return self.coords.test_rect(x, y, width, height)
         else:
             raise ValueError("Unknown Shape type")
 
@@ -317,11 +317,11 @@ class QTIElement(xmlns.XMLNSElement):
 
     """Basic element to represent all QTI elements"""
 
-    def AddToCPResource(self, cp, resource, beenThere):
+    def add_to_cpresource(self, cp, resource, been_there):
         """We need to add any files with URL's in the local file system to the
         content package.
 
-        beenThere is a dictionary we use for mapping URLs to File objects so
+        been_there is a dictionary we use for mapping URLs to File objects so
         that we don't keep adding the same linked resource multiple times.
 
         This implementation is a little more horrid, we avoid circular module
@@ -329,8 +329,8 @@ class QTIElement(xmlns.XMLNSElement):
         know anything about QTI even though QTI wants to define children for
         some XHTML elements so we pass the call only to "CP-Aware" elements."""
         for child in self.get_children():
-            if hasattr(child, 'AddToCPResource'):
-                child.AddToCPResource(cp, resource, beenThere)
+            if hasattr(child, 'add_to_cpresource'):
+                child.add_to_cpresource(cp, resource, been_there)
 
 
 class QTIDocument(xmlns.XMLNSDocument):
