@@ -1177,7 +1177,7 @@ class ToleranceMode(xsi.Enumeration):
     }
     aliases = {
         None: 'exact'
-        }
+    }
 
 
 class Equal(NOperator):
@@ -1293,7 +1293,7 @@ class RoundingMode(xsi.Enumeration):
     }
     aliases = {
         None: 'significantFigures'
-        }
+    }
 
 
 class EqualRounded(NOperator):

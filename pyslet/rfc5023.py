@@ -16,12 +16,21 @@ import sys
 import io
 import traceback
 
-import pyslet.http.client as http
-import pyslet.pep8 as pep8
-import pyslet.rfc2396 as uri
-import pyslet.rfc4287 as atom
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
+from . import pep8
+from . import rfc2396 as uri
+from . import rfc4287 as atom
+from .http import client as http
+from .py2 import (
+    byte,
+    byte_value,
+    character,
+    is_text,
+    SortableMixin,
+    to_text,
+    uempty,
+    UnicodeMixin)
+from .xml import structures as xml
+from .xml import namespace as xmlns
 
 
 #: The namespace to use for Atom Publishing Protocol elements
@@ -208,7 +217,7 @@ class Document(atom.AtomDocument):
 xmlns.map_class_elements(Document.classMap, globals())
 
 
-class Slug(object):
+class Slug(UnicodeMixin, SortableMixin):
 
     """Represents an HTTP slug header value.
 
@@ -228,33 +237,33 @@ class Slug(object):
     @classmethod
     def from_str(cls, source):
         """Creates a slug from a *source* string."""
-        return cls(unicode(uri.unescape_data(source), 'utf-8'))
+        return cls(uri.unescape_data(source).decode('utf-8'))
 
-    def __str__(self):
-        result = []
-        for c in self.slug.encode('utf-8'):
-            if c == '%' or ord(c) < 0x20 or ord(c) > 0x7E:
-                result.append("%%%02X" % ord(c))
-            else:
-                result.append(c)
-        return string.join(result, '')
+    escape_byte = byte('%')
 
     def __unicode__(self):
-        return unicode(self.__str__())
+        result = []
+        for c in self.slug.encode('utf-8'):
+            cv = byte_value(c)
+            if c == self.escape_byte or cv < 0x20 or cv > 0x7E:
+                result.append("%%%02X" % cv)
+            else:
+                result.append(character(c))
+        return uempty.join(result)
 
     def __repr__(self):
         return "Slug(%s)" % repr(self.slug)
 
-    def __cmp__(self, other):
-        """Slugs are compared case sensitive."""
-        if isinstance(other, unicode):
-            result = cmp(self.slug, other)
-        elif isinstance(other, str):
-            other = Slug.from_str(other)
-            result = cmp(self.slug, other.slug)
-        elif isinstance(other, Slug):
-            result = cmp(self.slug, other.slug)
-        return result
+    def sortkey(self):
+        return self.slug
+
+    def otherkey(self, other):
+        if is_text(other):
+            other = self.from_str(other)
+        if isinstance(other, self.__class__):
+            return other.sortkey()
+        else:
+            return NotImplemented
 
     def __hash__(self):
         return hash(self.slug)
@@ -300,7 +309,7 @@ class Server(pep8.PEP8Compatibility):
         response_headers = []
         if environ['SCRIPT_NAME'] + environ['PATH_INFO'] == \
                 self.serviceRoot.abs_path:
-            data = unicode(self.serviceDoc).encode('utf-8')
+            data = to_text(self.serviceDoc).encode('utf-8')
             response_headers.append(("Content-Type", ATOMSVC_MIMETYPE))
             response_headers.append(("Content-Length", str(len(data))))
             start_response("200 Ok", response_headers)

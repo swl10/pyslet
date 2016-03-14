@@ -137,10 +137,10 @@ class Shape(xsi.Enumeration):
         'ellipse': 3,
         'poly': 4,
         'rect': 5
-        }
+    }
     aliases = {
         None: 'default'
-        }
+    }
 
 
 def CalculateShapeBounds(shape, coords):
@@ -270,7 +270,7 @@ class ShowHide(xsi.Enumeration):
     }
     aliases = {
         None: 'show'
-        }
+    }
 
 
 class View(xsi.EnumerationNoCase):

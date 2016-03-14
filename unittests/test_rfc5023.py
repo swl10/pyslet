@@ -1,21 +1,27 @@
 #! /usr/bin/env python
 
-from pyslet.py26 import *       # noqa
-
+import io
 import logging
 import random
-import StringIO
 import unittest
 
 from threading import Thread
-from SocketServer import ThreadingMixIn
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 
-import pyslet.rfc2396 as uri
-import pyslet.rfc4287 as atom
-import pyslet.rfc5023 as app
-import pyslet.http.grammar as grammar
-import pyslet.http.client as http
+from pyslet import rfc2396 as uri
+from pyslet import rfc4287 as atom
+from pyslet import rfc5023 as app
+from pyslet.http import client as http
+from pyslet.http import grammar
+
+from pyslet.py2 import dict_keys, py2, ul
+from pyslet.py26 import py26
+
+if py2:
+    from SocketServer import ThreadingMixIn
+    from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+else:
+    from socketserver import ThreadingMixIn
+    from http.server import HTTPServer, BaseHTTPRequestHandler
 
 
 HTTP_PORT = random.randint(1111, 9999)
@@ -76,7 +82,7 @@ def load_tests(loader, tests, pattern):
     return suite()
 
 
-CAT_EXAMPLE_1 = """<?xml version="1.0" ?>
+CAT_EXAMPLE_1 = b"""<?xml version="1.0" ?>
 <app:categories
    xmlns:app="http://www.w3.org/2007/app"
    xmlns:atom="http://www.w3.org/2005/Atom"
@@ -86,7 +92,7 @@ CAT_EXAMPLE_1 = """<?xml version="1.0" ?>
  <atom:category term="mineral" />
 </app:categories>"""
 
-SVC_EXAMPLE_1 = """<?xml version="1.0" encoding='utf-8'?>
+SVC_EXAMPLE_1 = b"""<?xml version="1.0" encoding='utf-8'?>
 <service xmlns="http://www.w3.org/2007/app"
         xmlns:atom="http://www.w3.org/2005/Atom">
  <workspace>
@@ -123,7 +129,7 @@ SVC_EXAMPLE_1 = """<?xml version="1.0" encoding='utf-8'?>
  </workspace>
 </service>"""
 
-SVC_EXAMPLE_2 = """<?xml version="1.0" encoding='utf-8'?>
+SVC_EXAMPLE_2 = b"""<?xml version="1.0" encoding='utf-8'?>
 <service xmlns="http://www.w3.org/2007/app"
         xmlns:atom="http://www.w3.org/2005/Atom">
  <workspace>
@@ -139,7 +145,7 @@ SVC_EXAMPLE_2 = """<?xml version="1.0" encoding='utf-8'?>
  </workspace>
 </service>"""
 
-FEED_TEST_BLOG = """<?xml version="1.0" encoding="utf-8"?>
+FEED_TEST_BLOG = b"""<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
  <title>Test Blog Feed</title>
  <link href="http://example.org/"/>
@@ -200,8 +206,8 @@ class APPElementTests(unittest.TestCase):
         self.assertTrue(
             e.get_space() is None, "xml:space present on construction")
         attrs = e.get_attributes()
-        self.assertTrue(
-            len(attrs.keys()) == 0, "Attributes present on construction")
+        self.assertTrue(sum(1 for k in dict_keys(attrs)) == 0,
+                        "Attributes present on construction")
 
 
 class CategoriesTests(unittest.TestCase):
@@ -218,8 +224,8 @@ class CategoriesTests(unittest.TestCase):
         self.assertTrue(
             e.get_space() is None, "xml:space present on construction")
         attrs = e.get_attributes()
-        self.assertTrue(
-            len(attrs.keys()) == 0, "Attributes present on construction")
+        self.assertTrue(sum(1 for k in dict_keys(attrs)) == 0,
+                        "Attributes present on construction")
         self.assertTrue(e.href is None, "href present on construction")
         self.assertTrue(e.fixed is None, "fixed on construction")
         self.assertTrue(e.scheme is None, "scheme present on construction")
@@ -236,8 +242,8 @@ class CollectionTests(unittest.TestCase):
         self.assertTrue(c.xmlname == "collection", "Collection XML name")
         self.assertTrue(c.href is None, "HREF present on construction")
         attrs = c.get_attributes()
-        self.assertTrue(
-            len(attrs.keys()) == 0, "Attributes present on construction")
+        self.assertTrue(sum(1 for k in dict_keys(attrs)) == 0,
+                        "Attributes present on construction")
         self.assertTrue(c.Title is None, "Title present on construction")
         self.assertTrue(len(c.Accept) == 0,
                         "Accept list non-empty on construction")
@@ -253,8 +259,8 @@ class WorkspaceTests(unittest.TestCase):
             isinstance(ws, app.APPElement), "Workspace not an APPElement")
         self.assertTrue(ws.xmlname == "workspace", "Workspace XML name")
         attrs = ws.get_attributes()
-        self.assertTrue(
-            len(attrs.keys()) == 0, "Attributes present on construction")
+        self.assertTrue(sum(1 for k in dict_keys(attrs)) == 0,
+                        "Attributes present on construction")
         self.assertTrue(ws.Title is None, "Title present on construction")
         collections = ws.Collection
         self.assertTrue(
@@ -269,15 +275,15 @@ class ServiceTests(unittest.TestCase):
             isinstance(svc, app.APPElement), "Service not an APPElement")
         self.assertTrue(svc.xmlname == "service", "Service XML name")
         attrs = svc.get_attributes()
-        self.assertTrue(
-            len(attrs.keys()) == 0, "Attributes present on construction")
+        self.assertTrue(sum(1 for k in dict_keys(attrs)) == 0,
+                        "Attributes present on construction")
         workspaces = svc.Workspace
         self.assertTrue(
             len(workspaces) == 0, "Workspaces present on construction")
 
     def test_read_xml(self):
         doc = app.Document()
-        doc.read(src=StringIO.StringIO(SVC_EXAMPLE_1))
+        doc.read(src=io.BytesIO(SVC_EXAMPLE_1))
         svc = doc.root
         self.assertTrue(isinstance(svc, app.Service),
                         "Example 1 not a service")
@@ -348,8 +354,8 @@ class MockRequest(object):
     responses = BaseHTTPRequestHandler.responses
 
     def __init__(self, path='/', method="GET"):
-        self.rfile = StringIO.StringIO()
-        self.efile = StringIO.StringIO()
+        self.rfile = io.BytesIO()
+        self.efile = io.BytesIO()
         if '?' in path:
             qindex = path.index('?')
             query = path[qindex + 1:]
@@ -395,7 +401,7 @@ class MockRequest(object):
                     hname] + ", " + r[1]
             else:
                 self.responseHeaders[hname] = r[1]
-        self.wfile = StringIO.StringIO()
+        self.wfile = io.BytesIO()
 
     def set_header(self, header, value):
         """Convenience method for setting header values in the request."""
@@ -480,9 +486,9 @@ class SlugTests(unittest.TestCase):
     def test_slug(self):
         src = "The Beach at S%C3%A8te"
         slug = app.Slug.from_str(src)
-        self.assertTrue(slug.slug == u"The Beach at S\xe8te")
-        slug = app.Slug(u"The Beach at S\xe8te")
-        self.assertTrue(str(slug) == src)
+        self.assertTrue(slug.slug == ul("The Beach at S\xe8te"))
+        slug = app.Slug(ul("The Beach at S\xe8te"))
+        self.assertTrue(str(slug) == src, str(slug))
 
 
 if __name__ == "__main__":

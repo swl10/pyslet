@@ -269,7 +269,7 @@ class Operator(xsi.Enumeration):
         'boolNot': 'not',
         'boolAnd': 'and',
         'boolOr': 'or'}
-        
+
     Category = {
     }
     """A mapping from an operator to an operator category identifier
@@ -1870,7 +1870,6 @@ class SystemQueryOption(xsi.Enumeration):
         'inlinecount': 8,
         'select': 9
     }
-
 
 
 class InlineCount(xsi.Enumeration):

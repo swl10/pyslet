@@ -538,8 +538,8 @@ class SimpleType(xsi.EnumerationNoCase):
         'Edm.Int64': 13,
         'Edm.String': 14,
         'Edm.SByte': 15
-        }
-    
+    }
+
     aliases = {
         'binary': 'Edm.Binary',
         'Binary': 'Edm.Binary',
@@ -3647,7 +3647,8 @@ class Property(CSDLElement):
     XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_DefaultValue = 'defaultValue'
     XMLATTR_MaxLength = ('maxLength', DecodeMaxLength, EncodeMaxLength)
-    XMLATTR_FixedLength = ('fixedLength', xsi.boolean_from_str, xsi.boolean_to_str)
+    XMLATTR_FixedLength = (
+        'fixedLength', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_Precision = ('precision', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_Scale = ('scale', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_Unicode = ('unicode', xsi.boolean_from_str, xsi.boolean_to_str)

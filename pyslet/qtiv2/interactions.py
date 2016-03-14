@@ -153,8 +153,10 @@ class ChoiceInteraction(BlockInteraction):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'choiceInteraction')
     XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
-    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
-    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_maxChoices = (
+        'maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = (
+        'minChoices', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -195,8 +197,10 @@ class OrderInteraction(BlockInteraction):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'orderInteraction')
     XMLATTR_shuffle = ('shuffle', xsi.boolean_from_str, xsi.boolean_to_str)
-    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
-    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_maxChoices = (
+        'maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = (
+        'minChoices', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_orientation = (
         'orientation',
         core.Orientation.from_str_lower,
@@ -687,7 +691,7 @@ class TextFormat(xsi.EnumerationNoCase):
     }
     aliases = {
         None: 'plain'
-        }
+    }
 
 
 class ExtendedTextInteraction(StringInteractionMixin, BlockInteraction):
@@ -704,8 +708,10 @@ class ExtendedTextInteraction(StringInteractionMixin, BlockInteraction):
                     <xsd:attribute name="format" type="textFormat.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'extendedTextInteraction')
-    XMLATTR_maxStrings = ('maxStrings', xsi.integer_from_str, xsi.integer_to_str)
-    XMLATTR_minStrings = ('minStrings', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_maxStrings = (
+        'maxStrings', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minStrings = (
+        'minStrings', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_expectedLines = (
         'expectedLines', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_format = (
@@ -740,8 +746,10 @@ class HottextInteraction(BlockInteraction):
             </xsd:group>
     """
     XMLNAME = (core.IMSQTI_NAMESPACE, 'hottextInteraction')
-    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
-    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_maxChoices = (
+        'maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = (
+        'minChoices', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         BlockInteraction.__init__(self, parent)
@@ -881,8 +889,10 @@ class HotspotInteraction(GraphicInteraction):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'hotspotInteraction')
-    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
-    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_maxChoices = (
+        'maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = (
+        'minChoices', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         GraphicInteraction.__init__(self, parent)
@@ -907,8 +917,10 @@ class SelectPointInteraction(GraphicInteraction):
                     <xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'selectPointInteraction')
-    XMLATTR_maxChoices = ('maxChoices', xsi.integer_from_str, xsi.integer_to_str)
-    XMLATTR_minChoices = ('minChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_maxChoices = (
+        'maxChoices', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_minChoices = (
+        'minChoices', xsi.integer_from_str, xsi.integer_to_str)
 
     def __init__(self, parent):
         GraphicInteraction.__init__(self, parent)

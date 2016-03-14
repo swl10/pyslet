@@ -57,7 +57,7 @@ increased test coverage.  Atom module (rfc4287) refactored.
 
 #38 Python 3 compatibility work (ongoing)
 
-rfc4287 and html401 modules migrated and tests passing.
+rfc4287, rfc5023 and html401 modules migrated and tests passing.
 
 
 Untracked fixes:

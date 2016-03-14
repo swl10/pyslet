@@ -1166,7 +1166,8 @@ class Mapping(core.QTIElement):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapping')
     XMLATTR_lowerBound = ('lowerBound', xsi.float_from_str, xsi.float_to_str)
     XMLATTR_upperBound = ('upperBound', xsi.float_from_str, xsi.float_to_str)
-    XMLATTR_defaultValue = ('defaultValue', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_defaultValue = (
+        'defaultValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1344,7 +1345,8 @@ class AreaMapping(core.QTIElement):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'areaMapping')
     XMLATTR_lowerBound = ('lowerBound', xsi.float_from_str, xsi.float_to_str)
     XMLATTR_upperBound = ('upperBound', xsi.float_from_str, xsi.float_to_str)
-    XMLATTR_defaultValue = ('defaultValue', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_defaultValue = (
+        'defaultValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1471,9 +1473,12 @@ class OutcomeDeclaration(VariableDeclaration):
     XMLATTR_interpretation = 'interpretation'
     XMLATTR_longInterpretation = (
         'longInterpretation', html.uri.URI.from_octets, html.to_text)
-    XMLATTR_normalMaximum = ('normalMaximum', xsi.float_from_str, xsi.float_to_str)
-    XMLATTR_normalMinimum = ('normalMinimum', xsi.float_from_str, xsi.float_to_str)
-    XMLATTR_masteryValue = ('masteryValue', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_normalMaximum = (
+        'normalMaximum', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_normalMinimum = (
+        'normalMinimum', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_masteryValue = (
+        'masteryValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1506,9 +1511,12 @@ class LookupTable(core.QTIElement):
     XMLATTR_interpretation = 'interpretation'
     XMLATTR_longInterpretation = (
         'longInterpretation', html.uri.URI.from_octets, html.to_text)
-    XMLATTR_normalMaximum = ('normalMaximum', xsi.float_from_str, xsi.float_to_str)
-    XMLATTR_normalMinimum = ('normalMinimum', xsi.float_from_str, xsi.float_to_str)
-    XMLATTR_masteryValue = ('masteryValue', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_normalMaximum = (
+        'normalMaximum', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_normalMinimum = (
+        'normalMinimum', xsi.float_from_str, xsi.float_to_str)
+    XMLATTR_masteryValue = (
+        'masteryValue', xsi.float_from_str, xsi.float_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1592,7 +1600,8 @@ class MatchTableEntry(core.QTIElement):
                     <xsd:attribute name="targetValue" type="valueType.Type" use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'matchTableEntry')
-    XMLATTR_sourceValue = ('sourceValue', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_sourceValue = (
+        'sourceValue', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_targetValue = 'targetValue'
     XMLCONTENT = xml.ElementContent
 

@@ -1692,8 +1692,10 @@ class RenderSlider(RenderThing):
         'orientation',
         core.Orientation.from_str_title,
         core.Orientation.to_str)
-    XMLATTR_lowerbound = ('lowerBound', xsi.integer_from_str, xsi.integer_to_str)
-    XMLATTR_upperbound = ('upperBound', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_lowerbound = (
+        'lowerBound', xsi.integer_from_str, xsi.integer_to_str)
+    XMLATTR_upperbound = (
+        'upperBound', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_step = ('step', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_startval = ('startVal', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_steplabel = ('stepLabel', core.ParseYesNo, core.FormatYesNo)

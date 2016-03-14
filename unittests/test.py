@@ -88,9 +88,8 @@ import test_rfc2396
 all_tests.addTest(test_rfc2396.suite())
 import test_rfc4287
 all_tests.addTest(test_rfc4287.suite())
-if py2:
-    import test_rfc5023
-    all_tests.addTest(test_rfc5023.suite())
+import test_rfc5023
+all_tests.addTest(test_rfc5023.suite())
 if py2:
     import test_rtf_1p6
     all_tests.addTest(test_rtf_1p6.suite())

@@ -194,10 +194,10 @@ class ButtonType(xsi.Enumeration):
         'button': 1,
         'submit': 2,
         'reset': 3
-        }
+    }
     aliases = {
         None: 'submit'
-        }
+    }
 
 
 def character_from_str(src):
@@ -322,6 +322,7 @@ AQUA = Color("aqua")
 
 
 class ContentTypes(UnicodeMixin):
+
     """A tuple-like list of :class:`pyslet.http.params.MediaType`.
 
     Values can be compared with each other for equality, and with
@@ -615,10 +616,10 @@ class InputType(xsi.Enumeration):
         'hidden': 8,
         'image': 9,
         'button': 10
-        }
+    }
     aliases = {
         None: "text"
-        }
+    }
 
 
 class IsMap(NamedBoolean):
@@ -857,10 +858,10 @@ class Method(xsi.Enumeration):
     decode = {
         'GET': 1,
         'POST': 2
-        }
+    }
     aliases = {
         None: 'GET'
-        }
+    }
 
 
 class MultiLength(Length):
@@ -1079,10 +1080,10 @@ class Scrolling(xsi.Enumeration):
         'yes': 1,
         'no': 2,
         'auto': 3
-        }
+    }
     aliases = {
         None: 'auto'
-        }
+    }
 
 
 class Selected(NamedBoolean):
@@ -1118,7 +1119,7 @@ class TFrame(xsi.Enumeration):
         'vsides': 7,
         'box': 8,
         'border': 9
-        }
+    }
 
 
 class TRules(xsi.Enumeration):
@@ -1130,7 +1131,7 @@ class TRules(xsi.Enumeration):
         'rows': 3,
         'cols': 4,
         'all': 5
-        }
+    }
 
 
 class VAlign(xsi.Enumeration):
@@ -1150,11 +1151,13 @@ class VAlign(xsi.Enumeration):
 
 
 class XHTMLError(Exception):
+
     """Abstract base class for errors in this module"""
     pass
 
 
 class XHTMLValidityError(XHTMLError):
+
     """General error raised by HTML model constraints.
 
     The parser is very generous in attempting to interpret HTML but
@@ -1164,6 +1167,7 @@ class XHTMLValidityError(XHTMLError):
 
 
 class XHTMLMimeTypeError(XHTMLError):
+
     """Attempt to parse HTML from an unrecognized entity type"""
     pass
 
@@ -1310,6 +1314,7 @@ class XHTMLElement(XHTMLMixin, xmlns.XMLNSElement):
 #   ----------------------------
 
 class AlignMixin(object):
+
     """Mixin class for (loose) align attributes
 ::
 
@@ -1756,6 +1761,7 @@ class FrameElement(CoreAttrsMixin, XHTMLElement):
 
 
 class Heading(AttrsMixin, BlockMixin, InlineContainer):
+
     """Abstract class for representing headings
 ::
 
@@ -1771,6 +1777,7 @@ DTD."""
 
 
 class InsDelInclusion(AttrsMixin, FlowContainer):
+
     """Represents inserted or deleted content
 ::
 
@@ -2263,6 +2270,7 @@ class Button(AttrsMixin, ReservedMixin, FormCtrlMixin, FlowContainer):
 
 
 class Caption(AttrsMixin, InlineContainer):
+
     """Represents a table caption
 ::
 
@@ -2298,6 +2306,7 @@ class Code(Phrase):
 
 
 class Col(AttrsMixin, CellAlignMixin, TableColMixin, XHTMLElement):
+
     """Represents a table column
 ::
 
@@ -2322,6 +2331,7 @@ class Col(AttrsMixin, CellAlignMixin, TableColMixin, XHTMLElement):
 
 
 class ColGroup(AttrsMixin, CellAlignMixin, TableColMixin, XHTMLElement):
+
     """Represents a group of columns
 ::
 
@@ -2367,6 +2377,7 @@ class ColGroup(AttrsMixin, CellAlignMixin, TableColMixin, XHTMLElement):
 
 
 class DD(AttrsMixin, FlowContainer):
+
     """Represents the definition of a defined term
 ::
 
@@ -2401,6 +2412,7 @@ class Div(AttrsMixin, ReservedMixin, BlockMixin, FlowContainer):
 
 
 class DL(AttrsMixin, BlockMixin, XHTMLElement):
+
     """Represents definition lists
 ::
 
@@ -2433,6 +2445,7 @@ DTD."""
 
 
 class DT(AttrsMixin, InlineContainer):
+
     """Represents a defined term
 ::
 
@@ -2737,6 +2750,7 @@ class Head(I18nMixin, XHTMLElement):
 
 
 class HR(AttrsMixin, BlockMixin, XHTMLElement):
+
     """Represents a horizontal rule
 ::
 
@@ -3064,6 +3078,7 @@ class Ins(InsDelInclusion):
 
 class IsIndex(CoreAttrsMixin, I18nMixin, HeadContentMixin, BlockMixin,
               XHTMLElement):
+
     """Deprecated one-element form control
 ::
 
@@ -3122,6 +3137,7 @@ class Legend(AttrsMixin, InlineContainer):
 
 
 class LI(AttrsMixin, FlowContainer):
+
     """Represent list items
 ::
 
@@ -3404,6 +3420,7 @@ class Object(AttrsMixin, ReservedMixin, SpecialMixin, HeadMiscMixin,
 
 
 class OL(List):
+
     """Represents ordered lists
 ::
 
@@ -3499,6 +3516,7 @@ class Option(AttrsMixin, OptItemMixin, XHTMLElement):
 
 
 class P(AttrsMixin, AlignMixin, BlockMixin, InlineContainer):
+
     """Represents a paragraph
 ::
 
@@ -3511,6 +3529,7 @@ class P(AttrsMixin, AlignMixin, BlockMixin, InlineContainer):
 
 
 class Param(XHTMLElement):
+
     """Represents an object parameter
 ::
 
@@ -3549,6 +3568,7 @@ URI."""
 
 
 class Pre(AttrsMixin, BlockMixin, InlineContainer):
+
     """Represents pre-formatted text
 ::
 
@@ -3569,6 +3589,7 @@ mapped."""
 
 
 class Q(AttrsMixin, SpecialMixin, InlineContainer):
+
     """Represents an inline quotation
 ::
 
@@ -3749,6 +3770,7 @@ class Sup(AttrsMixin, PreExclusionMixin, SpecialMixin, InlineContainer):
 
 
 class Table(AttrsMixin, ReservedMixin, BlockMixin, XHTMLElement):
+
     """Represents a table
 ::
 
@@ -3832,6 +3854,7 @@ corresponding TBody (and hence TR+TD)."""
 
 
 class TBody(AttrsMixin, CellAlignMixin, TRContainer):
+
     """Represents a table body
 ::
 
@@ -3851,6 +3874,7 @@ elements are present (unless they are contained in in THEAD or TFOOT)."""
 
 
 class TD(TableCellMixin, FlowContainer):
+
     """Represents a table cell
 ::
 
@@ -3903,6 +3927,7 @@ the constructor provides initial values of 1 and 80 respectively."""
 
 
 class TFoot(AttrsMixin, CellAlignMixin, TRContainer):
+
     """Represents a table footer
 ::
 
@@ -3917,6 +3942,7 @@ class TFoot(AttrsMixin, CellAlignMixin, TRContainer):
 
 
 class TH(TableCellMixin, FlowContainer):
+
     """Represents a table header cell
 ::
 
@@ -3929,6 +3955,7 @@ For attribute information see :class:`TableCellMixin`."""
 
 
 class THead(AttrsMixin, CellAlignMixin, TRContainer):
+
     """Represents a table header
 ::
 
@@ -3954,6 +3981,7 @@ class Title(I18nMixin, HeadContentMixin, XHTMLElement):
 
 
 class TR(AttrsMixin, CellAlignMixin, XHTMLElement):
+
     """Represents a table row
 ::
 

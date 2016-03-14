@@ -107,10 +107,10 @@ class Area(xsi.Enumeration):
         'Ellipse': 1,
         'Rectangle': 2,
         'Bounded': 3
-        }
+    }
     aliases = {
         None: 'Ellipse'
-        }
+    }
 
 
 def MigrateV2AreaCoords(area, value, log):
@@ -264,10 +264,10 @@ class FIBType(xsi.Enumeration):
         'Integer': 2,
         'Decimal': 3,
         'Scientific': 4
-        }
+    }
     aliases = {
         None: 'String'
-        }
+    }
 
 
 class MDOperator(xsi.EnumerationNoCase):
@@ -312,10 +312,10 @@ class NumType(xsi.Enumeration):
         'Integer': 1,
         'Decimal': 2,
         'Scientific': 3
-        }
+    }
     aliases = {
         None: 'Integer'
-        }
+    }
 
 
 class Orientation(xsi.Enumeration):
@@ -336,10 +336,10 @@ class Orientation(xsi.Enumeration):
     decode = {
         'Horizontal': 1,
         'Vertical': 2,
-        }
+    }
     aliases = {
         None: 'Horizontal'
-        }
+    }
 
 
 def MigrateV2Orientation(orientation):
@@ -499,14 +499,14 @@ class View(xsi.EnumerationNoCase):
         'Psychometrician': 8,
         'Scorer': 9,
         'Tutor': 10
-        }
+    }
     aliases = {
         None: 'All',
         'Proctor': 'InvigilatorProctor',
         'proctor': 'InvigilatorProctor',
         'Invigilator': 'InvigilatorProctor',
         'invigilator': 'InvigilatorProctor'
-        }        
+    }
 
 
 def MigrateV2View(view, log):
