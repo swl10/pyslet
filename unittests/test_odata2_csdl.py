@@ -288,9 +288,9 @@ class CSDLTests(unittest.TestCase):
         doc = Document()
         doc.read(src=min_nav_schema)
         scope = NameTableMixin()
-        scope.Declare(doc.root)
-        doc.root.UpdateTypeRefs(scope)
-        doc.root.UpdateSetRefs(scope)
+        scope.declare(doc.root)
+        doc.root.update_type_refs(scope)
+        doc.root.update_set_refs(scope)
         es = doc.root["SampleEntities.Customers"]
         e = Entity(es)
         # initially the entity is marked as a new entity
@@ -344,9 +344,9 @@ class CSDLTests(unittest.TestCase):
         doc = Document()
         doc.read(src=min_func_schema)
         scope = NameTableMixin()
-        scope.Declare(doc.root)
-        doc.root.UpdateTypeRefs(scope)
-        doc.root.UpdateSetRefs(scope)
+        scope.declare(doc.root)
+        doc.root.update_type_refs(scope)
+        doc.root.update_set_refs(scope)
         # the type of ReturnType MUST be a scalar type, EntityType, or
         # ComplexType that is in scope or a collection of one of these
         # in-scope types
@@ -528,9 +528,9 @@ class EntityTests(unittest.TestCase):
         doc = Document()
         doc.read(src=min_es_schema)
         scope = NameTableMixin()
-        scope.Declare(doc.root)
-        doc.root.UpdateTypeRefs(scope)
-        doc.root.UpdateSetRefs(scope)
+        scope.declare(doc.root)
+        doc.root.update_type_refs(scope)
+        doc.root.update_set_refs(scope)
         self.es = doc.root['SampleEntities.Customers']
 
     def test_init(self):

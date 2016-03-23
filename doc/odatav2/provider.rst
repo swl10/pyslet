@@ -4,7 +4,7 @@ OData Providers
 The approach to writing a data access layer (DAL) taken by Pyslet is to
 use the Entity Data Model (EDM), and the extensions defined by OData,
 and to encapsulate them in an API defined by a set of abstract Python
-classes.  The :doc:`odatav2_consumer` section goes through this API from
+classes.  The :doc:`consumer` section goes through this API from
 the point of view of the consumer and provides a good primer for
 understanding what is required from a provider.
 
@@ -14,7 +14,7 @@ variety of different storage scenarios:
 1.	OData Client - an implementation of the DAL that makes calls over
 	the web to an OData server.  Defined in the module
 	:py:mod:`pyslet.odatav2.client` and used in the examples in
-	the section :doc:`odatav2_consumer`.
+	the section :doc:`consumer`.
 
 2.	In-memory data service - an implementation of the DAL that stores
 	all entities and associations in python dictionaries.  Defined in
@@ -57,9 +57,9 @@ your own application you can stop at item 3 above.
 .. toctree::
    :maxdepth: 2
 
-   odatav2_memexample
-   odatav2_sqlexample
-   odatav2_customexample
+   memexample
+   sqlexample
+   customexample
 
 
 Which DAL Implementation?
@@ -73,7 +73,7 @@ memory implementation of the DAL API directly.  This is the easiest
 route to creating a new OData provider as you won't need to override any
 of of the implementations.
 
-Look at the example project :doc:`odatav2_memexample` to see how easy it
+Look at the example project :doc:`memexample` to see how easy it
 is to create a useful in-memory key-value store.
 
 
@@ -102,7 +102,7 @@ functions and operators from the the expression language can be mapped
 on to parameterized SQL queries.
 
 Once you have a class that can connect to your chosen database move on to
-:doc:`odatav2_sqlexample`.
+:doc:`sqlexample`.
 
 
 Customer Provider
@@ -114,7 +114,7 @@ behaviour of the base classes to take care of almost all the API's
 needs.  You just need to expose the entity values themselves by
 implementing a couple of methods!
 
-Look at the example project :doc:`odatav2_customexample` to see how you
+Look at the example project :doc:`customexample` to see how you
 can write a simple application that exposes a download-directory to the
 web using OData (providing a little more metadata than is easily
 obtainable from plain HTTP.)

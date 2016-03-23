@@ -18,7 +18,7 @@ details on what is involved.  You shouldn't have to change much!
 Step 1: Creating the Metadata Model
 -----------------------------------
 
-If you haven't read the :doc:`odatav2_memexample` yet it is a good idea
+If you haven't read the :doc:`memexample` yet it is a good idea
 to do that to get a primer on how providers work.  The actual
 differences between writing a SQL-backed service and one backed by the
 in-memory implementation are minimal.  I haven't repeated code here if

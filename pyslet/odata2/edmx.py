@@ -36,11 +36,11 @@ class DataServices(edm.NameTableMixin, EDMXElement):
 
     def content_changed(self):
         for s in self.Schema:
-            self.Declare(s)
+            self.declare(s)
         for s in self.Schema:
-            s.UpdateTypeRefs(self)
+            s.update_type_refs(self)
         for s in self.Schema:
-            s.UpdateSetRefs(self)
+            s.update_set_refs(self)
 
     def validate(self):
         for s in self.Schema:

@@ -425,18 +425,18 @@ class UnaryExpression(CommonExpression):
         return self.EvalMethod[self.operator](self, rValue)
 
     def EvaluateNegate(self, rValue):
-        typeCode = rValue.typeCode
-        if typeCode in (edm.SimpleType.Byte, edm.SimpleType.Int16):
-            rValue = rValue.SimpleCast(edm.SimpleType.Int32)
-        elif typeCode == edm.SimpleType.Single:
-            rValue = rValue.SimpleCast(edm.SimpleType.Double)
-        typeCode = rValue.typeCode
-        if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Double, edm.SimpleType.Decimal):
-            result = edm.EDMValue.NewSimpleValue(typeCode)
+        type_code = rValue.type_code
+        if type_code in (edm.SimpleType.Byte, edm.SimpleType.Int16):
+            rValue = rValue.simple_cast(edm.SimpleType.Int32)
+        elif type_code == edm.SimpleType.Single:
+            rValue = rValue.simple_cast(edm.SimpleType.Double)
+        type_code = rValue.type_code
+        if type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Double, edm.SimpleType.Decimal):
+            result = edm.EDMValue.NewSimpleValue(type_code)
             if rValue:
                 result.set_from_value(0 - rValue.value)
             return result
-        elif typeCode is None:  # -null
+        elif type_code is None:  # -null
             return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
         else:
             raise EvaluationError("Illegal operand for negate")
@@ -444,8 +444,8 @@ class UnaryExpression(CommonExpression):
     def EvaluateNot(self, rValue):
         if isinstance(rValue, edm.SimpleValue):
             if rValue:
-                typeCode = rValue.typeCode
-                if typeCode == edm.SimpleType.Boolean:
+                type_code = rValue.type_code
+                if type_code == edm.SimpleType.Boolean:
                     result = edm.EDMValue.NewSimpleValue(
                         edm.SimpleType.Boolean)
                     result.set_from_value(not rValue.value)
@@ -531,7 +531,7 @@ class BinaryExpression(CommonExpression):
 
     def PromoteOperands(self, lValue, rValue):
         if isinstance(lValue, edm.SimpleValue) and isinstance(rValue, edm.SimpleValue):
-            return PromoteTypes(lValue.typeCode, rValue.typeCode)
+            return PromoteTypes(lValue.type_code, rValue.type_code)
         else:
             raise EvaluationError(
                 "Expected primitive value for %s" %
@@ -543,8 +543,8 @@ class BinaryExpression(CommonExpression):
         if not lValue:
             # cast(NULL, <any type>) results in NULL
             try:
-                typeCode = edm.SimpleType.from_str(rValue.value)
-                result = edm.EDMValue.NewSimpleValue(typeCode)
+                type_code = edm.SimpleType.from_str(rValue.value)
+                result = edm.EDMValue.NewSimpleValue(type_code)
             except ValueError:
                 result = edm.SimpleValue.NewValue(None)
             return result
@@ -561,59 +561,59 @@ class BinaryExpression(CommonExpression):
         elif isinstance(lValue, edm.SimpleValue):
             # look up the name of the primitive type
             try:
-                typeCode = edm.SimpleType.from_str(rValue.value)
+                type_code = edm.SimpleType.from_str(rValue.value)
             except ValueError:
                 raise EvaluationError(
                     "Unrecognized type: %s" % str(rValue.value))
-            newCode = PromoteTypes(typeCode, lValue.typeCode)
-            if typeCode != newCode:
+            newCode = PromoteTypes(type_code, lValue.type_code)
+            if type_code != newCode:
                 raise EvaluationError(
                     "Can't cast %s to %s" %
                     (edm.SimpleType.to_str(
-                        lValue.typeCode),
-                        edm.SimpleType.to_str(typeCode)))
-            result = edm.EDMValue.NewSimpleValue(typeCode)
+                        lValue.type_code),
+                        edm.SimpleType.to_str(type_code)))
+            result = edm.EDMValue.NewSimpleValue(type_code)
             result.set_from_value(lValue.value)
             return result
         else:
             raise EvaluationError("Illegal operands for isof")
 
     def EvaluateMul(self, lValue, rValue):
-        typeCode = self.PromoteOperands(lValue, rValue)
-        if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+        type_code = self.PromoteOperands(lValue, rValue)
+        if type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
                         edm.SimpleType.Double, edm.SimpleType.Decimal):
-            lValue = lValue.SimpleCast(typeCode)
-            rValue = rValue.SimpleCast(typeCode)
-            result = edm.EDMValue.NewSimpleValue(typeCode)
+            lValue = lValue.simple_cast(type_code)
+            rValue = rValue.simple_cast(type_code)
+            result = edm.EDMValue.NewSimpleValue(type_code)
             if lValue and rValue:
                 result.set_from_value(lValue.value * rValue.value)
             return result
-        elif typeCode is None:  # null mul null
+        elif type_code is None:  # null mul null
             return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
         else:
             raise EvaluationError("Illegal operands for mul")
 
     def EvaluateDiv(self, lValue, rValue):
         try:
-            typeCode = self.PromoteOperands(lValue, rValue)
-            if typeCode in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
-                lValue = lValue.SimpleCast(typeCode)
-                rValue = rValue.SimpleCast(typeCode)
-                result = edm.EDMValue.NewSimpleValue(typeCode)
+            type_code = self.PromoteOperands(lValue, rValue)
+            if type_code in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
+                lValue = lValue.simple_cast(type_code)
+                rValue = rValue.simple_cast(type_code)
+                result = edm.EDMValue.NewSimpleValue(type_code)
                 if lValue and rValue:
                     result.set_from_value(lValue.value / rValue.value)
                 return result
-            elif typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64):
-                lValue = lValue.SimpleCast(typeCode)
-                rValue = rValue.SimpleCast(typeCode)
-                result = edm.EDMValue.NewSimpleValue(typeCode)
+            elif type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64):
+                lValue = lValue.simple_cast(type_code)
+                rValue = rValue.simple_cast(type_code)
+                result = edm.EDMValue.NewSimpleValue(type_code)
                 if lValue and rValue:
                     # OData doesn't really specify integer division rules so
                     # we use floating point division and truncate towards zero
                     result.set_from_value(
                         int(float(lValue.value) / float(rValue.value)))
                 return result
-            elif typeCode is None:  # null div null
+            elif type_code is None:  # null div null
                 return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
             else:
                 raise EvaluationError("Illegal operands for div")
@@ -622,26 +622,26 @@ class BinaryExpression(CommonExpression):
 
     def EvaluateMod(self, lValue, rValue):
         try:
-            typeCode = self.PromoteOperands(lValue, rValue)
-            if typeCode in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
-                lValue = lValue.SimpleCast(typeCode)
-                rValue = rValue.SimpleCast(typeCode)
-                result = edm.EDMValue.NewSimpleValue(typeCode)
+            type_code = self.PromoteOperands(lValue, rValue)
+            if type_code in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
+                lValue = lValue.simple_cast(type_code)
+                rValue = rValue.simple_cast(type_code)
+                result = edm.EDMValue.NewSimpleValue(type_code)
                 if lValue and rValue:
                     result.set_from_value(
                         math.fmod(lValue.value, rValue.value))
                 return result
-            elif typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64):
-                lValue = lValue.SimpleCast(typeCode)
-                rValue = rValue.SimpleCast(typeCode)
-                result = edm.EDMValue.NewSimpleValue(typeCode)
+            elif type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64):
+                lValue = lValue.simple_cast(type_code)
+                rValue = rValue.simple_cast(type_code)
+                result = edm.EDMValue.NewSimpleValue(type_code)
                 if lValue and rValue:
                     # OData doesn't really specify integer division rules so
                     # we use floating point division and truncate towards zero
                     result.set_from_value(
                         int(math.fmod(float(lValue.value), float(rValue.value))))
                 return result
-            elif typeCode is None:  # null div null
+            elif type_code is None:  # null div null
                 return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
             else:
                 raise EvaluationError("Illegal operands for mod")
@@ -649,31 +649,31 @@ class BinaryExpression(CommonExpression):
             raise EvaluationError(str(e))
 
     def EvaluateAdd(self, lValue, rValue):
-        typeCode = self.PromoteOperands(lValue, rValue)
-        if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+        type_code = self.PromoteOperands(lValue, rValue)
+        if type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
                         edm.SimpleType.Double, edm.SimpleType.Decimal):
-            lValue = lValue.SimpleCast(typeCode)
-            rValue = rValue.SimpleCast(typeCode)
-            result = edm.EDMValue.NewSimpleValue(typeCode)
+            lValue = lValue.simple_cast(type_code)
+            rValue = rValue.simple_cast(type_code)
+            result = edm.EDMValue.NewSimpleValue(type_code)
             if lValue and rValue:
                 result.set_from_value(lValue.value + rValue.value)
             return result
-        elif typeCode is None:  # null add null
+        elif type_code is None:  # null add null
             return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
         else:
             raise EvaluationError("Illegal operands for add")
 
     def EvaluateSub(self, lValue, rValue):
-        typeCode = self.PromoteOperands(lValue, rValue)
-        if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+        type_code = self.PromoteOperands(lValue, rValue)
+        if type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
                         edm.SimpleType.Double, edm.SimpleType.Decimal):
-            lValue = lValue.SimpleCast(typeCode)
-            rValue = rValue.SimpleCast(typeCode)
-            result = edm.EDMValue.NewSimpleValue(typeCode)
+            lValue = lValue.simple_cast(type_code)
+            rValue = rValue.simple_cast(type_code)
+            result = edm.EDMValue.NewSimpleValue(type_code)
             if lValue and rValue:
                 result.set_from_value(lValue.value - rValue.value)
             return result
-        elif typeCode is None:  # null sub null
+        elif type_code is None:  # null sub null
             return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
         else:
             raise EvaluationError("Illegal operands for sub")
@@ -691,11 +691,11 @@ class BinaryExpression(CommonExpression):
         return self.EvaluateRelation(lValue, rValue, lambda x, y: x >= y)
 
     def EvaluateRelation(self, lValue, rValue, relation):
-        typeCode = self.PromoteOperands(lValue, rValue)
-        if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+        type_code = self.PromoteOperands(lValue, rValue)
+        if type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
                         edm.SimpleType.Double, edm.SimpleType.Decimal):
-            lValue = lValue.SimpleCast(typeCode)
-            rValue = rValue.SimpleCast(typeCode)
+            lValue = lValue.simple_cast(type_code)
+            rValue = rValue.simple_cast(type_code)
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             if lValue and rValue:
                 result.set_from_value(relation(lValue.value, rValue.value))
@@ -703,11 +703,11 @@ class BinaryExpression(CommonExpression):
                 # one of the operands is null => False
                 result.set_from_value(False)
             return result
-        elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.DateTimeOffset, edm.SimpleType.Guid):
+        elif type_code in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.DateTimeOffset, edm.SimpleType.Guid):
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             result.set_from_value(relation(lValue.value, rValue.value))
             return result
-        elif typeCode is None:  # e.g., null lt null
+        elif type_code is None:  # e.g., null lt null
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             result.set_from_value(False)
             return result
@@ -733,7 +733,7 @@ class BinaryExpression(CommonExpression):
         elif isinstance(lValue, edm.SimpleValue):
             # look up the name of the primitive type
             try:
-                typeCode = edm.SimpleType.from_str(rValue.value)
+                type_code = edm.SimpleType.from_str(rValue.value)
             except ValueError:
                 raise EvaluationError(
                     "Unrecognized type: %s" % str(rValue.value))
@@ -741,7 +741,7 @@ class BinaryExpression(CommonExpression):
             # we return True if the type of the target, when promoted with type
             # being tested results in the type being tested
             try:
-                rValue = (typeCode == PromoteTypes(typeCode, lValue.typeCode))
+                rValue = (type_code == PromoteTypes(type_code, lValue.type_code))
             except EvaluationError:
                 # incompatible types means False
                 rValue = False
@@ -761,19 +761,19 @@ class BinaryExpression(CommonExpression):
                 result.value = False
             return result
         else:
-            typeCode = self.PromoteOperands(lValue, rValue)
-            if typeCode in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
+            type_code = self.PromoteOperands(lValue, rValue)
+            if type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Single,
                             edm.SimpleType.Double, edm.SimpleType.Decimal):
-                lValue = lValue.SimpleCast(typeCode)
-                rValue = rValue.SimpleCast(typeCode)
+                lValue = lValue.simple_cast(type_code)
+                rValue = rValue.simple_cast(type_code)
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
                 result.set_from_value(lValue.value == rValue.value)
                 return result
-            elif typeCode in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.DateTimeOffset, edm.SimpleType.Guid, edm.SimpleType.Binary):
+            elif type_code in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.DateTimeOffset, edm.SimpleType.Guid, edm.SimpleType.Binary):
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
                 result.set_from_value(lValue.value == rValue.value)
                 return result
-            elif typeCode is None:  # null eq null
+            elif type_code is None:  # null eq null
                 result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
                 result.set_from_value(True)
                 return result
@@ -788,15 +788,15 @@ class BinaryExpression(CommonExpression):
     def EvaluateAnd(self, lValue, rValue):
         """Watch out for the differences between OData 2-value logic and
         the usual SQL 3-value approach."""
-        typeCode = self.PromoteOperands(lValue, rValue)
-        if typeCode == edm.SimpleType.Boolean:
+        type_code = self.PromoteOperands(lValue, rValue)
+        if type_code == edm.SimpleType.Boolean:
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             if lValue and rValue:
                 result.value = lValue.value and rValue.value
             else:
                 result.value = False
             return result
-        elif typeCode is None:
+        elif type_code is None:
             # null or null
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             result.value = False
@@ -807,15 +807,15 @@ class BinaryExpression(CommonExpression):
     def EvaluateOr(self, lValue, rValue):
         """Watch out for the differences between OData 2-value logic and
         the usual SQL 3-value approach."""
-        typeCode = self.PromoteOperands(lValue, rValue)
-        if typeCode == edm.SimpleType.Boolean:
+        type_code = self.PromoteOperands(lValue, rValue)
+        if type_code == edm.SimpleType.Boolean:
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             if lValue and rValue:
                 result.value = lValue.value or rValue.value
             else:
                 result.value = False
             return result
-        elif typeCode is None:
+        elif type_code is None:
             # null or null
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
             result.value = False
@@ -853,25 +853,25 @@ class LiteralExpression(CommonExpression):
             return "null"
         else:
             result = unicode(self.value)
-            if self.value.typeCode == edm.SimpleType.Binary:
+            if self.value.type_code == edm.SimpleType.Binary:
                 result = "X'%s'" % result
-            elif self.value.typeCode == edm.SimpleType.DateTime:
+            elif self.value.type_code == edm.SimpleType.DateTime:
                 result = "datetime'%s'" % result
-            elif self.value.typeCode == edm.SimpleType.Decimal:
+            elif self.value.type_code == edm.SimpleType.Decimal:
                 result = result + "M"
-            elif self.value.typeCode == edm.SimpleType.Double:
+            elif self.value.type_code == edm.SimpleType.Double:
                 result = result + "D"
-            elif self.value.typeCode == edm.SimpleType.Single:
+            elif self.value.type_code == edm.SimpleType.Single:
                 result = result + "F"
-            elif self.value.typeCode == edm.SimpleType.Guid:
+            elif self.value.type_code == edm.SimpleType.Guid:
                 result = "guid'%s'" % result
-            elif self.value.typeCode == edm.SimpleType.Int64:
+            elif self.value.type_code == edm.SimpleType.Int64:
                 result = result + "L"
-            elif self.value.typeCode == edm.SimpleType.Time:
+            elif self.value.type_code == edm.SimpleType.Time:
                 result = "time'%s'" % result
-            elif self.value.typeCode == edm.SimpleType.DateTimeOffset:
+            elif self.value.type_code == edm.SimpleType.DateTimeOffset:
                 result = "datetimeoffset'%s'" % result
-            elif self.value.typeCode == edm.SimpleType.String:
+            elif self.value.type_code == edm.SimpleType.String:
                 # double up on single quotes
                 result = "'%s'" % string.join(result.split("'"), "''")
             return result
@@ -937,23 +937,23 @@ class CallExpression(CommonExpression):
             self, map(
                 lambda x: x.Evaluate(contextEntity), self.operands))
 
-    def PromoteParameter(self, arg, typeCode):
+    def PromoteParameter(self, arg, type_code):
         if isinstance(arg, edm.SimpleValue):
-            if CanCastMethodArgument(arg.typeCode, typeCode):
-                return arg.SimpleCast(typeCode)
+            if CanCastMethodArgument(arg.type_code, type_code):
+                return arg.simple_cast(type_code)
         raise EvaluationError(
             "Expected %s value in %s()" %
-            (edm.SimpleType.to_str(typeCode),
+            (edm.SimpleType.to_str(type_code),
              Method.to_str(
                 self.method)))
 
-    def CheckStrictParameter(self, arg, typeCode):
+    def CheckStrictParameter(self, arg, type_code):
         if isinstance(arg, edm.SimpleValue):
-            if arg.typeCode == typeCode:
+            if arg.type_code == type_code:
                 return arg
         raise EvaluationError(
             "Expected %s value in %s()" %
-            (edm.SimpleType.to_str(typeCode),
+            (edm.SimpleType.to_str(type_code),
              Method.to_str(
                 self.method)))
 
@@ -1438,7 +1438,7 @@ class Parser(edm.Parser):
                 self.ParseWSP()
                 self.require_production(self.parse(")"), "')' after %s" % name)
             # Final check, the string parameter must be a string literal!
-            if not isinstance(stringParam, LiteralExpression) or stringParam.value.typeCode != edm.SimpleType.String:
+            if not isinstance(stringParam, LiteralExpression) or stringParam.value.type_code != edm.SimpleType.String:
                 raise ValueError("%s requires string literal")
             return e
         else:
@@ -1579,15 +1579,14 @@ class Parser(edm.Parser):
         separated list of name components, each of which must start with
         a letter and continue with a letter, number or underscore."""
         if self.SimpleIdentifierStartClass is None:
-            self.SimpleIdentifierStartClass = CharClass(
-                CharClass.ucd_category(u"L"))
-            self.SimpleIdentifierStartClass.add_class(
-                CharClass.ucd_category(u"Nl"))
+            load_class = CharClass(CharClass.ucd_category(u"L"))
+            load_class.add_class(CharClass.ucd_category(u"Nl"))
+            self.__class__.SimpleIdentifierStartClass = load_class
         if self.SimpleIdentifierClass is None:
-            self.SimpleIdentifierClass = CharClass(
-                self.SimpleIdentifierStartClass)
+            load_class = CharClass(self.SimpleIdentifierStartClass)
             for c in ['Nd', 'Mn', 'Mc', 'Pc', 'Cf']:
-                self.SimpleIdentifierClass.add_class(CharClass.ucd_category(c))
+                load_class.add_class(CharClass.ucd_category(c))
+            self.__class__.SimpleIdentifierClass = load_class
         savepos = self.pos
         result = []
         while True:
@@ -1655,7 +1654,7 @@ class Parser(edm.Parser):
             return self.ParseStringURILiteral()
         elif name is None and self.match_one('-.0123456789'):
             # one of the number forms (perhaps)
-            num = self.ParseNumericLiteral()
+            num = self.parse_numeric_literal()
             if num is None:
                 # must be something like "." or "-" on its own, not a literal
                 return None
@@ -1700,7 +1699,7 @@ class Parser(edm.Parser):
             self.require("'", production)
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
             value = self.require_production(
-                self.ParseDateTimeLiteral(), production)
+                self.parse_datetime_literal(), production)
             self.require("'", production)
             result.value = value
             return result
@@ -1709,14 +1708,14 @@ class Parser(edm.Parser):
             self.require("'", production)
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Time)
             value = self.require_production(
-                self.ParseTimeLiteral(), production)
+                self.parse_time_literal(), production)
             self.require("'", production)
             result.value = value
             return result
         elif nameCase == "X" or name == "binary":
             self.require("'", "binary")
             result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Binary)
-            value = self.ParseBinaryLiteral()
+            value = self.parse_binary_literal()
             self.require("'", "binary literal")
             result.value = value
             return result
@@ -2621,13 +2620,13 @@ def EntityCTInJSON(complexValue):
 
 
 def ReadEntityCTInJSON(complexValue, obj):
-    if complexValue.pDef.name in obj:
-        ReadEntityCTValue(complexValue, obj[complexValue.pDef.name])
+    if complexValue.p_def.name in obj:
+        ReadEntityCTValue(complexValue, obj[complexValue.p_def.name])
 
 
 def EntityCTBody(complexValue):
     return "%s:%s" % (json.dumps(
-        complexValue.pDef.name),
+        complexValue.p_def.name),
         EntityCTValueToJSON(complexValue))
 
 
@@ -2670,13 +2669,13 @@ def EntityPropertyInJSON1(simpleValue):
 
 
 def ReadEntityPropertyInJSON1(simpleValue, obj):
-    if simpleValue.pDef.name in obj:
-        ReadEntityPropertyValueInJSON(simpleValue, obj[simpleValue.pDef.name])
+    if simpleValue.p_def.name in obj:
+        ReadEntityPropertyValueInJSON(simpleValue, obj[simpleValue.p_def.name])
 
 
 def EntityPropertyInJSON(simpleValue):
     return "%s:%s" % (json.dumps(
-        simpleValue.pDef.name),
+        simpleValue.p_def.name),
         EntityPropertyValueInJSON(simpleValue))
 
 
@@ -2894,9 +2893,9 @@ class EntityCollection(edm.EntityCollection):
             else:
                 raise ValueError("Boolean required for filter expression")
 
-    def calculate_order_key(self, entity, orderObject):
-        """Evaluates orderObject as an instance of py:class:`CommonExpression`."""
-        return orderObject.Evaluate(entity).value
+    def calculate_order_key(self, entity, order_object):
+        """Evaluates order_object as an instance of py:class:`CommonExpression`."""
+        return order_object.Evaluate(entity).value
 
     def generate_entity_set_in_json(self, version=2):
         """Generates JSON serialised form of this collection."""
@@ -2980,7 +2979,7 @@ class NavigationCollection(EntityCollection, edm.NavigationCollection):
             from_entity=self.from_entity,
             name=self.name,
             entity_set=self.entity_set,
-            entityList=self.values())
+            entity_list=self.values())
 
     def get_location(self):
         """Returns the location of this collection as a
@@ -3146,7 +3145,7 @@ class Property(ODataElement):
                     (ODATA_METADATA_NAMESPACE,
                      'type'),
                     edm.SimpleType.to_str(
-                        value.typeCode))
+                        value.type_code))
             if value:
                 ODataElement.set_value(self, unicode(value))
             else:
@@ -3357,7 +3356,7 @@ class Link(atom.Link):
                         from_entity=deferred.from_entity,
                         name=deferred.name,
                         entity_set=targetEntitySet,
-                        entityList=entries))
+                        entity_list=entries))
 
 
 class Entry(atom.Entry):
@@ -3754,7 +3753,7 @@ class Entry(atom.Entry):
                             from_entity=entity,
                             name=k,
                             entity_set=targetSet,
-                            entityList=feed)
+                            entity_list=feed)
                         link.Expand(feed)
                     elif len(feed) > 1:
                         raise NavigationError(

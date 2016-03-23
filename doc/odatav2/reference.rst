@@ -13,11 +13,11 @@ scenarios.
 .. toctree::
    :maxdepth: 2
 
-   odatav2_csdl
-   odatav2_core
-   odatav2_metadata
-   odatav2_client
-   odatav2_memds
-   odatav2_sqlds
-   odatav2_server
+   csdl
+   core
+   metadata
+   client
+   memds
+   sqlds
+   server
 

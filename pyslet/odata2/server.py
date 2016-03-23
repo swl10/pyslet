@@ -171,8 +171,8 @@ class Server(app.Server):
 
     def SetModel(self, model):
         """Sets the model for the server from a parentless
-        :py:class:`~pyslet.odatav2_metadata.Edmx` instance or an Edmx
-        :py:class:`~pyslet.odatav2_metadata.Document` instance."""
+        :py:class:`~pyslet.odatav2.metadata.Edmx` instance or an Edmx
+        :py:class:`~pyslet.odatav2.metadata.Document` instance."""
         if isinstance(model, edmx.Document):
             doc = model
             model = model.root
@@ -444,7 +444,7 @@ class Server(app.Server):
                                       edm.ParameterMode.InOut):
                             params[p.name] = p.typeRef(
                                 odataURI.get_param_value(p.name))
-                    resource = resource.Execute(params)
+                    resource = resource.execute(params)
                     # If this does not identify a collection of entities it
                     # must be the last path segment
                     if not isinstance(resource, edm.EntityCollection):
@@ -850,7 +850,7 @@ class Server(app.Server):
                                 response_headers)
                         else:
                             raise core.MissingURISegment(
-                                "%s (NULL)" % resource.pDef.name)
+                                "%s (NULL)" % resource.p_def.name)
                     else:
                         return self.ReturnValue(
                             parentEntity,
@@ -865,7 +865,7 @@ class Server(app.Server):
                             self.ReadDereferencedValue(resource, environ)
                         else:
                             raise core.MissingURISegment(
-                                "%s (NULL)" % resource.pDef.name)
+                                "%s (NULL)" % resource.p_def.name)
                     else:
                         self.ReadValue(resource, environ)
                     parentEntity.commit()
@@ -876,10 +876,10 @@ class Server(app.Server):
                         raise core.BadURISegment(
                             "$value cannot be used with DELETE")
                     # make this one NULL, only if it is nullable
-                    if resource.pDef and not resource.pDef.nullable:
+                    if resource.p_def and not resource.p_def.nullable:
                         raise core.InvalidMethod(
                             "DELETE failed, %s property is not nullable" %
-                            resource.pDef.name)
+                            resource.p_def.name)
                     resource.value = None
                     parentEntity.commit()
                     return self.ReturnEmpty(start_response, response_headers)
@@ -1302,7 +1302,7 @@ class Server(app.Server):
                     data = '{"d":{%s}}' % core.EntityPropertyInJSON(value)
         else:
             e = core.Property(None)
-            e.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE, value.pDef.name))
+            e.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE, value.p_def.name))
             doc = core.Document(root=e)
             e.set_value(value)
             data = str(doc)
@@ -1420,7 +1420,7 @@ class Server(app.Server):
             for value in collection:
                 p = e.add_child(core.Property)
                 p.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE,
-                               value.pDef.name))
+                               value.p_def.name))
                 p.set_value(value)
             data = str(doc)
         response_headers.append(("Content-Type", str(responseType)))

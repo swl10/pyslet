@@ -22,17 +22,17 @@ available.
 The purpose of this group of modules is to make is easy to use the
 conventions of the OData protocol as a general purpose data-access layer
 (DAL) for Python applications.  To get started, look at the
-:doc:`odatav2_consumer` section which gives a high-level overview of the
+:doc:`odatav2/consumer` section which gives a high-level overview of the
 API with examples that use Microsoft's Northwind data-service.
 
 If you are interested in writing an OData provider, or you simply want
 to use these classes to implement a data access layer for your own
-application then look in :doc:`odatav2_provider`.
+application then look in :doc:`odatav2/provider`.
 
 .. toctree::
    :maxdepth: 2
 
-   odatav2_consumer
-   odatav2_provider
-   odatav2_reference
+   odatav2/consumer
+   odatav2/provider
+   odatav2/reference
 

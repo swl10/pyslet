@@ -2425,7 +2425,7 @@ class SQLEntityCollection(SQLCollectionBase):
             cv_list = list(self.update_fields(entity))
             for cname, v in cv_list:
                 # concurrency tokens get added as if they were part of the key
-                if v.pDef.concurrencyMode == edm.ConcurrencyMode.Fixed:
+                if v.p_def.concurrencyMode == edm.ConcurrencyMode.Fixed:
                     concurrency_check = True
                     constraints.append(
                         (cname, self.container.prepare_sql_value(v)))
@@ -4920,7 +4920,7 @@ class SQLEntityContainer(object):
         experience so the current implementation of the native
         create_table methods ignore default values when calling this
         method."""
-        p = simple_value.pDef
+        p = simple_value.p_def
         column_def = []
         if isinstance(simple_value, edm.BinaryValue):
             if p is None:
@@ -5306,7 +5306,7 @@ class SQLiteEntityContainer(SQLEntityContainer):
 
         The remainder of the type mappings use the defaults from the
         parent class."""
-        p = simple_value.pDef
+        p = simple_value.p_def
         column_def = []
         if isinstance(simple_value, (edm.StringValue, edm.DecimalValue)):
             column_def.append(u"TEXT")
