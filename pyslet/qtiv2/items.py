@@ -94,7 +94,7 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
         self.OutcomeDeclaration.sort()
         self.TemplateDeclaration.sort()
 
-    def RenderHTML(self, itemState, htmlParent=None):
+    def render_html(self, itemState, htmlParent=None):
         """Renders this item in html, adding nodes to *htmlParent*.  The state
         of the item (e.g., the values of any controls and template variables),
         is taken from *itemState*, a :py:class:`variables.ItemSessionState`
@@ -104,7 +104,7 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
         htmlParent. If htmlParent is None then a parentless div is created. If
         the item has no itemBody then an empty Div is returned."""
         if self.ItemBody:
-            htmlDiv = self.ItemBody.RenderHTML(
+            htmlDiv = self.ItemBody.render_html(
                 htmlParent, content.HTMLProfile, itemState)
         else:
             if htmlParent:

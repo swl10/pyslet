@@ -43,7 +43,7 @@ instances.  This makes it easy to open the feeds as EDM collections.  In
 your code you'd typically use the with statement when opening the
 collection but for clarity we'll continue on the python command line::
 
-	>>> products = c.feeds['Products'].OpenCollection()
+	>>> products = c.feeds['Products'].open()
 	>>> for p in products: print p
 	... 
 	INFO:root:Sending request to services.odata.org
@@ -126,7 +126,7 @@ in the usual way::
 Well, I've simply got to have some of these, let's use one of the navigation
 properties to load information about the supplier::
 
-	>>> supplier = scones['Supplier'].GetEntity()
+	>>> supplier = scones['Supplier'].get_entity()
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)/Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
@@ -225,7 +225,7 @@ the DataServices enclosing object.  Elements of the model also support
 deep references using dot-concatenation of names which makes the code
 easier to read::
 
-	>>> print c.model.DataServices['ODataWeb.Northwind.Model']['NorthwindEntities']['Products'].GetFQName()
+	>>> print c.model.DataServices['ODataWeb.Northwind.Model']['NorthwindEntities']['Products'].get_fqname()
 	ODataWeb.Northwind.Model.NorthwindEntities.Products
 	>>> c.model.DataServices['ODataWeb.Northwind.Model.NorthwindEntities.Products']
 	<pyslet.odata2.metadata.EntitySet object at 0x10800f150>
@@ -264,7 +264,7 @@ be treated as read only)
   
 The following methods are useful for consumers of the API.
 
-:py:meth:`~pyslet.odata2.csdl.EntitySet.GetFQName`
+:py:meth:`~pyslet.odata2.csdl.EntitySet.get_fqname`
 	Returns the fully qualified name of the entity set, suitable for
 	looking up the entity set in the enclosing DataServices object.
 
@@ -277,27 +277,27 @@ The following methods are useful for consumers of the API.
 
 	(If there is no base URL available this will be a relative URI.)
 
-:py:meth:`~pyslet.odata2.csdl.EntitySet.OpenCollection`
+:py:meth:`~pyslet.odata2.csdl.EntitySet.open`
 	Returns a :py:class:`pyslet.odata2.csdl.EntityCollection` object
 	that can be used to access the entities in the set.
 	
-:py:meth:`~pyslet.odata2.csdl.EntitySet.NavigationTarget`
+:py:meth:`~pyslet.odata2.csdl.EntitySet.get_target`
 	Returns the target entity set of a named navigation property.
 	
-:py:meth:`~pyslet.odata2.csdl.EntitySet.NavigationMultiplicity`
+:py:meth:`~pyslet.odata2.csdl.EntitySet.get_multiplicity`
 	Returns a tuple of multiplicity constants for the named navigation
 	property.  Constants for these values are defined in
 	:py:class:`pyslet.odata2.csdl.Multiplicity`, for example::
 	
-		>>> from pyslet.odata2.csdl import Multiplicity, EncodeMultiplicity
+		>>> from pyslet.odata2.csdl import Multiplicity, multiplicity_to_str
 		>>> print Multiplicity.ZeroToOne, Multiplicity.One, Multiplicity.Many
 		0 1 2
-		>>> products.NavigationMultiplicity('Supplier')
+		>>> products.get_multiplicity('Supplier')
 		(2, 0)
-		>>> map(lambda x:EncodeMultiplicity(x),products.NavigationMultiplicity('Supplier'))
+		>>> map(lambda x:multiplicity_to_str(x),products.get_multiplicity('Supplier'))
 		['*', '0..1']
 
-:py:meth:`~pyslet.odata2.csdl.EntitySet.IsEntityCollection`
+:py:meth:`~pyslet.odata2.csdl.EntitySet.is_entity_collection`
 	Returns True if the named navigation property points to a collection
 	of entities or a single entity.  In Pyslet, you can treat all
 	navigation properties as collections.  In the above example the
@@ -319,7 +319,7 @@ resources (like a database connection) and so must be closed with its
 They support the context manager protocol to make this easier so you can
 use them in with statements to make clean-up easier::
 
-	with c.feeds['Products'].OpenCollection() as products:
+	with c.feeds['Products'].open() as products:
 		if 42 in products:
 			print "Found it!"
 
@@ -399,19 +399,19 @@ and so on, the following methods are useful for consumers of the API:
 	Creates a new entity suitable for inserting into this collection.
 	The entity does not exist until it is inserted with insert_entity.
 
-:py:meth:`~pyslet.odata2.csdl.EntityCollection.CopyEntity`
+:py:meth:`~pyslet.odata2.csdl.EntityCollection.copy_entity`
 	Creates a new entity by copying all non-key properties from another
 	entity. The entity does not exist until it is inserted with
 	insert_entity.
 
 :py:meth:`~pyslet.odata2.csdl.EntityCollection.insert_entity`
-	Inserts an entity previously created by new_entity or CopyEntity.
+	Inserts an entity previously created by new_entity or copy_entity.
 	When inserting an entity any active filter is ignored.
 	
 	Warning: an active filter may result in a paradoxical KeyError::
 	
 		import pyslet.odata2.core as core
-		with people.OpenCollection() as collection:
+		with people.open() as collection:
 			collection.set_filter(
 			    core.CommonExpression.from_str("startswith(Name,'D')"))
 			new_entity = collection.new_entity()
@@ -428,7 +428,7 @@ and so on, the following methods are useful for consumers of the API:
 :py:meth:`~pyslet.odata2.csdl.EntityCollection.update_entity`
 	Updates an existing entity following changes to the Entity's values.
 	You can't update the values of key properties.  To change the key
-	you will need to create a new entity with CopyEntity, insert the new
+	you will need to create a new entity with copy_entity, insert the new
 	entity and then remove the old one.  Like insert_entity, the current
 	filter is ignored.
 
@@ -646,7 +646,7 @@ any linked Suppliers::
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$expand=Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> supplier=scones['Supplier'].GetEntity()
+	>>> supplier=scones['Supplier'].get_entity()
 	>>> for k, v in supplier.data_items(): print k, v.value
 	... 
 	SupplierID 8
@@ -664,7 +664,7 @@ any linked Suppliers::
 
 A critical point to note is that applying an expansion to a collection
 means that linked entities are retrieved at the same time as the entity
-they are linked to and cached.  In the example above, the GetEntity call
+they are linked to and cached.  In the example above, the get_entity call
 does not generate a call to the server.  Compare this with the same code
 executed without the expansion::
 
@@ -673,7 +673,7 @@ executed without the expansion::
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21) HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> supplier = scones['Supplier'].GetEntity()
+	>>> supplier = scones['Supplier'].get_entity()
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)/Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200
@@ -707,12 +707,12 @@ In Pyslet, the values of the key properties are *always* retrieved, even
 if they are not selected.  This is required to maintain the
 dictionary-like behaviour of the collection.  An entity retrieved this
 way has NULL values for any properties that weren't retrieved.  The
-:py:meth:`~pyslet.odata2.csdl.Entity.Selected` method allows you to
+:py:meth:`~pyslet.odata2.csdl.Entity.is_selected` method allows you to
 determine if a value is NULL in the data source or NULL because it is
 not selected::
 
 	>>> for k, v in scones.data_items(): 
-	...  if scones.Selected(k): print k, v.value
+	...  if scones.is_selected(k): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
@@ -724,14 +724,14 @@ The expand and select options can be combined in complex ways::
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)?$expand=Supplier&$select=ProductID%2CProductName%2CSupplier%2FPhone%2CSupplier%2FSupplierID HTTP/1.1
 	INFO:root:Finished Response, status 200
-	>>> supplier = scones['Supplier'].GetEntity()
+	>>> supplier = scones['Supplier'].get_entity()
 	>>> for k, v in scones.data_items():
-	...  if scones.Selected(k): print k, v.value
+	...  if scones.is_selected(k): print k, v.value
 	... 
 	ProductID 21
 	ProductName Sir Rodney's Scones
 	>>> for k, v in supplier.data_items():
-	...  if supplier.Selected(k): print k, v.value
+	...  if supplier.is_selected(k): print k, v.value
 	... 
 	SupplierID 8
 	Phone (161) 555-4448
@@ -782,30 +782,30 @@ The following methods are useful for consumers of the API:
 		>>> print scones.get_location()
 		http://services.odata.org/V2/Northwind/Northwind.svc/Products(21)
 
-:py:meth:`~pyslet.odata2.csdl.Entity.DataKeys`
+:py:meth:`~pyslet.odata2.csdl.Entity.data_keys`
 	Iterates over the simple and complex property names::
 	
-		>>> list(scones.DataKeys())
+		>>> list(scones.data_keys())
 		[u'ProductID', u'ProductName', u'SupplierID', u'CategoryID', u'QuantityPerUnit', u'UnitPrice', u'UnitsInStock', u'UnitsOnOrder', u'ReorderLevel', u'Discontinued']
 
 :py:meth:`~pyslet.odata2.csdl.Entity.data_items`
 	Iterates over tuples of simple and complex property (name,value)
 	pairs. See above for examples of usage.
 
-:py:meth:`~pyslet.odata2.csdl.Entity.Selected`
+:py:meth:`~pyslet.odata2.csdl.Entity.is_selected`
 	Tests if the given data property is selected. 
 
-:py:meth:`~pyslet.odata2.csdl.Entity.NavigationKeys`
+:py:meth:`~pyslet.odata2.csdl.Entity.navigation_keys`
 	Iterates over the navigation property names::
 	
-		>>> list(scones.NavigationKeys())
+		>>> list(scones.navigation_keys())
 		[u'Category', u'Order_Details', u'Supplier']
 
-:py:meth:`~pyslet.odata2.csdl.Entity.NavigationItems`
+:py:meth:`~pyslet.odata2.csdl.Entity.navigation_items`
 	Iterates over tuples of navigation property (name,DeferredValue)
 	pairs.
 
-:py:meth:`~pyslet.odata2.csdl.Entity.IsNavigationProperty`
+:py:meth:`~pyslet.odata2.csdl.Entity.is_navigation_property`
 	Tests if a navigation property with the given name exists 
 
 
@@ -820,7 +820,7 @@ methods:
 	opening the base collection, updating the entity and then closing
 	the collection collection again.
 
-:py:meth:`~pyslet.odata2.csdl.Entity.Delete`
+:py:meth:`~pyslet.odata2.csdl.Entity.delete`
 	Deletes this entity from the base entity set.  If you already have
 	the base entity set open it is more efficient to use the *del*
 	operator but if the collection is no longer open or the entity was
@@ -828,7 +828,7 @@ methods:
 	method can be used to delete the entity.
 
 The following method can only be used on entities that don't exist,
-i.e., entities returned from the collection's new_entity or CopyEntity
+i.e., entities returned from the collection's new_entity or copy_entity
 methods that have not been inserted.
  
 :py:meth:`~pyslet.odata2.csdl.Entity.set_key`
@@ -842,7 +842,7 @@ Simple property values are represented by (sub-classes of)
 :py:class:`~pyslet.odata2.csdl.SimpleValue`, they share a number of
 common methods:
 
-:py:meth:`~pyslet.odata2.csdl.SimpleValue.IsNull`
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.is_null`
 	Returns True if this value is NULL.  This method is also used
 	by Python's non-zero test so::
 	
@@ -868,7 +868,7 @@ common methods:
 	the value is simply copied, otherwise the value is coerced using
 	set_from_value.
 
-:py:meth:`~pyslet.odata2.csdl.SimpleValue.SetFromLiteral`
+:py:meth:`~pyslet.odata2.csdl.SimpleValue.set_from_literal`
 	Updates the value by parsing it from a (unicode) string.  This is
 	the opposite to the unicode function.  The literal form is the form
 	used when serializing the value to XML (but does not include XML
@@ -926,7 +926,7 @@ Complex
 +++++++
 
 Complex values behave like dictionaries of data properties.  They do not
-have keys or navigation properties.  They are never NULL, IsNull and the
+have keys or navigation properties.  They are never NULL, is_null and the
 Python non-zero test will always return True.
 
 :py:meth:`~pyslet.odata2.csdl.SimpleValue.set_null`
@@ -941,7 +941,7 @@ Navigation properties are represented as :py:class:`DeferredValue`
 instances.  All deferred values can be treated as an entity collection
 and opened in a similar way to an entity set::
 
-	>>> sconeSuppliers=scones['Supplier'].OpenCollection()
+	>>> sconeSuppliers=scones['Supplier'].open()
 	>>> for s in sconeSuppliers.itervalues(): print s['CompanyName'].value
 	... 
 	INFO:root:Sending request to services.odata.org
@@ -959,7 +959,7 @@ If you use the dictionary methods to update the collection the changes
 are made straight away by accessing the data source directly.  If you
 want to make a number of changes simultaneously, or you want to link
 entities to entities that don't yet exist, then you should use the
-BindEntity method described below instead.  This method defers the
+bind_entity method described below instead.  This method defers the
 changes until the parent entity is updated (or inserted, in the case of
 non-existent entities.)
 
@@ -971,7 +971,7 @@ Read-only attributes useful to data consumers:
 :py:attr:`~pyslet.odata2.csdl.DeferredValue.from_entity`
 	The parent entity of this navigation property
 
-:py:attr:`~pyslet.odata2.csdl.DeferredValue.pDef`
+:py:attr:`~pyslet.odata2.csdl.DeferredValue.p_def`
 	The :py:class:`~pyslet.odata2.csdl.NavigationProperty` that defines
 	this navigation property in the model.
 
@@ -991,22 +991,22 @@ Read-only attributes useful to data consumers:
 
 Methods useful to data consumers:
 
-:py:meth:`~pyslet.odata2.csdl.DeferredValue.OpenCollection`
+:py:meth:`~pyslet.odata2.csdl.DeferredValue.open`
 	Returns an :py:class:`pyslet.odata2.csdl.EntityCollection` object
 	that can be used to access the target entities.
 
-:py:meth:`~pyslet.odata2.csdl.DeferredValue.GetEntity`
+:py:meth:`~pyslet.odata2.csdl.DeferredValue.get_entity`
 	Convenience method that returns the entity that is the target of the
 	link when the target has multiplicity 1 or 0..1.  If no entity is
 	linked by the association then None is returned.
 
-:py:meth:`~pyslet.odata2.csdl.DeferredValue.BindEntity`
+:py:meth:`~pyslet.odata2.csdl.DeferredValue.bind_entity`
 	Marks the target entity for addition to this navigation collection
 	on next update or insert.  If this navigation property is not a
 	collection then the target entity will replace any existing target
 	of the link.
 
-:py:meth:`~pyslet.odata2.csdl.DeferredValue.Target`
+:py:meth:`~pyslet.odata2.csdl.DeferredValue.target`
 	The target entity set of this navigation property.
 
 
@@ -1026,7 +1026,7 @@ Interacting with Python's time module is done using the struct_time type,
 or lists that have values corresponding to those in struct_time::
 
 	>>> import time
-	>>> orders = c.feeds['Orders'].OpenCollection()
+	>>> orders = c.feeds['Orders'].open()
 	>>> orders.set_page(5)
 	>>> top = list(orders.iterpage())
 	INFO:root:Sending request to services.odata.org

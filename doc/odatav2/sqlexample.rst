@@ -174,7 +174,7 @@ implementation turns our model into a SQL CREATE TABLE statement::
 	>>> import weather
 	>>> doc=weather.load_metadata()
 	>>> weather.make_container(doc)
-	>>> dataPoints=doc.root.DataServices['WeatherSchema.CambridgeWeather.DataPoints'].OpenCollection()
+	>>> dataPoints=doc.root.DataServices['WeatherSchema.CambridgeWeather.DataPoints'].open()
 	>>> print dataPoints.create_table_query()[0]
 	CREATE TABLE "DataPoints" ("TimePoint" TIMESTAMP NOT NULL,
 	"Temperature" REAL, "Humidity" SMALLINT, "DewPoint" REAL, "Pressure"
@@ -244,7 +244,7 @@ tempted to do something like this::
 		
 When we should be doing something like this::
 
-	note=data_point['Note'].GetEntity()
+	note=data_point['Note'].get_entity()
 	if note is not None:
 		# do something with the note
 	
@@ -311,7 +311,7 @@ navigation properties::
 	def load_notes(weather_notes,file_name,weatherData):
 		with open(file_name,'r') as f:
 			id=1
-			with weather_notes.OpenCollection() as collection, weatherData.OpenCollection() as data:
+			with weather_notes.open() as collection, weatherData.open() as data:
 				while True:
 					line=f.readline()
 					if len(line)==0:
@@ -335,13 +335,13 @@ navigation properties::
 						# now find the data points that match
 						data.set_filter(core.CommonExpression.from_str("TimePoint ge datetime'%s' and TimePoint lt datetime'%s'"%(unicode(start),unicode(end))))
 						for data_point in data.values():
-							data_point['Note'].BindEntity(note)
+							data_point['Note'].bind_entity(note)
 							data.update_entity(data_point)
 						id=id+1
-		with weather_notes.OpenCollection() as collection:
+		with weather_notes.open() as collection:
 			collection.set_orderby(core.CommonExpression.OrderByFromString('StartDate desc'))
 			for e in collection.itervalues():
-				with e['DataPoints'].OpenCollection() as affectedData:
+				with e['DataPoints'].open() as affectedData:
 					print "%s-%s: %s (%i data points affected)"%(unicode(e['StartDate'].value),
 						unicode(e['EndDate'].value),e['Details'].value,len(affectedData))
 
@@ -397,11 +397,11 @@ along with any linked note::
 		if drop:
 			load_data(weatherData,SAMPLE_DIR)
 			load_notes(weather_notes,'weathernotes.txt',weatherData)
-		with weatherData.OpenCollection() as collection:
+		with weatherData.open() as collection:
 			collection.set_orderby(core.CommonExpression.OrderByFromString('WindSpeedMax desc'))
 			collection.set_page(30)
 			for e in collection.iterpage():
-				note=e['Note'].GetEntity()
+				note=e['Note'].get_entity()
 				if e['WindSpeedMax'] and e['Pressure']:
 					print "%s: Pressure %imb, max wind speed %0.1f knots (%0.1f mph); %s"%(unicode(e['TimePoint'].value),
 						e['Pressure'].value,e['WindSpeedMax'].value,e['WindSpeedMax'].value*1.15078,

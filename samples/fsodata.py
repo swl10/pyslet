@@ -157,7 +157,7 @@ class FSCollection(odata.EntityCollection):
             fspath_to_entity(fspath, e)
             if self.check_filter(e):
                 if self.expand or self.select:
-                    e.Expand(self.expand, self.select)
+                    e.expand(self.expand, self.select)
                 return e
             else:
                 raise KeyError("Filtered path: %s" % path)
@@ -257,7 +257,7 @@ class FSChildren(odata.NavigationCollection):
             fspath_to_entity(child_fspath, e)
             if self.check_filter(e):
                 if self.expand or self.select:
-                    e.Expand(self.expand, self.select)
+                    e.expand(self.expand, self.select)
                 return e
         except ValueError:
             raise KeyError("no such path: %s" % child_path)
@@ -302,7 +302,7 @@ class FSParent(odata.NavigationCollection):
                 fspath_to_entity(parent_fspath, e)
                 if self.check_filter(e):
                     if self.expand or self.select:
-                        e.Expand(self.expand, self.select)
+                        e.expand(self.expand, self.select)
                     return e
             except ValueError:
                 raise ValueError("Unexpected path error: %s" % parent_path)
@@ -319,8 +319,8 @@ def load_metadata(
     # next step is to bind our model to it
     container = doc.root.DataServices['FSSchema.FS']
     container['Files'].bind(FSCollection)
-    container['Files'].BindNavigation('Files', FSChildren)
-    container['Files'].BindNavigation('Parent', FSParent)
+    container['Files'].bind_navigation('Files', FSChildren)
+    container['Files'].bind_navigation('Parent', FSParent)
     return doc
 
 

@@ -113,7 +113,7 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
         ==================  ===================================
 
         All other types use the default mapping."""
-        p = simple_value.pDef
+        p = simple_value.p_def
         column_def = []
         explicit_null = False
         explicit_default = None

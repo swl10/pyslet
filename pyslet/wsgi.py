@@ -1520,8 +1520,8 @@ class AppCipher(object):
         self.ciphers = {key_num: self.new_cipher(key)}
         if when:
             # we need to find a key that hasn't expired
-            with key_set.OpenCollection() as keys:
-                t = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
+            with key_set.open() as keys:
+                t = edm.EDMValue.from_type(edm.SimpleType.DateTime)
                 t.set_from_value(time.time())
                 filter = odata.CommonExpression.from_str(
                     "Expires gte :t", {'t': t})
@@ -1629,7 +1629,7 @@ class AppCipher(object):
             # use of the new key
             old_key_encrypted = "%i:%s" % (
                 key_num, base64.b64encode(cipher.encrypt(self.old_key)))
-        with self.key_set.OpenCollection() as keys:
+        with self.key_set.open() as keys:
             e = keys.new_entity()
             e.set_key(self.old_num)
             e['KeyString'].set_from_value(old_key_encrypted)
@@ -1669,7 +1669,7 @@ class AppCipher(object):
             cipher = self.ciphers.get(key_num, None)
             if cipher is None:
                 stack.append((key_num, data, cipher_num))
-                with self.key_set.OpenCollection() as collection:
+                with self.key_set.open() as collection:
                     try:
                         e = collection[key_num]
                         old_key_num, old_key_data = self._split_data(
@@ -1864,12 +1864,12 @@ class Session(object):
         The purpose of this method is to merge information from the new
         session into this one.  The default implementation simply
         deletes the new session."""
-        new_session.entity.Delete()
+        new_session.entity.delete()
 
     def commit(self):
         """Saves any changes back to the data store"""
         if self.touched:
-            with self.entity.entity_set.OpenCollection() as collection:
+            with self.entity.entity_set.open() as collection:
                 if self.entity.exists:
                     collection.update_entity(self.entity)
                 else:
@@ -2016,7 +2016,7 @@ class SessionApp(WSGIDataApp):
         else:
             context.session = None
         if context.session is None:
-            with self._session_set.OpenCollection() as collection:
+            with self._session_set.open() as collection:
                 # generate a new user_key
                 entity = collection.new_entity()
                 context.session = self.SessionClass(entity)
@@ -2048,8 +2048,8 @@ class SessionApp(WSGIDataApp):
         self.set_session_cookie(context)
 
     def _delete_session(self, sid):
-        with self._session_set.OpenCollection() as collection:
-            param = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+        with self._session_set.open() as collection:
+            param = edm.EDMValue.from_type(edm.SimpleType.String)
             param.set_from_value(sid)
             params = {'sid': param}
             filter = odata.CommonExpression.from_str(
@@ -2062,9 +2062,9 @@ class SessionApp(WSGIDataApp):
                     del collection[entity.key()]
 
     def _load_session(self, sid):
-        with self._session_set.OpenCollection() as collection:
+        with self._session_set.open() as collection:
             # load the session
-            param = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            param = edm.EDMValue.from_type(edm.SimpleType.String)
             param.set_from_value(sid)
             params = {'user_key': param}
             filter = odata.CommonExpression.from_str(

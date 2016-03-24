@@ -53,8 +53,7 @@ Build 20160323:
 #3 PEP-8 driven refactoring (ongoing)
 
 OData v2 csdl module refactored to use new method decorators and for
-PEP-8 compliance.  Intermediate commit, some deprecation warnings
-likely.
+PEP-8 compliance.
 
 OData v2 docs reorganised into a separate directory for clarity.
 

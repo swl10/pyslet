@@ -408,23 +408,23 @@ class SQLDSTests(unittest.TestCase):
 
     def test_constructors(self):
         es = self.schema['SampleEntities.Employees']
-        self.assertTrue(isinstance(es.OpenCollection(),
+        self.assertTrue(isinstance(es.open(),
                                    sqlds.SQLEntityCollection))
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             collection.create_table()
             self.assertTrue(collection.entity_set is es, "Entity set pointer")
             self.assertTrue(len(collection) == 0, "Length on load")
 
     def test_insert(self):
         es = self.schema['SampleEntities.Employees']
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             # we'll need to create this table first
             collection.create_table()
             new_hire = collection.new_entity()
             self.assertTrue(isinstance(new_hire, core.Entity))
             self.assertTrue(
                 list(
-                    new_hire.DataKeys()) == [
+                    new_hire.data_keys()) == [
                     "EmployeeID",
                     "EmployeeName",
                     "Address",
@@ -451,13 +451,13 @@ class SQLDSTests(unittest.TestCase):
 
     def test_update(self):
         es = self.schema['SampleEntities.Employees']
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             collection.create_table()
             new_hire = collection.new_entity()
             self.assertTrue(isinstance(new_hire, core.Entity))
             self.assertTrue(
                 list(
-                    new_hire.DataKeys()) == [
+                    new_hire.data_keys()) == [
                     "EmployeeID",
                     "EmployeeName",
                     "Address",
@@ -489,13 +489,13 @@ class SQLDSTests(unittest.TestCase):
 
     def test_delete(self):
         es = self.schema['SampleEntities.Employees']
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             collection.create_table()
             new_hire = collection.new_entity()
             self.assertTrue(isinstance(new_hire, core.Entity))
             self.assertTrue(
                 list(
-                    new_hire.DataKeys()) == [
+                    new_hire.data_keys()) == [
                     "EmployeeID",
                     "EmployeeName",
                     "Address",
@@ -526,7 +526,7 @@ class SQLDSTests(unittest.TestCase):
 
     def test_iter(self):
         es = self.schema['SampleEntities.Employees']
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             collection.create_table()
             for i in xrange(10):
                 new_hire = collection.new_entity()
@@ -547,7 +547,7 @@ class SQLDSTests(unittest.TestCase):
 
     def test_filter(self):
         es = self.schema['SampleEntities.Employees']
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             collection.create_table()
             for i in xrange(20):
                 new_hire = collection.new_entity()
@@ -588,7 +588,7 @@ class SQLDSTests(unittest.TestCase):
 
     def test_orderby(self):
         es = self.schema['SampleEntities.Employees']
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             collection.create_table()
             for i in xrange(20):
                 new_hire = collection.new_entity()
@@ -641,7 +641,7 @@ class SQLDSTests(unittest.TestCase):
         #     Relationship="SampleModel.Orders_Customers"
         #     FromRole="Customer" ToRole="Order"/>
         es = self.schema['SampleEntities.Customers']
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             # we'll need to create this table first
             collection.create_table()
             customer = collection.new_entity()
@@ -662,33 +662,33 @@ class SQLDSTests(unittest.TestCase):
         # <NavigationProperty Name="OrderLine"
         #     Relationship="SampleModel.OrderLines_Orders"
         #     FromRole="Order" ToRole="OrderLine"/>
-        with es.OpenCollection() as collection:
-            with self.schema['SampleEntities.OrderLines'].OpenCollection() as \
+        with es.open() as collection:
+            with self.schema['SampleEntities.OrderLines'].open() as \
                     orderlines:
                 # we'll need to create both tables first due to FK constraint
                 collection.create_table()
                 orderlines.create_table()
                 order = collection.new_entity()
                 order.set_key(1)
-                order["ShippedDate"].SetFromLiteral('2013-10-02T10:20:59')
+                order["ShippedDate"].set_from_literal('2013-10-02T10:20:59')
                 collection.insert_entity(order)
-                with order['Customer'].OpenCollection() as parentCollection:
+                with order['Customer'].open() as parentCollection:
                     parentCollection[customer.key()] = customer
                 # now check that get entity works
-                match_customer = order['Customer'].GetEntity()
+                match_customer = order['Customer'].get_entity()
                 self.assertTrue(match_customer is not None)
                 self.assertTrue(match_customer.key() == customer.key())
         # now check the association the other way
-        with customer['Orders'].OpenCollection() as collection:
+        with customer['Orders'].open() as collection:
             self.assertTrue(len(collection) == 1)
             self.assertTrue(order.key() in collection)
         # now add a second order for this customer
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             order = collection.new_entity()
             order.set_key(2)
-            order["ShippedDate"].SetFromLiteral('2013-11-05T08:30:00')
+            order["ShippedDate"].set_from_literal('2013-11-05T08:30:00')
             collection.insert_entity(order)
-            with order['Customer'].OpenCollection() as parentCollection:
+            with order['Customer'].open() as parentCollection:
                 parentCollection[customer.key()] = customer
                 self.assertTrue(len(parentCollection) == 1)
                 # check with a filter
@@ -704,7 +704,7 @@ class SQLDSTests(unittest.TestCase):
             orders = collection.values()
             self.assertTrue(len(orders) == 2)
         # now check the association is working with filter and orderby too
-        with customer['Orders'].OpenCollection() as collection:
+        with customer['Orders'].open() as collection:
             collection.set_orderby(
                 core.CommonExpression.OrderByFromString("ShippedDate desc"))
             self.assertTrue(len(collection) == 2)
@@ -730,7 +730,7 @@ class SQLDSTests(unittest.TestCase):
         # run through each entity set and check there is no data in it
         container = self.schema['SampleEntities']
         for es in container.EntitySet:
-            with es.OpenCollection() as collection:
+            with es.open() as collection:
                 self.assertTrue(
                     len(collection) == 0,
                     "No data in %s" %
@@ -788,7 +788,7 @@ class AutoFieldTests(unittest.TestCase):
 
     def test_create(self):
         files = self.container['Files']
-        with files.OpenCollection() as collection:
+        with files.open() as collection:
             query, params = collection.create_table_query()
             self.assertFalse('"Files"' in query, "Missing table prefix")
             self.assertTrue('"prefix_Files"' in query)
@@ -814,8 +814,8 @@ class AutoFieldTests(unittest.TestCase):
         self.db.create_all_tables()
         files = self.container['Files']
         blobs = self.container['Blobs']
-        with files.OpenCollection() as file_coll:
-            with blobs.OpenCollection() as blob_coll:
+        with files.open() as file_coll:
+            with blobs.open() as blob_coll:
                 f = file_coll.new_entity()
                 f['path'].set_from_value("hello.txt")
                 f['mime']['type'].set_from_value("text")
@@ -841,8 +841,8 @@ class AutoFieldTests(unittest.TestCase):
                 b = blob_coll.new_entity()
                 b['hash'].set_from_value('deadbeef')
                 b['data'].set_from_value('The quick brown fox jumped over...')
-                f2['Blob'].BindEntity(b)
-                with f2['Blob'].OpenCollection() as nav_coll:
+                f2['Blob'].bind_entity(b)
+                with f2['Blob'].open() as nav_coll:
                     self.assertTrue(len(nav_coll) == 0)
                     nav_coll.insert_entity(b)
                     self.assertTrue(len(nav_coll) == 1)
@@ -857,7 +857,7 @@ class AutoFieldTests(unittest.TestCase):
         # CREATE TABLE "AutoKeys" ("id" INTEGER NOT NULL,
         #   "data" TEXT, PRIMARY KEY ("id"));
         autos = self.container['AutoKeys']
-        with autos.OpenCollection() as auto_coll:
+        with autos.open() as auto_coll:
             ak = auto_coll.new_entity()
             auto_coll.insert_entity(ak)
             self.assertTrue(len(auto_coll) == 1, "auto pk insert")

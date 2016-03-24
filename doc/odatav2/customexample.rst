@@ -287,7 +287,7 @@ matching key.  We SHOULD override
             fspath_to_entity(fspath, e)
             if self.check_filter(e):
                 if self.expand or self.select:
-                    e.Expand(self.expand, self.select)
+                    e.expand(self.expand, self.select)
                 return e
             else:
                 raise KeyError("Filtered path: %s" % path)
@@ -382,8 +382,8 @@ To make these navigation classes active we have to bind them in a
 similar way to the way we bound the main collection class, here's the
 rest of the load_metadata function we defined earlier::
 
-    container['Files'].BindNavigation('Files', FSChildren)
-    container['Files'].BindNavigation('Parent', FSParent)
+    container['Files'].bind_navigation('Files', FSChildren)
+    container['Files'].bind_navigation('Parent', FSParent)
 
 
 Adding Support for Streams
@@ -501,7 +501,7 @@ interpreter::
     >>> import fsodata
     >>> doc = fsodata.load_metadata()
     >>> container = doc.root.DataServices['FSSchema.FS']
-    >>> collection = container['Files'].OpenCollection()
+    >>> collection = container['Files'].open()
     >>> for path in collection: print path
     ... 
     /

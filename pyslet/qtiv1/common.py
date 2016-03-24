@@ -393,12 +393,12 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                 if type(child) in StringTypes:
                     para.append(child)
                 elif isinstance(child, html.InlineMixin):
-                    para.append(child.RenderText())
+                    para.append(child.plain_text())
                 else:
                     if para:
                         results.append(string.join(para, ''))
                         para = []
-                    results.append(child.RenderText())
+                    results.append(child.plain_text())
             if para:
                 results.append(string.join(para, ''))
             return string.join(results, '\n\n'), self.resolve_lang()

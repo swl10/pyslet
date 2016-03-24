@@ -34,15 +34,15 @@ class BodyElement(core.QTIElement):
         self.id = None
         self.label = None
 
-    def RenderHTML(self, parent, profile, itemState):
+    def render_html(self, parent, profile, itemState):
         """Renders this element in html form, adding nodes to *parent*.  This
         method effectively overrides
-        :py:class:`html401.XHTMLElement.RenderHTML` enabling QTI and
+        :py:class:`html401.XHTMLElement.render_html` enabling QTI and
         XHTML elements to be mixed freely.
 
         The state of the item (e.g., the values of any controls), is taken from
         *itemState*, a :py:class:`variables.ItemSessionState` instance."""
-        raise NotImplementedError(self.__class__.__name__ + ".RenderHTML")
+        raise NotImplementedError(self.__class__.__name__ + ".render_html")
 
     def RenderHTMLChildren(self, parent, profile, itemState):
         """Renders this element's children to an external document represented by the *parent* node"""
@@ -50,7 +50,7 @@ class BodyElement(core.QTIElement):
             if type(child) in StringTypes:
                 parent.add_data(child)
             else:
-                child.RenderHTML(parent, profile, itemState)
+                child.render_html(parent, profile, itemState)
 
 
 TextElements = {
@@ -171,8 +171,8 @@ class ItemBody(BodyElement):
                  childClass.__name__,
                  self.__class__.__name__))
 
-    def RenderHTML(self, parent, profile, itemState):
-        """Overrides :py:meth:`BodyElement.RenderHTML`, the result is always a
+    def render_html(self, parent, profile, itemState):
+        """Overrides :py:meth:`BodyElement.render_html`, the result is always a
         Div with class set to "itemBody".  Unlike other such method *parent* may
         by None, in which case a new parentless Div is created."""
         if parent:

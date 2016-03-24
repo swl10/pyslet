@@ -79,7 +79,7 @@ class Prompt(content.BodyElement):
             raise core.QTIValidityError(
                 "%s in %s" % (childClass.__name__, self.__class__.__name__))
 
-    def RenderHTML(self, parent, profile, itemState):
+    def render_html(self, parent, profile, itemState):
         htmlP = parent.add_child(html.P)
         htmlP.style_class = ["prompt"]
         self.RenderHTMLChildren(htmlP, profile, itemState)
@@ -169,11 +169,11 @@ class ChoiceInteraction(BlockInteraction):
         for child in itertools.chain(BlockInteraction.get_children(self), self.SimpleChoice):
             yield child
 
-    def RenderHTML(self, parent, profile, itemState):
+    def render_html(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
         htmlDiv.style_class = ["choiceInteraction"]
         for child in self.get_children():
-            child.RenderHTML(htmlDiv, profile, itemState)
+            child.render_html(htmlDiv, profile, itemState)
 
 
 class OrderInteraction(BlockInteraction):
@@ -220,11 +220,11 @@ class OrderInteraction(BlockInteraction):
                 self.SimpleChoice):
             yield child
 
-    def RenderHTML(self, parent, profile, itemState):
+    def render_html(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
         htmlDiv.style_class = ["orderInteraction"]
         for child in self.get_children():
-            child.RenderHTML(htmlDiv, profile, itemState)
+            child.render_html(htmlDiv, profile, itemState)
 
 
 class SimpleChoice(content.FlowContainerMixin, Choice):
@@ -248,7 +248,7 @@ class SimpleChoice(content.FlowContainerMixin, Choice):
             raise core.QTIValidityError(
                 "%s in %s" % (repr(name), self.__class__.__name__))
 
-    def RenderHTML(self, parent, profile, itemState):
+    def render_html(self, parent, profile, itemState):
         # what type of choice are we?
         interaction = self.find_parent(Interaction)
         if isinstance(interaction, ChoiceInteraction):
@@ -321,11 +321,11 @@ class AssociateInteraction(BlockInteraction):
                 self.SimpleAssociableChoice):
             yield child
 
-    def RenderHTML(self, parent, profile, itemState):
+    def render_html(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
         htmlDiv.style_class = ["associateInteraction"]
         for child in self.get_children():
-            child.RenderHTML(htmlDiv, profile, itemState)
+            child.render_html(htmlDiv, profile, itemState)
 
 
 class MatchInteraction(BlockInteraction):
@@ -367,11 +367,11 @@ class MatchInteraction(BlockInteraction):
                 self.SimpleMatchSet):
             yield child
 
-    def RenderHTML(self, parent, profile, itemState):
+    def render_html(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
         htmlDiv.style_class = ["matchInteraction"]
         for child in self.get_children():
-            child.RenderHTML(htmlDiv, profile, itemState)
+            child.render_html(htmlDiv, profile, itemState)
 
 
 class SimpleAssociableChoice(content.FlowContainerMixin, AssociableChoice):
@@ -472,11 +472,11 @@ class GapMatchInteraction(BlockInteraction):
             raise core.QTIValidityError(
                 "%s in %s" % (repr(name), self.__class__.__name__))
 
-    def RenderHTML(self, parent, profile, itemState):
+    def render_html(self, parent, profile, itemState):
         htmlDiv = parent.add_child(html.Div)
         htmlDiv.style_class = ["gapMatchInteraction"]
         for child in self.get_children():
-            child.RenderHTML(htmlDiv, profile, itemState)
+            child.render_html(htmlDiv, profile, itemState)
 
 
 class Gap(html.InlineMixin, AssociableChoice):

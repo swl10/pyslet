@@ -168,8 +168,8 @@ def navdiff(oldnp, newnp, backlinks=False):
         logging.info("%s.%s Navigation target multiplicity changed "
                      "from %s to %s",
                      oldnp.parent.name, oldnp.name,
-                     edm.EncodeMultiplicity(oldnp.to_end.multiplicity),
-                     edm.EncodeMultiplicity(newnp.to_end.multiplicity))
+                     edm.multiplicity_to_str(oldnp.to_end.multiplicity),
+                     edm.multiplicity_to_str(newnp.to_end.multiplicity))
     if backlinks:
         old_backname = new_backname = None
         if oldnp.backLink is not None:

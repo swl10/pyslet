@@ -314,7 +314,7 @@ class Server(app.Server):
                     # this is a redirect response, default to text/plain anyway
                     responseType = params.MediaType.from_str('text/plain')
                 if responseType == "text/plain":
-                    data = str(r.RenderText())
+                    data = str(r.plain_text())
                 else:
                     data = str(r)
                 response_headers.append(("Content-Type", str(responseType)))
@@ -452,7 +452,7 @@ class Server(app.Server):
                         # 10-14 have identical constraints, treat them the same
                         odataURI.ValidateSystemQueryOptions(10)
                 elif isinstance(resource, edm.EntitySet):
-                    resource = resource.OpenCollection()
+                    resource = resource.open()
                 else:
                     # not the right sort of thing
                     raise core.MissingURISegment(name)
@@ -462,7 +462,7 @@ class Server(app.Server):
                         try:
                             collection = resource
                             resource = collection[
-                                collection.entity_set.GetKey(keyPredicate)]
+                                collection.entity_set.get_key(keyPredicate)]
                             collection.close()
                         except KeyError as e:
                             raise core.MissingURISegment(
@@ -486,14 +486,14 @@ class Server(app.Server):
                     if resource.isCollection:
                         if keyPredicate:
                             try:
-                                with resource.OpenCollection() as collection:
+                                with resource.open() as collection:
                                     resource = collection[
-                                        collection.entity_set.GetKey(
+                                        collection.entity_set.get_key(
                                             keyPredicate)]
                             except KeyError as e:
                                 raise core.MissingURISegment(name)
                         else:
-                            resource = resource.OpenCollection()
+                            resource = resource.open()
                     else:
                         # keyPredicate not allowed here!
                         if keyPredicate:
@@ -502,7 +502,7 @@ class Server(app.Server):
                                 "for a navigation property that identifies a "
                                 "single entity)" %
                                 name)
-                        resource = resource.GetEntity()
+                        resource = resource.get_entity()
                         # if resource is None: See the resolution:
                         # https://tools.oasis-open.org/issues/browse/ODATA-412
             elif isinstance(resource, edm.Complex):
@@ -543,9 +543,9 @@ class Server(app.Server):
         return resource, parentEntity
 
     def set_etag(self, entity, response_headers):
-        etag = entity.ETag()
+        etag = entity.etag()
         if etag is not None:
-            s = "%s" if entity.ETagIsStrong() else "W/%s"
+            s = "%s" if entity.etag_is_strong() else "W/%s"
             etag = s % grammar.quote_string(
                 string.join(map(core.ODataURI.FormatLiteral, etag), ','))
             response_headers.append(("ETag", etag))
@@ -607,7 +607,7 @@ class Server(app.Server):
                     # open the collection and select the key properties only
                     if isinstance(resource, edm.EntityCollection):
                         with resource as collection:
-                            collection.SelectKeys()
+                            collection.select_keys()
                             collection.set_page(
                                 request.sysQueryOptions.get(
                                     core.SystemQueryOption.top, None),
@@ -617,7 +617,7 @@ class Server(app.Server):
                                     core.SystemQueryOption.skiptoken, None))
                             inlinecount = request.sysQueryOptions.get(
                                 core.SystemQueryOption.inlinecount, None)
-                            collection.SetInlineCount(
+                            collection.set_inlinecount(
                                 inlinecount == core.InlineCount.allpages)
                             return self.ReturnLinks(
                                 collection,
@@ -642,7 +642,7 @@ class Server(app.Server):
                         # can you POST to Orders(1)/$links/Customer ? - only if
                         # it is currently NULL (0..1)
                         resource = parentEntity[
-                            request.linksProperty].OpenCollection()
+                            request.linksProperty].open()
                     if isinstance(resource, edm.EntityCollection):
                         with resource as collection:
                             targetEntity = self.ReadEntityFromLink(environ)
@@ -661,7 +661,7 @@ class Server(app.Server):
                             "%s: can't update a link with multiplicity *" %
                             request.linksProperty)
                     with parentEntity[
-                            request.linksProperty].OpenCollection() as \
+                            request.linksProperty].open() as \
                             collection:
                         targetEntity = self.ReadEntityFromLink(environ)
                         collection.replace(targetEntity)
@@ -675,7 +675,7 @@ class Server(app.Server):
                         raise core.MissingURISegment(
                             "%s, no entity is related" % request.linksProperty)
                     with parentEntity[
-                            request.linksProperty].OpenCollection() as \
+                            request.linksProperty].open() as \
                             collection:
                         del collection[resource.key()]
                     return self.ReturnEmpty(start_response, response_headers)
@@ -712,7 +712,7 @@ class Server(app.Server):
                                 sinfo.type = params.MediaType.from_str(
                                     environ["CONTENT_TYPE"])
                             input = messages.WSGIInputWrapper(environ)
-                            with resource.entity_set.OpenCollection() as coll:
+                            with resource.entity_set.open() as coll:
                                 coll.update_stream(input,
                                                    resource.key(),
                                                    sinfo)
@@ -739,7 +739,7 @@ class Server(app.Server):
                     if request.pathOption == core.PathOption.value:
                         raise core.BadURISegment(
                             "$value cannot be used with DELETE")
-                    resource.Delete()
+                    resource.delete()
                     return self.ReturnEmpty(start_response, response_headers)
                 else:
                     raise core.InvalidMethod("%s not supported here" % method)
@@ -763,7 +763,7 @@ class Server(app.Server):
                             core.SystemQueryOption.skiptoken, None))
                     inlinecount = request.sysQueryOptions.get(
                         core.SystemQueryOption.inlinecount, None)
-                    resource.SetInlineCount(
+                    resource.set_inlinecount(
                         inlinecount == core.InlineCount.allpages)
                     return self.ReturnEntityCollection(
                         resource,
@@ -792,7 +792,7 @@ class Server(app.Server):
                             try:
                                 name, kp = core.ODataURI.SplitSegment(kp)
                                 # kp is a dictionary for the entity key
-                                key = resource.entity_set.GetKey(kp)
+                                key = resource.entity_set.get_key(kp)
                             except ValueError:
                                 pass
                         if not key:
@@ -972,7 +972,7 @@ class Server(app.Server):
             if isinstance(resource, edm.EntityCollection):
                 resource.set_expand(expand, select)
             else:
-                resource.Expand(expand, select)
+                resource.expand(expand, select)
         except ValueError as e:
             raise core.InvalidSystemQueryOption(
                 "$select/$expand error: %s" % str(e))
@@ -1099,7 +1099,7 @@ class Server(app.Server):
                 "Not Acceptable",
                 'xml, json or plain text formats supported',
                 406)
-        entities.TopMax(self.topmax)
+        entities.set_topmax(self.topmax)
         if responseType == "application/json":
             data = str('{"d":%s}' % string.join(
                 entities.generate_entity_set_in_json(request.version), ''))
@@ -1219,7 +1219,7 @@ class Server(app.Server):
     def ReturnStream(self, entity, request, environ, start_response,
                      response_headers, method):
         """Returns a media stream."""
-        coll = entity.entity_set.OpenCollection()
+        coll = entity.entity_set.open()
         try:
             if method == "GET":
                 sinfo, sgen = coll.read_stream_close(entity.key())
@@ -1355,7 +1355,7 @@ class Server(app.Server):
         if isinstance(value, edm.BinaryValue):
             value.value = data
         else:
-            value.SetFromLiteral(data)
+            value.set_from_literal(data)
 
     def ReturnDereferencedValue(
             self,

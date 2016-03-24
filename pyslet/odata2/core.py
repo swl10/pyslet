@@ -432,12 +432,12 @@ class UnaryExpression(CommonExpression):
             rValue = rValue.simple_cast(edm.SimpleType.Double)
         type_code = rValue.type_code
         if type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64, edm.SimpleType.Double, edm.SimpleType.Decimal):
-            result = edm.EDMValue.NewSimpleValue(type_code)
+            result = edm.EDMValue.from_type(type_code)
             if rValue:
                 result.set_from_value(0 - rValue.value)
             return result
         elif type_code is None:  # -null
-            return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            return edm.EDMValue.from_type(edm.SimpleType.Int32)
         else:
             raise EvaluationError("Illegal operand for negate")
 
@@ -446,14 +446,14 @@ class UnaryExpression(CommonExpression):
             if rValue:
                 type_code = rValue.type_code
                 if type_code == edm.SimpleType.Boolean:
-                    result = edm.EDMValue.NewSimpleValue(
+                    result = edm.EDMValue.from_type(
                         edm.SimpleType.Boolean)
                     result.set_from_value(not rValue.value)
                     return result
                 else:
                     raise EvaluationError("Illegal operand for not")
             else:
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+                result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
                 return result
         else:
             raise EvaluationError("Illegal operand for not")
@@ -515,7 +515,7 @@ class BinaryExpression(CommonExpression):
                 # an optional navigation property is not bound to
                 # an entity.  We return NULL without evaluating
                 # the right hand side
-                return edm.EDMValue.NewValue(None)
+                return edm.EDMValue.from_property(None)
         elif self.operator in (Operator.isof, Operator.cast):
             # Special handling due to optional first parameter to
             # signify the context entity
@@ -544,15 +544,15 @@ class BinaryExpression(CommonExpression):
             # cast(NULL, <any type>) results in NULL
             try:
                 type_code = edm.SimpleType.from_str(rValue.value)
-                result = edm.EDMValue.NewSimpleValue(type_code)
+                result = edm.EDMValue.from_type(type_code)
             except ValueError:
-                result = edm.SimpleValue.NewValue(None)
+                result = edm.SimpleValue.from_property(None)
             return result
         elif isinstance(lValue, edm.Entity):
             # in the future we should deal with entity type inheritance
             # right now, the only thing we can cast an entity instance
             # to is itself
-            name = lValue.type_def.GetFQName()
+            name = lValue.type_def.get_fqname()
             if name == rValue.value:
                 return lValue
             else:
@@ -572,7 +572,7 @@ class BinaryExpression(CommonExpression):
                     (edm.SimpleType.to_str(
                         lValue.type_code),
                         edm.SimpleType.to_str(type_code)))
-            result = edm.EDMValue.NewSimpleValue(type_code)
+            result = edm.EDMValue.from_type(type_code)
             result.set_from_value(lValue.value)
             return result
         else:
@@ -584,12 +584,12 @@ class BinaryExpression(CommonExpression):
                         edm.SimpleType.Double, edm.SimpleType.Decimal):
             lValue = lValue.simple_cast(type_code)
             rValue = rValue.simple_cast(type_code)
-            result = edm.EDMValue.NewSimpleValue(type_code)
+            result = edm.EDMValue.from_type(type_code)
             if lValue and rValue:
                 result.set_from_value(lValue.value * rValue.value)
             return result
         elif type_code is None:  # null mul null
-            return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            return edm.EDMValue.from_type(edm.SimpleType.Int32)
         else:
             raise EvaluationError("Illegal operands for mul")
 
@@ -599,14 +599,14 @@ class BinaryExpression(CommonExpression):
             if type_code in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
                 lValue = lValue.simple_cast(type_code)
                 rValue = rValue.simple_cast(type_code)
-                result = edm.EDMValue.NewSimpleValue(type_code)
+                result = edm.EDMValue.from_type(type_code)
                 if lValue and rValue:
                     result.set_from_value(lValue.value / rValue.value)
                 return result
             elif type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64):
                 lValue = lValue.simple_cast(type_code)
                 rValue = rValue.simple_cast(type_code)
-                result = edm.EDMValue.NewSimpleValue(type_code)
+                result = edm.EDMValue.from_type(type_code)
                 if lValue and rValue:
                     # OData doesn't really specify integer division rules so
                     # we use floating point division and truncate towards zero
@@ -614,7 +614,7 @@ class BinaryExpression(CommonExpression):
                         int(float(lValue.value) / float(rValue.value)))
                 return result
             elif type_code is None:  # null div null
-                return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+                return edm.EDMValue.from_type(edm.SimpleType.Int32)
             else:
                 raise EvaluationError("Illegal operands for div")
         except ZeroDivisionError as e:
@@ -626,7 +626,7 @@ class BinaryExpression(CommonExpression):
             if type_code in (edm.SimpleType.Single, edm.SimpleType.Double, edm.SimpleType.Decimal):
                 lValue = lValue.simple_cast(type_code)
                 rValue = rValue.simple_cast(type_code)
-                result = edm.EDMValue.NewSimpleValue(type_code)
+                result = edm.EDMValue.from_type(type_code)
                 if lValue and rValue:
                     result.set_from_value(
                         math.fmod(lValue.value, rValue.value))
@@ -634,7 +634,7 @@ class BinaryExpression(CommonExpression):
             elif type_code in (edm.SimpleType.Int32, edm.SimpleType.Int64):
                 lValue = lValue.simple_cast(type_code)
                 rValue = rValue.simple_cast(type_code)
-                result = edm.EDMValue.NewSimpleValue(type_code)
+                result = edm.EDMValue.from_type(type_code)
                 if lValue and rValue:
                     # OData doesn't really specify integer division rules so
                     # we use floating point division and truncate towards zero
@@ -642,7 +642,7 @@ class BinaryExpression(CommonExpression):
                         int(math.fmod(float(lValue.value), float(rValue.value))))
                 return result
             elif type_code is None:  # null div null
-                return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+                return edm.EDMValue.from_type(edm.SimpleType.Int32)
             else:
                 raise EvaluationError("Illegal operands for mod")
         except (ZeroDivisionError, ValueError) as e:
@@ -654,12 +654,12 @@ class BinaryExpression(CommonExpression):
                         edm.SimpleType.Double, edm.SimpleType.Decimal):
             lValue = lValue.simple_cast(type_code)
             rValue = rValue.simple_cast(type_code)
-            result = edm.EDMValue.NewSimpleValue(type_code)
+            result = edm.EDMValue.from_type(type_code)
             if lValue and rValue:
                 result.set_from_value(lValue.value + rValue.value)
             return result
         elif type_code is None:  # null add null
-            return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            return edm.EDMValue.from_type(edm.SimpleType.Int32)
         else:
             raise EvaluationError("Illegal operands for add")
 
@@ -669,12 +669,12 @@ class BinaryExpression(CommonExpression):
                         edm.SimpleType.Double, edm.SimpleType.Decimal):
             lValue = lValue.simple_cast(type_code)
             rValue = rValue.simple_cast(type_code)
-            result = edm.EDMValue.NewSimpleValue(type_code)
+            result = edm.EDMValue.from_type(type_code)
             if lValue and rValue:
                 result.set_from_value(lValue.value - rValue.value)
             return result
         elif type_code is None:  # null sub null
-            return edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            return edm.EDMValue.from_type(edm.SimpleType.Int32)
         else:
             raise EvaluationError("Illegal operands for sub")
 
@@ -696,7 +696,7 @@ class BinaryExpression(CommonExpression):
                         edm.SimpleType.Double, edm.SimpleType.Decimal):
             lValue = lValue.simple_cast(type_code)
             rValue = rValue.simple_cast(type_code)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             if lValue and rValue:
                 result.set_from_value(relation(lValue.value, rValue.value))
             else:
@@ -704,11 +704,11 @@ class BinaryExpression(CommonExpression):
                 result.set_from_value(False)
             return result
         elif type_code in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.DateTimeOffset, edm.SimpleType.Guid):
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.set_from_value(relation(lValue.value, rValue.value))
             return result
         elif type_code is None:  # e.g., null lt null
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.set_from_value(False)
             return result
         else:
@@ -721,13 +721,13 @@ class BinaryExpression(CommonExpression):
         # rValue is always a string literal name of the type to look up
         if not lValue:
             # isof(NULL, <any type> ) is False
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.set_from_value(False)
             return result
         elif isinstance(lValue, edm.Entity):
             # in the future we should test the entity for inheritance
-            name = lValue.type_def.GetFQName()
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            name = lValue.type_def.get_fqname()
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.set_from_value(name == rValue.value)
             return result
         elif isinstance(lValue, edm.SimpleValue):
@@ -737,7 +737,7 @@ class BinaryExpression(CommonExpression):
             except ValueError:
                 raise EvaluationError(
                     "Unrecognized type: %s" % str(rValue.value))
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             # we return True if the type of the target, when promoted with type
             # being tested results in the type being tested
             try:
@@ -753,7 +753,7 @@ class BinaryExpression(CommonExpression):
     def EvaluateEq(self, lValue, rValue):
         if isinstance(lValue, edm.Entity) and isinstance(rValue, edm.Entity):
             # we can do comparison of entities, but must be the same entity!
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             if lValue.entity_set is rValue.entity_set:
                 # now test that the keys are the same
                 result.value = (lValue.key() == rValue.key())
@@ -766,15 +766,15 @@ class BinaryExpression(CommonExpression):
                             edm.SimpleType.Double, edm.SimpleType.Decimal):
                 lValue = lValue.simple_cast(type_code)
                 rValue = rValue.simple_cast(type_code)
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+                result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
                 result.set_from_value(lValue.value == rValue.value)
                 return result
             elif type_code in (edm.SimpleType.String, edm.SimpleType.DateTime, edm.SimpleType.DateTimeOffset, edm.SimpleType.Guid, edm.SimpleType.Binary):
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+                result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
                 result.set_from_value(lValue.value == rValue.value)
                 return result
             elif type_code is None:  # null eq null
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+                result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
                 result.set_from_value(True)
                 return result
             else:
@@ -790,7 +790,7 @@ class BinaryExpression(CommonExpression):
         the usual SQL 3-value approach."""
         type_code = self.PromoteOperands(lValue, rValue)
         if type_code == edm.SimpleType.Boolean:
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             if lValue and rValue:
                 result.value = lValue.value and rValue.value
             else:
@@ -798,7 +798,7 @@ class BinaryExpression(CommonExpression):
             return result
         elif type_code is None:
             # null or null
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.value = False
             return result
         else:
@@ -809,7 +809,7 @@ class BinaryExpression(CommonExpression):
         the usual SQL 3-value approach."""
         type_code = self.PromoteOperands(lValue, rValue)
         if type_code == edm.SimpleType.Boolean:
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             if lValue and rValue:
                 result.value = lValue.value or rValue.value
             else:
@@ -817,7 +817,7 @@ class BinaryExpression(CommonExpression):
             return result
         elif type_code is None:
             # null or null
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.value = False
             return result
         else:
@@ -893,18 +893,18 @@ class PropertyExpression(CommonExpression):
     def Evaluate(self, contextEntity):
         if contextEntity:
             if isinstance(contextEntity, edm.Entity):
-                if contextEntity.IsEntityCollection(self.name):
+                if contextEntity.is_entity_collection(self.name):
                     raise EvaluationError(
                         "%s navigation property must have cardinality of 1 or 0..1" %
                         self.name)
                 else:
                     result = contextEntity[self.name]
                     if isinstance(result, edm.DeferredValue):
-                        result = result.GetEntity()
+                        result = result.get_entity()
                     if result is None:
                         # The navigation property does not point to anything,
                         # return a generic null
-                        result = edm.EDMValue.NewValue(None)
+                        result = edm.EDMValue.from_property(None)
                     return result
             elif self.name in contextEntity:
                 # contextEntity must be a complex value
@@ -961,7 +961,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 2):
             target = self.PromoteParameter(args[0], edm.SimpleType.String)
             prefix = self.PromoteParameter(args[1], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             if target and prefix:
                 result.set_from_value(target.value.endswith(prefix.value))
             return result
@@ -974,7 +974,7 @@ class CallExpression(CommonExpression):
             target = self.PromoteParameter(args[0], edm.SimpleType.String)
             searchString = self.PromoteParameter(
                 args[1], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            result = edm.EDMValue.from_type(edm.SimpleType.Int32)
             if target and searchString:
                 result.set_from_value(target.value.find(searchString.value))
             return result
@@ -989,7 +989,7 @@ class CallExpression(CommonExpression):
                 args[1], edm.SimpleType.String)
             replaceString = self.PromoteParameter(
                 args[2], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            result = edm.EDMValue.from_type(edm.SimpleType.String)
             if target and searchString and replaceString:
                 result.set_from_value(
                     target.value.replace(
@@ -1004,7 +1004,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 2):
             target = self.PromoteParameter(args[0], edm.SimpleType.String)
             prefix = self.PromoteParameter(args[1], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             if target and prefix:
                 result.set_from_value(target.value.startswith(prefix.value))
             return result
@@ -1015,7 +1015,7 @@ class CallExpression(CommonExpression):
     def EvaluateTolower(self, args):
         if (len(args) == 1):
             target = self.PromoteParameter(args[0], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            result = edm.EDMValue.from_type(edm.SimpleType.String)
             if target:
                 result.set_from_value(target.value.lower())
             return result
@@ -1026,7 +1026,7 @@ class CallExpression(CommonExpression):
     def EvaluateToupper(self, args):
         if (len(args) == 1):
             target = self.PromoteParameter(args[0], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            result = edm.EDMValue.from_type(edm.SimpleType.String)
             if target:
                 result.set_from_value(target.value.upper())
             return result
@@ -1037,7 +1037,7 @@ class CallExpression(CommonExpression):
     def EvaluateTrim(self, args):
         if (len(args) == 1):
             target = self.PromoteParameter(args[0], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            result = edm.EDMValue.from_type(edm.SimpleType.String)
             if target:
                 result.set_from_value(target.value.strip())
             return result
@@ -1049,7 +1049,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 2 or len(args) == 3):
             target = self.CheckStrictParameter(args[0], edm.SimpleType.String)
             start = self.CheckStrictParameter(args[1], edm.SimpleType.Int32)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            result = edm.EDMValue.from_type(edm.SimpleType.String)
             if len(args) == 3:
                 length = self.CheckStrictParameter(
                     args[2], edm.SimpleType.Int32)
@@ -1071,7 +1071,7 @@ class CallExpression(CommonExpression):
             searchString = self.PromoteParameter(
                 args[0], edm.SimpleType.String)
             target = self.PromoteParameter(args[1], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             if target and searchString:
                 result.set_from_value(
                     target.value.find(searchString.value) >= 0)
@@ -1086,7 +1086,7 @@ class CallExpression(CommonExpression):
                 args[0], edm.SimpleType.String)
             rightString = self.CheckStrictParameter(
                 args[1], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            result = edm.EDMValue.from_type(edm.SimpleType.String)
             if leftString and rightString:
                 result.set_from_value(leftString.value + rightString.value)
             return result
@@ -1097,7 +1097,7 @@ class CallExpression(CommonExpression):
     def EvaluateLength(self, args):
         if (len(args) == 1):
             target = self.CheckStrictParameter(args[0], edm.SimpleType.String)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            result = edm.EDMValue.from_type(edm.SimpleType.Int32)
             if target:
                 result.set_from_value(len(target.value))
             return result
@@ -1109,7 +1109,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             target = self.CheckStrictParameter(
                 args[0], edm.SimpleType.DateTime)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            result = edm.EDMValue.from_type(edm.SimpleType.Int32)
             if target:
                 result.set_from_value(
                     target.value.date.century * 100 + target.value.date.year)
@@ -1122,7 +1122,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             target = self.CheckStrictParameter(
                 args[0], edm.SimpleType.DateTime)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            result = edm.EDMValue.from_type(edm.SimpleType.Int32)
             if target:
                 result.set_from_value(target.value.date.month)
             return result
@@ -1134,7 +1134,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             target = self.CheckStrictParameter(
                 args[0], edm.SimpleType.DateTime)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            result = edm.EDMValue.from_type(edm.SimpleType.Int32)
             if target:
                 result.set_from_value(target.value.date.day)
             return result
@@ -1146,7 +1146,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             target = self.CheckStrictParameter(
                 args[0], edm.SimpleType.DateTime)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            result = edm.EDMValue.from_type(edm.SimpleType.Int32)
             if target:
                 result.set_from_value(target.value.time.hour)
             return result
@@ -1158,7 +1158,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             target = self.CheckStrictParameter(
                 args[0], edm.SimpleType.DateTime)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            result = edm.EDMValue.from_type(edm.SimpleType.Int32)
             if target:
                 result.set_from_value(target.value.time.minute)
             return result
@@ -1170,7 +1170,7 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             target = self.CheckStrictParameter(
                 args[0], edm.SimpleType.DateTime)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
+            result = edm.EDMValue.from_type(edm.SimpleType.Int32)
             if target:
                 result.set_from_value(target.value.time.second)
             return result
@@ -1185,13 +1185,13 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             try:
                 target = self.PromoteParameter(args[0], edm.SimpleType.Decimal)
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Decimal)
+                result = edm.EDMValue.from_type(edm.SimpleType.Decimal)
                 if target:
                     result.set_from_value(
                         target.value.to_integral(decimal.ROUND_HALF_UP))
             except EvaluationError:
                 target = self.PromoteParameter(args[0], edm.SimpleType.Double)
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
+                result = edm.EDMValue.from_type(edm.SimpleType.Double)
                 if target:
                     v = decimal.Decimal(str(target.value))
                     result.set_from_value(
@@ -1205,13 +1205,13 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             try:
                 target = self.PromoteParameter(args[0], edm.SimpleType.Decimal)
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Decimal)
+                result = edm.EDMValue.from_type(edm.SimpleType.Decimal)
                 if target:
                     result.set_from_value(
                         target.value.to_integral(decimal.ROUND_FLOOR))
             except EvaluationError:
                 target = self.PromoteParameter(args[0], edm.SimpleType.Double)
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
+                result = edm.EDMValue.from_type(edm.SimpleType.Double)
                 if target:
                     result.set_from_value(math.floor(target.value))
             return result
@@ -1223,13 +1223,13 @@ class CallExpression(CommonExpression):
         if (len(args) == 1):
             try:
                 target = self.PromoteParameter(args[0], edm.SimpleType.Decimal)
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Decimal)
+                result = edm.EDMValue.from_type(edm.SimpleType.Decimal)
                 if target:
                     result.set_from_value(
                         target.value.to_integral(decimal.ROUND_CEILING))
             except EvaluationError:
                 target = self.PromoteParameter(args[0], edm.SimpleType.Double)
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
+                result = edm.EDMValue.from_type(edm.SimpleType.Double)
                 if target:
                     result.set_from_value(math.ceil(target.value))
             return result
@@ -1607,7 +1607,7 @@ class Parser(edm.Parser):
     def ParseStringURILiteral(self):
         if self.parse("'"):
             # string of utf-8 characters
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.String)
+            result = edm.EDMValue.from_type(edm.SimpleType.String)
             value = []
             while True:
                 startPos = self.pos
@@ -1649,7 +1649,7 @@ class Parser(edm.Parser):
         else:
             name = None
         if name == "null":
-            return edm.EDMValue.NewSimpleValue(None)
+            return edm.EDMValue.from_type(None)
         elif name is None and self.match("'"):
             return self.ParseStringURILiteral()
         elif name is None and self.match_one('-.0123456789'):
@@ -1659,45 +1659,45 @@ class Parser(edm.Parser):
                 # must be something like "." or "-" on its own, not a literal
                 return None
             if self.parse_one("Dd"):
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
-                result.SetFromNumericLiteral(num)
+                result = edm.EDMValue.from_type(edm.SimpleType.Double)
+                result.set_from_numeric_literal(num)
                 return result
             elif self.parse_one("Ff"):
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
-                result.SetFromNumericLiteral(num)
+                result = edm.EDMValue.from_type(edm.SimpleType.Single)
+                result.set_from_numeric_literal(num)
                 return result
             elif self.parse_one("Mm"):
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Decimal)
-                result.SetFromNumericLiteral(num)
+                result = edm.EDMValue.from_type(edm.SimpleType.Decimal)
+                result.set_from_numeric_literal(num)
                 return result
             elif self.parse_one("Ll"):
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int64)
-                result.SetFromNumericLiteral(num)
+                result = edm.EDMValue.from_type(edm.SimpleType.Int64)
+                result.set_from_numeric_literal(num)
                 return result
             else:
-                result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int32)
-                result.SetFromNumericLiteral(num)
+                result = edm.EDMValue.from_type(edm.SimpleType.Int32)
+                result.set_from_numeric_literal(num)
                 return result
         elif name == "true":
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.value = True
             return result
         elif name == "false":
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)
+            result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.value = False
             return result
         elif name == "datetimeoffset":
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTimeOffset)
+            result = edm.EDMValue.from_type(edm.SimpleType.DateTimeOffset)
             production = "datetimeoffset literal"
             self.require("'", production)
             dtoString = self.parse_until("'")
             self.require("'", production)
-            result.SetFromLiteral(dtoString)
+            result.set_from_literal(dtoString)
             return result
         elif name == "datetime":
             production = "datetime literal"
             self.require("'", production)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.DateTime)
+            result = edm.EDMValue.from_type(edm.SimpleType.DateTime)
             value = self.require_production(
                 self.parse_datetime_literal(), production)
             self.require("'", production)
@@ -1706,7 +1706,7 @@ class Parser(edm.Parser):
         elif name == "time":
             production = "time literal"
             self.require("'", production)
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Time)
+            result = edm.EDMValue.from_type(edm.SimpleType.Time)
             value = self.require_production(
                 self.parse_time_literal(), production)
             self.require("'", production)
@@ -1714,31 +1714,31 @@ class Parser(edm.Parser):
             return result
         elif nameCase == "X" or name == "binary":
             self.require("'", "binary")
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Binary)
+            result = edm.EDMValue.from_type(edm.SimpleType.Binary)
             value = self.parse_binary_literal()
             self.require("'", "binary literal")
             result.value = value
             return result
         elif name == "nand":
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
-            result.SetFromNumericLiteral(
+            result = edm.EDMValue.from_type(edm.SimpleType.Double)
+            result.set_from_numeric_literal(
                 edm.Numeric('', "nan", None, '', None))
             return result
         elif name == "nanf":
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
-            result.SetFromNumericLiteral(
+            result = edm.EDMValue.from_type(edm.SimpleType.Single)
+            result.set_from_numeric_literal(
                 edm.Numeric('', "nan", None, '', None))
             return result
         elif name == "infd":
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Double)
+            result = edm.EDMValue.from_type(edm.SimpleType.Double)
             result.value = float("INF")
             return result
         elif name == "inff":
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Single)
+            result = edm.EDMValue.from_type(edm.SimpleType.Single)
             result.value = float("INF")
             return result
         elif name == "guid":
-            result = edm.EDMValue.NewSimpleValue(edm.SimpleType.Guid)
+            result = edm.EDMValue.from_type(edm.SimpleType.Guid)
             self.require("'", "guid")
             hex = []
             hex.append(
@@ -2170,7 +2170,7 @@ class ODataURI:
         *   filter: an instance of :py:class:`CommonExpression`
 
         *   expand: a list of expand options, see
-            py:meth:`pyslet.mc_csdl.Entity.Expand`
+            py:meth:`pyslet.mc_csdl.Entity.expand`
 
         *   format: a list of :py:meth:`pyslet.http.params.MediaType`
             instances (of length 1)
@@ -2291,7 +2291,7 @@ class ODataURI:
             return ParseURILiteral(paramDef[paramDef.index('=') + 1:])
         else:
             # missing parameter is equivalent to NULL
-            return edm.SimpleValue.NewSimpleValue(None)
+            return edm.SimpleValue.from_type(None)
 
     @classmethod
     def FormatKeyDict(cls, d):
@@ -2322,7 +2322,7 @@ class ODataURI:
 
     @classmethod
     def FormatEntityKey(cls, entity):
-        return cls.FormatKeyDict(entity.KeyDict())
+        return cls.FormatKeyDict(entity.key_dict())
 
     @staticmethod
     def FormatLiteral(value):
@@ -2372,28 +2372,28 @@ class Entity(edm.Entity):
             str(self.entity_set.get_location()) + ODataURI.FormatEntityKey(self))
 
     def get_content_type(self):
-        with self.entity_set.OpenCollection() as collection:
+        with self.entity_set.open() as collection:
             return collection.read_stream(self.key()).type
 
     def GetStreamType(self):    # noqa
         warnings.warn("Entity.GetStreamType is deprecated, "
                       "use collection.read_stream(key).type",
                       DeprecationWarning, stacklevel=2)
-        with self.entity_set.OpenCollection() as collection:
+        with self.entity_set.open() as collection:
             return collection.read_stream(self.key()).type
 
     def GetStreamSize(self):    # noqa
         warnings.warn("Entity.GetStreamSize is deprecated, "
                       "use collection.read_stream(key).size",
                       DeprecationWarning, stacklevel=2)
-        with self.entity_set.OpenCollection() as collection:
+        with self.entity_set.open() as collection:
             return collection.read_stream(self.key()).size
 
     def GetStreamGenerator(self):   # noqa
         warnings.warn("Entity.GetStreamGenerator is deprecated, "
                       "use collection.read_stream_close(key)",
                       DeprecationWarning, stacklevel=2)
-        collection = self.entity_set.OpenCollection()
+        collection = self.entity_set.open()
         try:
             return collection.read_stream_close(self.key())[1]
         except Exception:
@@ -2429,15 +2429,15 @@ class Entity(edm.Entity):
                 v.set_from_value(None)
         if self.exists == False:
             # we need to look for any link bindings
-            for navProperty in self.NavigationKeys():
+            for navProperty in self.navigation_keys():
                 if navProperty not in obj:
                     continue
                 links = obj[navProperty]
-                if not self.IsEntityCollection(navProperty):
+                if not self.is_entity_collection(navProperty):
                     # wrap singletons for convenience
                     links = (links,)
-                targetSet = self.entity_set.NavigationTarget(navProperty)
-                with targetSet.OpenCollection() as collection:
+                targetSet = self.entity_set.get_target(navProperty)
+                with targetSet.open() as collection:
                     for link in links:
                         if len(link) == 1 and '__metadata' in link:
                             # bind to an existing entity
@@ -2452,7 +2452,7 @@ class Entity(edm.Entity):
                                     href = href.resolve(self.get_location())
                                 targetEntity = entity_resolver(href)
                                 if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
-                                    self[navProperty].BindEntity(targetEntity)
+                                    self[navProperty].bind_entity(targetEntity)
                                 else:
                                     raise InvalidData(
                                         "Resource is not a valid target for %s: %s" %
@@ -2467,16 +2467,16 @@ class Entity(edm.Entity):
                             targetEntity = collection.new_entity()
                             targetEntity.set_from_json_object(
                                 link, entity_resolver)
-                            self[navProperty].BindEntity(targetEntity)
+                            self[navProperty].bind_entity(targetEntity)
         elif for_update:
             # we need to look for any updated link bindings
-            for navProperty in self.NavigationKeys():
-                if navProperty not in obj or self.IsEntityCollection(navProperty):
+            for navProperty in self.navigation_keys():
+                if navProperty not in obj or self.is_entity_collection(navProperty):
                     # missing or can't be updated these this way
                     continue
                 link = obj[navProperty]
                 if '__metadata' in link:
-                    targetSet = self.entity_set.NavigationTarget(navProperty)
+                    targetSet = self.entity_set.get_target(navProperty)
                     # bind to an existing entity
                     href = uri.URI.from_octets(link['__metadata']['uri'])
                     if entity_resolver is not None:
@@ -2487,7 +2487,7 @@ class Entity(edm.Entity):
                             href = href.resolve(self.get_location())
                         targetEntity = entity_resolver(href)
                         if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
-                            self[navProperty].BindEntity(targetEntity)
+                            self[navProperty].bind_entity(targetEntity)
                         else:
                             raise InvalidData(
                                 "Resource is not a valid target for %s: %s" %
@@ -2509,39 +2509,39 @@ class Entity(edm.Entity):
         mediaLinkResource = self.type_def.has_stream()
         yield '{"__metadata":{'
         yield '"uri":%s' % json.dumps(location)
-        yield ',"type":%s' % json.dumps(self.entity_set.entityType.GetFQName())
-        etag = self.ETag()
+        yield ',"type":%s' % json.dumps(self.entity_set.entityType.get_fqname())
+        etag = self.etag()
         if etag:
-            s = "" if self.ETagIsStrong() else "W/"
+            s = "" if self.etag_is_strong() else "W/"
             yield ',"etag":%s' % json.dumps(s + grammar.quote_string(string.join(map(ODataURI.FormatLiteral, etag), ',')))
         if mediaLinkResource:
             yield ',"media_src":%s' % json.dumps(location + "/$value")
             yield ',"content_type":%s' % json.dumps(str(self.get_content_type()))
             yield ',"edit_media":%s' % json.dumps(location + "/$value")
             if etag:
-                s = "" if self.ETagIsStrong() else "W/"
+                s = "" if self.etag_is_strong() else "W/"
                 yield ',"media_etag":%s' % json.dumps(s + grammar.quote_string(string.join(map(ODataURI.FormatLiteral, etag), ',')))
         yield '}'
         for k, v in self.data_items():
             # watch out for unselected properties
-            if self.Selected(k):
+            if self.is_selected(k):
                 yield ','
                 if isinstance(v, edm.SimpleValue):
                     yield EntityPropertyInJSON(v)
                 else:
                     yield EntityCTBody(v)
         if self.exists and not for_update:
-            for navProperty, navValue in self.NavigationItems():
-                if self.Selected(navProperty):
+            for navProperty, navValue in self.navigation_items():
+                if self.is_selected(navProperty):
                     yield ', %s' % json.dumps(navProperty)
                     if navValue.isExpanded:
                         yield ':'
                         if navValue.isCollection:
-                            with navValue.OpenCollection() as collection:
+                            with navValue.open() as collection:
                                 for y in collection.generate_entity_set_in_json(version):
                                     yield y
                         else:
-                            entity = navValue.GetEntity()
+                            entity = navValue.get_entity()
                             if entity:
                                 for y in entity.generate_entity_type_in_json(False, version):
                                     yield y
@@ -2550,13 +2550,13 @@ class Entity(edm.Entity):
                     else:
                         yield ':{"__deferred":{"uri":%s}}' % json.dumps(location + '/' + navProperty)
         elif for_update:
-            for k, dv in self.NavigationItems():
+            for k, dv in self.navigation_items():
                 if not dv.bindings or dv.isCollection:
                     # nothing to do here, we can't update this type of
                     # navigation property
                     continue
                 # we need to know the location of the target entity set
-                targetSet = dv.Target()
+                targetSet = dv.target()
                 binding = dv.bindings[-1]
                 if isinstance(binding, Entity):
                     if binding.exists:
@@ -2567,13 +2567,13 @@ class Entity(edm.Entity):
                         continue
                 else:
                     href = str(
-                        targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+                        targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.get_key_dict(binding))
                 yield ', %s:{"__metadata":{"uri":%s}}' % (json.dumps(k), json.dumps(href))
         else:
-            for k, dv in self.NavigationItems():
+            for k, dv in self.navigation_items():
                 if not dv.bindings:
                     continue
-                targetSet = dv.Target()
+                targetSet = dv.target()
                 yield ', %s :[' % json.dumps(k)
                 sep = False
                 for binding in dv.bindings:
@@ -2592,7 +2592,7 @@ class Entity(edm.Entity):
                             href = None
                     else:
                         href = str(
-                            targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+                            targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.get_key_dict(binding))
                     if href:
                         yield '{ "__metadata":{"uri":%s}}' % json.dumps(href)
                 yield ']'
@@ -2732,7 +2732,7 @@ def ReadEntityPropertyValueInJSON(v, jsonValue):
             raise ValueError("Illegal value for DateTime: %s" % jsonValue)
     elif isinstance(v, (edm.DecimalValue, edm.DoubleValue, edm.GuidValue, edm.Int64Value, edm.SingleValue, edm.StringValue, edm.TimeValue)):
         # just use the literal form as a json string
-        v.SetFromLiteral(jsonValue)
+        v.set_from_literal(jsonValue)
     elif isinstance(v, (edm.DateTimeOffsetValue)):
         if jsonValue.startswith("/Date(") and jsonValue.endswith(")/"):
             ticks = int(jsonValue[6:-2])
@@ -3112,12 +3112,12 @@ class Property(ODataElement):
                     p = edm.Property(None)
                     p.name = self.xmlname
                     p.simpleTypeCode = type
-                    value = edm.EDMValue.NewValue(p)
+                    value = edm.EDMValue.from_property(p)
         if isinstance(value, edm.SimpleValue):
             if null:
                 value.value = None
             else:
-                value.SetFromLiteral(ODataElement.get_value(self))
+                value.set_from_literal(ODataElement.get_value(self))
         else:
             # you can't have a null complex value BTW
             for child in self.get_children():
@@ -3125,7 +3125,7 @@ class Property(ODataElement):
                     if child.xmlname in value:
                         child.get_value(value[child.xmlname])
                     else:
-                        value.AddProperty(child.xmlname, child.get_value())
+                        value.add_property(child.xmlname, child.get_value())
         return value
 
     def set_value(self, value):
@@ -3321,7 +3321,7 @@ class Link(atom.Link):
         for child in super(Link, self).get_children():
             yield child
 
-    def Expand(self, expansion):
+    def expand(self, expansion):
         """Expands this element based on expansion."""
         inline = self.add_child(Inline)
         if isinstance(expansion, Entity):
@@ -3337,8 +3337,8 @@ class Link(atom.Link):
     def LoadExpansion(self, deferred, exists=True):
         """Given a :py:class:`csdl.DeferredProperty` instance, adds an expansion if one is present in the link"""
         if self.Inline is not None:
-            targetEntitySet = deferred.Target()
-            with targetEntitySet.OpenCollection() as collection:
+            targetEntitySet = deferred.target()
+            with targetEntitySet.open() as collection:
                 if self.Inline.Entry is not None:
                     entity = collection.new_entity()
                     entity.exists = exists
@@ -3351,7 +3351,7 @@ class Link(atom.Link):
                         entity.exists = exists
                         entry.get_value(entity)
                         entries.append(entity)
-                deferred.SetExpansion(
+                deferred.set_expansion(
                     ExpandedEntityCollection(
                         from_entity=deferred.from_entity,
                         name=deferred.name,
@@ -3501,7 +3501,7 @@ class Entry(atom.Entry):
                         # strip the zone and use that
                         v.set_from_value(dtOffset.with_zone(zdirection=None))
                     elif isinstance(v, edm.StringValue):
-                        v.SetFromLiteral(str(dtOffset))
+                        v.set_from_literal(str(dtOffset))
                     else:
                         # give up, treat this value as NULL
                         v.set_from_value(None)
@@ -3512,7 +3512,7 @@ class Entry(atom.Entry):
                     for child in targetElement.get_children():
                         if type(child) in StringTypes:
                             data.append(child)
-                    v.SetFromLiteral(string.join(data, ''))
+                    v.set_from_literal(string.join(data, ''))
                     selected.add(k)
             else:
                 # and watch out for unselected properties
@@ -3534,24 +3534,24 @@ class Entry(atom.Entry):
                 if not link.rel.startswith(ODATA_RELATED):
                     continue
                 navProperty = link.rel[len(ODATA_RELATED):]
-                if not entity.IsNavigationProperty(navProperty):
+                if not entity.is_navigation_property(navProperty):
                     continue
-                targetSet = entity.entity_set.NavigationTarget(navProperty)
+                targetSet = entity.entity_set.get_target(navProperty)
                 # we have a navigation property we understand
                 if link.Inline is not None:
-                    with targetSet.OpenCollection() as collection:
-                        if entity.IsEntityCollection(navProperty):
+                    with targetSet.open() as collection:
+                        if entity.is_entity_collection(navProperty):
                             for entry in link.Inline.Feed.find_children_depth_first(Entry, subMatch=False):
                                 # create a new entity from the target entity
                                 # set
                                 targetEntity = collection.new_entity()
                                 entry.get_value(targetEntity, entity_resolver)
-                                entity[navProperty].BindEntity(targetEntity)
+                                entity[navProperty].bind_entity(targetEntity)
                         elif link.Inline.Entry is not None:
                             targetEntity = collection.new_entity()
                             link.Inline.Entry.get_value(
                                 targetEntity, entity_resolver)
-                            entity[navProperty].BindEntity(targetEntity)
+                            entity[navProperty].bind_entity(targetEntity)
                 elif entity_resolver is not None:
                     #   this is the tricky bit, we need to resolve
                     #   the URI to an entity key
@@ -3564,7 +3564,7 @@ class Entry(atom.Entry):
                         href = href.resolve(entity.get_location())
                     targetEntity = entity_resolver(href)
                     if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
-                        entity[navProperty].BindEntity(targetEntity)
+                        entity[navProperty].bind_entity(targetEntity)
                     else:
                         raise InvalidData(
                             "Resource is not a valid target for %s: %s" %
@@ -3579,9 +3579,9 @@ class Entry(atom.Entry):
                 if not link.rel.startswith(ODATA_RELATED):
                     continue
                 navProperty = link.rel[len(ODATA_RELATED):]
-                if not entity.IsNavigationProperty(navProperty) or entity[navProperty].isCollection:
+                if not entity.is_navigation_property(navProperty) or entity[navProperty].isCollection:
                     continue
-                targetSet = entity.entity_set.NavigationTarget(navProperty)
+                targetSet = entity.entity_set.get_target(navProperty)
                 # we have a navigation property we can update
                 if entity_resolver is not None:
                     #   this is the tricky bit, we need to resolve
@@ -3594,7 +3594,7 @@ class Entry(atom.Entry):
                         href = href.resolve(entity.get_location())
                     targetEntity = entity_resolver(href)
                     if isinstance(targetEntity, Entity) and targetEntity.entity_set is targetSet:
-                        entity[navProperty].BindEntity(targetEntity)
+                        entity[navProperty].bind_entity(targetEntity)
                     else:
                         raise InvalidData(
                             "Resource is not a valid target for %s: %s" %
@@ -3609,9 +3609,9 @@ class Entry(atom.Entry):
                 if not link.rel.startswith(ODATA_RELATED):
                     continue
                 navProperty = link.rel[len(ODATA_RELATED):]
-                if not entity.IsNavigationProperty(navProperty):
+                if not entity.is_navigation_property(navProperty):
                     continue
-                targetSet = entity.entity_set.NavigationTarget(navProperty)
+                targetSet = entity.entity_set.get_target(navProperty)
                 link.LoadExpansion(entity[navProperty])
         return entity
 
@@ -3620,11 +3620,11 @@ class Entry(atom.Entry):
         # start with a reset
         self.reset()
         mediaLinkResource = entity.type_def.has_stream()
-        self.etag = entity.ETag()
+        self.etag = entity.etag()
         # Now set the new property values, starting with entity-type level feed customisation
         # seems odd that there can only be one of these but, hey...
         cat = self.add_child(atom.Category)
-        cat.term = entity.type_def.GetFQName()
+        cat.term = entity.type_def.get_fqname()
         cat.scheme = ODATA_SCHEME
         targetPath = entity.type_def.get_target_path()
         if targetPath:
@@ -3669,7 +3669,7 @@ class Entry(atom.Entry):
                 link.href = location + "/$value"
                 link.rel = "edit-media"
                 if self.etag:
-                    s = "" if entity.ETagIsStrong() else "W/"
+                    s = "" if entity.etag_is_strong() else "W/"
                     link.set_attribute(
                         (ODATA_METADATA_NAMESPACE,
                          'etag'),
@@ -3680,7 +3680,7 @@ class Entry(atom.Entry):
                                     ODataURI.FormatLiteral,
                                     self.etag),
                                 ',')))
-            for navProperty, navValue in entity.NavigationItems():
+            for navProperty, navValue in entity.navigation_items():
                 link = self.add_child(self.LinkClass)
                 link.href = location + '/' + navProperty
                 link.rel = ODATA_RELATED + navProperty
@@ -3692,19 +3692,19 @@ class Entry(atom.Entry):
                 if navValue.isExpanded:
                     # This property has been expanded
                     if navValue.isCollection:
-                        link.Expand(navValue.OpenCollection())
+                        link.expand(navValue.open())
                     else:
-                        link.Expand(navValue.GetEntity())
+                        link.expand(navValue.get_entity())
         elif for_update:
             # This is a special form of representation which only represents the
             # navigation properties with single cardinality
-            for k, dv in entity.NavigationItems():
+            for k, dv in entity.navigation_items():
                 if not dv.bindings or dv.isCollection:
                     # nothing to do here, we can't update this type of
                     # navigation property
                     continue
                 # we need to know the location of the target entity set
-                targetSet = dv.Target()
+                targetSet = dv.target()
                 binding = dv.bindings[-1]
                 if isinstance(binding, Entity):
                     if binding.exists:
@@ -3715,17 +3715,17 @@ class Entry(atom.Entry):
                         continue
                 else:
                     href = str(
-                        targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+                        targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.get_key_dict(binding))
                 link = self.add_child(self.LinkClass)
                 link.rel = ODATA_RELATED + k
                 link.title = k
                 link.href = href
         else:
             # entity does not exist...
-            for k, dv in entity.NavigationItems():
+            for k, dv in entity.navigation_items():
                 if not dv.bindings:
                     continue
-                targetSet = dv.Target()
+                targetSet = dv.target()
                 feed = []
                 for binding in dv.bindings:
                     if isinstance(binding, Entity):
@@ -3737,7 +3737,7 @@ class Entry(atom.Entry):
                             href = None
                     else:
                         href = str(
-                            targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.GetKeyDict(binding))
+                            targetSet.get_location()) + ODataURI.FormatKeyDict(targetSet.get_key_dict(binding))
                     if href:
                         link = self.add_child(self.LinkClass)
                         link.rel = ODATA_RELATED + k
@@ -3754,13 +3754,13 @@ class Entry(atom.Entry):
                             name=k,
                             entity_set=targetSet,
                             entity_list=feed)
-                        link.Expand(feed)
+                        link.expand(feed)
                     elif len(feed) > 1:
                         raise NavigationError(
                             "Multiple bindings found for navigation property %s.%s" %
                             (entity_set.name, k))
                     else:
-                        link.Expand(feed[0])
+                        link.expand(feed[0])
         # Now set the new property values in the properties element
         if mediaLinkResource:
             self.add_child(Properties)
@@ -3782,7 +3782,7 @@ class Entry(atom.Entry):
                 if not propertyDef.keep_in_content():
                     continue
             # and watch out for unselected properties
-            if entity.Selected(k):
+            if entity.is_selected(k):
                 self[k] = v
         self.content_changed()
 

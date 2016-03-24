@@ -45,12 +45,12 @@ class MemDSTests(unittest.TestCase):
 
     def test_constructors(self):
         es = self.schema['SampleEntities.Employees']
-        self.assertTrue(isinstance(es.OpenCollection(), EntityCollection))
+        self.assertTrue(isinstance(es.open(), EntityCollection))
 
     def test_length(self):
         es = self.schema['SampleEntities.Employees']
         self.assertTrue(isinstance(es, edm.EntitySet))
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             self.assertTrue(len(collection) == 0, "Length on load")
             self.employees.data[u"ABCDE"] = (
                 u"ABCDE", u"John Smith", None, None)

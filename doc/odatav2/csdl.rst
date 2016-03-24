@@ -205,7 +205,7 @@ Metadata Model
 Misc Definitions
 ----------------
 
-..	autofunction:: ValidateSimpleIdentifier
+..	autofunction:: validate_simple_identifier
 
 ..	autoclass:: SimpleType
 	:members:
@@ -215,9 +215,9 @@ Misc Definitions
 	:members:
 	:show-inheritance:
 
-..	autofunction::	DecodeMaxLength
+..	autofunction::	maxlength_from_str
 
-..	autofunction::	EncodeMaxLength
+..	autofunction::	maxlength_to_str
 
 ..	autodata::	MAX
 
@@ -225,9 +225,9 @@ Misc Definitions
 	:members:
 	:show-inheritance:
 
-..	autofunction::	DecodeMultiplicity
+..	autofunction::	multiplictiy_from_str
 
-..	autofunction::	EncodeMultiplicity
+..	autofunction::	multiplicity_to_str
 
 ..	autoclass:: Parser
 	:members:

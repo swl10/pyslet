@@ -37,13 +37,13 @@ class CSDLTests(unittest.TestCase):
                       "M(", "M)", "M[", "M]", "M,", "M;", "M*", "M."
                       ):
             try:
-                self.assertFalse(
-                    ValidateSimpleIdentifier(iTest), "%s: Fail" % repr(iTest))
+                self.assertFalse(validate_simple_identifier(iTest),
+                                 "%s: Fail" % repr(iTest))
             except ValueError:
                 pass
         save_pattern = set_simple_identifier_re(
             SIMPLE_IDENTIFIER_COMPATIBILITY_RE)
-        self.assertTrue(ValidateSimpleIdentifier("M-"), "hyphen allowed")
+        self.assertTrue(validate_simple_identifier("M-"), "hyphen allowed")
         set_simple_identifier_re(save_pattern)
 
     def test_simple_type(self):
@@ -368,45 +368,45 @@ class ValueTests(unittest.TestCase):
         """Test the SimpleValue class."""
         p = Property(None)
         p.simpleTypeCode = SimpleType.Boolean
-        v = SimpleValue.NewValue(p)
+        v = SimpleValue.from_property(p)
         self.assertTrue(
             isinstance(v, EDMValue), "SimpleValue inherits from EDMValue")
         self.assertTrue(v.value is None, "Null value on construction")
         p.name = "flag"
-        v = SimpleValue.NewValue(p)
-        self.assertTrue(v.pDef.name == "flag",
+        v = SimpleValue.from_property(p)
+        self.assertTrue(v.p_def.name == "flag",
                         "SimpleValue property definition set on constructor")
         self.assertTrue(v.value is None, "Null value on construction")
 
     def test_binary_value(self):
         """Test the BinaryValue class."""
-        v = EDMValue.NewSimpleValue(SimpleType.Binary)
+        v = EDMValue.from_type(SimpleType.Binary)
         # check __nonzero__
         self.assertFalse(v)
-        # check IsNull
-        self.assertTrue(v.IsNull())
+        # check is_null
+        self.assertTrue(v.is_null())
         v.set_from_value('1234567890')
         # check __nonzero__
         self.assertTrue(v)
-        # check IsNull
-        self.assertFalse(v.IsNull())
-        # v2 = EDMValue.NewSimpleValue(SimpleType.Binary)
+        # check is_null
+        self.assertFalse(v.is_null())
+        # v2 = EDMValue.from_type(SimpleType.Binary)
         # v2.set_random_value(v)
         # self.assertFalse(v2.value == v.value)
 
     def test_int32_value(self):
         """Test the Int32Value class."""
-        v = EDMValue.NewSimpleValue(SimpleType.Int32)
+        v = EDMValue.from_type(SimpleType.Int32)
         # check __nonzero__
         self.assertFalse(v)
-        # check IsNull
-        self.assertTrue(v.IsNull())
+        # check is_null
+        self.assertTrue(v.is_null())
         v.set_from_value(123)
         # check __nonzero__
         self.assertTrue(v)
-        # check IsNull
-        self.assertFalse(v.IsNull())
-        v2 = EDMValue.NewSimpleValue(SimpleType.Int32)
+        # check is_null
+        self.assertFalse(v.is_null())
+        v2 = EDMValue.from_type(SimpleType.Int32)
         v2.set_random_value(v)
         self.assertTrue(v2.value >= 0)
         v.set_from_value(-1)
@@ -415,17 +415,17 @@ class ValueTests(unittest.TestCase):
 
     def test_int64_value(self):
         """Test the Int64Value class."""
-        v = EDMValue.NewSimpleValue(SimpleType.Int64)
+        v = EDMValue.from_type(SimpleType.Int64)
         # check __nonzero__
         self.assertFalse(v)
-        # check IsNull
-        self.assertTrue(v.IsNull())
+        # check is_null
+        self.assertTrue(v.is_null())
         v.set_from_value(123)
         # check __nonzero__
         self.assertTrue(v)
-        # check IsNull
-        self.assertFalse(v.IsNull())
-        v2 = EDMValue.NewSimpleValue(SimpleType.Int64)
+        # check is_null
+        self.assertFalse(v.is_null())
+        v2 = EDMValue.from_type(SimpleType.Int64)
         v2.set_random_value(v)
         self.assertTrue(v2.value >= 0)
         v.set_from_value(-1)
@@ -434,17 +434,17 @@ class ValueTests(unittest.TestCase):
 
     def test_string_value(self):
         """Test the StringValue class."""
-        v = EDMValue.NewSimpleValue(SimpleType.String)
+        v = EDMValue.from_type(SimpleType.String)
         # check __nonzero__
         self.assertFalse(v)
-        # check IsNull
-        self.assertTrue(v.IsNull())
+        # check is_null
+        self.assertTrue(v.is_null())
         v.set_from_value(123)
         # check __nonzero__
         self.assertTrue(v)
-        # check IsNull
-        self.assertFalse(v.IsNull())
-        v2 = EDMValue.NewSimpleValue(SimpleType.String)
+        # check is_null
+        self.assertFalse(v.is_null())
+        v2 = EDMValue.from_type(SimpleType.String)
         v2.set_random_value()
         self.assertTrue(len(v2.value) == 8,
                         "Expected 8 characters: %s" % v2.value)
@@ -455,50 +455,50 @@ class ValueTests(unittest.TestCase):
     def test_casts(self):
         p = Property(None)
         p.simpleTypeCode = SimpleType.Byte
-        v = SimpleValue.NewValue(p)
+        v = SimpleValue.from_property(p)
         v.value = 13
         cast = Property(None)
         cast.simpleTypeCode = SimpleType.Int16
-        v2 = v.Cast(EDMValue.NewValue(cast))
+        v2 = v.cast(EDMValue.from_property(cast))
         self.assertTrue(
-            isinstance(v2, SimpleValue), "Cast gives a SimpleValue")
+            isinstance(v2, SimpleValue), "cast gives a SimpleValue")
         self.assertTrue(
-            v2.typeCode == SimpleType.Int16, "Cast uses passed type")
-        self.assertTrue(v2.value == 13, "Cast to Int16")
+            v2.type_code == SimpleType.Int16, "cast uses passed type")
+        self.assertTrue(v2.value == 13, "cast to Int16")
         cast = Property(None)
         cast.simpleTypeCode = SimpleType.Int32
-        v2 = v2.Cast(EDMValue.NewValue(cast))
+        v2 = v2.cast(EDMValue.from_property(cast))
         self.assertTrue(
-            v2.typeCode == SimpleType.Int32, "Cast uses passed type")
-        self.assertTrue(v2.value == 13, "Cast to Int32")
+            v2.type_code == SimpleType.Int32, "cast uses passed type")
+        self.assertTrue(v2.value == 13, "cast to Int32")
         cast = Property(None)
         cast.simpleTypeCode = SimpleType.Int64
-        v2 = v2.Cast(EDMValue.NewValue(cast))
+        v2 = v2.cast(EDMValue.from_property(cast))
         self.assertTrue(
-            v2.typeCode == SimpleType.Int64, "Cast uses passed type")
-        self.assertTrue(type(v2.value) is LongType, "Cast to Int64")
-        self.assertTrue(v2.value == 13L, "Cast to Int64")
+            v2.type_code == SimpleType.Int64, "cast uses passed type")
+        self.assertTrue(type(v2.value) is LongType, "cast to Int64")
+        self.assertTrue(v2.value == 13L, "cast to Int64")
         cast = Property(None)
         cast.simpleTypeCode = SimpleType.Single
-        v3 = v2.Cast(EDMValue.NewValue(cast))
+        v3 = v2.cast(EDMValue.from_property(cast))
         self.assertTrue(
-            v3.typeCode == SimpleType.Single, "Cast uses passed type")
-        self.assertTrue(type(v3.value) is FloatType, "Cast to Single")
+            v3.type_code == SimpleType.Single, "cast uses passed type")
+        self.assertTrue(type(v3.value) is FloatType, "cast to Single")
         cast = Property(None)
         cast.simpleTypeCode = SimpleType.Double
-        v3 = v3.Cast(EDMValue.NewValue(cast))
+        v3 = v3.cast(EDMValue.from_property(cast))
         self.assertTrue(
-            v3.typeCode == SimpleType.Double, "Cast uses passed type")
-        self.assertTrue(type(v3.value) is FloatType, "Cast to Double")
-        self.assertTrue(v3.value == 13.0, "Cast to Double")
+            v3.type_code == SimpleType.Double, "cast uses passed type")
+        self.assertTrue(type(v3.value) is FloatType, "cast to Double")
+        self.assertTrue(v3.value == 13.0, "cast to Double")
         cast = Property(None)
         cast.simpleTypeCode = SimpleType.Decimal
-        v3 = v2.Cast(EDMValue.NewValue(cast))
+        v3 = v2.cast(EDMValue.from_property(cast))
         self.assertTrue(
-            v3.typeCode == SimpleType.Decimal, "Cast uses passed type")
+            v3.type_code == SimpleType.Decimal, "cast uses passed type")
         self.assertTrue(
-            isinstance(v3.value, decimal.Decimal), "Cast to Decimal")
-        self.assertTrue(v3 == 13, "Cast to Double")
+            isinstance(v3.value, decimal.Decimal), "cast to Decimal")
+        self.assertTrue(v3 == 13, "cast to Double")
 
 
 class EntityTests(unittest.TestCase):

@@ -69,7 +69,7 @@ Step 2: Test the Model
 Let's write a simple test function to test our model::
 
 	def TestData(memCache):
-		with memCache.OpenCollection() as collection:
+		with memCache.open() as collection:
 			for i in xrange(26):
 				e=collection.new_entity()
 				e.set_key(str(i))
@@ -83,7 +83,7 @@ Let's write a simple test function to test our model::
 		container=InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
 		memCache=doc.root.DataServices['MemCacheSchema.MemCache.KeyValuePairs']
 		TestData(memCache)
-		with memCache.OpenCollection() as collection:
+		with memCache.open() as collection:
 			for e in collection.itervalues():
 				print "%s: %s (expires %s)"%(e['Key'].value,e['Value'].value,str(e['Expires'].value))
 
@@ -236,7 +236,7 @@ add one last function to our code::
 		while True:
 			now.set_from_value(iso.TimePoint.from_now_utc())
 			logging.info("Cleanup thread running at %s",str(now.value))
-			with memCache.OpenCollection() as cacheEntries:
+			with memCache.open() as cacheEntries:
 				cacheEntries.set_filter(filter)
 				expiredList=list(cacheEntries)
 				if expiredList:

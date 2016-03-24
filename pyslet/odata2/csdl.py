@@ -836,7 +836,7 @@ class EDMValue(PEP8Compatibility):
     }
 
     def __nonzero__(self):
-        """EDMValue instances are treated as being non-zero if :py:meth:`IsNull`
+        """EDMValue instances are treated as being non-zero if :py:meth:`is_null`
         returns False."""
         return not self.is_null()
 
@@ -888,22 +888,22 @@ class EDMValue(PEP8Compatibility):
         *value* may be any of the types listed in
         :py:class:`SimpleValue`."""
         if isinstance(value, uuid.UUID):
-            result = cls.NewSimpleValue(SimpleType.Guid)
+            result = cls.from_type(SimpleType.Guid)
         elif isinstance(value, iso8601.TimePoint):
             # if it has an offset
             if value.get_zone()[0] is None:
                 # no timezone
-                result = cls.NewSimpleValue(SimpleType.DateTime)
+                result = cls.from_type(SimpleType.DateTime)
             else:
-                result = cls.NewSimpleValue(SimpleType.DateTimeOffset)
+                result = cls.from_type(SimpleType.DateTimeOffset)
         elif isinstance(value, decimal.Decimal):
-            result = cls.NewSimpleValue(SimpleType.Decimal)
+            result = cls.from_type(SimpleType.Decimal)
         elif isinstance(value, datetime.datetime):
-            result = cls.NewSimpleValue(SimpleType.DateTime)
+            result = cls.from_type(SimpleType.DateTime)
         else:
             t = SimpleType.PythonType.get(type(value), None)
             if t is not None:
-                result = cls.NewSimpleValue(t)
+                result = cls.from_type(t)
             else:
                 raise ValueError(
                     "Can't construct SimpleValue from %s" % repr(value))
@@ -976,8 +976,8 @@ class SimpleValue(EDMValue):
     def simple_cast(self, type_code):
         """Returns a new :py:class:`SimpleValue` instance created from *type_code*
 
-        The value of the new instance is set using :py:meth:`Cast`"""
-        target_value = EDMValue.NewSimpleValue(type_code)
+        The value of the new instance is set using :py:meth:`cast`"""
+        target_value = EDMValue.from_type(type_code)
         return self.cast(target_value)
 
     def cast(self, target_value):
@@ -993,14 +993,14 @@ class SimpleValue(EDMValue):
         if self.type_code == target_value.type_code:
             target_value.value = self.value
         else:
-            # new_value=EDMValue.NewValue(newTypeCode,self.name)
+            # new_value=EDMValue.from_property(newTypeCode,self.name)
             if self.type_code is not None:
                 target_value.set_from_value(copy.deepcopy(self.value))
         return target_value
 
     @old_method('SetFromSimpleValue')
     def set_from_simple_value(self, new_value):
-        """The reverse of the :py:meth:`Cast` method, sets this value to
+        """The reverse of the :py:meth:`cast` method, sets this value to
         the value of *new_value* casting as appropriate."""
         new_value.cast(self)
 
@@ -1060,7 +1060,7 @@ class SimpleValue(EDMValue):
         if value.p_def:
             result = value.__class__(value.p_def)
         else:
-            result = EDMValue.NewSimpleValue(value.type_code)
+            result = EDMValue.from_type(value.type_code)
         result.value = value.value
         return result
 
@@ -1151,7 +1151,7 @@ class NumericValue(SimpleValue):
     The literal forms of numeric values are parsed in a two-stage
     process.  Firstly the utility class :py:class:`Parser` is used to
     obtain a numeric tuple and then the value is set using
-    :py:meth:`SetFromNumericLiteral`
+    :py:meth:`set_from_numeric_literal`
 
     All numeric types may have their value set directly from int, long,
     float or Decimal.
@@ -1881,7 +1881,6 @@ class SByteValue(NumericValue):
 
     """Represents a simple value of type Edm.SByte"""
 
-    @old_method('SetFromNumericLiteral')
     def set_from_numeric_literal(self, num):
         if (not num.ldigits or              # must be left digits
                 num.ldigits.isalpha() or    # must not be nan or inf
@@ -2021,7 +2020,7 @@ class DeferredValue(MigratedClass):
         self.from_entity = from_entity
         #: the definition of the navigation property
         self.p_def = self.from_entity.type_def[name]
-        fromM, targetM = self.from_entity.entity_set.NavigationMultiplicity(
+        fromM, targetM = self.from_entity.entity_set.get_multiplicity(
             self.name)
         #: True if this deferred value represents a (single) required entity
         self.isRequired = (targetM == Multiplicity.One)
@@ -2032,7 +2031,7 @@ class DeferredValue(MigratedClass):
 
         An expanded navigation property will return a read-only
         :py:class:`ExpandedEntityCollection` when
-        :py:meth:`OpenCollection` is called."""
+        :py:meth:`open` is called."""
         self.bindings = []
         """The list of entity instances or keys to bind to *from_entity*
         when it is inserted or next updated."""
@@ -2054,7 +2053,7 @@ class DeferredValue(MigratedClass):
             raise NavigationError(
                 "%s.%s is a collection" %
                 (self.from_entity.entity_set.name, self.name))
-        with self.OpenCollection() as collection:
+        with self.open() as collection:
             values = collection.values()
             if len(values) == 1:
                 return values[0]
@@ -2076,13 +2075,13 @@ class DeferredValue(MigratedClass):
         the Python with statement using the collection's context-manager
         behaviour.  For example::
 
-            with customer['Orders'].OpenCollection() as orders:
+            with customer['Orders'].open() as orders:
                     # do something with the orders"""
         if self.from_entity.exists:
             if self.isExpanded:
                 return self.expanded
             else:
-                collection = self.from_entity.entity_set.OpenNavigation(
+                collection = self.from_entity.entity_set.open_navigation(
                     self.name, self.from_entity)
                 return collection
         else:
@@ -2100,16 +2099,16 @@ class DeferredValue(MigratedClass):
         values is an appropriate representation of the data that would
         be obtained by executing::
 
-            with self.OpenCollection() as coll:
+            with self.open() as coll:
                 return coll.values()
 
         The purpose of this method is to allow the re-use of a value
         list that has been obtained previously without having to consult
         the data source again."""
-        self.SetExpansion(ExpandedEntityCollection(
+        self.set_expansion(ExpandedEntityCollection(
                           from_entity=self.from_entity,
                           name=self.name,
-                          entity_set=self.Target(),
+                          entity_set=self.target(),
                           entity_list=values))
 
     @old_method('SetExpansion')
@@ -2136,10 +2135,10 @@ class DeferredValue(MigratedClass):
         resulting collection of entities using the given *expand* and
         *select* options (see :py:meth:`EntityCollection.set_expand` for
         details)."""
-        with self.from_entity.entity_set.OpenNavigation(
+        with self.from_entity.entity_set.open_navigation(
                 self.name, self.from_entity) as collection:
             collection.set_expand(expand, select)
-            self.SetExpansion(collection.expand_collection())
+            self.set_expansion(collection.expand_collection())
 
     @old_method('BindEntity')
     def bind_entity(self, target):
@@ -2166,11 +2165,10 @@ class DeferredValue(MigratedClass):
         else:
             self.bindings = [target]
 
-    @old_method('CheckNavigationConstraint')
     def check_navigation_constraint(self):
         """Checks if this navigation property :py:attr:`isRequired` and
         raises :py:class:`NavigationConstraintError` if it has not been
-        bound with :py:meth:`BindEntity`.
+        bound with :py:meth:`bind_entity`.
 
         This method is only intended to be called on non-existent
         entities."""
@@ -2190,16 +2188,16 @@ class DeferredValue(MigratedClass):
         navigation property."""
         if self.bindings:
             # get an entity collection for this navigation property
-            with self.OpenCollection() as collection:
+            with self.open() as collection:
                 while self.bindings:
                     binding = self.bindings[0]
                     if not isinstance(binding, Entity):
                         # just a key, we'll grab the entity first
                         # which will generate KeyError if it doesn't
                         # exist
-                        with collection.entity_set.OpenCollection() as \
+                        with collection.entity_set.open() as \
                                 base_collection:
-                            base_collection.SelectKeys()
+                            base_collection.select_keys()
                             binding = base_collection[binding]
                     if binding.exists:
                         if self.isCollection:
@@ -2230,7 +2228,7 @@ class Entity(TypeInstance):
     Entity instance must only be created by data providers, a child
     class may be used with data provider-specific functionality.  Data
     consumers should use the :py:meth:`EntityCollection.new_entity` or
-    :py:class:`EntityCollection.CopyEntity` methods to create instances.
+    :py:class:`EntityCollection.copy_entity` methods to create instances.
 
     *   entity_set is the entity set this entity belongs to
 
@@ -2261,7 +2259,7 @@ class Entity(TypeInstance):
     entity set::
 
             # open the collection obtained from navigation property Friends
-            with e['Friends'].OpenCollection() as friends:
+            with e['Friends'].open() as friends:
                     # iterate through all the friends of entity e
                     for friend in friends:
                             print friend['Name']
@@ -2269,7 +2267,7 @@ class Entity(TypeInstance):
     A convenience method is provided when the navigation property points
     to a single entity (or None) by definition::
 
-            mum=e['Mother'].GetEntity()     # may return None
+            mum=e['Mother'].get_entity()     # may return None
 
     In the EDM one or more properties are marked as forming the entity's
     key.  The entity key is unique within the entity set.  On
@@ -2285,10 +2283,10 @@ class Entity(TypeInstance):
     Therefore, two instances that represent that same entity will
     compare equal.
 
-    If an entity does not exist, OpenCollection will fail if called on
+    If an entity does not exist, open will fail if called on
     one of its navigation properties with :py:class:`NonExistentEntity`.
 
-    You can use :py:meth:`IsEntityCollection` to determine if a property
+    You can use :py:meth:`is_entity_collection` to determine if a property
     will return an :py:class:`EntityCollection` without the cost of
     accessing the data source itself."""
 
@@ -2400,7 +2398,7 @@ class Entity(TypeInstance):
     def check_navigation_constraints(self, ignore_end=None):
         """For entities that do not yet exist, checks that each of the
         required navigation properties has been bound (with
-        :py:meth:`DeferredValue.BindEntity`).
+        :py:meth:`DeferredValue.bind_entity`).
 
         If a required navigation property has not been bound then
         :py:class:`NavigationConstraintError` is raised.
@@ -2413,7 +2411,7 @@ class Entity(TypeInstance):
         related association is ignored."""
         if self.exists:
             raise EntityExists(
-                "CheckNavigationConstraints: entity %s already exists" % str(
+                "check_navigation_constraints: entity %s already exists" % str(
                     self.get_location()))
         bad_end = self.entity_set.unboundPrincipal
         if bad_end and bad_end != ignore_end:
@@ -2421,9 +2419,9 @@ class Entity(TypeInstance):
                 "entity %s has an unbound principal" %
                 str(self.get_location()))
         ignore_name = self.entity_set.linkEnds.get(ignore_end, None)
-        for name, np in self.NavigationItems():
+        for name, np in self.navigation_items():
             if name != ignore_name:
-                np.CheckNavigationConstraint()
+                np.check_navigation_constraint()
 
     def __len__(self):
         return len(self.type_def.Property) + \
@@ -2443,8 +2441,8 @@ class Entity(TypeInstance):
     def is_entity_collection(self, name):
         """Returns True if *name* is the name of a navigation property
         that points to an entity collection, False otherwise."""
-        return self.IsNavigationProperty(
-            name) and self.entity_set.IsEntityCollection(name)
+        return self.is_navigation_property(
+            name) and self.entity_set.is_entity_collection(name)
 
     def __getitem__(self, name):
         if name in self.data:
@@ -2469,7 +2467,7 @@ class Entity(TypeInstance):
         The default implementation opens a collection object from the
         parent entity set and calls
         :py:meth:`EntityCollection.update_entity`."""
-        with self.entity_set.OpenCollection() as collection:
+        with self.entity_set.open() as collection:
             collection.update_entity(self)
 
     @old_method('Delete')
@@ -2481,7 +2479,7 @@ class Entity(TypeInstance):
 
         Data providers must ensure that the entity's :py:attr:`exists`
         flag is set to False after deletion."""
-        with self.entity_set.OpenCollection() as collection:
+        with self.entity_set.open() as collection:
             del collection[self.key()]
         self.exists = False
 
@@ -2567,10 +2565,10 @@ class Entity(TypeInstance):
 
         If a property that is being expanded is also subject to one or
         more selection rules these are passed along with any chained
-        Expand method call.
+        expand method call.
 
         The selection rules in effect are saved in the :py:attr:`select`
-        member and can be tested using :py:meth:`Selected`."""
+        member and can be tested using :py:meth:`is_selected`."""
         if select is None:
             self.selected = None
             select = {}  # use during expansion
@@ -2581,7 +2579,7 @@ class Entity(TypeInstance):
                     self.selected.add(k)
             if "*" in select:
                 # add all non-navigation items
-                for k in self.DataKeys():
+                for k in self.data_keys():
                     self.selected.add(k)
             else:
                 # Force unselected values to NULL
@@ -2591,7 +2589,7 @@ class Entity(TypeInstance):
                         v.set_null()
         # Now expand this entity's navigation properties
         if expand:
-            for k, v in self.NavigationItems():
+            for k, v in self.navigation_items():
                 if k in expand:
                     if k in select:
                         sub_select = select[k]
@@ -2610,7 +2608,7 @@ class Entity(TypeInstance):
         return self[name].isExpanded
 
     @old_method('Selected')
-    def selected(self, name):
+    def is_selected(self, name):
         """Returns true if the property *name* is selected in this entity.
 
         You should not rely on the value of a unselected property, in most
@@ -2625,7 +2623,7 @@ class Entity(TypeInstance):
         etag = []
         for p_def in self.type_def.Property:
             if p_def.concurrencyMode == ConcurrencyMode.Fixed and \
-                    self.Selected(p_def.name):
+                    self.is_selected(p_def.name):
                 token = self[p_def.name]
                 if token:
                     # only append non-null values
@@ -2639,7 +2637,7 @@ class Entity(TypeInstance):
     def etag_values(self):
         """Returns a list of EDMValue instance values that may be used
         for optimistic concurrency control.  The difference between this
-        method and :py:meth:`ETag` is that this method returns all
+        method and :py:meth:`etag` is that this method returns all
         values even if they are NULL or unselected.  If there are no
         concurrency tokens then an empty list is returned."""
         etag = []
@@ -2657,7 +2655,7 @@ class Entity(TypeInstance):
         encoded) except the keys and properties which have Fixed
         concurrency mode."""
         h = hashlib.sha256()
-        key = self.KeyDict()
+        key = self.key_dict()
         for p_def in self.type_def.Property:
             if p_def.concurrencyMode == ConcurrencyMode.Fixed:
                 continue
@@ -2688,7 +2686,7 @@ class Entity(TypeInstance):
     def set_concurrency_tokens(self):
         """A utility method for data providers.
 
-        Sets all :py:meth:`ETagValues` using the following algorithm:
+        Sets all :py:meth:`etag_values` using the following algorithm:
 
         1.  Binary values are set directly from the output of
                 :py:meth:`generate_ctoken`
@@ -2704,7 +2702,7 @@ class Entity(TypeInstance):
         5.  Guid values are set to a new random (type 4) UUID.
 
         Any other type will generate a ValueError."""
-        for t in self.ETagValues():
+        for t in self.etag_values():
             if isinstance(t, BinaryValue):
                 h = self.generate_ctoken().digest()
                 if t.p_def.maxLength is not None and \
@@ -2778,7 +2776,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
     Entity collections support the context manager protocol in python so
     you can use them in with statements to make clean-up easier::
 
-            with entity_set.OpenCollection() as collection:
+            with entity_set.open() as collection:
                     if 42 in collection:
                             print "Found it!"
 
@@ -2913,7 +2911,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
 
         By default this is the fully qualified name of the entity set
         in the metadata model."""
-        return self.entity_set.GetFQName()
+        return self.entity_set.get_fqname()
 
     @old_method('Expand')
     def set_expand(self, expand, select=None):
@@ -2940,7 +2938,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         structure, the main difference being that it can contain the
         single key '*' indicating that all *data* properties are
         selected."""
-        self.entity_set.entityType.ValidateExpansion(expand, select)
+        self.entity_set.entityType.validate_expansion(expand, select)
         self.expand = expand
         self.select = select
         self.lastEntity = None
@@ -2965,10 +2963,10 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
 
         Data providers should use a better method of expanded entities
         if possible as this implementation simply iterates through the
-        entities and calls :py:meth:`Entity.Expand` on each one."""
+        entities and calls :py:meth:`Entity.expand` on each one."""
         for e in entity_iterable:
             if self.expand or self.select:
-                e.Expand(self.expand, self.select)
+                e.expand(self.expand, self.select)
             yield e
 
     @old_method('Filter')
@@ -3143,18 +3141,18 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         raise NotImplementedError
 
     def update_bindings(self, entity):
-        """Iterates through the :py:meth:`Entity.NavigationItems` and
+        """Iterates through the :py:meth:`Entity.navigation_items` and
         generates appropriate calls to create/update any pending
         bindings.
 
         Unlike the :py:meth:`commit` method, which updates all data and
         navigation values simultaneously, this method can be used to
         selectively update just the navigation properties."""
-        for k, dv in entity.NavigationItems():
+        for k, dv in entity.navigation_items():
             dv.update_bindings()
 
     def __getitem__(self, key):
-        # key=self.entity_set.GetKey(key)
+        # key=self.entity_set.get_key(key)
         logging.warning(
             "EntityCollection.__getitem__ without override in %s",
             self.__class__.__name__)
@@ -3380,7 +3378,7 @@ class NavigationCollection(EntityCollection):
         #: the navigation property's definition in the metadata model
         self.p_def = self.from_entity.type_def[name]
         self.fromMultiplicity, self.toMultiplicity = \
-            self.from_entity.entity_set.NavigationMultiplicity(self.name)
+            self.from_entity.entity_set.get_multiplicity(self.name)
         """The endpoint multiplicities of this link.  Values are defined
         by :py:class:`Multiplicity`"""
 
@@ -3394,12 +3392,12 @@ class NavigationCollection(EntityCollection):
     def insert_entity(self, entity):
         """Inserts a new *entity* into the target entity set *and*
         simultaneously creates a link to it from the source entity."""
-        with self.entity_set.OpenCollection() as base_collection:
+        with self.entity_set.open() as base_collection:
             base_collection.insert_entity(entity)
             self[entity.key()] = entity
 
     def update_entity(self, entity):
-        with self.entity_set.OpenCollection() as base_collection:
+        with self.entity_set.open() as base_collection:
             base_collection.update_entity(entity)
 
     def __setitem__(self, key, value):
@@ -3465,7 +3463,7 @@ class ExpandedEntityCollection(NavigationCollection):
         result = self.entityDict[key]
         if self.check_filter(result):
             if self.expand or self.select:
-                result.Expand(self.expand, self.select)
+                result.expand(self.expand, self.select)
             return result
         raise KeyError("%s" % unicode(key))
 
@@ -3633,7 +3631,7 @@ class TypeRef(object):
 
     def __call__(self, value=None):
         if self.simpleTypeCode is not None:
-            result = SimpleValue.NewSimpleValue(self.simpleTypeCode)
+            result = SimpleValue.from_type(self.simpleTypeCode)
             if isinstance(value, SimpleValue):
                 result.set_from_simple_value(value)
             elif value is not None:
@@ -3720,7 +3718,7 @@ class Property(CSDLElement):
     XMLATTR_Type = 'type'
     XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_DefaultValue = 'defaultValue'
-    XMLATTR_MaxLength = ('maxLength', DecodeMaxLength, EncodeMaxLength)
+    XMLATTR_MaxLength = ('maxLength', maxlength_from_str, maxlength_to_str)
     XMLATTR_FixedLength = (
         'fixedLength', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_Precision = ('precision', xsi.integer_from_str, xsi.integer_to_str)
@@ -3802,7 +3800,7 @@ class Property(CSDLElement):
                     raise
 
     def __call__(self, literal=None):
-        result = EDMValue.NewValue(self)
+        result = EDMValue.from_property(self)
         if isinstance(result, SimpleValue) and literal is not None:
             result.set_from_literal(literal)
         return result
@@ -4073,8 +4071,8 @@ class EntityType(Type):
                             sub_expand = expand[name]
                         else:
                             sub_expand = None
-                        p.to_end.entityType.ValidateExpansion(sub_expand,
-                                                              value)
+                        p.to_end.entityType.validate_expansion(sub_expand,
+                                                               value)
                     else:
                         raise KeyError
                 except KeyError:
@@ -4089,7 +4087,7 @@ class EntityType(Type):
                         # then we've already been here
                         pass
                     else:
-                        p.to_end.entityType.ValidateExpansion(value, None)
+                        p.to_end.entityType.validate_expansion(value, None)
                 else:
                     raise KeyError
             except KeyError:
@@ -4253,7 +4251,7 @@ class AssociationEnd(CSDLElement):
     XMLATTR_Role = 'name'
     XMLATTR_Type = 'type'
     XMLATTR_Multiplicity = (
-        'multiplicity', DecodeMultiplicity, EncodeMultiplicity)
+        'multiplicity', multiplictiy_from_str, multiplicity_to_str)
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -4387,7 +4385,7 @@ class EntityContainer(NameTableMixin, CSDLElement):
                                      self.FunctionImport):
             child.update_set_refs(scope, stop_on_errors)
         for child in self.EntitySet:
-            child.UpdateNavigation()
+            child.update_navigation()
 
     def validate(self):
         for child in self.FunctionImport:
@@ -4447,7 +4445,7 @@ class EntitySet(CSDLElement):
         Attempting to create an Order in the base collection of Orders
         will always fail::
 
-            with Orders.OpenCollection() as collection:
+            with Orders.open() as collection:
                 order=collection.new_entity()
                 # set order fields here
                 collection.insert_entity(order)
@@ -4455,10 +4453,10 @@ class EntitySet(CSDLElement):
 
         Instead, you have to create new orders from a Customer entity::
 
-            with Customers.OpenCollection() as collectionCustomers:
+            with Customers.open() as collectionCustomers:
                 # get the existing customer
                 customer=collectionCustomers['ALFKI']
-                with customer['Orders'].OpenCollection() as collectionOrders:
+                with customer['Orders'].open() as collectionOrders:
                     # create a new order
                     order=collectionOrders.new_entity()
                     # ... set order details here
@@ -4466,13 +4464,13 @@ class EntitySet(CSDLElement):
 
         You can also use a deep insert::
 
-            with Customers.OpenCollection() as collectionCustomers,
-                    Orders.OpenCollection() as collectionOrders:
+            with Customers.open() as collectionCustomers,
+                    Orders.open() as collectionOrders:
                 customer=collectionCustomers.new_entity()
                 # set customer details here
                 order=collectionOrders.new_entity()
                 # set order details here
-                customer['Orders'].BindEntity(order)
+                customer['Orders'].bind_entity(order)
                 collectionCustomers.insert_entity(customer)
 
         For the avoidance of doubt, an entity set can't have two unbound
@@ -4567,7 +4565,6 @@ class EntitySet(CSDLElement):
                 from_end.drop_principal()
             aset_end.drop_principal()
 
-    @old_method('UpdateNavigation')
     def update_navigation(self):
         container = self.find_parent(EntityContainer)
         if container and self.entityType:
@@ -4597,7 +4594,7 @@ class EntitySet(CSDLElement):
                 association_set = AssociationSet(container)
                 association_set.name = as_name
                 association_set.associationName = \
-                    np.to_end.parent.GetFQName()
+                    np.to_end.parent.get_fqname()
                 from_end = association_set.add_child(AssociationSetEnd)
                 from_end.name = np.from_end.name
                 from_end.entitySetName = self.name
@@ -4716,7 +4713,7 @@ class EntitySet(CSDLElement):
     def extract_key(self, keyvalue):
         """Extracts a key value from *keylike*.
 
-        Unlike GetKey, this method attempts to convert the data in
+        Unlike get_key, this method attempts to convert the data in
         *keyvalue* into the correct format for the key.  For compound
         keys *keyvalue* must be a suitable list or tuple or compatible
         iterable supporting the len method.  Dictionaries are not
@@ -4756,7 +4753,7 @@ class EntitySet(CSDLElement):
         The result is a mapping from named properties to
         :class:`SimpleValue` instances.  The property name is always used
         as the key in the mapping, even if the key refers to a single
-        property.  This contrasts with :meth:`GetKeyDict`."""
+        property.  This contrasts with :meth:`get_key_dict`."""
         key_dict = {}
         if not isinstance(key, TupleType):
             key = (key,)
@@ -4865,7 +4862,7 @@ class EntitySet(CSDLElement):
         example, if *customers* is an entity set from the sample OData
         service::
 
-            customers.NavigationMultiplicity['Orders'] == \
+            customers.get_multiplicity['Orders'] == \
                 (Multiplicity.ZeroToOne, Multiplicity.Many)"""
         link_end = self.navigation[name]
         return link_end.associationEnd.multiplicity, \
@@ -4877,7 +4874,7 @@ class EntitySet(CSDLElement):
 
         Returns True if more than one entity is possible when navigating
         the named property."""
-        return self.NavigationMultiplicity(name)[1] == Multiplicity.Many
+        return self.get_multiplicity(name)[1] == Multiplicity.Many
 
 
 class AssociationSet(CSDLElement):
@@ -5259,7 +5256,7 @@ class Parameter(CSDLElement):
     XMLATTR_Type = 'type'
     XMLATTR_Mode = (
         'mode', ParameterMode.from_str, ParameterMode.to_str)
-    XMLATTR_MaxLength = ('maxLength', DecodeMaxLength, EncodeMaxLength)
+    XMLATTR_MaxLength = ('maxLength', maxlength_from_str, maxlength_to_str)
     XMLATTR_Precision = 'precision'
     XMLATTR_Scale = 'scale'
     XMLCONTENT = xml.ElementType.ElementContent

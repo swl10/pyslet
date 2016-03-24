@@ -147,24 +147,24 @@ def CalculateShapeBounds(shape, coords):
     """Calculates a bounding rectangle from a Shape value and a
     :py:class:`pyslet.html401.Coords` instance."""
     if shape == Shape.circle:
-        return [coords[0].GetValue(1024) - coords[2].GetValue(768),
-                coords[1].GetValue(768) - coords[2].GetValue(768),
-                coords[0].GetValue(1024) + coords[2].GetValue(768),
-                coords[1].GetValue(768) + coords[2].GetValue(768)]
+        return [coords[0].resolve_value(1024) - coords[2].resolve_value(768),
+                coords[1].resolve_value(768) - coords[2].resolve_value(768),
+                coords[0].resolve_value(1024) + coords[2].resolve_value(768),
+                coords[1].resolve_value(768) + coords[2].resolve_value(768)]
     elif shape == Shape.default:
         return [0, 0, 1024, 768]
     elif shape == Shape.ellipse:
-        return [coords[0].GetValue(1024) - coords[2].GetValue(1024),
-                coords[1].GetValue(768) - coords[3].GetValue(768),
-                coords[0].GetValue(1024) + coords[2].GetValue(1024),
-                coords[1].GetValue(768) + coords[3].GetValue(768)]
+        return [coords[0].resolve_value(1024) - coords[2].resolve_value(1024),
+                coords[1].resolve_value(768) - coords[3].resolve_value(768),
+                coords[0].resolve_value(1024) + coords[2].resolve_value(1024),
+                coords[1].resolve_value(768) + coords[3].resolve_value(768)]
     elif shape == Shape.poly:
-        output = [coords[0].GetValue(1024), coords[1].GetValue(768),
-                  coords[0].GetValue(1024), coords[1].GetValue(768)]
+        output = [coords[0].resolve_value(1024), coords[1].resolve_value(768),
+                  coords[0].resolve_value(1024), coords[1].resolve_value(768)]
         i = 1
         while 2 * i + 1 < len(coords):
-            x = coords[2 * i].GetValue(1024)
-            y = coords[2 * i + 1].GetValue(768)
+            x = coords[2 * i].resolve_value(1024)
+            y = coords[2 * i + 1].resolve_value(768)
             if x < output[0]:
                 output[0] = x
             elif x > output[2]:
@@ -175,8 +175,8 @@ def CalculateShapeBounds(shape, coords):
                 output[3] = y
         return output
     elif shape == Shape.rect:
-        return [coords[0].GetValue(1024), coords[1].GetValue(768),
-                coords[2].GetValue(1024), coords[3].GetValue(768)]
+        return [coords[0].resolve_value(1024), coords[1].resolve_value(768),
+                coords[2].resolve_value(1024), coords[3].resolve_value(768)]
     else:
         raise ValueError("Unknown value for shape: %s" % str(shape))
 
@@ -186,23 +186,23 @@ def OffsetShape(shape, coords, xOffset, yOffset):
 
     In other words, xOffset and yOffset are subtracted from the coordinates."""
     if shape == Shape.circle:
-        coords[0].Add(-xOffset)
-        coords[1].Add(-yOffset)
+        coords[0].add(-xOffset)
+        coords[1].add(-yOffset)
     elif shape == Shape.default:
         pass
     elif shape == Shape.ellipse:
-        coords[0].Add(-xOffset)
-        coords[1].Add(-yOffset)
+        coords[0].add(-xOffset)
+        coords[1].add(-yOffset)
     elif shape == Shape.poly:
         i = 0
         while 2 * i + 1 < len(coords):
-            coords[2 * i].Add(-xOffset)
-            coords[2 * i + 1].Add(-yOffset)
+            coords[2 * i].add(-xOffset)
+            coords[2 * i + 1].add(-yOffset)
     elif shape == Shape.rect:
-        coords[0].Add(-xOffset)
-        coords[1].Add(-yOffset)
-        coords[2].Add(-xOffset)
-        coords[3].Add(-yOffset)
+        coords[0].add(-xOffset)
+        coords[1].add(-yOffset)
+        coords[2].add(-xOffset)
+        coords[3].add(-yOffset)
     else:
         raise ValueError("Unknown value for shape: %s" % str(shape))
 
@@ -244,10 +244,10 @@ class ShapeElementMixin:
             raise ValueError(
                 "Ellipse test requires 4 coordinates: %s" % str(
                     self.coords.values))
-        dx = x - self.coords.values[0].GetValue(width)
-        dy = y - self.coords.values[1].GetValue(height)
-        rx = self.coords.values[2].GetValue(width)
-        ry = self.coords.values[3].GetValue(height)
+        dx = x - self.coords.values[0].resolve_value(width)
+        dy = y - self.coords.values[1].resolve_value(height)
+        rx = self.coords.values[2].resolve_value(width)
+        ry = self.coords.values[3].resolve_value(height)
         return dx * dx * ry * ry + dy * dy * rx * rx <= rx * rx * ry * ry
 
 

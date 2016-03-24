@@ -56,14 +56,14 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
             context.set_status(200)
             return self.html_response(context, data)
         notices = []
-        with context.group['Notices'].OpenCollection() \
+        with context.group['Notices'].open() \
                 as collection:
             collection.set_orderby(
                 odata.Parser('Updated desc').parse_orderby_option())
             collection.set_expand({'User': None})
             for entity in collection.itervalues():
                 notice = {}
-                user = entity['User'].GetEntity()
+                user = entity['User'].get_entity()
                 can_edit = False
                 can_delete = False
                 logging.debug("OwnerID: %s", user['UserID'].value)
@@ -122,7 +122,7 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
         if context.group is None:
             raise wsgi.PageNotAuthorized
         # create a new Notice entity
-        with self.container['Notices'].OpenCollection() \
+        with self.container['Notices'].open() \
                 as collection:
             now = time.time()
             new_notice = collection.new_entity()
@@ -132,8 +132,8 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
                 context.get_form_string('description'))
             new_notice['Created'].set_from_value(now)
             new_notice['Updated'].set_from_value(now)
-            new_notice['User'].BindEntity(context.user)
-            new_notice['Context'].BindEntity(context.group)
+            new_notice['User'].bind_entity(context.user)
+            new_notice['Context'].bind_entity(context.group)
             collection.insert_entity(new_notice)
         link = URI.from_octets("view").resolve(context.get_url())
         return self.redirect_page(context, link, 303)
@@ -148,11 +148,11 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
             query = context.get_query()
             logging.debug("edit key=%s", query['id'])
             key = odata.ParseURILiteral(query.get('id', '')).value
-            with context.group['Notices'].OpenCollection() \
+            with context.group['Notices'].open() \
                     as collection:
                 collection.set_expand({'User': None})
                 entity = collection[key]
-                user = entity['User'].GetEntity()
+                user = entity['User'].get_entity()
                 if not (context.user and context.user == user):
                     # only the owner can edit their post
                     raise wsgi.PageNotAuthorized
@@ -181,11 +181,11 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
             raise wsgi.PageNotAuthorized
         try:
             key = odata.ParseURILiteral(context.get_form_string('id')).value
-            with context.group['Notices'].OpenCollection() \
+            with context.group['Notices'].open() \
                     as collection:
                 collection.set_expand({'User': None})
                 entity = collection[key]
-                user = entity['User'].GetEntity()
+                user = entity['User'].get_entity()
                 if not (context.user and context.user == user):
                     # only the owner can edit their post
                     raise wsgi.PageNotAuthorized
@@ -212,11 +212,11 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
         try:
             query = context.get_query()
             key = odata.ParseURILiteral(query.get('id', '')).value
-            with context.group['Notices'].OpenCollection() \
+            with context.group['Notices'].open() \
                     as collection:
                 collection.set_expand({'User': None})
                 entity = collection[key]
-                user = entity['User'].GetEntity()
+                user = entity['User'].get_entity()
                 if (not (context.user and context.user == user) and
                         not (context.permissions & self.WRITE_PERMISSION)):
                     # only the owner or user with write permissions can delete
@@ -245,16 +245,16 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
             raise wsgi.PageNotAuthorized
         try:
             key = odata.ParseURILiteral(context.get_form_string('id')).value
-            with context.group['Notices'].OpenCollection() \
+            with context.group['Notices'].open() \
                     as collection:
                 collection.set_expand({'User': None})
                 entity = collection[key]
-                user = entity['User'].GetEntity()
+                user = entity['User'].get_entity()
                 if (not (context.user and context.user == user) and
                         not (context.permissions & self.WRITE_PERMISSION)):
                     # only the owner or user with write permissions can delete
                     raise wsgi.PageNotAuthorized
-                entity.Delete()
+                entity.delete()
         except ValueError:
             raise wsgi.BadRequest
         except KeyError:

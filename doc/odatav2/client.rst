@@ -42,7 +42,7 @@ instances.  This makes it easy to open the feeds as EDM collections.  In
 your code you'd typically use the with statement when opening the
 collection but for clarity we'll continue on the python command line::
 
-	>>> products=c.feeds['Products'].OpenCollection()
+	>>> products=c.feeds['Products'].open()
 	>>> for p in products: print p
 	... 
 	INFO:root:Sending request to services.odata.org
@@ -125,7 +125,7 @@ in the usual way::
 Well, I've simply got to have some of these, let's use one of the navigation
 properties to load information about the supplier::
 
-	>>> supplier=scones['Supplier'].GetEntity()
+	>>> supplier=scones['Supplier'].get_entity()
 	INFO:root:Sending request to services.odata.org
 	INFO:root:GET /V2/Northwind/Northwind.svc/Products(21)/Supplier HTTP/1.1
 	INFO:root:Finished Response, status 200

@@ -154,7 +154,7 @@ class LTIConsumerTests(unittest.TestCase):
             file_path=':memory:', container=self.container)
         self.data_source.create_all_tables()
         self.cipher = wsgi.AppCipher(0, 'secret', self.container['AppKeys'])
-        with self.container['Silos'].OpenCollection() as collection:
+        with self.container['Silos'].open() as collection:
             self.silo = collection.new_entity()
             self.silo['ID'].set_from_value(wsgi.key60('testing'))
             self.silo['Slug'].set_from_value('testing')
@@ -164,7 +164,7 @@ class LTIConsumerTests(unittest.TestCase):
         pass
 
     def test_consumer(self):
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             entity = collection.new_entity()
             consumer = lti.ToolConsumer.new_from_values(
                 entity, self.cipher, 'default', key="12345", secret="secret")
@@ -213,7 +213,7 @@ class LTIConsumerTests(unittest.TestCase):
             self.assertTrue(check_consuemr.secret == 'password')
 
     def test_default_secret(self):
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             entity = collection.new_entity()
             consumer = lti.ToolConsumer.new_from_values(
                 entity, self.cipher, 'default', key="12345")
@@ -235,7 +235,7 @@ class LTIConsumerTests(unittest.TestCase):
                 pass
 
     def test_default_key(self):
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             entity = collection.new_entity()
             consumer = lti.ToolConsumer.new_from_values(
                 entity, self.cipher, 'default', secret="secret")
@@ -254,7 +254,7 @@ class LTIConsumerTests(unittest.TestCase):
             collection.insert_entity(consumer2.entity)
 
     def test_nonces(self):
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default')
             collection.insert_entity(consumer.entity)
@@ -284,7 +284,7 @@ class LTIConsumerTests(unittest.TestCase):
             self.assertFalse(consumer.nonce_key('') == consumer2.nonce_key(''))
 
     def test_context(self):
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default')
             collection.insert_entity(consumer.entity)
@@ -317,7 +317,7 @@ class LTIConsumerTests(unittest.TestCase):
                             'Design for People')
 
     def test_resource(self):
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default')
             collection.insert_entity(consumer.entity)
@@ -350,7 +350,7 @@ class LTIConsumerTests(unittest.TestCase):
             check_resource = consumer.get_resource(resource_link_id)
             self.assertTrue(check_resource['Title'].value == 'Monthly Blog')
             # now check that the resource is not attached to a context
-            with resource['Context'].OpenCollection() as contexts:
+            with resource['Context'].open() as contexts:
                 self.assertTrue(len(contexts) == 0)
             # Create a context for the next part of the test
             context_id = '456434513'
@@ -358,18 +358,18 @@ class LTIConsumerTests(unittest.TestCase):
             # A resource cannot be assigned to a context once it has
             # been created
             resource = consumer.get_resource(resource_link_id, context=context)
-            with resource['Context'].OpenCollection() as contexts:
+            with resource['Context'].open() as contexts:
                 self.assertTrue(len(contexts) == 0)
             # But a new resource can!
             resource_link_id = '120988f929-274613'
             resource = consumer.get_resource(resource_link_id, context=context)
-            with resource['Context'].OpenCollection() as contexts:
+            with resource['Context'].open() as contexts:
                 self.assertTrue(len(contexts) == 1)
-            check_context = resource['Context'].GetEntity()
+            check_context = resource['Context'].get_entity()
             self.assertTrue(check_context['ContextID'].value == context_id)
 
     def test_user(self):
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default')
             collection.insert_entity(consumer.entity)
@@ -443,7 +443,7 @@ class LTIProviderTests(unittest.TestCase):
             file_path=':memory:', container=self.container)
         self.data_source.create_all_tables()
         self.cipher = wsgi.AppCipher(0, 'secret', self.container['AppKeys'])
-        with self.container['Silos'].OpenCollection() as collection:
+        with self.container['Silos'].open() as collection:
             self.silo = collection.new_entity()
             self.silo['ID'].set_from_value(wsgi.key60('testing'))
             self.silo['Slug'].set_from_value('testing')
@@ -466,7 +466,7 @@ class LTIProviderTests(unittest.TestCase):
             self.fail("No consumers")
         except KeyError:
             pass
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default', key="12345",
                 secret="secret")
@@ -479,7 +479,7 @@ class LTIProviderTests(unittest.TestCase):
             self.fail("Failed to find consumer")
 
     def test_nonces(self):
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default', key="12345",
                 secret="secret")
@@ -544,7 +544,7 @@ class LTIProviderTests(unittest.TestCase):
             "University%20of%20School%20%28LMSng%29&"\
             "tool_consumer_instance_guid=lmsng.school.edu&"\
             "user_id=292832126"
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default', key="12345",
                 secret="secret")
@@ -604,7 +604,7 @@ class LTIProviderTests(unittest.TestCase):
             "University%20of%20School%20%28LMSng%29&"\
             "tool_consumer_instance_guid=lmsng.school.edu&"\
             "user_id=292832126"
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default', key="54321",
                 secret="secret")
@@ -644,13 +644,13 @@ class ToolProviderSessionTests(unittest.TestCase):
             file_path=':memory:', container=self.container)
         self.data_source.create_all_tables()
         self.cipher = wsgi.AppCipher(0, 'secret', self.container['AppKeys'])
-        with self.container['Silos'].OpenCollection() as collection:
+        with self.container['Silos'].open() as collection:
             self.silo = collection.new_entity()
             self.silo['ID'].set_from_value(wsgi.key60('ToolProviderSession'))
             self.silo['Slug'].set_from_value('ToolProviderSession')
             collection.insert_entity(self.silo)
         # create a consumer
-        with self.silo['Consumers'].OpenCollection() as collection:
+        with self.silo['Consumers'].open() as collection:
             self.consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'test', '12345',
                 'secret')
@@ -659,56 +659,56 @@ class ToolProviderSessionTests(unittest.TestCase):
     def test_add_and_find_visit(self):
         req = MockRequest()
         context = lti.ToolProviderContext(req.environ, req.start_response)
-        with self.container['Sessions'].OpenCollection() as collection:
+        with self.container['Sessions'].open() as collection:
             session = lti.ToolProviderSession(collection.new_entity())
             session.new_from_context(context)
             session.establish()
             session.commit()
-        with session.entity['Visits'].OpenCollection() as collection:
+        with session.entity['Visits'].open() as collection:
             self.assertTrue(len(collection) == 0)
         # add a resource record
         resource = self.consumer.get_resource(
             'rlink', 'A Resource', 'About the resource')
         resource_id = resource['ID'].value
         # and now a visit
-        with self.container['Visits'].OpenCollection() as collection:
+        with self.container['Visits'].open() as collection:
             visit = collection.new_entity()
             visit['ID'].set_from_value(1)
             visit['Permissions'].set_from_value(context.permissions)
-            visit['Resource'].BindEntity(resource)
+            visit['Resource'].bind_entity(resource)
             collection.insert_entity(visit)
         # now add this visit to the session
         session.add_visit(self.consumer, visit)
         session.commit()
         # Should now be possible to navigate from session to visit
-        with session.entity['Visits'].OpenCollection() as collection:
+        with session.entity['Visits'].open() as collection:
             self.assertTrue(len(collection) == 1)
             self.assertTrue(list(collection)[0] == 1)
         # check that a visit to the same resource replaces
-        with self.container['Visits'].OpenCollection() as collection:
+        with self.container['Visits'].open() as collection:
             visit2 = collection.new_entity()
             visit2['ID'].set_from_value(2)
             visit2['Permissions'].set_from_value(context.permissions)
-            visit2['Resource'].BindEntity(resource)
+            visit2['Resource'].bind_entity(resource)
             collection.insert_entity(visit2)
         session.add_visit(self.consumer, visit2)
         session.commit()
-        with session.entity['Visits'].OpenCollection() as collection:
+        with session.entity['Visits'].open() as collection:
             self.assertTrue(len(collection) == 1)
             self.assertTrue(list(collection)[0] == 2)
         # check that a login to the same resource with a user replaces
         # no user
         context.user = self.consumer.get_user('steve', 'Steve')
-        with self.container['Visits'].OpenCollection() as collection:
+        with self.container['Visits'].open() as collection:
             visit3 = collection.new_entity()
             visit3['ID'].set_from_value(3)
             visit3['Permissions'].set_from_value(context.permissions)
-            visit3['Resource'].BindEntity(resource)
-            visit3['User'].BindEntity(context.user)
+            visit3['Resource'].bind_entity(resource)
+            visit3['User'].bind_entity(context.user)
             collection.insert_entity(visit3)
         session.add_visit(self.consumer, visit3)
         session.commit()
-        with session.entity['Visits'].OpenCollection() as collection:
+        with session.entity['Visits'].open() as collection:
             self.assertTrue(len(collection) == 1)
             self.assertTrue(list(collection)[0] == 3)
         # check that a login to a different resource with a different
@@ -717,30 +717,30 @@ class ToolProviderSessionTests(unittest.TestCase):
         resource2 = self.consumer.get_resource(
             'rlink2', 'Another Resource', 'About the other resource')
         resource2_id = resource2['ID'].value
-        with self.container['Visits'].OpenCollection() as collection:
+        with self.container['Visits'].open() as collection:
             visit4 = collection.new_entity()
             visit4['ID'].set_from_value(4)
             visit4['Permissions'].set_from_value(context.permissions)
-            visit4['Resource'].BindEntity(resource2)
-            visit4['User'].BindEntity(user2)
+            visit4['Resource'].bind_entity(resource2)
+            visit4['User'].bind_entity(user2)
             collection.insert_entity(visit4)
         session.add_visit(self.consumer, visit4)
         session.commit()
-        with session.entity['Visits'].OpenCollection() as collection:
+        with session.entity['Visits'].open() as collection:
             self.assertTrue(len(collection) == 1)
             self.assertTrue(list(collection)[0] == 4)
         # check that a login to a different resource with the same
         # user support multiple visits
-        with self.container['Visits'].OpenCollection() as collection:
+        with self.container['Visits'].open() as collection:
             visit5 = collection.new_entity()
             visit5['ID'].set_from_value(5)
             visit5['Permissions'].set_from_value(context.permissions)
-            visit5['Resource'].BindEntity(resource)
-            visit5['User'].BindEntity(user2)
+            visit5['Resource'].bind_entity(resource)
+            visit5['User'].bind_entity(user2)
             collection.insert_entity(visit5)
         session.add_visit(self.consumer, visit5)
         session.commit()
-        with session.entity['Visits'].OpenCollection() as collection:
+        with session.entity['Visits'].open() as collection:
             self.assertTrue(len(collection) == 2)
             self.assertTrue(4 in collection)
             self.assertTrue(5 in collection)
@@ -756,7 +756,7 @@ class ToolProviderSessionTests(unittest.TestCase):
         # check that a login from the NULL user replaces
         session.add_visit(self.consumer, visit)
         session.commit()
-        with session.entity['Visits'].OpenCollection() as collection:
+        with session.entity['Visits'].open() as collection:
             self.assertTrue(len(collection) == 1)
             self.assertTrue(1 in collection)
 
@@ -834,7 +834,7 @@ class ToolProviderAppTests(unittest.TestCase):
         # setup should succeed with default metadata
         TPApp.setup(options=options, args=args)
         # in memory database created, no silos
-        with TPApp.container['Silos'].OpenCollection() as collection:
+        with TPApp.container['Silos'].open() as collection:
             self.assertTrue(len(collection) == 0)
 
         class TPApp(lti.ToolProviderApp):
@@ -844,11 +844,11 @@ class ToolProviderAppTests(unittest.TestCase):
         options, args = p.parse_args(['-m', '--create_silo'])
         TPApp.setup(options=options, args=args)
         # in memory database created, with default silo
-        with TPApp.container['Silos'].OpenCollection() as collection:
+        with TPApp.container['Silos'].open() as collection:
             self.assertTrue(len(collection) == 1)
             silo = collection.values()[0]
             self.assertTrue(silo['Slug'].value == 'testing')
-        with silo['Consumers'].OpenCollection() as collection:
+        with silo['Consumers'].open() as collection:
             self.assertTrue(len(collection) == 1)
             consumer = collection.values()[0]
             tc = lti.ToolConsumer(consumer, TPApp.new_app_cipher())

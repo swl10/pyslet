@@ -274,8 +274,8 @@ class ODataURILiteralTests(unittest.TestCase):
     def testCaseNullLiteral(self):
         """	nullLiteral = "null" """
         v = core.ParseURILiteral("null")
-        self.assertTrue(v.IsNull(), "null type IsNull")
-        self.assertTrue(v.typeCode is None, "null type: %s" % repr(v.typeCode))
+        self.assertTrue(v.is_null(), "null type is_null")
+        self.assertTrue(v.type_code is None, "null type: %s" % repr(v.type_code))
         self.assertTrue(v.value is None, "null value: %s" % repr(v.value))
 
     def testCaseBinaryLiteral(self):
@@ -286,7 +286,7 @@ class ODataURILiteralTests(unittest.TestCase):
                 hexDigPair = 2*HEXDIG [hexDigPair] """
         v = core.ParseURILiteral("X'0A'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Binary, "binary type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Binary, "binary type: %s" % repr(v.type_code))
         self.assertTrue(v.value == '\x0a', "binary type: %s" % repr(v.value))
         v = core.ParseURILiteral("X'0a'")
         self.assertTrue(v.value == "\x0a", "binary type: %s" % repr(v.value))
@@ -297,11 +297,11 @@ class ODataURILiteralTests(unittest.TestCase):
             pass
         v = core.ParseURILiteral("binary'0A'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Binary, "binary type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Binary, "binary type: %s" % repr(v.type_code))
         self.assertTrue(v.value == '\x0a', "binary type: %s" % repr(v.value))
         v = core.ParseURILiteral("BINARY'0A'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Binary, "binary type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Binary, "binary type: %s" % repr(v.type_code))
         self.assertTrue(v.value == '\x0a', "binary type: %s" % repr(v.value))
         # gotta love those recursive rules
         v = core.ParseURILiteral("X'deadBEEF'")
@@ -322,11 +322,11 @@ class ODataURILiteralTests(unittest.TestCase):
         integer types."""
         v = core.ParseURILiteral("true")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Boolean, "boolean type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Boolean, "boolean type: %s" % repr(v.type_code))
         self.assertTrue(v.value is True, "boolean value: %s" % repr(v.value))
         v = core.ParseURILiteral("false")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Boolean, "boolean type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Boolean, "boolean type: %s" % repr(v.type_code))
         self.assertTrue(v.value is False, "boolean value: %s" % repr(v.value))
 
     def testCaseIntLiteral(self):
@@ -337,24 +337,24 @@ class ODataURILiteralTests(unittest.TestCase):
         All returned as an int32 with python int value."""
         v = core.ParseURILiteral("0")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Int32, "0 type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Int32, "0 type: %s" % repr(v.type_code))
         self.assertTrue(v.value == 0, "0 value: %s" % repr(v.value))
         v = core.ParseURILiteral("1")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Int32, "1 type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Int32, "1 type: %s" % repr(v.type_code))
         self.assertTrue(v.value == 1, "1 value: %s" % repr(v.value))
         v = core.ParseURILiteral("2147483647")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Int32, "2147483647 type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Int32, "2147483647 type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == 2147483647, "2147483647 value: %s" % repr(v.value))
         v = core.ParseURILiteral("0000000000")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Int32, "0000000000 type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Int32, "0000000000 type: %s" % repr(v.type_code))
         self.assertTrue(v.value == 0, "0000000000 value: %s" % repr(v.value))
         v = core.ParseURILiteral("-2147483648")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Int32, "-2147483648 type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Int32, "-2147483648 type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == -2147483648, "-2147483648 value: %s" % repr(v.value))
         for bad in ["00000000000", "2147483648", "-2147483649", "+1"]:
@@ -384,30 +384,30 @@ class ODataURILiteralTests(unittest.TestCase):
         """
         v = core.ParseURILiteral("datetime'2012-06-30T23:59'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.DateTime, "date time type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.DateTime, "date time type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, iso.TimePoint), "value type: %s" % repr(v.value))
         self.assertTrue(
             str(v.value) == "2012-06-30T23:59:00", "value: %s" % str(v.value))
         v = core.ParseURILiteral("datetime'2012-06-30T23:59:59'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.DateTime, "date time type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.DateTime, "date time type: %s" % repr(v.type_code))
         self.assertTrue(
             str(v.value) == "2012-06-30T23:59:59", "value: %s" % str(v.value))
         v = core.ParseURILiteral("datetime'2012-06-30T23:59:59.9999999'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.DateTime, "date time type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.DateTime, "date time type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value.get_calendar_string(ndp=7, dp=".") == "2012-06-30T23:59:59.9999999")
         # Now for the big one!
         v = core.ParseURILiteral("datetime'2012-06-30T23:59:60'")
-        self.assertTrue(v.typeCode == edm.SimpleType.DateTime,
-                        "date time type for leap second: %s" % repr(v.typeCode))
+        self.assertTrue(v.type_code == edm.SimpleType.DateTime,
+                        "date time type for leap second: %s" % repr(v.type_code))
         self.assertTrue(str(v.value) == "2012-06-30T23:59:60",
                         "value for leap second: %s" % str(v.value))
         v = core.ParseURILiteral("datetime'2012-06-30T24:00:00'")
-        self.assertTrue(v.typeCode == edm.SimpleType.DateTime,
-                        "date time extreme: %s" % repr(v.typeCode))
+        self.assertTrue(v.type_code == edm.SimpleType.DateTime,
+                        "date time extreme: %s" % repr(v.type_code))
         self.assertTrue(
             str(v.value) == "2012-06-30T24:00:00", "date time extreme: %s" % str(v.value))
         # and now the crappy ones
@@ -418,7 +418,7 @@ class ODataURILiteralTests(unittest.TestCase):
         ]:
             v = core.ParseURILiteral(crappy)
             self.assertTrue(
-                v.typeCode == edm.SimpleType.DateTime, "date time type: %s" % repr(v.typeCode))
+                v.type_code == edm.SimpleType.DateTime, "date time type: %s" % repr(v.type_code))
         for bad in [
                 "datetime'2012-02-30T23:59:59'",
                 "datetime'12012-06-30T23:59:59'",
@@ -437,7 +437,7 @@ class ODataURILiteralTests(unittest.TestCase):
             try:
                 v = core.ParseURILiteral(bad)
                 self.fail("Bad parse: %s resulted in %s (%s)" % (
-                    bad, repr(v.value), edm.SimpleType.to_str(v.typeCode)))
+                    bad, repr(v.value), edm.SimpleType.to_str(v.type_code)))
             except ValueError:
                 pass
 
@@ -449,19 +449,19 @@ class ODataURILiteralTests(unittest.TestCase):
         All returned as a python Decimal instance."""
         v = core.ParseURILiteral("0M")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Decimal, "0M type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Decimal, "0M type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, decimal.Decimal), "0M value type: %s" % repr(v.value))
         self.assertTrue(v.value == 0, "0M value: %s" % repr(v.value))
         v = core.ParseURILiteral("1.1m")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Decimal, "1.1m type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Decimal, "1.1m type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, decimal.Decimal), "1.1m value type: %s" % repr(v.value))
         self.assertTrue(v.value * 10 == 11, "1.1m value: %s" % repr(v.value))
         v = core.ParseURILiteral("12345678901234567890123456789m")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Decimal, "29-digit type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Decimal, "29-digit type: %s" % repr(v.type_code))
         self.assertTrue(
             int(v.value.log10()) == 28, "29-digit log10 value: %s" % repr(v.value))
         v2 = core.ParseURILiteral(
@@ -470,8 +470,8 @@ class ODataURILiteralTests(unittest.TestCase):
                         v2.value - v.value > decimal.Decimal('0.12'),
                         "29digit.29digit value: %s" % repr(v2.value - v.value))
         v = core.ParseURILiteral("-2147483648M")
-        self.assertTrue(v.typeCode == edm.SimpleType.Decimal,
-                        "-2147483648 type: %s" % repr(v.typeCode))
+        self.assertTrue(v.type_code == edm.SimpleType.Decimal,
+                        "-2147483648 type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == -2147483648, "-2147483648 value: %s" % repr(v.value))
         for bad in ["123456789012345678901234567890m", "1.m", "1.123456789012345678901234567890m", "+1M"]:
@@ -493,30 +493,30 @@ class ODataURILiteralTests(unittest.TestCase):
         Also, the production allows .D and -.D as, presumably, valid forms of 0"""
         v = core.ParseURILiteral("0D")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Double, "0D type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Double, "0D type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) is FloatType, "0D value type: %s" % repr(v.value))
         self.assertTrue(v.value == 0, "0D value: %s" % repr(v.value))
         v = core.ParseURILiteral("1.1d")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Double, "1.1d type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Double, "1.1d type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) is FloatType, "1.1d value type: %s" % repr(v.value))
         self.assertTrue(v.value * 10 == 11, "1.1d value: %s" % repr(v.value))
         v = core.ParseURILiteral("12345678901234567D")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Double, "17-digit type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Double, "17-digit type: %s" % repr(v.type_code))
         self.assertTrue(round(math.log10(v.value), 3) ==
                         16.092, "29-digit log10 value: %s" % repr(v.value))
         v = core.ParseURILiteral("-12345678901234567D")
-        self.assertTrue(v.typeCode == edm.SimpleType.Double,
-                        "17-digit negative type: %s" % repr(v.typeCode))
+        self.assertTrue(v.type_code == edm.SimpleType.Double,
+                        "17-digit negative type: %s" % repr(v.type_code))
         self.assertTrue(round(math.log10(-v.value), 3) ==
                         16.092, "29-digit log10 value: %s" % repr(v.value))
         v = core.ParseURILiteral(
             "123456789012345678901234567890.123456789012345678901234567890D")
-        self.assertTrue(v.typeCode == edm.SimpleType.Double,
-                        "30digit.30digit type: %s" % repr(v.typeCode))
+        self.assertTrue(v.type_code == edm.SimpleType.Double,
+                        "30digit.30digit type: %s" % repr(v.type_code))
         self.assertTrue(round(math.log10(v.value), 3) ==
                         29.092, "30digit.30digit value: %s" % repr(v.value))
         v = core.ParseURILiteral(
@@ -567,29 +567,29 @@ class ODataURILiteralTests(unittest.TestCase):
         The production allows .F and -.f as, presumably, valid forms of 0"""
         v = core.ParseURILiteral("0F")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Single, "0f type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Single, "0f type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) is FloatType, "0f value type: %s" % repr(v.value))
         self.assertTrue(v.value == 0, "0f value: %s" % repr(v.value))
         v = core.ParseURILiteral("1.1f")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Single, "1.1f type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Single, "1.1f type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) is FloatType, "1.1f value type: %s" % repr(v.value))
         self.assertTrue(v.value * 10 == 11, "1.1f value: %s" % repr(v.value))
         v = core.ParseURILiteral("12345678F")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Single, "8-digit type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Single, "8-digit type: %s" % repr(v.type_code))
         self.assertTrue(v.value == 12345678, "8-digit: %s" % repr(v.value))
         v = core.ParseURILiteral("-12345678F")
-        self.assertTrue(v.typeCode == edm.SimpleType.Single,
-                        "8-digit negative type: %s" % repr(v.typeCode))
+        self.assertTrue(v.type_code == edm.SimpleType.Single,
+                        "8-digit negative type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == -12345678, "8-digit neg value: %s" % repr(v.value))
         v = core.ParseURILiteral(
             "123456789012345678901234567890.123456789012345678901234567890f")
-        self.assertTrue(v.typeCode == edm.SimpleType.Single,
-                        "30digit.30digit type: %s" % repr(v.typeCode))
+        self.assertTrue(v.type_code == edm.SimpleType.Single,
+                        "30digit.30digit type: %s" % repr(v.type_code))
         self.assertTrue(round(math.log10(v.value), 3) ==
                         29.092, "30digit.30digit value: %s" % repr(v.value))
         v = core.ParseURILiteral(
@@ -646,14 +646,14 @@ class ODataURILiteralTests(unittest.TestCase):
                 8 hex digits as the author clearly intended."""
         v = core.ParseURILiteral("guid'C0DEC0DE-C0DE-C0DE-C0DEC0DEC0DE'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Guid, "guide type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Guid, "guide type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, uuid.UUID), "guide type: %s" % repr(v.value))
         self.assertTrue(v.value.hex.lower(
         ) == 'c0dec0dec0dec0deffffc0dec0dec0de', "guid value (missing bytes): %s" % repr(v.value))
         v = core.ParseURILiteral("guid'cd04f705-390c-4736-98dc-a3baa6b3a283'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Guid, "guide type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Guid, "guide type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, uuid.UUID), "guide type: %s" % repr(v.value))
         self.assertTrue(v.value.hex.lower(
@@ -685,18 +685,18 @@ class ODataURILiteralTests(unittest.TestCase):
                 Return as a python long integer"""
         v = core.ParseURILiteral("0L")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Int64, "0L type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Int64, "0L type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) == LongType, "0L value type: %s" % repr(v.value))
         self.assertTrue(v.value == 0, "0L value: %s" % repr(v.value))
         v = core.ParseURILiteral("1234567890123456789l")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Int64, "19-digit type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Int64, "19-digit type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == 1234567890123456789L, "19-digit value: %s" % repr(v.value))
         v = core.ParseURILiteral("-1234567890123456789l")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.Int64, "19-digit neg type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.Int64, "19-digit neg type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == -1234567890123456789L, "19-digit neg value: %s" % repr(v.value))
         for bad in ["12345678901234567890L", "01234567890123456789l",
@@ -712,8 +712,8 @@ class ODataURILiteralTests(unittest.TestCase):
                 characters = UTF8-char """
         v = core.ParseURILiteral("'0A'")
         self.assertTrue(
-            v.typeCode == edm.SimpleType.String,
-            "string type: %s" % repr(v.typeCode))
+            v.type_code == edm.SimpleType.String,
+            "string type: %s" % repr(v.type_code))
         self.assertTrue(v.value == '0A', "string type: %s" % repr(v.value))
         v = core.ParseURILiteral("'0a'")
         self.assertTrue(v.value == "0a", "string type: %s" % repr(v.value))
@@ -755,11 +755,11 @@ class ODataURILiteralTests(unittest.TestCase):
 #
 # 		We test by using the examples from XMLSchema"""
 # 		v=core.ParseURILiteral("time'P1Y2M3DT10H30M'")
-# 		self.assertTrue(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
+# 		self.assertTrue(v.type_code==edm.SimpleType.Time,"date time type: %s"%repr(v.type_code))
 # 		self.assertTrue(isinstance(v.value,xsi.Duration),"value type: %s"%repr(v.value))
 # 		self.assertTrue(str(v.value)=="P1Y2M3DT10H30M","value: %s"%str(v.value))
 # 		v=core.ParseURILiteral("time'-P120D'")
-# 		self.assertTrue(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
+# 		self.assertTrue(v.type_code==edm.SimpleType.Time,"date time type: %s"%repr(v.type_code))
 # There is no canonical representation so this is a weak test
 # 		self.assertTrue(str(v.value)=="-P0Y0M120D","value: %s"%str(v.value))
 # 		for good in [
@@ -770,7 +770,7 @@ class ODataURILiteralTests(unittest.TestCase):
 # 			"time'P0Y1347M0D'",
 # 			"time'-P1347M'"]:
 # 			v=core.ParseURILiteral(good)
-# 			self.assertTrue(v.typeCode==edm.SimpleType.Time,"date time type: %s"%repr(v.typeCode))
+# 			self.assertTrue(v.type_code==edm.SimpleType.Time,"date time type: %s"%repr(v.type_code))
 # 			self.assertTrue(isinstance(v.value,xsi.Duration),"value type: %s"%repr(v.value))
 # 		for bad in [
 # 			"time'P-1347M'",
@@ -781,7 +781,7 @@ class ODataURILiteralTests(unittest.TestCase):
 # 			]:
 # 			try:
 # 				v=core.ParseURILiteral(bad)
-# 				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.value),edm.SimpleType.to_str(v.typeCode)))
+# 				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.value),edm.SimpleType.to_str(v.type_code)))
 # 			except ValueError:
 # 				pass
 
@@ -792,8 +792,8 @@ class ODataURILiteralTests(unittest.TestCase):
 
         We test by using the examples from XMLSchema"""
         v = core.ParseURILiteral("datetimeoffset'2002-10-10T12:00:00-05:00'")
-        self.assertTrue(v.typeCode == edm.SimpleType.DateTimeOffset,
-                        "date time offset type: %s" % repr(v.typeCode))
+        self.assertTrue(v.type_code == edm.SimpleType.DateTimeOffset,
+                        "date time offset type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, iso.TimePoint), "value type: %s" % repr(v.value))
         self.assertTrue(
@@ -807,8 +807,8 @@ class ODataURILiteralTests(unittest.TestCase):
                 "datetimeoffset'2002-10-09T19:00:00Z'"
         ]:
             v = core.ParseURILiteral(good)
-            self.assertTrue(v.typeCode == edm.SimpleType.DateTimeOffset,
-                            "date time offset type: %s" % repr(v.typeCode))
+            self.assertTrue(v.type_code == edm.SimpleType.DateTimeOffset,
+                            "date time offset type: %s" % repr(v.type_code))
             self.assertTrue(
                 isinstance(v.value, iso.TimePoint), "value type: %s" % repr(v.value))
         for bad in [
@@ -819,7 +819,7 @@ class ODataURILiteralTests(unittest.TestCase):
             try:
                 v = core.ParseURILiteral(bad)
                 self.fail("Bad parse: %s resulted in %s (%s)" % (
-                    bad, str(v.value), edm.SimpleType.to_str(v.typeCode)))
+                    bad, str(v.value), edm.SimpleType.to_str(v.type_code)))
             except ValueError:
                 pass
 
@@ -1033,7 +1033,7 @@ class ServerTests(unittest.TestCase):
             isinstance(children[0], core.Properties), "child is properties element")
         children = list(entry.find_children_depth_first(atom.Link))
         links = {}
-        navigation = list(customer.NavigationKeys())
+        navigation = list(customer.navigation_keys())
         for child in children:
             #	Each <atom:link> element MUST contain an atom:rel attribute
             #	with the value defined by the relNavigationlLinkURI rule
@@ -1063,14 +1063,14 @@ class ServerTests(unittest.TestCase):
             links['Orders'][1] == "application/atom+xml;type=feed", "Orders link type")
         #	Entity binding tests...
         customer.exists = False
-        customer['Orders'].BindEntity(1)
-        customer['Orders'].BindEntity(2)
+        customer['Orders'].bind_entity(1)
+        customer['Orders'].bind_entity(2)
         #	it isn't clear if the spec intends to support mixed cases
         #	of deep insert and binding to existing entities on the same
         #	request, but in theory there is no reason why we shouldn't
         order = core.Entity(ds['SampleModel.SampleEntities.Orders'])
         order['OrderID'].set_from_value(3)
-        customer['Orders'].BindEntity(order)
+        customer['Orders'].bind_entity(order)
         #	To bind the new entity to an existing entity the "href"
         #	attribute of the <atom:link> element must represent the URI
         #	of the entity to be linked to.
@@ -1114,7 +1114,7 @@ class ServerTests(unittest.TestCase):
         entry = core.Entry(None, order)
         children = list(entry.find_children_depth_first(atom.Link))
         links = {}
-        navigation = list(order.NavigationKeys())
+        navigation = list(order.navigation_keys())
         for child in children:
             if child.rel.startswith(core.ODATA_RELATED):
                 pName = child.rel[len(core.ODATA_RELATED):]
@@ -1178,7 +1178,7 @@ class ServerTests(unittest.TestCase):
         #		identified by the $select query option SHOULD be
         #		represented as child elements of the <m:properties>
         #		element.
-        employee.Expand({}, {'Address': None})
+        employee.expand({}, {'Address': None})
         entry = core.Entry(None, employee)
         properties = list(list(entry.Content.get_children())[0].get_children())
         self.assertTrue(len(properties) == 1, "A single property selected")
@@ -1316,8 +1316,8 @@ class ServerTests(unittest.TestCase):
         self.assertFalse("media_etag" in meta)
         # Fake lack of existence
         customer.exists = False
-        customer['Orders'].BindEntity(1)
-        customer['Orders'].BindEntity(2)
+        customer['Orders'].bind_entity(1)
+        customer['Orders'].bind_entity(2)
         jsonData = string.join(customer.generate_entity_type_in_json())
         obj = json.loads(jsonData)
         self.assertTrue(type(obj['Orders']) == ListType, "JSON array")
@@ -1329,7 +1329,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue("Orders(1)" in links, "Orders(1)")
         self.assertTrue("Orders(2)" in links, "Orders(2)")
         customer.exists = True
-        customer.Expand({}, {'CustomerID': None, 'CompanyName': None})
+        customer.expand({}, {'CustomerID': None, 'CompanyName': None})
         #	[if using the] Select System Query Option then only the
         #	properties identified by the $select query option MUST be
         #	represented by name/value pairs
@@ -1351,7 +1351,7 @@ class ServerTests(unittest.TestCase):
         h.update(docText)
         etag = "W/\"X'%s'\"" % h.hexdigest().upper()
         documents.data[1801] = (1801, 'War and Peace', 'Tolstoy', h.digest())
-        with documentSet.OpenCollection() as coll:
+        with documentSet.open() as coll:
             sinfo = core.StreamInfo(type = params.PLAIN_TEXT)
             coll.update_stream(StringIO(docText), 1801, sinfo)
             document = coll[1801]
@@ -1415,7 +1415,7 @@ class ServerTests(unittest.TestCase):
         h = hashlib.sha256()
         h.update(docText)
         documents.data[1801] = (1801, 'War and Peace', 'Tolstoy', h.digest())
-        with documentSet.OpenCollection() as coll:
+        with documentSet.open() as coll:
             sinfo = core.StreamInfo(type = params.PLAIN_TEXT)
             coll.update_stream(StringIO(docText), 1801, sinfo)
             document = coll[1801]
@@ -1446,7 +1446,7 @@ class ServerTests(unittest.TestCase):
         for i in xrange(3):
             customers.data['XX=%02X' % i] = (
                 'XX=%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
-        feed = core.Feed(None, customersSet.OpenCollection())
+        feed = core.Feed(None, customersSet.open())
         # The <atom:id> element MUST contain the URI that identifies the
         # EntitySet
         self.assertTrue(feed.AtomId.get_value() == "Customers")
@@ -1474,9 +1474,9 @@ class ServerTests(unittest.TestCase):
             if isinstance(child, atom.Entry):
                 nEntries += 1
         self.assertTrue(nEntries == 4, "4 entries generated by the feed")
-        page = customersSet.OpenCollection()
-        page.TopMax(2)
-        page.SetInlineCount(True)
+        page = customersSet.open()
+        page.set_topmax(2)
+        page.set_inlinecount(True)
         feed = core.Feed(None, page)
         nEntries = 0
         #	[with inlinecount the response] MUST include the count of
@@ -1509,8 +1509,8 @@ class ServerTests(unittest.TestCase):
                 # Such a URI SHOULD include a Skip Token System Query Option
                 self.assertTrue("$skiptoken" in child.href, "skiptoken")
         self.assertTrue("next" in links, "Missing next link")
-        customer = customersSet.OpenCollection()['ALFKI']
-        feed = core.Feed(None, customer['Orders'].OpenCollection())
+        customer = customersSet.open()['ALFKI']
+        feed = core.Feed(None, customer['Orders'].open())
         #	If the URI in the sibling <atom:id> element is of the same
         #	form as URI 6 and the NavigationProperty identifies an
         #	EntitySet, then the <atom:title> element can contain the
@@ -1533,7 +1533,7 @@ class ServerTests(unittest.TestCase):
         for i in xrange(3):
             customers.data['XX=%02X' % i] = (
                 'XX=%02X' % i, 'Example-%i Ltd' % i, (None, None), None)
-        collection = customersSet.OpenCollection()
+        collection = customersSet.open()
         jsonData = string.join(collection.generate_entity_set_in_json(), '')
         #	Version 2 object by default
         obj = json.loads(jsonData)
@@ -1550,8 +1550,8 @@ class ServerTests(unittest.TestCase):
         obj = json.loads(v1JSONData)
         self.assertTrue(type(obj) == ListType, "Version 1 type is an array")
         self.assertTrue(len(obj) == 4, "Four entities")
-        collection.TopMax(2)
-        collection.SetInlineCount(True)
+        collection.set_topmax(2)
+        collection.set_inlinecount(True)
         #	if the server does not include an entityTypeInJson ... for
         #	every entity in the collection ... a nextLinkNVP name value
         #	pair MUST be included
@@ -1578,7 +1578,7 @@ class ServerTests(unittest.TestCase):
             "results"), "first __count before results")
         #	An empty EntitySet or collection of entities MUST be
         #	represented as an empty JSON array.
-        emptyCollection = collection['ALFKI']["Orders"].OpenCollection()
+        emptyCollection = collection['ALFKI']["Orders"].open()
         jsonData = string.join(emptyCollection.generate_entity_set_in_json(), '')
         obj = json.loads(jsonData)
         self.assertTrue(
@@ -1599,7 +1599,7 @@ class CustomersByCityEntityCollection(core.FunctionEntityCollection):
     def __init__(self, function, params, customers):
         core.FunctionEntityCollection.__init__(self, function, params)
         self.customers = customers
-        self.collection = self.entity_set.OpenCollection()
+        self.collection = self.entity_set.open()
         self.city = params.get('city').value
 
     def itervalues(self):
@@ -1615,7 +1615,7 @@ class ShippedAddressByDateCollection(core.FunctionCollection):
         self.date = params.get('date').value
         if self.date is None:
             self.date = iso8601.TimePoint.from_now()
-        self.collection = customersEntitySet.OpenCollection()
+        self.collection = customersEntitySet.open()
 
     def __iter__(self):
         for customer in self.collection.itervalues():
@@ -1629,7 +1629,7 @@ class ShippedCustomerNamesByDateCollection(core.FunctionCollection):
         self.date = params.get('date').value
         if self.date is None:
             self.date = iso8601.TimePoint.from_now()
-        self.collection = customersEntitySet.OpenCollection()
+        self.collection = customersEntitySet.open()
 
     def __iter__(self):
         for customer in self.collection.itervalues():
@@ -1695,17 +1695,17 @@ class SampleServerTests(unittest.TestCase):
         orderLines = self.container.entityStorage['OrderLines']
         orderLines.data[100] = (100, 12, decimal.Decimal('0.45'))
         orderLines.data[200] = (200, 144, decimal.Decimal('2.50'))
-        with orders.entity_set.OpenCollection() as collOrders:
+        with orders.entity_set.open() as collOrders:
             order = collOrders[1]
-            order['Customer'].BindEntity('ALFKI')
-            order['OrderLine'].BindEntity(100)
+            order['Customer'].bind_entity('ALFKI')
+            order['OrderLine'].bind_entity(100)
             collOrders.update_entity(order)
             order = collOrders[2]
-            order['Customer'].BindEntity('ALFKI')
-            order['OrderLine'].BindEntity(200)
+            order['Customer'].bind_entity('ALFKI')
+            order['OrderLine'].bind_entity(200)
             collOrders.update_entity(order)
             order = collOrders[3]
-            order['Customer'].BindEntity('XX=00')
+            order['Customer'].bind_entity('XX=00')
             collOrders.update_entity(order)
         documents = self.container.entityStorage['Documents']
         documents.data[300] = (300, 'The Book', 'The Author', None)
@@ -1742,15 +1742,15 @@ class SampleServerTests(unittest.TestCase):
         lastCustomerNameByLine.bind(self.LastCustomerNameByLine)
 
     def LastCustomerByLine(self, function, params):
-        with self.ds['SampleModel.SampleEntities.Customers'].OpenCollection() as customers:
+        with self.ds['SampleModel.SampleEntities.Customers'].open() as customers:
             return customers['ALFKI']
 
     def LastShippedByLine(self, function, params):
-        with self.ds['SampleModel.SampleEntities.Customers'].OpenCollection() as customers:
+        with self.ds['SampleModel.SampleEntities.Customers'].open() as customers:
             return customers['ALFKI']['Address']
 
     def LastCustomerNameByLine(self, function, params):
-        with self.ds['SampleModel.SampleEntities.Customers'].OpenCollection() as customers:
+        with self.ds['SampleModel.SampleEntities.Customers'].open() as customers:
             return customers['ALFKI']['CompanyName']
 
     def tearDown(self):
@@ -1778,11 +1778,11 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             len(newCustomer['Orders'].bindings) == 0, "new customer not bound")
         customer.exists = False
-        customer['Orders'].BindEntity(1)
-        customer['Orders'].BindEntity(2)
+        customer['Orders'].bind_entity(1)
+        customer['Orders'].bind_entity(2)
         order = core.Entity(self.ds['SampleModel.SampleEntities.Orders'])
         order['OrderID'].set_from_value(3)
-        customer['Orders'].BindEntity(order)
+        customer['Orders'].bind_entity(order)
         entry = core.Entry(None, customer)
         newCustomer = core.Entity(customers)
         newCustomer.exists = False
@@ -1862,17 +1862,17 @@ class SampleServerTests(unittest.TestCase):
         ...a data service MUST return null if any of the
         NavigationProperties are null."""
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        order = orders.OpenCollection()[1]
+        order = orders.open()[1]
         # Simple Property
         p = core.Parser("OrderID")
         e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == 1, "Expected 1")
         customers = self.ds['SampleModel.SampleEntities.Customers']
         # customers.data['ALFKI']=('ALFKI','Example Inc',("Mill Road","Chunton"),None)
-        customer = customers.OpenCollection()['ALFKI']
+        customer = customers.open()['ALFKI']
         # Complex Property
         p = core.Parser("Address")
         e = p.parse_common_expression()
@@ -1881,12 +1881,12 @@ class SampleServerTests(unittest.TestCase):
             isinstance(value, edm.Complex), "Expected Complex value")
         self.assertTrue(value['City'].value == 'Chunton', "Expected Chunton")
         # Simple Property (NULL)
-        customer00 = customers.OpenCollection()['XX=00']
+        customer00 = customers.open()['XX=00']
         p = core.Parser("Version")
         e = p.parse_common_expression()
         value = e.Evaluate(customer00)
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Binary, "Expected Binary")
+            value.type_code == edm.SimpleType.Binary, "Expected Binary")
         self.assertTrue(value.value is None, "Expected NULL")
         # Navigation property
         p = core.Parser("Customer")
@@ -1896,7 +1896,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             value['CustomerID'].value == 'ALFKI', "Expected Customer('ALFKI')")
         # Navigation property with Null
-        value = e.Evaluate(orders.OpenCollection()[4])
+        value = e.Evaluate(orders.open()[4])
         self.assertTrue(isinstance(value, edm.SimpleValue),
                         "Expected SimpleValue (for NULL) found %s" % repr(value))
         self.assertFalse(value, "Expected NULL")
@@ -1925,21 +1925,21 @@ class SampleServerTests(unittest.TestCase):
         ...a data service MUST return null if any of the
         NavigationProperties are null."""
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        order = orders.OpenCollection()[1]
-        order3 = orders.OpenCollection()[3]
+        order = orders.open()[1]
+        order3 = orders.open()[3]
         # Known Entity: SimpleProperty
         p = core.Parser("Customer/CustomerID")
         e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected string")
+            value.type_code == edm.SimpleType.String, "Expected string")
         self.assertTrue(value.value == 'ALFKI', "Expected 'ALKFI'")
         # Known ComplexType: SimpleProperty
         p = core.Parser("Customer/Address/City")
         e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected string")
+            value.type_code == edm.SimpleType.String, "Expected string")
         self.assertTrue(value.value == 'Chunton', "Expected 'Chunton'")
         # TODO: a two step navigation, sample data doesn't have one yet
         #	navigation / navigation
@@ -1948,7 +1948,7 @@ class SampleServerTests(unittest.TestCase):
         e = p.parse_common_expression()
         value = e.Evaluate(order3)
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Binary, "Expected Binary")
+            value.type_code == edm.SimpleType.Binary, "Expected Binary")
         self.assertTrue(value.value is None, "Expected NULL")
         # Navigation property with multiple cardinality
         p = core.Parser("Customer/Orders")
@@ -1964,13 +1964,13 @@ class SampleServerTests(unittest.TestCase):
         the only way to get an expression to evaluate to an entity instance
         is through a navigation property."""
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        order = orders.OpenCollection()[1]
+        order = orders.open()[1]
         # Known Entity: SimpleProperty
         p = core.Parser("Customer eq Customer")
         e = p.parse_common_expression()
         value = e.Evaluate(order)
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected boolean")
         self.assertTrue(value.value == True, "Expected True")
         p = core.Parser("Customer eq OrderLine")
         e = p.parse_common_expression()
@@ -3363,12 +3363,12 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseInsertEntity(self):
         # remove a link before running this test
-        with self.ds['SampleModel.SampleEntities.Orders'].OpenCollection() as orders:
+        with self.ds['SampleModel.SampleEntities.Orders'].open() as orders:
             order = orders[3]
-            with order['Customer'].OpenCollection() as navCollection:
+            with order['Customer'].open() as navCollection:
                 del navCollection['XX=00']
         customers = self.ds[
-            'SampleModel.SampleEntities.Customers'].OpenCollection()
+            'SampleModel.SampleEntities.Customers'].open()
         customer = customers.new_entity()
         customer['CustomerID'].set_from_value(u'STEVE')
         customer['CompanyName'].set_from_value("Steve's Inc")
@@ -3405,8 +3405,8 @@ class SampleServerTests(unittest.TestCase):
         customer['CompanyName'].set_from_value("Contoso Widgets")
         customer['Address']['Street'].set_from_value('58 Contoso St')
         customer['Address']['City'].set_from_value('Seattle')
-        customer['Orders'].BindEntity(3)
-        customer['Orders'].BindEntity(4)
+        customer['Orders'].bind_entity(3)
+        customer['Orders'].bind_entity(4)
         request = MockRequest("/service.svc/Customers", "POST")
         doc = core.Document(root=core.Entry(None, customer))
         data = str(doc)
@@ -3444,12 +3444,12 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseInsertEntityJSON(self):
         # remove a link before running this test
-        with self.ds['SampleModel.SampleEntities.Orders'].OpenCollection() as orders:
+        with self.ds['SampleModel.SampleEntities.Orders'].open() as orders:
             order = orders[3]
-            with order['Customer'].OpenCollection() as navCollection:
+            with order['Customer'].open() as navCollection:
                 del navCollection['XX=00']
         customers = self.ds[
-            'SampleModel.SampleEntities.Customers'].OpenCollection()
+            'SampleModel.SampleEntities.Customers'].open()
         customer = customers.new_entity()
         customer['CustomerID'].set_from_value(u'STEVE')
         customer['CompanyName'].set_from_value("Steve's Inc")
@@ -3488,8 +3488,8 @@ class SampleServerTests(unittest.TestCase):
         customer['CompanyName'].set_from_value("Contoso Widgets")
         customer['Address']['Street'].set_from_value('58 Contoso St')
         customer['Address']['City'].set_from_value('Seattle')
-        customer['Orders'].BindEntity(3)
-        customer['Orders'].BindEntity(4)
+        customer['Orders'].bind_entity(3)
+        customer['Orders'].bind_entity(4)
         request = MockRequest("/service.svc/Customers", "POST")
         data = string.join(customer.generate_entity_type_in_json(False, 1))
         request.set_header('Content-Type', 'application/json')
@@ -3534,7 +3534,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/$links/Orders", "POST")
         doc = core.Document(root=core.URI)
-        orders = self.ds['SampleModel.SampleEntities.Orders'].OpenCollection()
+        orders = self.ds['SampleModel.SampleEntities.Orders'].open()
         order = orders[4]
         doc.root.set_value(str(order.get_location()))
         data = str(doc)
@@ -3562,7 +3562,7 @@ class SampleServerTests(unittest.TestCase):
     def testCaseInsertLinkJSON(self):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/$links/Orders", "POST")
-        orders = self.ds['SampleModel.SampleEntities.Orders'].OpenCollection()
+        orders = self.ds['SampleModel.SampleEntities.Orders'].open()
         order = orders[4]
         obj = {'uri': str(order.get_location())}
         data = json.dumps(obj)
@@ -4139,7 +4139,7 @@ class SampleServerTests(unittest.TestCase):
 
     def testCaseUpdateEntity(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
         customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest("/service.svc/Customers('ALFKI')", "PUT")
@@ -4158,16 +4158,16 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(customer['CompanyName'] == "Example Inc Updated")
         # Now do a case with an updated link
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[3]
-        oldCustomer = order['Customer'].GetEntity()
+        oldCustomer = order['Customer'].get_entity()
         self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
-        order['Customer'].BindEntity(customer)
+        order['Customer'].bind_entity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
         doc = core.Document(root=core.Entry)
         doc.root.set_value(order, True)
@@ -4185,14 +4185,14 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[3]
-        newCustomer = order['Customer'].GetEntity()
+        newCustomer = order['Customer'].get_entity()
         self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateEntityJSON(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
         customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest("/service.svc/Customers('ALFKI')", "PUT")
@@ -4210,16 +4210,16 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(customer['CompanyName'] == "Example Inc Updated")
         # Now do a case with an updated link
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[3]
-        oldCustomer = order['Customer'].GetEntity()
+        oldCustomer = order['Customer'].get_entity()
         self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
-        order['Customer'].BindEntity(customer)
+        order['Customer'].bind_entity(customer)
         request = MockRequest("/service.svc/Orders(3)", "PUT")
         jsonData = string.join(order.generate_entity_type_in_json(True))
         request.set_header('Accept', "application/json")
@@ -4236,14 +4236,14 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[3]
-        newCustomer = order['Customer'].GetEntity()
+        newCustomer = order['Customer'].get_entity()
         self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateComplexType(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
         customer['Address']['Street'].set_from_value("High Street")
         request = MockRequest("/service.svc/Customers('ALFKI')/Address", "PUT")
@@ -4263,14 +4263,14 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(
                 customer['Address']['Street'].value == "High Street")
 
     def testCaseUpdateComplexTypeJSON(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
         customer['Address']['Street'].set_from_value("High Street")
         request = MockRequest("/service.svc/Customers('ALFKI')/Address", "PUT")
@@ -4288,14 +4288,14 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(
                 customer['Address']['Street'].value == "High Street")
 
     def testCaseUpdatePrimitiveProperty(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
         customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest(
@@ -4316,14 +4316,14 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(
                 customer['CompanyName'].value == "Example Inc Updated")
 
     def testCaseUpdatePrimitivePropertyJSON(self):
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
         customer['CompanyName'].set_from_value("Example Inc Updated")
         request = MockRequest(
@@ -4342,7 +4342,7 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(
                 customer['CompanyName'].value == "Example Inc Updated")
@@ -4364,7 +4364,7 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(customer['CompanyName'].value == u"Caf\xe9 Inc")
         # Now use utf-8
@@ -4376,19 +4376,19 @@ class SampleServerTests(unittest.TestCase):
         request.rfile.write(data)
         request.send(self.svc)
         self.assertTrue(request.responseCode == 204)
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(
                 customer['CompanyName'].value == u"Caf\xe9 Incorporated")
 
     def testCaseUpdateLink(self):
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[3]
-        oldCustomer = order['Customer'].GetEntity()
+        oldCustomer = order['Customer'].get_entity()
         self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
         request = MockRequest("/service.svc/Orders(3)/$links/Customer", "PUT")
         doc = core.Document(root=core.URI)
@@ -4407,19 +4407,19 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[3]
-        newCustomer = order['Customer'].GetEntity()
+        newCustomer = order['Customer'].get_entity()
         self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateLinkJSON(self):
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[3]
-        oldCustomer = order['Customer'].GetEntity()
+        oldCustomer = order['Customer'].get_entity()
         self.assertTrue(oldCustomer.key() == 'XX=00', "Previous customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
         request = MockRequest("/service.svc/Orders(3)/$links/Customer", "PUT")
         data = str(customer.link_json())
@@ -4436,9 +4436,9 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the update really worked!
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[3]
-        newCustomer = order['Customer'].GetEntity()
+        newCustomer = order['Customer'].get_entity()
         self.assertTrue(newCustomer.key() == 'ALFKI', "Customer updated")
 
     def testCaseUpdateMediaResource(self):
@@ -4462,7 +4462,7 @@ class SampleServerTests(unittest.TestCase):
         self.assertTrue(
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         documents = self.ds['SampleModel.SampleEntities.Documents']
-        with documents.OpenCollection() as collection:
+        with documents.open() as collection:
             document = collection[301]
             # version should match the etag
             self.assertTrue(
@@ -4485,12 +4485,12 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the delete really worked!
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[1]
             self.assertTrue(
-                order['Customer'].GetEntity() is None, "order no longer linked to customer")
+                order['Customer'].get_entity() is None, "order no longer linked to customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             for customer in collection.itervalues():
                 self.assertFalse(
                     customer['CustomerID'].value == 'ALFKI', "Customer no longer exists")
@@ -4508,14 +4508,14 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the delete really worked!
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[1]
             self.assertTrue(
-                order['Customer'].GetEntity() is None, "order no longer linked to customer")
+                order['Customer'].get_entity() is None, "order no longer linked to customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
-            with customer['Orders'].OpenCollection() as orders:
+            with customer['Orders'].open() as orders:
                 self.assertTrue(len(orders) == 1)
                 for order in orders.itervalues():
                     self.assertFalse(
@@ -4534,14 +4534,14 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the delete really worked!
         orders = self.ds['SampleModel.SampleEntities.Orders']
-        with orders.OpenCollection() as collection:
+        with orders.open() as collection:
             order = collection[1]
             self.assertTrue(
-                order['Customer'].GetEntity() is None, "order no longer linked to customer")
+                order['Customer'].get_entity() is None, "order no longer linked to customer")
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
-            with customer['Orders'].OpenCollection() as orders:
+            with customer['Orders'].open() as orders:
                 self.assertTrue(len(orders) == 1)
                 for order in orders.itervalues():
                     self.assertFalse(
@@ -4558,7 +4558,7 @@ class SampleServerTests(unittest.TestCase):
             len(request.wfile.getvalue()) == 0, "Update must return 0 bytes")
         # now go behind the scenes to check the delete really worked!
         customers = self.ds['SampleModel.SampleEntities.Customers']
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertFalse(customer['Address']['Street'])
         # now try and delete a non-nullable value
@@ -4566,7 +4566,7 @@ class SampleServerTests(unittest.TestCase):
             "/service.svc/Customers('ALFKI')/CompanyName", "DELETE")
         request.send(self.svc)
         self.assertTrue(request.responseCode == 400)
-        with customers.OpenCollection() as collection:
+        with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(customer['CompanyName'].value == u"Example Inc")
 

@@ -177,9 +177,9 @@ def es_table(es, index_items):
         index_items.append((np.name, link, "navigation property of %s" %
                             es.name))
         tr.append("<td><em>%s</em></td>" %
-                  xml.escape_char_data7(es.NavigationTarget(np.name).name))
+                  xml.escape_char_data7(es.get_target(np.name).name))
         tr.append("<td>%s</td>" %
-                  edm.EncodeMultiplicity(np.to_end.multiplicity))
+                  edm.multiplicity_to_str(np.to_end.multiplicity))
         summary = description = ""
         if np.Documentation is not None:
             if np.Documentation.Summary:

@@ -1339,7 +1339,7 @@ class WSGIDataAppTests(unittest.TestCase):
         # should not have created the database...
         self.assertFalse(os.path.exists(self.db_path))
         # or the tables!
-        with CreateApp.container['Dummies'].OpenCollection() as collection:
+        with CreateApp.container['Dummies'].open() as collection:
             try:
                 # table should not exist, this should fail
                 len(collection)
@@ -1360,7 +1360,7 @@ class WSGIDataAppTests(unittest.TestCase):
         # should have created the database...
         self.assertTrue(os.path.exists(self.db_path))
         # and the tables!
-        with CreateApp.container['Dummies'].OpenCollection() as collection:
+        with CreateApp.container['Dummies'].open() as collection:
             try:
                 # table should now exit
                 len(collection)
@@ -1382,7 +1382,7 @@ class WSGIDataAppTests(unittest.TestCase):
         # should not have created the database no disck...
         self.assertFalse(os.path.exists(self.db_path))
         # but the tables should exist in memory!
-        with CreateApp.container['Dummies'].OpenCollection() as collection:
+        with CreateApp.container['Dummies'].open() as collection:
             try:
                 len(collection)
             except sql.SQLError:
@@ -1427,14 +1427,14 @@ class AppCipherTests(unittest.TestCase):
     def test_constructor(self):
         ac = wsgi.AppCipher(0, 'password', self.key_set)
         # we don't create an records initially
-        with self.key_set.OpenCollection() as collection:
+        with self.key_set.open() as collection:
             self.assertTrue(len(collection) == 0)
         data0 = ac.encrypt("Hello")
         self.assertFalse(data0 == "Hello")
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(1, "pa$$word",
                       iso.TimePoint.from_unix_time(time.time() - 1))
-        with self.key_set.OpenCollection() as collection:
+        with self.key_set.open() as collection:
             self.assertTrue(len(collection) == 1)
         data1 = ac.encrypt("Hello")
         self.assertFalse(data0 == data1)
@@ -1442,12 +1442,12 @@ class AppCipherTests(unittest.TestCase):
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(2, "unguessable",
                       iso.TimePoint.from_unix_time(time.time() - 1))
-        with self.key_set.OpenCollection() as collection:
+        with self.key_set.open() as collection:
             self.assertTrue(len(collection) == 2)
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(10, "anotherkey",
                       iso.TimePoint.from_unix_time(time.time() - 1))
-        with self.key_set.OpenCollection() as collection:
+        with self.key_set.open() as collection:
             self.assertTrue(len(collection) == 3)
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac2 = wsgi.AppCipher(10, "anotherkey", self.key_set)
@@ -1459,14 +1459,14 @@ class AppCipherTests(unittest.TestCase):
             return
         ac = wsgi.AESAppCipher(0, 'password', self.key_set)
         # we don't create an records initially
-        with self.key_set.OpenCollection() as collection:
+        with self.key_set.open() as collection:
             self.assertTrue(len(collection) == 0)
         data0 = ac.encrypt("Hello")
         self.assertFalse(data0 == "Hello")
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(1, "pa$$word",
                       iso.TimePoint.from_unix_time(time.time() - 1))
-        with self.key_set.OpenCollection() as collection:
+        with self.key_set.open() as collection:
             self.assertTrue(len(collection) == 1)
         data1 = ac.encrypt("Hello")
         self.assertFalse(data0 == data1)
@@ -1474,12 +1474,12 @@ class AppCipherTests(unittest.TestCase):
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(2, "unguessable",
                       iso.TimePoint.from_unix_time(time.time() - 1))
-        with self.key_set.OpenCollection() as collection:
+        with self.key_set.open() as collection:
             self.assertTrue(len(collection) == 2)
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac.change_key(10, "anotherkey",
                       iso.TimePoint.from_unix_time(time.time() - 1))
-        with self.key_set.OpenCollection() as collection:
+        with self.key_set.open() as collection:
             self.assertTrue(len(collection) == 3)
         self.assertTrue(ac.decrypt(data0) == "Hello")
         ac2 = wsgi.AESAppCipher(10, "anotherkey", self.key_set)
@@ -1499,7 +1499,7 @@ class SessionTests(unittest.TestCase):
         self.app = TestSessionApp()
 
     def test_sid(self):
-        with self.app.container['Sessions'].OpenCollection() as collection:
+        with self.app.container['Sessions'].open() as collection:
             entity = collection.new_entity()
             entity['UserKey'].set_from_value('Hello')
             s = wsgi.Session(entity)
@@ -1511,7 +1511,7 @@ class SessionTests(unittest.TestCase):
         req = MockRequest()
         context = wsgi.WSGIContext(req.environ, req.start_response)
         # default context has no UserAgent
-        with self.app.container['Sessions'].OpenCollection() as collection:
+        with self.app.container['Sessions'].open() as collection:
             entity = collection.new_entity()
             # no UserAgent in environ should match default (NULL)
             s = wsgi.Session(entity)
@@ -1525,7 +1525,7 @@ class SessionTests(unittest.TestCase):
             self.assertTrue(s.match_environ(context))
 
     def test_delete(self):
-        with self.app.container['Sessions'].OpenCollection() as collection:
+        with self.app.container['Sessions'].open() as collection:
             entity = collection.new_entity()
             entity.set_key(1)
             entity['Established'].set_from_value(False)

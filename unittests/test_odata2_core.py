@@ -57,7 +57,7 @@ class CommonExpressionTests(unittest.TestCase):
         # the EDM Primitive type Edm.Boolean
         value = self.evaluate_common("true and false")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected false")
 
     def test_evaluate_paren_expression(self):
@@ -87,7 +87,7 @@ class CommonExpressionTests(unittest.TestCase):
         Edm.Boolean"""
         value = self.evaluate_common("(false and (false or true))")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected false")
 
     def test_evaluate_add_expression(self):
@@ -111,19 +111,19 @@ class CommonExpressionTests(unittest.TestCase):
         following the rules defined in Lifted operators"""
         value = self.evaluate_common("2M add 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+            value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
         self.assertTrue(value.value == 4, "Expected 4")
         value = self.evaluate_common("2D add 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 4.0, "Expected 4")
         value = self.evaluate_common("2F add 2D")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 4.0, "Expected 4")
         value = self.evaluate_common("2 add 2L")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == 4, "Expected 4")
         try:
             value = self.evaluate_common("2 add '2'")
@@ -132,26 +132,26 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("2 add null")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value is None, "Expected None")
 
     def test_evaluate_sub_expression(self):
         """See test_evaluate_add_expression"""
         value = self.evaluate_common("4M sub 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+            value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
         self.assertTrue(value.value == 2, "Expected 2.0")
         value = self.evaluate_common("4D sub 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 2.0, "Expected 2.0")
         value = self.evaluate_common("4F sub 2D")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 2.0, "Expected 2.0")
         value = self.evaluate_common("4 sub 2L")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == 2, "Expected 2L")
         try:
             value = self.evaluate_common("4 sub '2'")
@@ -160,26 +160,26 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("4 sub null")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value is None, "Expected None")
 
     def test_evaluate_mul_expression(self):
         """See test_evaluate_add_expression"""
         value = self.evaluate_common("4M mul 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+            value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
         self.assertTrue(value.value == 8, "Expected 8.0")
         value = self.evaluate_common("4D mul 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 8.0, "Expected 8.0")
         value = self.evaluate_common("4F mul 2D")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 8.0, "Expected 8.0")
         value = self.evaluate_common("4 mul 2L")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == 8, "Expected 8L")
         try:
             value = self.evaluate_common("4 mul '2'")
@@ -188,7 +188,7 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("4 mul null")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value is None, "Expected None")
 
     def test_evaluate_div_expression(self):
@@ -200,11 +200,11 @@ class CommonExpressionTests(unittest.TestCase):
         simple truncates fractional parts."""
         value = self.evaluate_common("4M div 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+            value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
         self.assertTrue(value.value == 2, "Expected 2")
         value = self.evaluate_common("4D div 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 2.0, "Expected 2.0")
         try:
             value = self.evaluate_common("4D div 0")
@@ -213,15 +213,15 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("4F div 2D")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 2.0, "Expected 2.0")
         value = self.evaluate_common("5 div 2L")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == 2, "Expected 2L")
         value = self.evaluate_common("-5 div 2L")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == -2, "Expected -2L")
         try:
             value = self.evaluate_common("4 div '2'")
@@ -230,7 +230,7 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("4 div null")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value is None, "Expected None")
 
     def test_evaluate_mod_expression(self):
@@ -242,12 +242,12 @@ class CommonExpressionTests(unittest.TestCase):
         For integer division we just truncate fractional parts towards zero."""
         value = self.evaluate_common("5.5M mod 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+            value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
         self.assertTrue(value.value == decimal.Decimal('1.5'),
                         "Expected 1.5; found %s" % repr(value.value))
         value = self.evaluate_common("5.5D mod 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 1.5, "Expected 1.5")
         try:
             value = self.evaluate_common("5.5D mod 0")
@@ -256,15 +256,15 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("5.5F mod 2D")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 1.5, "Expected 1.5")
         value = self.evaluate_common("5 mod 2L")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == 1, "Expected 1L")
         value = self.evaluate_common("-5 mod 2L")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == -1, "Expected -1L")
         try:
             value = self.evaluate_common("5 mod '2'")
@@ -273,7 +273,7 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("5 mod null")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value is None, "Expected None")
 
     def test_evaluate_negate_expression(self):
@@ -289,21 +289,21 @@ class CommonExpressionTests(unittest.TestCase):
         operand.  [comment applies to null processing too]"""
         value = self.evaluate_common("-(2M)")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+            value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
         self.assertTrue(value.value == -2, "Expected -2.0")
         value = self.evaluate_common("-(2D)")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == -2.0, "Expected -2.0")
         p = Parser("-(-2F)")  # unary numeric promotion to Double - a bit weird
         e = p.parse_common_expression()
         value = e.Evaluate(None)
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 2.0, "Expected 2.0")
         value = self.evaluate_common("-(2L)")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == -2, "Expected -2L")
         try:
             value = self.evaluate_common("-'2'")
@@ -312,7 +312,7 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("-null")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value is None, "Expected None")
 
     def test_evaluate_and_expression(self):
@@ -334,7 +334,7 @@ class CommonExpressionTests(unittest.TestCase):
         of null, a data service MUST return the value of false]"""
         value = self.evaluate_common("false and false")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
         try:
             value = self.evaluate_common("false and 0")
@@ -349,7 +349,7 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("true and null")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common("false and null")
         self.assertTrue(value.value is False, "Expected False")
@@ -365,7 +365,7 @@ class CommonExpressionTests(unittest.TestCase):
         expression MUST evaluate to the value of false"""
         value = self.evaluate_common("false or false")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
         try:
             value = self.evaluate_common("false or 0")
@@ -380,7 +380,7 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("true or null")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common("false or null")
         self.assertTrue(value.value is False, "Expected False")
@@ -426,11 +426,11 @@ class CommonExpressionTests(unittest.TestCase):
         values equal and a null value unequal to any non-null value."""
         value = self.evaluate_common("2M eq 3M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common("2D eq 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("2F eq 2D")
         self.assertTrue(value.value is True, "Expected True")
@@ -478,11 +478,11 @@ class CommonExpressionTests(unittest.TestCase):
         """See test_evaluate_eq_expression for details."""
         value = self.evaluate_common("2M ne 3M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("2D ne 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common("2F ne 2D")
         self.assertTrue(value.value is False, "Expected False")
@@ -551,11 +551,11 @@ class CommonExpressionTests(unittest.TestCase):
         value false if one or both of the operands is null."""
         value = self.evaluate_common("2M lt 3M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("2D lt 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common("2.1F lt 2D")
         self.assertTrue(value.value is False, "Expected False")
@@ -607,7 +607,7 @@ class CommonExpressionTests(unittest.TestCase):
         abbreviated tests"""
         value = self.evaluate_common("2D le 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common(
             "datetime'2013-08-30T18:49' le datetime'2013-08-30T18:49:00'")
@@ -626,7 +626,7 @@ class CommonExpressionTests(unittest.TestCase):
         abbreviated tests"""
         value = self.evaluate_common("2D gt 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common(
             "datetime'2013-08-30T18:49' gt datetime'2013-08-30T18:49:00'")
@@ -645,7 +645,7 @@ class CommonExpressionTests(unittest.TestCase):
         abbreviated tests"""
         value = self.evaluate_common("2D ge 2M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common(
             "datetime'2013-08-30T18:49' ge datetime'2013-08-30T18:49:00'")
@@ -676,7 +676,7 @@ class CommonExpressionTests(unittest.TestCase):
         null if the operand value is null."""
         value = self.evaluate_common("not false")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("not true")
         self.assertTrue(value.value is False, "Expected False")
@@ -719,7 +719,7 @@ class CommonExpressionTests(unittest.TestCase):
         may not be portable."""
         value = self.evaluate_common("isof(2D,'Edm.Double')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("isof(2M,'Edm.Double')")
         self.assertTrue(value.value is True, "Expected True")
@@ -756,15 +756,15 @@ class CommonExpressionTests(unittest.TestCase):
         not 100% clear what these are.]"""
         value = self.evaluate_common("cast(2D,'Edm.Double')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 2.0, "Expected 2.0")
         value = self.evaluate_common("cast(2L,'Edm.Single')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Single, "Expected Single")
+            value.type_code == edm.SimpleType.Single, "Expected Single")
         self.assertTrue(value.value == 2.0, "Expected 2.0")
         value = self.evaluate_common("cast(2,'Edm.Int64')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == 2, "Expected 2")
         try:
             value = self.evaluate_common("cast(2.0D,'Edm.Single')")
@@ -785,18 +785,18 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("cast(null,'Edm.String')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected String")
+            value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value is None, "Expected None")
         value = self.evaluate_common("cast('Edm.Int16')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int16, "Expected Int16")
+            value.type_code == edm.SimpleType.Int16, "Expected Int16")
         self.assertTrue(value.value is None, "Expected None")
 
     def test_evaluate_boolean_cast_expression(self):
         # cursory check:
         value = self.evaluate_common("cast(true,'Edm.Boolean')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
 
     def test_evaluate_boolean_literal_expression(self):
@@ -804,11 +804,11 @@ class CommonExpressionTests(unittest.TestCase):
         primitive type Edm.Boolean."""
         value = self.evaluate_common("true")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True, "Expected True")
         value = self.evaluate_common("false")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is False, "Expected False")
 
     def test_evaluate_literal_expression(self):
@@ -832,66 +832,66 @@ class CommonExpressionTests(unittest.TestCase):
                 Edm.Time,
                 Edm.DateTimeOffset"""
         value = self.evaluate_common("null")
-        self.assertTrue(value.typeCode is None, "Expected None")
+        self.assertTrue(value.type_code is None, "Expected None")
         self.assertTrue(value.value is None, "Expected None")
         value = self.evaluate_common("X'DEAD'")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Binary, "Expected Binary")
+            value.type_code == edm.SimpleType.Binary, "Expected Binary")
         self.assertTrue(value.value == '\xde\xad')
         value = self.evaluate_common("true")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Booelan")
+            value.type_code == edm.SimpleType.Boolean, "Expected Booelan")
         self.assertTrue(value.value is True)
         value = self.evaluate_common("123")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == 123)
         value = self.evaluate_common("datetime'2013-08-31T15:28'")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.DateTime, "Expected DateTime")
+            value.type_code == edm.SimpleType.DateTime, "Expected DateTime")
         self.assertTrue(value.value.date.year == 13)
         value = self.evaluate_common("123.5M")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+            value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
         self.assertTrue(value.value == decimal.Decimal('123.5'))
         value = self.evaluate_common("123.5D")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Double, "Expected Double")
+            value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 123.5)
         value = self.evaluate_common("123.5F")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Single, "Expected Single")
+            value.type_code == edm.SimpleType.Single, "Expected Single")
         self.assertTrue(value.value == 123.5)
         value = self.evaluate_common(
             "guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
-        self.assertTrue(value.typeCode == edm.SimpleType.Guid, "Expected Guid")
+        self.assertTrue(value.type_code == edm.SimpleType.Guid, "Expected Guid")
         self.assertTrue(
             value.value == uuid.UUID('b3afeebc-9658-4699-9d9c-1df551fd6814'))
         value = self.evaluate_common("123456")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == 123456)
         value = self.evaluate_common("123456L")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int64, "Expected Int64")
+            value.type_code == edm.SimpleType.Int64, "Expected Int64")
         self.assertTrue(value.value == 123456)
         value = self.evaluate_common("-123")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == -123)
         value = self.evaluate_common("'123'")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected String")
+            value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value == '123')
         value = self.evaluate_common("time'15:28'")
-        self.assertTrue(value.typeCode == edm.SimpleType.Time, "Expected Time")
+        self.assertTrue(value.type_code == edm.SimpleType.Time, "Expected Time")
         self.assertTrue(value.value.hour == 15)
         self.assertTrue(value.value.minute == 28)
         self.assertTrue(value.value.second == 0)
         value = self.evaluate_common(
             "datetimeoffset'2002-10-10T12:00:00-05:00'")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.DateTimeOffset,
+            value.type_code == edm.SimpleType.DateTimeOffset,
             "Expected DateTimeOffset")
         self.assertTrue(value.value ==
                         iso.TimePoint.from_str('2002-10-10T12:00:00-05:00'))
@@ -900,14 +900,14 @@ class CommonExpressionTests(unittest.TestCase):
         """Cursory check only."""
         value = self.evaluate_common("length('x')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == 1)
 
     def test_evaluate_boolean_method_call_express(self):
         """Cursory check only."""
         value = self.evaluate_common("startswith('xyz','x')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True)
 
     def test_evaluate_ends_with_expression(self):
@@ -925,7 +925,7 @@ class CommonExpressionTests(unittest.TestCase):
         values matches the second parameter value."""
         value = self.evaluate_common("endswith('startswith','with')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True)
         value = self.evaluate_common("endswith('startswith','start')")
         self.assertTrue(value.value is False)
@@ -960,7 +960,7 @@ class CommonExpressionTests(unittest.TestCase):
         found, a value of -1 SHOULD be returned."""
         value = self.evaluate_common("indexof('startswith','tart')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == 1)
         value = self.evaluate_common("indexof('startswith','start')")
         self.assertTrue(value.value == 0)
@@ -996,7 +996,7 @@ class CommonExpressionTests(unittest.TestCase):
         the third parameter value in the first parameter value."""
         value = self.evaluate_common("replace('startswith','tart','cake')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected String")
+            value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value == u"scakeswith")
         value = self.evaluate_common("replace('startswith','t','x')")
         self.assertTrue(value.value == u"sxarxswixh")
@@ -1031,7 +1031,7 @@ class CommonExpressionTests(unittest.TestCase):
         values matches the second parameter value."""
         value = self.evaluate_common("startswith('startswith','start')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True)
         value = self.evaluate_common("startswith('startswith','end')")
         self.assertTrue(value.value is False)
@@ -1064,7 +1064,7 @@ class CommonExpressionTests(unittest.TestCase):
         lower case."""
         value = self.evaluate_common("tolower('Steve')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected String")
+            value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value == u"steve")
         value = self.evaluate_common(u"tolower('CAF\xc9')")
         self.assertTrue(value.value == u'caf\xe9')
@@ -1096,7 +1096,7 @@ class CommonExpressionTests(unittest.TestCase):
         upper case."""
         value = self.evaluate_common("toupper('Steve')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected String")
+            value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value == u"STEVE")
         value = self.evaluate_common(u"toupper('CAF\xc9')")
         self.assertTrue(value.value == u'CAF\xc9')
@@ -1129,7 +1129,7 @@ class CommonExpressionTests(unittest.TestCase):
         trailing white-space characters removed."""
         value = self.evaluate_common("trim('  Steve\t\n\r \r\n')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected String")
+            value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value == u"Steve")
         value = self.evaluate_common(u"trim(' C  a  f \xe9 ')")
         self.assertTrue(value.value == u'C  a  f \xe9')
@@ -1166,7 +1166,7 @@ class CommonExpressionTests(unittest.TestCase):
         index is returned."""
         value = self.evaluate_common("substring('startswith',1,4)")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected String")
+            value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value == u"tart")
         value = self.evaluate_common("substring('startswith',1)")
         self.assertTrue(value.value == u"tartswith")
@@ -1201,7 +1201,7 @@ class CommonExpressionTests(unittest.TestCase):
         https://tools.oasis-open.org/issues/browse/ODATA-401"""
         value = self.evaluate_common("substringof('tart','startswith')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Boolean, "Expected Boolean")
+            value.type_code == edm.SimpleType.Boolean, "Expected Boolean")
         self.assertTrue(value.value is True)
         value = self.evaluate_common("substringof('start','startswith')")
         self.assertTrue(value.value is True)
@@ -1237,7 +1237,7 @@ class CommonExpressionTests(unittest.TestCase):
         with the first parameter value coming first in the result."""
         value = self.evaluate_common("concat('starts','with')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.String, "Expected String")
+            value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value == u"startswith")
         value = self.evaluate_common("concat('3.1',concat('4','159'))")
         self.assertTrue(value.value == u"3.14159")
@@ -1272,7 +1272,7 @@ class CommonExpressionTests(unittest.TestCase):
         characters in the specified parameter value."""
         value = self.evaluate_common("length('Steve')")
         self.assertTrue(
-            value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+            value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == 5)
         value = self.evaluate_common(u"length('CAF\xc9')")
         self.assertTrue(value.value == 4)
@@ -1314,7 +1314,7 @@ class CommonExpressionTests(unittest.TestCase):
                 ("second", 0)):
             value = self.evaluate_common("%s(datetime'2013-09-01T10:56')" % f)
             self.assertTrue(
-                value.typeCode == edm.SimpleType.Int32, "Expected Int32")
+                value.type_code == edm.SimpleType.Int32, "Expected Int32")
             self.assertTrue(value.value == r)
             try:
                 value = self.evaluate_common(
@@ -1358,7 +1358,7 @@ class CommonExpressionTests(unittest.TestCase):
                 ("ceiling", (2, 3, -2, 2, 3, -2, 3, 3))):
             value = self.evaluate_common("%s(1.5D)" % f)
             self.assertTrue(
-                value.typeCode == edm.SimpleType.Double, "Expected Double")
+                value.type_code == edm.SimpleType.Double, "Expected Double")
             self.assertTrue(value.value == r[0])
             # check rounding to even for binary floating point
             value = self.evaluate_common("%s(2.5D)" % f)
@@ -1367,7 +1367,7 @@ class CommonExpressionTests(unittest.TestCase):
             self.assertTrue(value.value == r[2])
             value = self.evaluate_common("%s(1.5M)" % f)
             self.assertTrue(
-                value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+                value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
             self.assertTrue(value.value == r[3])
             # check rounding away from zero for decimals
             value = self.evaluate_common("%s(2.5M)" % f)
@@ -1377,13 +1377,13 @@ class CommonExpressionTests(unittest.TestCase):
             # single promotes to double
             value = self.evaluate_common("%s(2.5F)" % f)
             self.assertTrue(
-                value.typeCode == edm.SimpleType.Double, "Expected Double")
+                value.type_code == edm.SimpleType.Double, "Expected Double")
             self.assertTrue(value.value == r[6])
             # integers promote to decimal - seems a bit strange but there you
             # go
             value = self.evaluate_common("%s(3)" % f)
             self.assertTrue(
-                value.typeCode == edm.SimpleType.Decimal, "Expected Decimal")
+                value.type_code == edm.SimpleType.Decimal, "Expected Decimal")
             self.assertTrue(value.value == r[7])
             try:
                 value = self.evaluate_common("%s('3')" % f)
@@ -1495,7 +1495,7 @@ class ParamsExpressionTests(unittest.TestCase):
         except ValueError:
             # undeclared parameter
             pass
-        params = {'bool': edm.EDMValue.NewSimpleValue(edm.SimpleType.Boolean)}
+        params = {'bool': edm.EDMValue.from_type(edm.SimpleType.Boolean)}
         p.setpos(0)
         e = p.parse_common_expression(params)
         self.assertTrue(isinstance(e, CommonExpression),
@@ -1941,7 +1941,7 @@ class DataServiceRegressionTests(unittest.TestCase):
         container = self.ds['RegressionModel.RegressionContainer']
         for keytype in ['Int32', 'Int64', 'String']:
             autokeys = container['AutoKeys' + keytype]
-            with autokeys.OpenCollection() as coll:
+            with autokeys.open() as coll:
                 e = coll.new_entity()
                 self.assertTrue(e.exists is False)
                 e['Data'].set_from_value('hello')
@@ -1955,7 +1955,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 
     def runtest_all_types(self):
         all_types = self.ds['RegressionModel.RegressionContainer.AllTypes']
-        with all_types.OpenCollection() as coll:
+        with all_types.open() as coll:
             e = coll.new_entity()
             self.assertTrue(e.exists is False)
             # <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
@@ -2193,7 +2193,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_complex_types(self):
         complex_types = self.ds[
             'RegressionModel.RegressionContainer.ComplexTypes']
-        with complex_types.OpenCollection() as coll:
+        with complex_types.open() as coll:
             e = coll.new_entity()
             e['ID'].set_from_value(100)
             e['Complex']['Data'].set_from_value("Level1")
@@ -2247,7 +2247,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_only_key(self):
         only_keys = self.ds[
             'RegressionModel.RegressionContainer.OnlyKeys']
-        with only_keys.OpenCollection() as coll:
+        with only_keys.open() as coll:
             e = coll.new_entity()
             e['ID'].set_from_value(100)
             # CREATE
@@ -2279,7 +2279,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.CompoundKeys']
         compound_keyxs = self.ds[
             'RegressionModel.RegressionContainer.CompoundKeyXs']
-        with compound_keys.OpenCollection() as coll:
+        with compound_keys.open() as coll:
             e = coll.new_entity()
             e['K1'].set_from_value(1)
             e['K2'].set_from_value('00001')
@@ -2310,18 +2310,18 @@ class DataServiceRegressionTests(unittest.TestCase):
                 '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
             self.assertTrue(
                 check_e['Data'].value == 'Updated Compound Key')
-            with compound_keyxs.OpenCollection() as collx:
+            with compound_keyxs.open() as collx:
                 ex = collx.new_entity()
                 ex['K'].set_from_value(10)
                 ex['Data'].set_from_value("Compound KeyX")
                 # add a binding
-                ex['CompoundKey'].BindEntity(got_e)
+                ex['CompoundKey'].bind_entity(got_e)
                 collx.insert_entity(ex)
-            with got_e['CompoundKeyXs'].OpenCollection() as collx:
+            with got_e['CompoundKeyXs'].open() as collx:
                 self.assertTrue(len(collx) == 1)
                 self.assertTrue(10 in collx)
                 ex = collx.values()[0]
-                match_e = ex['CompoundKey'].GetEntity()
+                match_e = ex['CompoundKey'].get_entity()
                 self.assertTrue(match_e == got_e)
             # DELETE
             del coll[(1, '00001', iso.TimePoint.from_str(
@@ -2339,7 +2339,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_simple_select(self):
         select_set = self.ds[
             'RegressionModel.RegressionContainer.SimpleSelectSet']
-        with select_set.OpenCollection() as coll:
+        with select_set.open() as coll:
             e = coll.new_entity()
             e.set_key(1)
             e['P1'].set_from_value(3.14)
@@ -2350,15 +2350,15 @@ class DataServiceRegressionTests(unittest.TestCase):
             e['P1'].set_from_value(2.72)
             e['P2'].set_from_value("e")
             coll.insert_entity(e)
-            coll.SelectKeys()
+            coll.select_keys()
             e = coll[1]
-            self.assertTrue(e.Selected('K'), "Key not selected")
+            self.assertTrue(e.is_selected('K'), "Key not selected")
             self.assertTrue(e['K'], "Key not selected")
             self.assertFalse(
-                e.Selected('P1'), "P1 should not be selected")
+                e.is_selected('P1'), "P1 should not be selected")
             self.assertFalse(e['P1'], "P1 value should be NULL")
             self.assertFalse(
-                e.Selected('P2'), "P2 should not be selected")
+                e.is_selected('P2'), "P2 should not be selected")
             self.assertFalse(e['P2'], "P2 value should be NULL")
             coll.set_expand(None, {'P1': None})
             for k, e in coll.iteritems():
@@ -2369,7 +2369,7 @@ class DataServiceRegressionTests(unittest.TestCase):
 
     def runtest_paging(self):
         paging_set = self.ds['RegressionModel.RegressionContainer.PagingSet']
-        with paging_set.OpenCollection() as coll:
+        with paging_set.open() as coll:
             for i in xrange(10):
                 for j in xrange(10):
                     e = coll.new_entity()
@@ -2404,7 +2404,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(len(result) == 0, "10,2: overrun")
             # test skiptoken
             try:
-                coll.TopMax(5)
+                coll.set_topmax(5)
                 coll.set_page(top=10)
                 result = list(coll.iterpage())
                 self.assertTrue(len(result) == 5, "max 5: length")
@@ -2471,8 +2471,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_o2o(self):
         ones = self.ds['RegressionModel.RegressionContainer.O2Os']
         onexs = self.ds['RegressionModel.RegressionContainer.O2OXs']
-        with ones.OpenCollection() as coll:
-            with onexs.OpenCollection() as coll_x:
+        with ones.open() as coll:
+            with onexs.open() as coll_x:
                 e = coll.new_entity()
                 e['K'].set_from_value(1)
                 e['Data'].set_from_value('NavigationOne')
@@ -2485,7 +2485,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_x = coll_x.new_entity()
                 e_x['K'].set_from_value(100)
                 e_x['Data'].set_from_value('NavigationOneX')
-                e['OX'].BindEntity(e_x)
+                e['OX'].bind_entity(e_x)
                 try:
                     coll.insert_entity(e)
                 except edm.ConstraintError:
@@ -2497,15 +2497,15 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e2_x = coll_x.new_entity()
                 e2_x['K'].set_from_value(200)
                 e2_x['Data'].set_from_value('NavigationTwoX')
-                e2_x['O'].BindEntity(e2)
+                e2_x['O'].bind_entity(e2)
                 coll_x.insert_entity(e2_x)
                 # READ both ways
                 e = coll[1]
-                nav_x = e['OX'].GetEntity()
+                nav_x = e['OX'].get_entity()
                 self.assertTrue(
                     nav_x is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_x['K'] == 100)
-                nav = nav_x['O'].GetEntity()
+                nav = nav_x['O'].get_entity()
                 self.assertFalse(
                     nav is None, "Failed to read back reverse navigation link")
                 self.assertTrue(nav['K'] == 1)
@@ -2517,7 +2517,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.assertFalse(2 in coll)
                 coll.set_filter(None)
                 # READ with deep 'back' filter
-                with e['OX'].OpenCollection() as navCollection:
+                with e['OX'].open() as navCollection:
                     filter = CommonExpression.from_str(
                         "O/Data eq 'NavigationOne'")
                     navCollection.set_filter(filter)
@@ -2526,7 +2526,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - by adding a link, should fail.  Requires a
                 # deep delete.
                 try:
-                    with e['OX'].OpenCollection() as navCollection:
+                    with e['OX'].open() as navCollection:
                         navCollection[200] = e2_x
                     self.fail("Nav coll __setitem__ should have failed "
                               "for 1-1 relationship")
@@ -2534,15 +2534,15 @@ class DataServiceRegressionTests(unittest.TestCase):
                     pass
                 # UPDATE - using bind and update - also should fail for
                 # 1-1 link
-                e['OX'].BindEntity(e2_x)
+                e['OX'].bind_entity(e2_x)
                 try:
                     e.commit()
-                    self.fail("BindEntity/commit should have failed "
+                    self.fail("bind_entity/commit should have failed "
                               "for 1-1 relationship")
                 except edm.ConstraintError:
                     pass
                 # DELETE - link
-                with e['OX'].OpenCollection() as navCollection:
+                with e['OX'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[100]
@@ -2570,8 +2570,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_o2o_1(self):
         ones = self.ds['RegressionModel.RegressionContainer.O2O1s']
         onexs = self.ds['RegressionModel.RegressionContainer.O2OX1s']
-        with ones.OpenCollection() as coll:
-            with onexs.OpenCollection() as coll_x:
+        with ones.open() as coll:
+            with onexs.open() as coll_x:
                 e = coll.new_entity()
                 e['K'].set_from_value(1)
                 e['Data'].set_from_value('NavigationOne')
@@ -2584,7 +2584,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_x = coll_x.new_entity()
                 e_x['K'].set_from_value(100)
                 e_x['Data'].set_from_value('NavigationOneX')
-                e['OX'].BindEntity(e_x)
+                e['OX'].bind_entity(e_x)
                 try:
                     coll.insert_entity(e)
                 except edm.ConstraintError:
@@ -2603,11 +2603,11 @@ class DataServiceRegressionTests(unittest.TestCase):
                         "e insert should fail with unbound 1-1 relationship")
                 except edm.ConstraintError:
                     pass
-                e2['OX'].BindEntity(e2_x)
+                e2['OX'].bind_entity(e2_x)
                 coll.insert_entity(e2)
                 # READ the link
                 e = coll[1]
-                nav_x = e['OX'].GetEntity()
+                nav_x = e['OX'].get_entity()
                 self.assertTrue(
                     nav_x is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_x['K'] == 100)
@@ -2622,7 +2622,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # deep delete.
                 e2_x = coll_x[200]
                 try:
-                    with e['OX'].OpenCollection() as navCollection:
+                    with e['OX'].open() as navCollection:
                         navCollection[200] = e2_x
                     self.fail("Nav coll __setitem__ should have failed "
                               "for 1-1 relationship")
@@ -2630,15 +2630,15 @@ class DataServiceRegressionTests(unittest.TestCase):
                     pass
                 # UPDATE - using bind and update - also should fail for
                 # 1-1 link
-                e['OX'].BindEntity(e2_x)
+                e['OX'].bind_entity(e2_x)
                 try:
                     e.commit()
-                    self.fail("BindEntity/commit should have failed "
+                    self.fail("bind_entity/commit should have failed "
                               "for 1-1 relationship")
                 except edm.ConstraintError:
                     pass
                 # DELETE - link
-                with e['OX'].OpenCollection() as navCollection:
+                with e['OX'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[100]
@@ -2673,8 +2673,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_zo2o(self):
         zeroones = self.ds['RegressionModel.RegressionContainer.ZO2Os']
         ones = self.ds['RegressionModel.RegressionContainer.ZO2OXs']
-        with zeroones.OpenCollection() as collectionZO:
-            with ones.OpenCollection() as collectionO:
+        with zeroones.open() as collectionZO:
+            with ones.open() as collectionO:
                 e_zo = collectionZO.new_entity()
                 e_zo['K'].set_from_value(1)
                 e_zo['Data'].set_from_value('NavigationZeroOne')
@@ -2687,7 +2687,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o = collectionO.new_entity()
                 e_o['K'].set_from_value(100)
                 e_o['Data'].set_from_value('NavigationOne')
-                e_zo['O'].BindEntity(e_o)
+                e_zo['O'].bind_entity(e_o)
                 try:
                     collectionZO.insert_entity(e_zo)
                 except edm.ConstraintError:
@@ -2701,7 +2701,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o2 = collectionO.new_entity()
                 e_o2['K'].set_from_value(200)
                 e_o2['Data'].set_from_value('NavigationOne_2')
-                e_o2['ZO'].BindEntity(e_zo2)
+                e_o2['ZO'].bind_entity(e_zo2)
                 collectionO.insert_entity(e_o2)
                 # e_zo <-> e_o
                 # e_zo2 <-> e_o2
@@ -2721,7 +2721,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o4 = collectionO.new_entity()
                 e_o4['K'].set_from_value(400)
                 e_o4['Data'].set_from_value('NavigationOne_4')
-                with e_zo['O'].OpenCollection() as navCollection:
+                with e_zo['O'].open() as navCollection:
                     # 	we can't insert here as e_zo is already bound to e_o
                     try:
                         navCollection.insert_entity(e_o4)
@@ -2749,7 +2749,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_zo3 = collectionZO.new_entity()
                 e_zo3['K'].set_from_value(3)
                 e_zo3['Data'].set_from_value('NavigationZeroOne_3')
-                with e_o3['ZO'].OpenCollection() as navCollection:
+                with e_o3['ZO'].open() as navCollection:
                     # we can insert here, will create a bound relationship
                     try:
                         navCollection.insert_entity(e_zo3)
@@ -2762,11 +2762,11 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # None <-> e_o4
                 # READ both ways
                 e_zo = collectionZO[1]
-                nav_o = e_zo['O'].GetEntity()
+                nav_o = e_zo['O'].get_entity()
                 self.assertTrue(
                     nav_o is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_o['K'] == 100)
-                nav_zo = nav_o['ZO'].GetEntity()
+                nav_zo = nav_o['ZO'].get_entity()
                 self.assertFalse(
                     nav_zo is None,
                     "Failed to read back reverse navigation link")
@@ -2787,7 +2787,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - by replacing the required target of a link,
                 # should work
                 try:
-                    with e_zo['O'].OpenCollection() as navCollection:
+                    with e_zo['O'].open() as navCollection:
                         navCollection.replace(e_o4)
                 except edm.ConstraintError:
                     self.fail("replace on 0..1-1 navigation property")
@@ -2795,16 +2795,16 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_zo2 <-> e_o2
                 # e_zo3 <-> e_o3
                 # None <-> e_o
-                nav_zo = e_o4['ZO'].GetEntity()
+                nav_zo = e_o4['ZO'].get_entity()
                 self.assertTrue(nav_zo['K'] == 1)
-                nav_zo = e_o['ZO'].GetEntity()
+                nav_zo = e_o['ZO'].get_entity()
                 self.assertTrue(nav_zo is None)
                 # now the other way around, should fail as e_zo is
                 # already bound to a different e (and even if we
                 # allowed it, we'd have to break the link to e_zo2
                 # which is illegal without deletion).
                 try:
-                    with e_o2['ZO'].OpenCollection() as navCollection:
+                    with e_o2['ZO'].open() as navCollection:
                         navCollection[e_zo.key()] = e_zo
                     self.fail(
                         "__setitem__ on 1-0..1 navigation property "
@@ -2812,25 +2812,25 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except edm.ConstraintError:
                     pass
                 # UPDATE - using bind and update
-                e_zo['O'].BindEntity(e_o)
+                e_zo['O'].bind_entity(e_o)
                 try:
                     e_zo.commit()
                 except edm.ConstraintError:
                     self.fail(
-                        "BindEntity/commit on 0..1-1 navigation property")
+                        "bind_entity/commit on 0..1-1 navigation property")
                 # e_zo <-> e_o
                 # e_zo2 <-> e_o2
                 # e_zo3 <-> e_o3
                 # None <-> e_o4
-                e_o2['ZO'].BindEntity(e_zo)
+                e_o2['ZO'].bind_entity(e_zo)
                 try:
                     e_o2.commit()
-                    self.fail("BindEntity/commit on 1-0..1 navigation "
+                    self.fail("bind_entity/commit on 1-0..1 navigation "
                               "property should fail")
                 except edm.ConstraintError:
                     pass
                 # DELETE - link
-                with e_o['ZO'].OpenCollection() as navCollection:
+                with e_o['ZO'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[1]
@@ -2839,7 +2839,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                             "from 1 end")
                     except edm.ConstraintError:
                         pass
-                with e_zo['O'].OpenCollection() as navCollection:
+                with e_zo['O'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[100]
@@ -2883,8 +2883,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_zo2o_f(self):
         zeroones = self.ds['RegressionModel.RegressionContainer.ZO2OFs']
         ones = self.ds['RegressionModel.RegressionContainer.ZO2OXFs']
-        with zeroones.OpenCollection() as collectionZO:
-            with ones.OpenCollection() as collectionO:
+        with zeroones.open() as collectionZO:
+            with ones.open() as collectionO:
                 # CREATE
                 e_zo = collectionZO.new_entity()
                 e_zo['K'].set_from_value(1)
@@ -2892,7 +2892,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o = collectionO.new_entity()
                 e_o['K'].set_from_value(100)
                 e_o['Data'].set_from_value('NavigationOne')
-                e_zo['O'].BindEntity(e_o)
+                e_zo['O'].bind_entity(e_o)
                 try:
                     collectionZO.insert_entity(e_zo)
                 except edm.ConstraintError:
@@ -2906,30 +2906,30 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # READ (forward only)
                 e_zo = collectionZO[1]
                 e_o = collectionO[100]
-                nav_o = e_zo['O'].GetEntity()
+                nav_o = e_zo['O'].get_entity()
                 self.assertTrue(
                     nav_o is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_o['K'] == 100)
                 # UPDATE - by replacing the required target of a link,
                 # should work
                 try:
-                    with e_zo['O'].OpenCollection() as navCollection:
+                    with e_zo['O'].open() as navCollection:
                         navCollection.replace(e_o2)
                 except edm.ConstraintError:
                     self.fail("replace on 0..1-1 navigation property")
                 # e_zo <-> e_o2
                 # None <-> e_o
                 # UPDATE - using bind and update
-                e_zo['O'].BindEntity(e_o)
+                e_zo['O'].bind_entity(e_o)
                 try:
                     e_zo.commit()
                 except edm.ConstraintError:
                     self.fail(
-                        "BindEntity/commit on 0..1-1 navigation property")
+                        "bind_entity/commit on 0..1-1 navigation property")
                 # e_zo <-> e_o
                 # None <-> e_o2
                 # DELETE - link
-                with e_zo['O'].OpenCollection() as navCollection:
+                with e_zo['O'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[100]
@@ -2956,7 +2956,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_zo2 = collectionZO.new_entity()
                 e_zo2['K'].set_from_value(2)
                 e_zo2['Data'].set_from_value('NavigationZeroOne_2')
-                e_zo2['O'].BindEntity(e_o2)
+                e_zo2['O'].bind_entity(e_o2)
                 collectionZO.insert_entity(e_zo2)
                 # e_zo2 <-> e_o2
                 try:
@@ -2970,8 +2970,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_zo2o_b(self):
         zeroones = self.ds['RegressionModel.RegressionContainer.ZO2ORs']
         ones = self.ds['RegressionModel.RegressionContainer.ZO2OXRs']
-        with zeroones.OpenCollection() as collectionZO:
-            with ones.OpenCollection() as collectionO:
+        with zeroones.open() as collectionZO:
+            with ones.open() as collectionO:
                 e_zo = collectionZO.new_entity()
                 e_zo['K'].set_from_value(1)
                 e_zo['Data'].set_from_value('NavigationZeroOne')
@@ -2985,7 +2985,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o = collectionO.new_entity()
                 e_o['K'].set_from_value(100)
                 e_o['Data'].set_from_value('NavigationOne')
-                e_o['ZO'].BindEntity(e_zo)
+                e_o['ZO'].bind_entity(e_zo)
                 try:
                     collectionO.insert_entity(e_o)
                 except edm.ConstraintError:
@@ -3004,7 +3004,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # READ (reverse only)
                 e_o = collectionO[100]
                 e_zo = collectionZO[1]
-                nav_zo = e_o['ZO'].GetEntity()
+                nav_zo = e_o['ZO'].get_entity()
                 self.assertTrue(
                     nav_zo is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_zo['K'] == 1)
@@ -3013,7 +3013,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_zo2 = collectionZO.new_entity()
                 e_zo2['K'].set_from_value(2)
                 e_zo2['Data'].set_from_value('NavigationZeroOne')
-                with e_o2['ZO'].OpenCollection() as navCollection:
+                with e_o2['ZO'].open() as navCollection:
                     try:
                         navCollection.insert_entity(e_zo2)
                     except NotImplementedError:
@@ -3023,15 +3023,15 @@ class DataServiceRegressionTests(unittest.TestCase):
                     except edm.ConstraintError:
                         self.fail("Failed to insert a new e at the 0..1 end "
                                   "of an empty link")
-                nav_zo = e_o2['ZO'].GetEntity()
+                nav_zo = e_o2['ZO'].get_entity()
                 if nav_zo is None:
                     # Fix up the unimplemented insertion...
-                    e_o2 = collectionO.CopyEntity(e_o2)
+                    e_o2 = collectionO.copy_entity(e_o2)
                     del collectionO[200]
                     e_o2.set_key(200)
-                    e_o2['ZO'].BindEntity(e_zo2)
+                    e_o2['ZO'].bind_entity(e_zo2)
                     collectionO.insert_entity(e_o2)
-                    nav_zo = e_o2['ZO'].GetEntity()
+                    nav_zo = e_o2['ZO'].get_entity()
                 self.assertTrue(nav_zo['K'] == 2)
                 e_zo2 = collectionZO[2]
                 # e_zo <-> e_o
@@ -3041,24 +3041,24 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # implicitly break that link it would leave e_zo2
                 # unbound which would require an implicit delete
                 try:
-                    with e_o2['ZO'].OpenCollection() as navCollection:
+                    with e_o2['ZO'].open() as navCollection:
                         navCollection[e_zo.key()] = e_zo
                     self.fail(
                         "__setitem__ on 1-0..1 navigation property "
                         "should fail")
                 except edm.ConstraintError:
                     pass
-                e_o2['ZO'].BindEntity(e_zo)
+                e_o2['ZO'].bind_entity(e_zo)
                 try:
                     e_o2.commit()
-                    self.fail("BindEntity/commit on 1-0..1 navigation "
+                    self.fail("bind_entity/commit on 1-0..1 navigation "
                               "property should fail")
                 except edm.ConstraintError:
                     pass
                 # DELETE - link
                 # e_zo <-> e_o
                 # e_zo2 <-> e_o2
-                with e_o['ZO'].OpenCollection() as navCollection:
+                with e_o['ZO'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[1]
@@ -3079,7 +3079,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     self.assertTrue(
                         100 in collectionO,
                         "No cascade delete expected for 0..1-1 relationship")
-                    self.assertTrue(e_o['ZO'].GetEntity() is None,
+                    self.assertTrue(e_o['ZO'].get_entity() is None,
                                     "Link should have been broken by deletion "
                                     "at 0..1 end")
                 except edm.ConstraintError:
@@ -3105,8 +3105,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2o(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2Os']
         ones = self.ds['RegressionModel.RegressionContainer.Many2OXs']
-        with manys.OpenCollection() as collectionMany:
-            with ones.OpenCollection() as collectionO:
+        with manys.open() as collectionMany:
+            with ones.open() as collectionO:
                 e_many = collectionMany.new_entity()
                 e_many['K'].set_from_value(1)
                 e_many['Data'].set_from_value('NavigationMany')
@@ -3119,7 +3119,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o = collectionO.new_entity()
                 e_o['K'].set_from_value(100)
                 e_o['Data'].set_from_value('NavigationOne')
-                e_many['O'].BindEntity(e_o)
+                e_many['O'].bind_entity(e_o)
                 try:
                     collectionMany.insert_entity(e_many)
                 except edm.ConstraintError:
@@ -3136,8 +3136,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o2['K'].set_from_value(200)
                 e_o2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
-                e_o2['Many'].BindEntity(e_many2)
-                e_o2['Many'].BindEntity(e_many3)
+                e_o2['Many'].bind_entity(e_many2)
+                e_o2['Many'].bind_entity(e_many3)
                 collectionO.insert_entity(e_o2)
                 # e_many2, e_many3 <-> e_o2
                 # Now try inserting at the 1 end without a binding
@@ -3152,51 +3152,51 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # [] <-> e_o3
                 # READ both ways
                 e_many = collectionMany[1]
-                nav_o = e_many['O'].GetEntity()
+                nav_o = e_many['O'].get_entity()
                 self.assertTrue(
                     nav_o is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_o['K'] == 100)
                 try:
-                    nav_many = nav_o['Many'].GetEntity()
-                    self.fail("GetEntity should fail on a deferred value "
+                    nav_many = nav_o['Many'].get_entity()
+                    self.fail("get_entity should fail on a deferred value "
                               "with multiplicity *")
                 except edm.NavigationError:
                     pass
-                with nav_o['Many'].OpenCollection() as navCollection:
+                with nav_o['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 1)
                     nav_many = navCollection[1]
                     self.assertTrue(nav_many['K'] == 1)
                 # READ multiple...
                 e_many2 = collectionMany[2]
-                nav_o = e_many2['O'].GetEntity()
+                nav_o = e_many2['O'].get_entity()
                 self.assertTrue(nav_o is not None, "Failed to read back Many2")
                 self.assertTrue(nav_o['K'] == 200)
                 e_many3 = collectionMany[3]
-                nav_o = e_many3['O'].GetEntity()
+                nav_o = e_many3['O'].get_entity()
                 self.assertTrue(nav_o is not None, "Failed to read back Many3")
                 self.assertTrue(nav_o['K'] == 200)
                 e_o2 = collectionO[200]
-                with e_o2['Many'].OpenCollection() as navCollection:
+                with e_o2['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 2)
                     self.assertFalse(1 in navCollection)
                     self.assertTrue(2 in navCollection)
                     self.assertTrue(3 in navCollection)
                 # READ empty link...
-                with e_o3['Many'].OpenCollection() as navCollection:
+                with e_o3['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 0)
                 # UPDATE - by replacing the required target of a link,
                 # should work
                 try:
-                    with e_many['O'].OpenCollection() as navCollection:
+                    with e_many['O'].open() as navCollection:
                         navCollection.replace(e_o3)
                 except edm.ConstraintError:
                     self.fail("replace on *-1 navigation property")
                 # e_many <-> e_o3
                 # [] <-> e_o
-                with e_o3['Many'].OpenCollection() as navCollection:
+                with e_o3['Many'].open() as navCollection:
                     self.assertTrue(1 in navCollection)
                 e_o = collectionO[100]
-                with e_o['Many'].OpenCollection() as navCollection:
+                with e_o['Many'].open() as navCollection:
                     self.assertTrue(1 not in navCollection)
                     self.assertTrue(len(navCollection) == 0)
                 # now the other way around, should fail as e_many is
@@ -3206,32 +3206,32 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2, e_many3 <-> e_o2
                 # e_many <-> e_o3
                 try:
-                    with e_o2['Many'].OpenCollection() as navCollection:
+                    with e_o2['Many'].open() as navCollection:
                         navCollection[e_many.key()] = e_many
                     self.fail(
                         "__setitem__ on 1-* navigation property should fail")
                 except edm.ConstraintError:
                     pass
                 # UPDATE - using bind and update
-                e_many['O'].BindEntity(e_o)
+                e_many['O'].bind_entity(e_o)
                 try:
                     e_many.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/commit on *-1 navigation property")
+                    self.fail("bind_entity/commit on *-1 navigation property")
                 # e_many <-> e_o
                 # e_many2, e_many3 <-> e_o2
                 # [] <-> e_o3
-                e_o2['Many'].BindEntity(e_many)
+                e_o2['Many'].bind_entity(e_many)
                 try:
                     e_o2.commit()
                     self.fail(
-                        "BindEntity/commit on 1-* navigation property "
+                        "bind_entity/commit on 1-* navigation property "
                         "should fail")
                 except edm.ConstraintError:
                     pass
                 # DELETE - link
                 # e_many <-> e_o
-                with e_o['Many'].OpenCollection() as navCollection:
+                with e_o['Many'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[1]
@@ -3239,7 +3239,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                             "Delete of link in a *-1 relationship from 1 end")
                     except edm.ConstraintError:
                         pass
-                with e_many['O'].OpenCollection() as navCollection:
+                with e_many['O'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[100]
@@ -3285,8 +3285,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2o_f(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2OFs']
         ones = self.ds['RegressionModel.RegressionContainer.Many2OXFs']
-        with manys.OpenCollection() as collectionMany:
-            with ones.OpenCollection() as collectionO:
+        with manys.open() as collectionMany:
+            with ones.open() as collectionO:
                 e_many = collectionMany.new_entity()
                 e_many['K'].set_from_value(1)
                 e_many['Data'].set_from_value('NavigationMany')
@@ -3294,7 +3294,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o = collectionO.new_entity()
                 e_o['K'].set_from_value(100)
                 e_o['Data'].set_from_value('NavigationOne')
-                e_many['O'].BindEntity(e_o)
+                e_many['O'].bind_entity(e_o)
                 try:
                     collectionMany.insert_entity(e_many)
                 except edm.ConstraintError:
@@ -3308,12 +3308,12 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_many2 = collectionMany.new_entity()
                 e_many2['K'].set_from_value(2)
                 e_many2['Data'].set_from_value('NavigationMany_2')
-                e_many2['O'].BindEntity(e_o2)
+                e_many2['O'].bind_entity(e_o2)
                 collectionMany.insert_entity(e_many2)
                 e_many3 = collectionMany.new_entity()
                 e_many3['K'].set_from_value(3)
                 e_many3['Data'].set_from_value('NavigationMany_3')
-                e_many3['O'].BindEntity(e_o2)
+                e_many3['O'].bind_entity(e_o2)
                 collectionMany.insert_entity(e_many3)
                 # e_many2, e_many3 <-> e_o2
                 # Now try inserting at the 1 end without a binding
@@ -3325,47 +3325,47 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # READ (forward only)
                 e_many = collectionMany[1]
                 e_o = collectionO[100]
-                nav_o = e_many['O'].GetEntity()
+                nav_o = e_many['O'].get_entity()
                 self.assertTrue(
                     nav_o is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_o['K'] == 100)
                 # READ multiple...
                 e_many2 = collectionMany[2]
-                nav_o = e_many2['O'].GetEntity()
+                nav_o = e_many2['O'].get_entity()
                 self.assertTrue(nav_o is not None, "Failed to read back Many2")
                 self.assertTrue(nav_o['K'] == 200)
                 e_many3 = collectionMany[3]
-                nav_o = e_many3['O'].GetEntity()
+                nav_o = e_many3['O'].get_entity()
                 self.assertTrue(nav_o is not None, "Failed to read back Many3")
                 self.assertTrue(nav_o['K'] == 200)
                 # UPDATE - by replacing the required target of a link,
                 # should work
                 try:
-                    with e_many2['O'].OpenCollection() as navCollection:
+                    with e_many2['O'].open() as navCollection:
                         navCollection.replace(e_o3)
                 except edm.ConstraintError:
                     self.fail("replace on *-1 navigation property")
                 # e_many <-> e_o
                 # e_many3 <-> e_o2
                 # e_many2 <-> e_o3
-                self.assertTrue(collectionMany[2]['O'].GetEntity().key() ==
+                self.assertTrue(collectionMany[2]['O'].get_entity().key() ==
                                 300)
                 # now the other way around, should fail as e_many is
                 # already bound to a different e and we don't allow
                 # that link to be broken implicitly
                 # UPDATE - using bind and update
-                e_many2['O'].BindEntity(e_o)
+                e_many2['O'].bind_entity(e_o)
                 try:
                     e_many2.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/commit on *-1 navigation property")
+                    self.fail("bind_entity/commit on *-1 navigation property")
                 # e_many, e_many2 <-> e_o
                 # e_many3 <-> e_o2
                 # [] <-> e_o3
-                self.assertTrue(collectionMany[2]['O'].GetEntity().key() == 
+                self.assertTrue(collectionMany[2]['O'].get_entity().key() == 
                                 100)
                 # DELETE - link
-                with e_many3['O'].OpenCollection() as navCollection:
+                with e_many3['O'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[200]
@@ -3405,8 +3405,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2o_b(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2ORs']
         ones = self.ds['RegressionModel.RegressionContainer.Many2OXRs']
-        with manys.OpenCollection() as collectionMany:
-            with ones.OpenCollection() as collectionO:
+        with manys.open() as collectionMany:
+            with ones.open() as collectionO:
                 e_many = collectionMany.new_entity()
                 e_many['K'].set_from_value(1)
                 e_many['Data'].set_from_value('NavigationMany')
@@ -3420,7 +3420,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o = collectionO.new_entity()
                 e_o['K'].set_from_value(100)
                 e_o['Data'].set_from_value('NavigationOne')
-                e_o['Many'].BindEntity(e_many)
+                e_o['Many'].bind_entity(e_many)
                 try:
                     collectionO.insert_entity(e_o)
                 except edm.ConstraintError:
@@ -3436,8 +3436,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_o2['K'].set_from_value(200)
                 e_o2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
-                e_o2['Many'].BindEntity(e_many2)
-                e_o2['Many'].BindEntity(e_many3)
+                e_o2['Many'].bind_entity(e_many2)
+                e_o2['Many'].bind_entity(e_many3)
                 collectionO.insert_entity(e_o2)
                 # e_many2, e_many3 <-> e_o2
                 # Now try inserting at the 1 end without a binding
@@ -3453,33 +3453,33 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # READ (reverse link only)
                 e_many = collectionMany[1]
                 try:
-                    nav_many = e_o['Many'].GetEntity()
-                    self.fail("GetEntity should fail on a deferred value "
+                    nav_many = e_o['Many'].get_entity()
+                    self.fail("get_entity should fail on a deferred value "
                               "with multiplicity *")
                 except edm.NavigationError:
                     pass
-                with e_o['Many'].OpenCollection() as navCollection:
+                with e_o['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 1)
                     nav_many = navCollection[1]
                     self.assertTrue(nav_many['K'] == 1)
                 # READ multiple...
                 e_o2 = collectionO[200]
-                with e_o2['Many'].OpenCollection() as navCollection:
+                with e_o2['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 2)
                     self.assertFalse(1 in navCollection)
                     self.assertTrue(2 in navCollection)
                     self.assertTrue(3 in navCollection)
                 # READ empty link...
-                with e_o3['Many'].OpenCollection() as navCollection:
+                with e_o3['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 0)
                 # UPDATE - with e creation
                 e_many4 = collectionMany.new_entity()
                 e_many4['K'].set_from_value(4)
                 e_many4['Data'].set_from_value('NavigationMany_4')
-                e_o2['Many'].BindEntity(e_many4)
+                e_o2['Many'].bind_entity(e_many4)
                 collectionO.update_entity(e_o2)
                 self.assertTrue(e_many4.exists)
-                with e_o2['Many'].OpenCollection() as navCollection:
+                with e_o2['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 3)
                     self.assertTrue(4 in navCollection)
                 # UPDATE - should fail as e_many is already bound to
@@ -3489,18 +3489,18 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2, e_many3, e_many4 <-> e_o2
                 # [] <-> e_o3
                 try:
-                    with e_o3['Many'].OpenCollection() as navCollection:
+                    with e_o3['Many'].open() as navCollection:
                         navCollection[e_many.key()] = e_many
                     self.fail(
                         "__setitem__ on 1-* navigation property should fail")
                 except edm.ConstraintError:
                     pass
                 # UPDATE - using bind and update
-                e_o3['Many'].BindEntity(e_many)
+                e_o3['Many'].bind_entity(e_many)
                 try:
                     e_o3.commit()
                     self.fail(
-                        "BindEntity/commit on 1-* navigation property "
+                        "bind_entity/commit on 1-* navigation property "
                         "should fail")
                 except edm.ConstraintError:
                     pass
@@ -3508,7 +3508,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many <-> e_o
                 # e_many2, e_many3, e_many4 <-> e_o2
                 # [] <-> e_o3
-                with e_o['Many'].OpenCollection() as navCollection:
+                with e_o['Many'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[1]
@@ -3561,8 +3561,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2zo(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2ZOs']
         zeroones = self.ds['RegressionModel.RegressionContainer.Many2ZOXs']
-        with manys.OpenCollection() as collectionMany:
-            with zeroones.OpenCollection() as collectionZO:
+        with manys.open() as collectionMany:
+            with zeroones.open() as collectionZO:
                 e_many = collectionMany.new_entity()
                 e_many['K'].set_from_value(1)
                 e_many['Data'].set_from_value('NavigationMany')
@@ -3575,7 +3575,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_zo = collectionZO.new_entity()
                 e_zo['K'].set_from_value(100)
                 e_zo['Data'].set_from_value('NavigationOne')
-                e_many2['ZO'].BindEntity(e_zo)
+                e_many2['ZO'].bind_entity(e_zo)
                 try:
                     collectionMany.insert_entity(e_many2)
                 except edm.ConstraintError:
@@ -3592,8 +3592,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_zo2['K'].set_from_value(200)
                 e_zo2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
-                e_zo2['Many'].BindEntity(e_many3)
-                e_zo2['Many'].BindEntity(e_many4)
+                e_zo2['Many'].bind_entity(e_many3)
+                e_zo2['Many'].bind_entity(e_many4)
                 collectionZO.insert_entity(e_zo2)
                 # e_many <-> None
                 # e_many2 <-> e_zo
@@ -3612,19 +3612,19 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2 <-> e_zo
                 # e_many3, e_many4 <-> e_zo2
                 # [] <-> e_zo3
-                self.assertTrue(e_many['ZO'].GetEntity() is None)
+                self.assertTrue(e_many['ZO'].get_entity() is None)
                 e_many2 = collectionMany[2]
-                nav_zo = e_many2['ZO'].GetEntity()
+                nav_zo = e_many2['ZO'].get_entity()
                 self.assertTrue(
                     nav_zo is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_zo['K'] == 100)
                 try:
-                    nav_zo['Many'].GetEntity()
-                    self.fail("GetEntity should fail on a deferred value with "
+                    nav_zo['Many'].get_entity()
+                    self.fail("get_entity should fail on a deferred value with "
                               "multiplicity *")
                 except edm.NavigationError:
                     pass
-                with nav_zo['Many'].OpenCollection() as navCollection:
+                with nav_zo['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 1)
                     self.assertTrue(2 in navCollection)
                 # READ multiple...
@@ -3634,24 +3634,24 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # [] <-> e_zo3
                 e_many3 = collectionMany[3]
                 e_zo = collectionZO[100]
-                nav_zo = e_many3['ZO'].GetEntity()
+                nav_zo = e_many3['ZO'].get_entity()
                 self.assertTrue(nav_zo is not None,
                                 "Failed to read back Many3")
                 self.assertTrue(nav_zo['K'] == 200)
                 e_many4 = collectionMany[4]
-                nav_zo = e_many4['ZO'].GetEntity()
+                nav_zo = e_many4['ZO'].get_entity()
                 self.assertTrue(nav_zo is not None,
                                 "Failed to read back Many4")
                 self.assertTrue(nav_zo['K'] == 200)
                 e_zo2 = collectionZO[200]
-                with e_zo2['Many'].OpenCollection() as navCollection:
+                with e_zo2['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 2)
                     self.assertFalse(1 in navCollection)
                     self.assertFalse(2 in navCollection)
                     self.assertTrue(3 in navCollection)
                     self.assertTrue(4 in navCollection)
                 # READ empty link...
-                with e_zo3['Many'].OpenCollection() as navCollection:
+                with e_zo3['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 0)
                 # UPDATE - by replacing the target of a 0..1 link, should work
                 # e_many <-> None
@@ -3659,7 +3659,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3, e_many4 <-> e_zo2
                 # [] <-> e_zo3
                 try:
-                    with e_many2['ZO'].OpenCollection() as navCollection:
+                    with e_many2['ZO'].open() as navCollection:
                         navCollection.replace(e_zo3)
                 except edm.ConstraintError:
                     self.fail("replace on *-0..1 navigation property")
@@ -3667,9 +3667,9 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # [] <-> e_zo
                 # e_many3, e_many4 <-> e_zo2
                 # e_many2 <-> e_zo3
-                with e_zo3['Many'].OpenCollection() as navCollection:
+                with e_zo3['Many'].open() as navCollection:
                     self.assertTrue(2 in navCollection)
-                with e_zo['Many'].OpenCollection() as navCollection:
+                with e_zo['Many'].open() as navCollection:
                     self.assertTrue(2 not in navCollection)
                     self.assertTrue(len(navCollection) == 0)
                 # now the other way around, should fail as e_many is
@@ -3680,7 +3680,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3, e_many4 <-> e_zo2
                 # e_many2 <-> e_zo3
                 try:
-                    with e_zo2['Many'].OpenCollection() as navCollection:
+                    with e_zo2['Many'].open() as navCollection:
                         navCollection[e_many2.key()] = e_many2
                     self.fail(
                         "__setitem__ on 0..1-* navigation property "
@@ -3688,21 +3688,21 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except edm.ConstraintError:
                     pass
                 # UPDATE - using bind and update
-                e_many2['ZO'].BindEntity(e_zo)
+                e_many2['ZO'].bind_entity(e_zo)
                 try:
                     e_many2.commit()
                 except edm.ConstraintError:
                     self.fail(
-                        "BindEntity/commit on *-0..1 navigation property")
+                        "bind_entity/commit on *-0..1 navigation property")
                 # e_many <-> None
                 # e_many2 <-> e_zo
                 # e_many3, e_many4 <-> e_zo2
                 # [] <-> e_zo3
-                e_zo2['Many'].BindEntity(e_many2)
+                e_zo2['Many'].bind_entity(e_many2)
                 try:
                     e_zo2.commit()
                     self.fail(
-                        "BindEntity/commit on 0..1-* navigation property "
+                        "bind_entity/commit on 0..1-* navigation property "
                         "should fail")
                 except edm.ConstraintError:
                     pass
@@ -3711,13 +3711,13 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2 <-> e_zo
                 # e_many3, e_many4 <-> e_zo2
                 # [] <-> e_zo3
-                with e_zo['Many'].OpenCollection() as navCollection:
+                with e_zo['Many'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[2]
                         self.assertTrue(2 in collectionMany)
                         self.assertTrue(
-                            collectionMany[2]['ZO'].GetEntity() is None)
+                            collectionMany[2]['ZO'].get_entity() is None)
                     except edm.ConstraintError:
                         self.fail(
                             "Delete of link in a *-0..1 relationship "
@@ -3727,7 +3727,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # [] <-> e_zo
                 # e_many3, e_many4 <-> e_zo2
                 # [] <-> e_zo3
-                with e_many3['ZO'].OpenCollection() as navCollection:
+                with e_many3['ZO'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[200]
@@ -3742,9 +3742,9 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3 <-> None
                 # e_many4 <-> e_zo2
                 # [] <-> e_zo3
-                e_many['ZO'].BindEntity(e_zo)
+                e_many['ZO'].bind_entity(e_zo)
                 collectionMany.update_entity(e_many)
-                e_many2['ZO'].BindEntity(e_zo)
+                e_many2['ZO'].bind_entity(e_zo)
                 collectionMany.update_entity(e_many2)
                 # e_many, e_many2 <-> e_zo
                 # e_many3 <-> None
@@ -3787,8 +3787,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2zo_f(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2ZOFs']
         zeroones = self.ds['RegressionModel.RegressionContainer.Many2ZOXFs']
-        with manys.OpenCollection() as collectionMany:
-            with zeroones.OpenCollection() as collectionZO:
+        with manys.open() as collectionMany:
+            with zeroones.open() as collectionZO:
                 e_many = collectionMany.new_entity()
                 e_many['K'].set_from_value(1)
                 e_many['Data'].set_from_value('NavigationMany')
@@ -3801,7 +3801,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_zo = collectionZO.new_entity()
                 e_zo['K'].set_from_value(100)
                 e_zo['Data'].set_from_value('NavigationOne')
-                e_many2['ZO'].BindEntity(e_zo)
+                e_many2['ZO'].bind_entity(e_zo)
                 try:
                     collectionMany.insert_entity(e_many2)
                 except edm.ConstraintError:
@@ -3822,7 +3822,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_many3 = collectionMany.new_entity()
                 e_many3['K'].set_from_value(3)
                 e_many3['Data'].set_from_value('NavigationMany_3')
-                e_many3['ZO'].BindEntity(e_zo)
+                e_many3['ZO'].bind_entity(e_zo)
                 try:
                     collectionMany.insert_entity(e_many3)
                 except edm.ConstraintError:
@@ -3831,14 +3831,14 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many <-> None
                 # e_many2, e_many3 <-> e_zo
                 # [] <-> e_zo2
-                self.assertTrue(e_many['ZO'].GetEntity() is None)
+                self.assertTrue(e_many['ZO'].get_entity() is None)
                 e_many2 = collectionMany[2]
-                nav_zo = e_many2['ZO'].GetEntity()
+                nav_zo = e_many2['ZO'].get_entity()
                 self.assertTrue(
                     nav_zo is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_zo['K'] == 100)
                 e_many3 = collectionMany[3]
-                nav_zo = e_many3['ZO'].GetEntity()
+                nav_zo = e_many3['ZO'].get_entity()
                 self.assertTrue(nav_zo is not None,
                                 "Failed to read back Many3")
                 self.assertTrue(nav_zo['K'] == 100)
@@ -3847,7 +3847,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2, e_many3 <-> e_zo
                 # [] <-> e_zo2
                 try:
-                    with e_many2['ZO'].OpenCollection() as navCollection:
+                    with e_many2['ZO'].open() as navCollection:
                         navCollection.replace(e_zo2)
                 except edm.ConstraintError:
                     self.fail("replace on *-0..1 navigation property")
@@ -3855,17 +3855,17 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3 <-> e_zo
                 # e_many2 <-> e_zo2
                 # UPDATE - using bind and update
-                e_many2['ZO'].BindEntity(e_zo)
+                e_many2['ZO'].bind_entity(e_zo)
                 try:
                     e_many2.commit()
                 except edm.ConstraintError:
                     self.fail(
-                        "BindEntity/commit on *-0..1 navigation property")
+                        "bind_entity/commit on *-0..1 navigation property")
                 # DELETE - link
                 # e_many <-> None
                 # e_many2, e_many3 <-> e_zo
                 # [] <-> e_zo2
-                with e_many3['ZO'].OpenCollection() as navCollection:
+                with e_many3['ZO'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[100]
@@ -3878,9 +3878,9 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2 <-> e_zo
                 # [] <-> e_zo2
                 # e_many3 <-> None
-                e_many['ZO'].BindEntity(e_zo)
+                e_many['ZO'].bind_entity(e_zo)
                 collectionMany.update_entity(e_many)
-                e_many3['ZO'].BindEntity(e_zo2)
+                e_many3['ZO'].bind_entity(e_zo2)
                 collectionMany.update_entity(e_many3)
                 # e_many, e_many2 <-> e_zo
                 # e_many3 <-> e_zo2
@@ -3917,8 +3917,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2zo_b(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2ZORs']
         zeroones = self.ds['RegressionModel.RegressionContainer.Many2ZOXRs']
-        with manys.OpenCollection() as collectionMany:
-            with zeroones.OpenCollection() as collectionZO:
+        with manys.open() as collectionMany:
+            with zeroones.open() as collectionZO:
                 e_many = collectionMany.new_entity()
                 e_many['K'].set_from_value(1)
                 e_many['Data'].set_from_value('NavigationMany')
@@ -3941,8 +3941,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_zo2['K'].set_from_value(200)
                 e_zo2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
-                e_zo2['Many'].BindEntity(e_many2)
-                e_zo2['Many'].BindEntity(e_many3)
+                e_zo2['Many'].bind_entity(e_many2)
+                e_zo2['Many'].bind_entity(e_many3)
                 collectionZO.insert_entity(e_zo2)
                 e_many2 = collectionMany[2]
                 e_many3 = collectionMany[3]
@@ -3950,9 +3950,9 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # [] <-> e_zo
                 # e_many2, e_many3 <-> e_zo2
                 # READ (reverse only)
-                with e_zo['Many'].OpenCollection() as navCollection:
+                with e_zo['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 0)
-                with e_zo2['Many'].OpenCollection() as navCollection:
+                with e_zo2['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 2)
                     self.assertTrue(2 in navCollection)
                     self.assertTrue(3 in navCollection)
@@ -3962,7 +3962,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many <-> None
                 # [] <-> e_zo
                 # e_many2, e_many3 <-> e_zo2
-                with e_zo['Many'].OpenCollection() as navCollection:
+                with e_zo['Many'].open() as navCollection:
                     try:
                         navCollection[e_many.key()] = e_many
                         self.assertTrue(1 in navCollection)
@@ -3978,17 +3978,17 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # UPDATE - using bind and update
                 # e_many <-> e_zo
                 # e_many2, e_many3 <-> e_zo2
-                e_zo['Many'].BindEntity(e_many2)
+                e_zo['Many'].bind_entity(e_many2)
                 try:
                     e_zo.commit()
-                    self.fail("BindEntity/commit on 0..1-* navigation property "
+                    self.fail("bind_entity/commit on 0..1-* navigation property "
                               "should fail")
                 except edm.ConstraintError:
                     pass
                 # DELETE - link
                 # e_many <-> e_zo
                 # e_many2, e_many3 <-> e_zo2
-                with e_zo['Many'].OpenCollection() as navCollection:
+                with e_zo['Many'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[1]
@@ -4001,7 +4001,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # [] <-> e_zo
                 # e_many2, e_many3 <-> e_zo2
                 e_zo = collectionZO[100]
-                e_zo['Many'].BindEntity(e_many)
+                e_zo['Many'].bind_entity(e_many)
                 e_zo.commit()
                 # DELETE - e; for a *-0..1 link should succeed on the * end
                 # e_many <-> e_zo
@@ -4039,7 +4039,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2zo_r(self):
         manys2zeroones = self.ds[
             'RegressionModel.RegressionContainer.Many2ZORvs']
-        with manys2zeroones.OpenCollection() as coll:
+        with manys2zeroones.open() as coll:
             e1 = coll.new_entity()
             e1['K'].set_from_value(1)
             e1['Data'].set_from_value('Navigation_1')
@@ -4052,7 +4052,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             e3 = coll.new_entity()
             e3['K'].set_from_value(3)
             e3['Data'].set_from_value('Navigation_3')
-            e2['ZO'].BindEntity(e3)
+            e2['ZO'].bind_entity(e3)
             try:
                 coll.insert_entity(e2)
                 e3 = coll[3]
@@ -4067,87 +4067,87 @@ class DataServiceRegressionTests(unittest.TestCase):
             e5['K'].set_from_value(5)
             e5['Data'].set_from_value('Navigation_5')
             # we can create more than one link now
-            e4['Many'].BindEntity(e5)
-            e4['Many'].BindEntity(e3)
+            e4['Many'].bind_entity(e5)
+            e4['Many'].bind_entity(e3)
             coll.insert_entity(e4)
             e5 = coll[5]
             # [] <-> e1 <-> None
             # [] <-> e2 <-> e3 <-> e4 <-> None
             # [] <-> e5 ...
             # READ both ways
-            self.assertTrue(e1['ZO'].GetEntity() is None)
+            self.assertTrue(e1['ZO'].get_entity() is None)
             e2 = coll[2]
-            nav_zo = e2['ZO'].GetEntity()
+            nav_zo = e2['ZO'].get_entity()
             self.assertTrue(
                 nav_zo is not None, "Failed to read back navigation link")
             self.assertTrue(nav_zo['K'] == 3)
             try:
-                nav_zo['Many'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value "
+                nav_zo['Many'].get_entity()
+                self.fail("get_entity should fail on a deferred value "
                           "with multiplicity *")
             except edm.NavigationError:
                 pass
-            with nav_zo['Many'].OpenCollection() as navCollection:
+            with nav_zo['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 1)
                 self.assertTrue(2 in navCollection)
             # READ multiple...
             e3 = coll[3]
-            nav_zo = e3['ZO'].GetEntity()
+            nav_zo = e3['ZO'].get_entity()
             self.assertTrue(nav_zo is not None, "Failed to read back Many3")
             self.assertTrue(nav_zo['K'] == 4)
             e5 = coll[5]
-            nav_zo = e5['ZO'].GetEntity()
+            nav_zo = e5['ZO'].get_entity()
             self.assertTrue(nav_zo is not None, "Failed to read back Many5")
             self.assertTrue(nav_zo['K'] == 4)
             e4 = coll[4]
-            with e4['Many'].OpenCollection() as navCollection:
+            with e4['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 2)
                 self.assertFalse(1 in navCollection)
                 self.assertFalse(2 in navCollection)
                 self.assertTrue(3 in navCollection)
                 self.assertTrue(5 in navCollection)
             # READ empty link...
-            with e2['Many'].OpenCollection() as navCollection:
+            with e2['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 0)
             # UPDATE - by replacing the target of a 0..1 link, should work
             # [] <-> e1 <-> None
             # [] <-> e2 <-> e3 <-> e4 <-> None
             # [] <-> e5 ...
             try:
-                with e3['ZO'].OpenCollection() as navCollection:
+                with e3['ZO'].open() as navCollection:
                     navCollection.replace(e1)
             except edm.ConstraintError:
                 self.fail("replace on *-0..1 navigation property")
             # [] <-> e2 <-> e3 <-> e1 <-> None
             # [] <-> e5 <-> e4 <-> None
-            with e1['Many'].OpenCollection() as navCollection:
+            with e1['Many'].open() as navCollection:
                 self.assertTrue(3 in navCollection)
-            with e4['Many'].OpenCollection() as navCollection:
+            with e4['Many'].open() as navCollection:
                 self.assertTrue(3 not in navCollection)
                 self.assertTrue(len(navCollection) == 1)
             # now the other way around, should fail when e2 is
             # already bound to a different e and we don't allow
             # that link to be broken implicitly
             try:
-                with e5['Many'].OpenCollection() as navCollection:
+                with e5['Many'].open() as navCollection:
                     navCollection[e2.key()] = e2
                 self.fail(
                     "__setitem__ on 0..1-* navigation property should fail")
             except edm.ConstraintError:
                 pass
             # UPDATE - using bind and update
-            e2['ZO'].BindEntity(e4)
+            e2['ZO'].bind_entity(e4)
             try:
                 e2.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/commit on *-0..1 navigation property")
+                self.fail("bind_entity/commit on *-0..1 navigation property")
             # [] <-> e3 <-> e1 <-> None
             # [] <-> e5 <-> e4 <-> None
             # [] <-> e2 ...
-            e5['Many'].BindEntity(e2)
+            e5['Many'].bind_entity(e2)
             try:
                 e5.commit()
-                self.fail("BindEntity/commit on 0..1-* navigation property "
+                self.fail("bind_entity/commit on 0..1-* navigation property "
                           "should fail")
             except edm.ConstraintError:
                 pass
@@ -4155,12 +4155,12 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <-> e3 <-> e1 <-> None
             # [] <-> e5 <-> e4 <-> None
             # [] <-> e2 ...
-            with e1['Many'].OpenCollection() as navCollection:
+            with e1['Many'].open() as navCollection:
                 try:
                     self.assertTrue(len(navCollection) == 1)
                     del navCollection[3]
                     self.assertTrue(3 in coll)
-                    self.assertTrue(coll[3]['ZO'].GetEntity() is None)
+                    self.assertTrue(coll[3]['ZO'].get_entity() is None)
                 except edm.ConstraintError:
                     self.fail(
                         "Delete of link in a *-0..1 relationship from 1 end")
@@ -4168,7 +4168,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <-> e1 <-> None
             # [] <-> e5 <-> e4 <-> None
             # [] <-> e2 ...
-            with e2['ZO'].OpenCollection() as navCollection:
+            with e2['ZO'].open() as navCollection:
                 try:
                     self.assertTrue(len(navCollection) == 1)
                     del navCollection[4]
@@ -4181,9 +4181,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <-> e1 <-> None
             # [] <-> e5 <-> e4 <-> None
             # [] <-> e2 <-> None
-            e2['ZO'].BindEntity(e4)
+            e2['ZO'].bind_entity(e4)
             e2.commit()
-            e3['ZO'].BindEntity(e4)
+            e3['ZO'].bind_entity(e4)
             e3.commit()
             # [] <-> e1 <-> None
             # [] <-> e5 <-> e4 <-> None
@@ -4222,7 +4222,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2zo_rf(self):
         manys2zeroones = self.ds[
             'RegressionModel.RegressionContainer.Many2ZORvFs']
-        with manys2zeroones.OpenCollection() as coll:
+        with manys2zeroones.open() as coll:
             e1 = coll.new_entity()
             e1['K'].set_from_value(1)
             e1['Data'].set_from_value('Navigation_1')
@@ -4238,8 +4238,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             e4 = coll.new_entity()
             e4['K'].set_from_value(4)
             e4['Data'].set_from_value('Navigation_4')
-            e2['ZO'].BindEntity(e3)
-            e3['ZO'].BindEntity(e4)
+            e2['ZO'].bind_entity(e3)
+            e3['ZO'].bind_entity(e4)
             try:
                 coll.insert_entity(e2)
                 e3 = coll[3]
@@ -4251,25 +4251,25 @@ class DataServiceRegressionTests(unittest.TestCase):
             e5 = coll.new_entity()
             e5['K'].set_from_value(5)
             e5['Data'].set_from_value('Navigation_5')
-            e5['ZO'].BindEntity(e4)
+            e5['ZO'].bind_entity(e4)
             coll.insert_entity(e5)
             # [] -> e1 -> None
             # [] -> e2 -> e3 -> e4 -> None
             # [] -> e5 ...
             # READ (forward only)
-            self.assertTrue(e1['ZO'].GetEntity() is None)
+            self.assertTrue(e1['ZO'].get_entity() is None)
             e2 = coll[2]
-            nav_zo = e2['ZO'].GetEntity()
+            nav_zo = e2['ZO'].get_entity()
             self.assertTrue(
                 nav_zo is not None, "Failed to read back navigation link")
             self.assertTrue(nav_zo['K'] == 3)
             # READ multiple...
             e3 = coll[3]
-            nav_zo = e3['ZO'].GetEntity()
+            nav_zo = e3['ZO'].get_entity()
             self.assertTrue(nav_zo is not None, "Failed to read back Many3")
             self.assertTrue(nav_zo['K'] == 4)
             e5 = coll[5]
-            nav_zo = e5['ZO'].GetEntity()
+            nav_zo = e5['ZO'].get_entity()
             self.assertTrue(nav_zo is not None, "Failed to read back Many5")
             self.assertTrue(nav_zo['K'] == 4)
             # UPDATE - by replacing the target of a 0..1 link, should work
@@ -4277,29 +4277,29 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] -> e2 -> e3 -> e4 -> None
             # [] -> e5 ...
             try:
-                with e3['ZO'].OpenCollection() as navCollection:
+                with e3['ZO'].open() as navCollection:
                     navCollection.replace(e1)
             except edm.ConstraintError:
                 self.fail("replace on *-0..1 navigation property")
-            self.assertTrue(e3['ZO'].GetEntity().key() == 1)
+            self.assertTrue(e3['ZO'].get_entity().key() == 1)
             # [] -> e2 -> e3 -> e1 -> None
             # [] -> e5 -> e4 -> None
             # UPDATE - using bind and update
-            e2['ZO'].BindEntity(e4)
+            e2['ZO'].bind_entity(e4)
             try:
                 e2.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/commit on *-0..1 navigation property")
+                self.fail("bind_entity/commit on *-0..1 navigation property")
             # [] -> e3 -> e1 -> None
             # [] -> e5 -> e4 -> None
             # [] -> e2 ...
             # DELETE - link
-            with e3['ZO'].OpenCollection() as navCollection:
+            with e3['ZO'].open() as navCollection:
                 try:
                     self.assertTrue(len(navCollection) == 1)
                     del navCollection[1]
                     self.assertTrue(1 in coll)
-                    self.assertTrue(coll[3]['ZO'].GetEntity() is None)
+                    self.assertTrue(coll[3]['ZO'].get_entity() is None)
                 except edm.ConstraintError:
                     self.fail(
                         "Delete of link in a *-0..1 relationship from * end")
@@ -4308,7 +4308,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] -> e5 -> e4 -> None
             # [] -> e2 ...
             # DELETE - e; for a *-0..1 link should succeed on the * end
-            e3['ZO'].BindEntity(e4)
+            e3['ZO'].bind_entity(e4)
             e3.commit()
             # [] -> e1 -> None
             # [] -> e5 -> e4 -> None
@@ -4348,7 +4348,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2zo_rb(self):
         manys2zeroones = self.ds[
             'RegressionModel.RegressionContainer.Many2ZORvRs']
-        with manys2zeroones.OpenCollection() as coll:
+        with manys2zeroones.open() as coll:
             e1 = coll.new_entity()
             e1['K'].set_from_value(1)
             e1['Data'].set_from_value('Navigation_1')
@@ -4361,7 +4361,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             e3 = coll.new_entity()
             e3['K'].set_from_value(3)
             e3['Data'].set_from_value('Navigation_3')
-            e3['Many'].BindEntity(e2)
+            e3['Many'].bind_entity(e2)
             try:
                 coll.insert_entity(e3)
                 e2 = coll[2]
@@ -4376,8 +4376,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             e5['K'].set_from_value(5)
             e5['Data'].set_from_value('Navigation_5')
             # we can create more than one link now
-            e4['Many'].BindEntity(e5)
-            e4['Many'].BindEntity(e3)
+            e4['Many'].bind_entity(e5)
+            e4['Many'].bind_entity(e3)
             coll.insert_entity(e4)
             e5 = coll[5]
             # [] <- e1 <- None
@@ -4386,17 +4386,17 @@ class DataServiceRegressionTests(unittest.TestCase):
             # READ (reverse only)
             e3 = coll[3]
             try:
-                e3['Many'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value "
+                e3['Many'].get_entity()
+                self.fail("get_entity should fail on a deferred value "
                           "with multiplicity *")
             except edm.NavigationError:
                 pass
-            with e3['Many'].OpenCollection() as navCollection:
+            with e3['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 1)
                 self.assertTrue(2 in navCollection)
             # READ multiple...
             e4 = coll[4]
-            with e4['Many'].OpenCollection() as navCollection:
+            with e4['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 2)
                 self.assertFalse(1 in navCollection)
                 self.assertFalse(2 in navCollection)
@@ -4404,14 +4404,14 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.assertFalse(4 in navCollection)
                 self.assertTrue(5 in navCollection)
             # READ empty link...
-            with e2['Many'].OpenCollection() as navCollection:
+            with e2['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 0)
             # UPDATE - by replacing all the targets of a * link, should work
             # [] <- e1 <- None
             # [] <- e2 <- e3 <- e4 <- None
             # [] <- e5 ...
             try:
-                with e4['Many'].OpenCollection() as navCollection:
+                with e4['Many'].open() as navCollection:
                     navCollection.replace(e1)
             except edm.ConstraintError:
                 self.fail("replace on *-0..1 navigation property")
@@ -4419,19 +4419,19 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e2 <- e3 <- None
             # [] <- e5 <- None
             e3 = coll[3]
-            with e1['Many'].OpenCollection() as navCollection:
+            with e1['Many'].open() as navCollection:
                 navCollection[3] = e3
                 self.assertTrue(3 in navCollection)
             # [] <- e2 <- e3 <- e1 <- e4 <- None
             # [] <- e5 <- None
-            with e4['Many'].OpenCollection() as navCollection:
+            with e4['Many'].open() as navCollection:
                 self.assertTrue(3 not in navCollection)
                 self.assertTrue(len(navCollection) == 1)
             # should fail when e2 is already bound to a
             # different e and we don't allow that link to be
             # broken implicitly
             try:
-                with e5['Many'].OpenCollection() as navCollection:
+                with e5['Many'].open() as navCollection:
                     navCollection[2] = e2
                 self.fail(
                     "__setitem__ on 0..1-* navigation property should fail")
@@ -4440,25 +4440,25 @@ class DataServiceRegressionTests(unittest.TestCase):
             # UPDATE - using bind and update
             # [] <- e2 <- e3 <- e1 <- e4 <- None
             #            [] <- e5 <- None
-            with e3['Many'].OpenCollection() as navCollection:
+            with e3['Many'].open() as navCollection:
                 navCollection.clear()
             # [] <- e3 <- e1 <- e4 <- None
             # [] <- e5 <- None
             # [] <- e2 <- None
-            with e4['Many'].OpenCollection() as navCollection:
+            with e4['Many'].open() as navCollection:
                 navCollection.replace(e5)
-            e4['Many'].BindEntity(e2)
+            e4['Many'].bind_entity(e2)
             try:
                 e4.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/commit on *-0..1 navigation property")
+                self.fail("bind_entity/commit on *-0..1 navigation property")
             # [] <- e3 <- e1 <- None
             # [] <- e5 <- e4 <- None
             # [] <- e2 <- ...
-            e5['Many'].BindEntity(e2)
+            e5['Many'].bind_entity(e2)
             try:
                 e5.commit()
-                self.fail("BindEntity/commit on 0..1-* navigation property "
+                self.fail("bind_entity/commit on 0..1-* navigation property "
                           "should fail")
             except edm.ConstraintError:
                 pass
@@ -4466,7 +4466,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e3 <- e1 <- None
             # [] <- e5 <- e4 <- None
             # [] <- e2 ...
-            with e1['Many'].OpenCollection() as navCollection:
+            with e1['Many'].open() as navCollection:
                 try:
                     self.assertTrue(len(navCollection) == 1)
                     del navCollection[3]
@@ -4478,7 +4478,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e1 <- None
             # [] <- e5 <- e4 <- None
             # [] <- e2 ...
-            e4['Many'].BindEntity(e3)
+            e4['Many'].bind_entity(e3)
             e4.commit()
             # [] <- e1 <- None
             # [] <- e5 <- e4 <- None
@@ -4517,8 +4517,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2many(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2Manys']
         manyxs = self.ds['RegressionModel.RegressionContainer.Many2ManyXs']
-        with manys.OpenCollection() as collectionMany:
-            with manyxs.OpenCollection() as collectionManyX:
+        with manys.open() as collectionMany:
+            with manyxs.open() as collectionManyX:
                 e_many = collectionMany.new_entity()
                 e_many['K'].set_from_value(1)
                 e_many['Data'].set_from_value('NavigationMany_1')
@@ -4531,7 +4531,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_manyx = collectionManyX.new_entity()
                 e_manyx['K'].set_from_value(100)
                 e_manyx['Data'].set_from_value('NavigationOne')
-                e_many2['ManyX'].BindEntity(e_manyx)
+                e_many2['ManyX'].bind_entity(e_manyx)
                 try:
                     collectionMany.insert_entity(e_many2)
                     e_manyx = collectionManyX[100]
@@ -4549,8 +4549,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_manyx2['K'].set_from_value(200)
                 e_manyx2['Data'].set_from_value('NavigationOne_2')
                 # we can create more than one link now
-                e_manyx2['Many'].BindEntity(e_many3)
-                e_manyx2['Many'].BindEntity(e_many4)
+                e_manyx2['Many'].bind_entity(e_many3)
+                e_manyx2['Many'].bind_entity(e_many4)
                 collectionManyX.insert_entity(e_manyx2)
                 e_many3 = collectionMany[3]
                 # e_many <-> []
@@ -4560,7 +4560,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_manyx3 = collectionManyX.new_entity()
                 e_manyx3['K'].set_from_value(300)
                 e_manyx3['Data'].set_from_value('NavigationOne_3')
-                e_manyx3['Many'].BindEntity(e_many2)
+                e_manyx3['Many'].bind_entity(e_many2)
                 try:
                     collectionManyX.insert_entity(e_manyx3)
                 except edm.ConstraintError:
@@ -4570,32 +4570,32 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3, e_many4 <-> e_manyx2
                 # READ both ways
                 try:
-                    e_many['ManyX'].GetEntity()
-                    self.fail("GetEntity should fail on a deferred value with "
+                    e_many['ManyX'].get_entity()
+                    self.fail("get_entity should fail on a deferred value with "
                               "multiplicity *")
                 except edm.NavigationError:
                     pass
                 e_many2 = collectionMany[2]
-                with e_many2['ManyX'].OpenCollection() as navCollection:
+                with e_many2['ManyX'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 2)
                     self.assertTrue(100 in navCollection)
                     self.assertFalse(200 in navCollection)
                     self.assertTrue(300 in navCollection)
-                with e_manyx['Many'].OpenCollection() as navCollection:
+                with e_manyx['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 1)
                     self.assertFalse(1 in navCollection)
                     self.assertTrue(2 in navCollection)
                     self.assertFalse(3 in navCollection)
                     self.assertFalse(4 in navCollection)
                 # READ empty link...
-                with e_many['ManyX'].OpenCollection() as navCollection:
+                with e_many['ManyX'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 0)
                 # UPDATE - by replace
                 # e_many <-> []
                 # e_many2 <-> e_manyx, e_manyx3
                 # e_many3, e_many4 <-> e_manyx2
                 try:
-                    with e_many2['ManyX'].OpenCollection() as navCollection:
+                    with e_many2['ManyX'].open() as navCollection:
                         navCollection.replace(e_manyx2)
                 except edm.ConstraintError:
                     self.fail("replace on *-* navigation property")
@@ -4603,15 +4603,15 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # [] <-> e_manyx
                 # e_many2, e_many3, e_many4 <-> e_manyx2
                 # [] <-> e_manyx3
-                with e_manyx['Many'].OpenCollection() as navCollection:
+                with e_manyx['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 0)
-                with e_manyx2['Many'].OpenCollection() as navCollection:
+                with e_manyx2['Many'].open() as navCollection:
                     self.assertTrue(1 not in navCollection)
                     self.assertTrue(2 in navCollection)
                     self.assertTrue(3 in navCollection)
                     self.assertTrue(4 in navCollection)
                     self.assertTrue(len(navCollection) == 3)
-                with e_manyx3['Many'].OpenCollection() as navCollection:
+                with e_manyx3['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 0)
                 # UPDATE - __setitem__
                 # e_many <-> []
@@ -4619,39 +4619,39 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many2, e_many3, e_many4 <-> e_manyx2
                 # [] <-> e_manyx3
                 try:
-                    with e_many['ManyX'].OpenCollection() as navCollection:
+                    with e_many['ManyX'].open() as navCollection:
                         navCollection[e_manyx2.key()] = e_manyx2
                         navCollection[e_manyx.key()] = e_manyx
                         self.assertTrue(len(navCollection) == 2)
                 except edm.ConstraintError:
                     self.fail("__setitem__ on *-* navigation property")
-                with e_manyx2['Many'].OpenCollection() as navCollection:
+                with e_manyx2['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 4)
                     self.assertTrue(1 in navCollection)
                 # e_many <-> e_manyx,...
                 # e_many, e_many2, e_many3, e_many4 <-> e_manyx2
                 # [] <-> e_manyx3
                 # UPDATE - using bind and update
-                e_many['ManyX'].BindEntity(e_manyx3)
+                e_many['ManyX'].bind_entity(e_manyx3)
                 try:
                     e_many.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/commit on *-* navigation property")
+                    self.fail("bind_entity/commit on *-* navigation property")
                 # e_many <-> e_manyx, e_manyx2, e_manyx3
                 # e_many, e_many2, e_many3, e_many4 <->
                 # e_manyx2
-                e_manyx3['Many'].BindEntity(e_many3)
+                e_manyx3['Many'].bind_entity(e_many3)
                 try:
                     e_manyx3.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/commit on *-* navigation property")
+                    self.fail("bind_entity/commit on *-* navigation property")
                 # e_many  -> e_manyx, e_manyx2, e_manyx3
                 # e_many, e_many2, e_many3, e_many4 <- e_manyx2
                 # e_many, e_many3 <-  e_manyx3
-                with e_manyx3['Many'].OpenCollection() as navCollection:
+                with e_manyx3['Many'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 2)
                 # DELETE - link
-                with e_manyx['Many'].OpenCollection() as navCollection:
+                with e_manyx['Many'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 1)
                         del navCollection[1]
@@ -4663,7 +4663,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many  -> e_manyx2, e_manyx3
                 # e_many, e_many2, e_many3, e_many4 <- e_manyx2
                 # e_many, e_many3 <-  e_manyx3
-                with e_many['ManyX'].OpenCollection() as navCollection:
+                with e_many['ManyX'].open() as navCollection:
                     try:
                         self.assertTrue(len(navCollection) == 2)
                         del navCollection[300]
@@ -4712,8 +4712,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2many_1(self):
         manys = self.ds['RegressionModel.RegressionContainer.Many2Many1s']
         manyxs = self.ds['RegressionModel.RegressionContainer.Many2ManyX1s']
-        with manys.OpenCollection() as collectionMany:
-            with manyxs.OpenCollection() as collectionManyX:
+        with manys.open() as collectionMany:
+            with manyxs.open() as collectionManyX:
                 e_many = collectionMany.new_entity()
                 e_many['K'].set_from_value(1)
                 e_many['Data'].set_from_value('NavigationMany_1')
@@ -4726,7 +4726,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_manyx = collectionManyX.new_entity()
                 e_manyx['K'].set_from_value(100)
                 e_manyx['Data'].set_from_value('NavigationOne')
-                e_many2['ManyX'].BindEntity(e_manyx)
+                e_many2['ManyX'].bind_entity(e_manyx)
                 try:
                     collectionMany.insert_entity(e_many2)
                     e_manyx = collectionManyX[100]
@@ -4744,8 +4744,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_manyx3['K'].set_from_value(300)
                 e_manyx3['Data'].set_from_value('NavigationOne_3')
                 # we can create more than one link now
-                e_many3['ManyX'].BindEntity(e_manyx2)
-                e_many3['ManyX'].BindEntity(e_manyx3)
+                e_many3['ManyX'].bind_entity(e_manyx2)
+                e_many3['ManyX'].bind_entity(e_manyx3)
                 collectionMany.insert_entity(e_many3)
                 e_manyx2 = collectionManyX[200]
                 e_manyx3 = collectionManyX[300]
@@ -4756,7 +4756,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_many4 = collectionMany.new_entity()
                 e_many4['K'].set_from_value(4)
                 e_many4['Data'].set_from_value('NavigationMany_4')
-                e_many4['ManyX'].BindEntity(e_manyx2)
+                e_many4['ManyX'].bind_entity(e_manyx2)
                 try:
                     collectionMany.insert_entity(e_many4)
                 except edm.ConstraintError:
@@ -4767,19 +4767,19 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many4  -> e_manyx2
                 # READ (one way only)
                 try:
-                    e_many['ManyX'].GetEntity()
-                    self.fail("GetEntity should fail on a deferred value "
+                    e_many['ManyX'].get_entity()
+                    self.fail("get_entity should fail on a deferred value "
                               "with multiplicity *")
                 except edm.NavigationError:
                     pass
                 e_many3 = collectionMany[3]
-                with e_many3['ManyX'].OpenCollection() as navCollection:
+                with e_many3['ManyX'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 2)
                     self.assertTrue(100 not in navCollection)
                     self.assertTrue(200 in navCollection)
                     self.assertTrue(300 in navCollection)
                 # READ empty link...
-                with e_many['ManyX'].OpenCollection() as navCollection:
+                with e_many['ManyX'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 0)
                 # UPDATE - by replace
                 # e_many  -> []
@@ -4787,7 +4787,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3  -> e_manyx2, e_manyx3
                 # e_many4  -> e_manyx2
                 try:
-                    with e_many2['ManyX'].OpenCollection() as navCollection:
+                    with e_many2['ManyX'].open() as navCollection:
                         navCollection.replace(e_manyx2)
                 except edm.ConstraintError:
                     self.fail("replace on *-* navigation property")
@@ -4796,12 +4796,12 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3  -> e_manyx2, e_manyx3
                 # e_many4  -> e_manyx2
                 for e in (e_many2, e_many3, e_many4):
-                    with e['ManyX'].OpenCollection() as navCollection:
+                    with e['ManyX'].open() as navCollection:
                         self.assertTrue(200 in navCollection)
                         self.assertFalse(100 in navCollection)
                 # UPDATE - __setitem__
                 try:
-                    with e_many['ManyX'].OpenCollection() as navCollection:
+                    with e_many['ManyX'].open() as navCollection:
                         navCollection[e_manyx2.key()] = e_manyx2
                         navCollection[e_manyx.key()] = e_manyx
                         self.assertTrue(len(navCollection) == 2)
@@ -4812,19 +4812,19 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many3  -> e_manyx2, e_manyx3
                 # e_many4  -> e_manyx2
                 # UPDATE - using bind and update
-                e_many['ManyX'].BindEntity(e_manyx3)
+                e_many['ManyX'].bind_entity(e_manyx3)
                 try:
                     e_many.commit()
                 except edm.ConstraintError:
-                    self.fail("BindEntity/commit on *-* navigation property")
+                    self.fail("bind_entity/commit on *-* navigation property")
                 # e_many  -> e_manyx, e_manyx2, e_manyx3
                 # e_many2  -> e_manyx2
                 # e_many3  -> e_manyx2, e_manyx3
                 # e_many4  -> e_manyx2
-                with e_many['ManyX'].OpenCollection() as navCollection:
+                with e_many['ManyX'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 3)
                 # DELETE - link
-                with e_many['ManyX'].OpenCollection() as navCollection:
+                with e_many['ManyX'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 3)
                     try:
                         del navCollection[100]
@@ -4866,7 +4866,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many  -> e_manyx3
                 # e_many2  -> []
                 # e_many3  -> e_manyx3
-                with e_many['ManyX'].OpenCollection() as navCollection:
+                with e_many['ManyX'].open() as navCollection:
                     self.assertTrue(len(navCollection) == 1)
                     navCollection[100] = e_manyx
                 # DELETE - e with multiple links
@@ -4891,7 +4891,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2many_r(self):
         manys2manys = self.ds[
             'RegressionModel.RegressionContainer.Many2ManyRvs']
-        with manys2manys.OpenCollection() as coll:
+        with manys2manys.open() as coll:
             e1 = coll.new_entity()
             e1['K'].set_from_value(1)
             e1['Data'].set_from_value('Navigation_1')
@@ -4904,7 +4904,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             e3 = coll.new_entity()
             e3['K'].set_from_value(3)
             e3['Data'].set_from_value('Navigation_3')
-            e2['ManyX'].BindEntity(e3)
+            e2['ManyX'].bind_entity(e3)
             try:
                 coll.insert_entity(e2)
                 e3 = coll[3]
@@ -4920,8 +4920,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             e5['K'].set_from_value(5)
             e5['Data'].set_from_value('Navigation_5')
             # we can create more than one link now
-            e4['Many'].BindEntity(e5)
-            e4['Many'].BindEntity(e3)
+            e4['Many'].bind_entity(e5)
+            e4['Many'].bind_entity(e3)
             coll.insert_entity(e4)
             # [] <- e1 -> []
             # [] <- e2 -> e3
@@ -4931,7 +4931,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             entity6 = coll.new_entity()
             entity6['K'].set_from_value(6)
             entity6['Data'].set_from_value('Navigation_6')
-            entity6['Many'].BindEntity(e3)
+            entity6['Many'].bind_entity(e3)
             coll.insert_entity(entity6)
             # [] <- e1 -> []
             # [] <- e2 -> e3
@@ -4941,45 +4941,45 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e3 <- entity6 -> []
             # READ both ways
             try:
-                nav_manyx = e1['ManyX'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value "
+                nav_manyx = e1['ManyX'].get_entity()
+                self.fail("get_entity should fail on a deferred value "
                           "with multiplicity *")
             except edm.NavigationError:
                 pass
-            with e1['ManyX'].OpenCollection() as nav_manyx:
+            with e1['ManyX'].open() as nav_manyx:
                 self.assertTrue(len(nav_manyx) == 0)
             e2 = coll[2]
-            with e2['ManyX'].OpenCollection() as nav_manyx:
+            with e2['ManyX'].open() as nav_manyx:
                 self.assertTrue(len(nav_manyx) == 1)
                 self.assertTrue(3 in nav_manyx)
             e3 = coll[3]
             try:
-                e3['Many'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value "
+                e3['Many'].get_entity()
+                self.fail("get_entity should fail on a deferred value "
                           "with multiplicity *")
             except edm.NavigationError:
                 pass
-            with e3['Many'].OpenCollection() as navCollection:
+            with e3['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 1)
                 self.assertTrue(2 in navCollection)
             # READ multiple...
-            with e3['ManyX'].OpenCollection() as navCollection:
+            with e3['ManyX'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 2)
                 self.assertTrue(4 in navCollection)
                 self.assertTrue(6 in navCollection)
             e5 = coll[5]
-            with e5['ManyX'].OpenCollection() as navCollection:
+            with e5['ManyX'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 1)
                 self.assertTrue(4 in navCollection)
             e4 = coll[4]
-            with e4['Many'].OpenCollection() as navCollection:
+            with e4['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 2)
                 self.assertFalse(1 in navCollection)
                 self.assertFalse(2 in navCollection)
                 self.assertTrue(3 in navCollection)
                 self.assertTrue(5 in navCollection)
             # READ empty return link...
-            with e2['Many'].OpenCollection() as navCollection:
+            with e2['Many'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 0)
             # UPDATE - by replacing the target of a * link, should work
             # [] <- e1 -> []
@@ -4989,7 +4989,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e5 -> e4
             # e3 <- entity6 -> []
             try:
-                with e3['ManyX'].OpenCollection() as navCollection:
+                with e3['ManyX'].open() as navCollection:
                     navCollection.replace(e1)
             except edm.ConstraintError:
                 self.fail("replace on *-* navigation property")
@@ -4999,14 +4999,14 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e5 <- e4 -> []
             # [] <- e5 -> e4
             # [] <- entity6 -> []
-            with e1['Many'].OpenCollection() as navCollection:
+            with e1['Many'].open() as navCollection:
                 self.assertTrue(3 in navCollection)
-            with e4['Many'].OpenCollection() as navCollection:
+            with e4['Many'].open() as navCollection:
                 self.assertTrue(3 not in navCollection)
                 self.assertTrue(len(navCollection) == 1)
             # now the other way around...
             try:
-                with e5['Many'].OpenCollection() as navCollection:
+                with e5['Many'].open() as navCollection:
                     navCollection[e2.key()] = e2
             except edm.ConstraintError:
                 self.fail("__setitem__ on *-* navigation property should pass")
@@ -5017,23 +5017,23 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e2 <- e5 -> e4
             # [] <- entity6 -> []
             # UPDATE - using bind and update
-            e2['ManyX'].BindEntity(e4)
+            e2['ManyX'].bind_entity(e4)
             try:
                 e2.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/commit on *-* navigation property")
+                self.fail("bind_entity/commit on *-* navigation property")
             # e3 <- e1 -> []
             # [] <- e2 -> e3, e4, e5
             # e2 <- e3 -> e1
             # e2, e5 <- e4 -> []
             # e2 <- e5 -> e4
             # [] <- entity6 -> []
-            e5['Many'].BindEntity(e1)
+            e5['Many'].bind_entity(e1)
             try:
                 e5.commit()
             except edm.ConstraintError:
                 self.fail(
-                    "BindEntity/commit on *-* navigation property should pass")
+                    "bind_entity/commit on *-* navigation property should pass")
             # e3 <- e1 -> e5
             # [] <- e2 -> e3, e4, e5
             # e2 <- e3 -> e1
@@ -5041,7 +5041,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e1, e2 <- e5 -> e4
             # [] <- entity6 -> []
             # DELETE - link
-            with e1['Many'].OpenCollection() as navCollection:
+            with e1['Many'].open() as navCollection:
                 try:
                     self.assertTrue(len(navCollection) == 1)
                     del navCollection[3]
@@ -5054,9 +5054,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e2, e5 <- e4 -> []
             # e1, e2 <- e5 -> e4
             # [] <- entity6 -> []
-            with e3['ManyX'].OpenCollection() as navCollection:
+            with e3['ManyX'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 0)
-            with e2['ManyX'].OpenCollection() as navCollection:
+            with e2['ManyX'].open() as navCollection:
                 try:
                     self.assertTrue(len(navCollection) == 3)
                     del navCollection[4]
@@ -5109,7 +5109,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_nav_many2many_r1(self):
         manys2manys = self.ds[
             'RegressionModel.RegressionContainer.Many2ManyRv1s']
-        with manys2manys.OpenCollection() as coll:
+        with manys2manys.open() as coll:
             e1 = coll.new_entity()
             e1['K'].set_from_value(1)
             e1['Data'].set_from_value('Navigation_1')
@@ -5122,7 +5122,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             e3 = coll.new_entity()
             e3['K'].set_from_value(3)
             e3['Data'].set_from_value('Navigation_3')
-            e2['ManyX'].BindEntity(e3)
+            e2['ManyX'].bind_entity(e3)
             try:
                 coll.insert_entity(e2)
                 # refresh e3 to ensure it exists
@@ -5139,8 +5139,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             e5['K'].set_from_value(5)
             e5['Data'].set_from_value('Navigation_5')
             # we can create more than one link now
-            e4['ManyX'].BindEntity(e5)
-            e4['ManyX'].BindEntity(e3)
+            e4['ManyX'].bind_entity(e5)
+            e4['ManyX'].bind_entity(e3)
             coll.insert_entity(e4)
             e5 = coll[5]
             # [] <- e1 -> []
@@ -5150,19 +5150,19 @@ class DataServiceRegressionTests(unittest.TestCase):
             # e4 <- e5 -> []
             # READ (one way only)
             try:
-                nav_manyx = e1['ManyX'].GetEntity()
-                self.fail("GetEntity should fail on a deferred value "
+                nav_manyx = e1['ManyX'].get_entity()
+                self.fail("get_entity should fail on a deferred value "
                           "with multiplicity *")
             except edm.NavigationError:
                 pass
-            with e1['ManyX'].OpenCollection() as nav_manyx:
+            with e1['ManyX'].open() as nav_manyx:
                 self.assertTrue(len(nav_manyx) == 0)
             e2 = coll[2]
-            with e2['ManyX'].OpenCollection() as nav_manyx:
+            with e2['ManyX'].open() as nav_manyx:
                 self.assertTrue(len(nav_manyx) == 1)
                 self.assertTrue(3 in nav_manyx)
             # READ multiple...
-            with e4['ManyX'].OpenCollection() as navCollection:
+            with e4['ManyX'].open() as navCollection:
                 self.assertTrue(len(navCollection) == 2)
                 self.assertFalse(1 in navCollection)
                 self.assertFalse(2 in navCollection)
@@ -5175,12 +5175,12 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e4 -> e3, e5
             # e4 <- e5 -> []
             try:
-                with e4['ManyX'].OpenCollection() as navCollection:
+                with e4['ManyX'].open() as navCollection:
                     navCollection.replace(e1)
             except edm.ConstraintError:
                 self.fail("replace on *-* navigation property")
             try:
-                with e5['ManyX'].OpenCollection() as navCollection:
+                with e5['ManyX'].open() as navCollection:
                     navCollection[e2.key()] = e2
             except edm.ConstraintError:
                 self.fail("__setitem__ on *-* navigation property should pass")
@@ -5190,18 +5190,18 @@ class DataServiceRegressionTests(unittest.TestCase):
             # [] <- e4 -> e1
             # [] <- e5 -> e2
             # UPDATE - using bind and update
-            e4['ManyX'].BindEntity(e2)
+            e4['ManyX'].bind_entity(e2)
             try:
                 e4.commit()
             except edm.ConstraintError:
-                self.fail("BindEntity/commit on *-* navigation property")
+                self.fail("bind_entity/commit on *-* navigation property")
             # e4 <- e1 -> []
             # e4, e5 <- e2 -> e3
             # e2 <- e3 -> []
             # [] <- e4 -> e1, e2
             # [] <- e5 -> e2
             # DELETE - link
-            with e5['ManyX'].OpenCollection() as navCollection:
+            with e5['ManyX'].open() as navCollection:
                 try:
                     self.assertTrue(len(navCollection) == 1)
                     del navCollection[2]
@@ -5250,7 +5250,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.Streams']
         fox = 'The quick brown fox jumped over the lazy dog'
         cafe = u'I like going to the Caf\xe9'.encode('utf-8')
-        with streams.OpenCollection() as coll:
+        with streams.open() as coll:
             fin = StringIO(fox)
             e1 = coll.new_stream(fin)
             # successful call results in an entity that exists
@@ -5292,7 +5292,7 @@ class DataServiceRegressionTests(unittest.TestCase):
         # although the collection's close method is called
         # the close is deferred until the generator completes
         # or is destroyed
-        coll = streams.OpenCollection()
+        coll = streams.open()
         sinfo, sgen = coll.read_stream_close('foxy')
         self.assertTrue(sinfo.type == params.PLAIN_TEXT)
         self.assertTrue(sinfo.size == len(cafe))
@@ -5301,7 +5301,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             count += len(data)
         self.assertTrue(count == sinfo.size)
         # the collection should now be closed!
-        with streams.OpenCollection() as coll:
+        with streams.open() as coll:
             # now some negative tests
             e = coll.new_entity()
             e['slug'].set_from_value('quick_fox')
@@ -5323,7 +5323,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             'RegressionModel.RegressionContainer.XYStreams']
         fox = 'The quick brown fox jumped over the lazy dog'
         cafe = u'I like going to the Caf\xe9'.encode('utf-8')
-        with streams.OpenCollection() as coll:
+        with streams.open() as coll:
             fin = StringIO(fox)
             e1 = coll.new_stream(fin)
             # successful call results in an entity that exists

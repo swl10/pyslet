@@ -76,7 +76,7 @@ class ClientTests(unittest.TestCase):
         c = Client(ODATA_SAMPLE_SERVICEROOT)
         # now open a collection and iterate through it
         names = set()
-        with c.feeds['Products'].OpenCollection() as collection:
+        with c.feeds['Products'].open() as collection:
             n = len(collection)
             self.assertTrue(
                 n > 10, "Sample has more than 10 products (found %i)" % n)
@@ -121,7 +121,7 @@ class ClientTests(unittest.TestCase):
     def tesxCaseOrderBy(self):
         c = Client(ODATA_SAMPLE_SERVICEROOT)
         names = set()
-        with c.feeds['Products'].OpenCollection() as collection:
+        with c.feeds['Products'].open() as collection:
             collection.set_orderby(
                 core.CommonExpression.OrderByFromString("ProductName asc"))
             firstValue = None
@@ -138,7 +138,7 @@ class ClientTests(unittest.TestCase):
     def tesxCaseFilter(self):
         c = Client(ODATA_SAMPLE_SERVICEROOT)
         names = set()
-        with c.feeds['Products'].OpenCollection() as collection:
+        with c.feeds['Products'].open() as collection:
             collection.set_filter(
                 core.CommonExpression.from_str("substringof('bread',ProductName)"))
             self.assertTrue(len(collection) == 1)
@@ -154,10 +154,10 @@ class ClientTests(unittest.TestCase):
 
     def tesxCaseNavigation(self):
         c = Client(ODATA_SAMPLE_SERVICEROOT)
-        with c.feeds['Customers'].OpenCollection() as collection:
+        with c.feeds['Customers'].open() as collection:
             customer = collection['ALFKI']
             self.assertFalse(customer['Orders'].isExpanded)
-            with customer['Orders'].OpenCollection() as orders:
+            with customer['Orders'].open() as orders:
                 self.assertTrue(len(orders) == 6, "Number of orders")
                 self.assertFalse(
                     isinstance(orders, edm.ExpandedEntityCollection))
@@ -165,7 +165,7 @@ class ClientTests(unittest.TestCase):
             collection.set_expand({"Orders": None})
             customer = collection['ALFKI']
             self.assertTrue(customer['Orders'].isExpanded)
-            with customer['Orders'].OpenCollection() as orders:
+            with customer['Orders'].open() as orders:
                 self.assertTrue(len(orders) == 6, "Number of orders")
                 self.assertTrue(
                     isinstance(orders, core.ExpandedEntityCollection))

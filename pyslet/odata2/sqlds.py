@@ -683,7 +683,7 @@ class SQLCollectionBase(core.EntityCollection):
             for value, new_value in zip(values, row):
                 self.container.read_sql_value(value, new_value)
             entity.exists = True
-            entity.Expand(self.expand, self.select)
+            entity.expand(self.expand, self.select)
             transaction.commit()
             return entity
         except Exception as e:
@@ -769,7 +769,7 @@ class SQLCollectionBase(core.EntityCollection):
         e.set_key(key)
         if sinfo is None:
             sinfo = core.StreamInfo()
-        etag = e.ETagValues()
+        etag = e.etag_values()
         if len(etag) == 1 and isinstance(etag[0], edm.BinaryValue):
             h = hashlib.sha256()
             etag = etag[0]
@@ -804,7 +804,7 @@ class SQLCollectionBase(core.EntityCollection):
                 (c, params.add_param(self.container.prepare_sql_value(v))))
             query.append(' WHERE ')
             where = []
-            for k, kv in e.KeyDict().items():
+            for k, kv in e.key_dict().items():
                 where.append(
                     '%s=%s' %
                     (self.container.mangled_names[(self.entity_set.name, k)],
@@ -927,7 +927,7 @@ class SQLCollectionBase(core.EntityCollection):
             return self._joins[name][0]
         alias = self.next_alias()
         src_multiplicity, dst_multiplicity = \
-            self.entity_set.NavigationMultiplicity(name)
+            self.entity_set.get_multiplicity(name)
         if dst_multiplicity not in (edm.Multiplicity.ZeroToOne,
                                     edm.Multiplicity.One):
             # we can't join on this navigation property
@@ -936,7 +936,7 @@ class SQLCollectionBase(core.EntityCollection):
                 (self.entity_set.name, name))
         fk_mapping = self.container.fk_table[self.entity_set.name]
         link_end = self.entity_set.navigation[name]
-        target_set = self.entity_set.NavigationTarget(name)
+        target_set = self.entity_set.get_target(name)
         target_table_name = self.container.mangled_names[(target_set.name, )]
         join = []
         if link_end in fk_mapping:
@@ -1090,7 +1090,7 @@ class SQLCollectionBase(core.EntityCollection):
 
         entity
                 An expression is added to restrict the query to this entity"""
-        for k, v in entity.KeyDict().items():
+        for k, v in entity.key_dict().items():
             where.append(
                 '%s.%s=%s' %
                 (self.table_name,
@@ -1247,7 +1247,7 @@ class SQLCollectionBase(core.EntityCollection):
         for k, v in entity.data_items():
             source_path = (self.entity_set.name, k)
             if (source_path not in self.container.ro_names and
-                    entity.Selected(k)):
+                    entity.is_selected(k)):
                 if isinstance(v, edm.SimpleValue):
                     yield self._mangle_name(source_path, prefix=False), v
                 else:
@@ -1273,7 +1273,7 @@ class SQLCollectionBase(core.EntityCollection):
         for k, v in entity.data_items():
             source_path = (self.entity_set.name, k)
             if (source_path in self.container.ro_names and (
-                    entity.Selected(k) or k in keys)):
+                    entity.is_selected(k) or k in keys)):
                 if isinstance(v, edm.SimpleValue):
                     yield self._mangle_name(source_path), v
                 else:
@@ -1309,7 +1309,7 @@ class SQLCollectionBase(core.EntityCollection):
         keys = entity.entity_set.keys
         for k, v in entity.data_items():
             source_path = (self.entity_set.name, k)
-            if (k in keys or entity.Selected(k)):
+            if (k in keys or entity.is_selected(k)):
                 if isinstance(v, edm.SimpleValue):
                     yield self._mangle_name(source_path, prefix), v
                 else:
@@ -1336,7 +1336,7 @@ class SQLCollectionBase(core.EntityCollection):
             source_path = (self.entity_set.name, k)
             if k in keys or source_path in self.container.ro_names:
                 continue
-            if not entity.Selected(k):
+            if not entity.is_selected(k):
                 v.set_null()
             if isinstance(v, edm.SimpleValue):
                 yield self._mangle_name(source_path, prefix=False), v
@@ -1364,7 +1364,7 @@ class SQLCollectionBase(core.EntityCollection):
             source_path = (self.entity_set.name, k)
             if (k in keys or
                     source_path in self.container.ro_names or
-                    not entity.Selected(k)):
+                    not entity.is_selected(k)):
                 continue
             if isinstance(v, edm.SimpleValue):
                 yield self._mangle_name(source_path), v
@@ -1392,7 +1392,7 @@ class SQLCollectionBase(core.EntityCollection):
         :py:class:`~pyslet.odata2.csdl.SimpleValue` instance)."""
         source_path = (self.entity_set.name, '_value')
         return self._mangle_name(source_path, prefix), \
-            edm.EDMValue.NewSimpleValue(edm.SimpleType.Int64)
+            edm.EDMValue.from_type(edm.SimpleType.Int64)
 
     SQLBinaryExpressionMethod = {}
     SQLCallExpressionMethod = {}
@@ -1535,7 +1535,7 @@ class SQLCollectionBase(core.EntityCollection):
                     context_def = p.to_end.entityType
                     depth += 1
                     path = []
-                    entity_set = entity_set.NavigationTarget(name)
+                    entity_set = entity_set.get_target(name)
         # the result must be a simple property, so context_def must not be None
         if context_def is not None:
             raise core.EvaluationError(
@@ -1689,7 +1689,7 @@ class SQLCollectionBase(core.EntityCollection):
         """Converts the endswith function: maps to "op[0] LIKE '%'+op[1]"
 
         This is implemented using the concatenation operator"""
-        percent = edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
+        percent = edm.SimpleValue.from_type(edm.SimpleType.String)
         percent.set_from_value(u"'%'")
         percent = UnparameterizedLiteral(percent)
         concat = core.CallExpression(core.Method.concat)
@@ -1719,7 +1719,7 @@ class SQLCollectionBase(core.EntityCollection):
         """Converts the startswith function: maps to "op[0] LIKE op[1]+'%'"
 
         This is implemented using the concatenation operator"""
-        percent = edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
+        percent = edm.SimpleValue.from_type(edm.SimpleType.String)
         percent.set_from_value(u"'%'")
         percent = UnparameterizedLiteral(percent)
         concat = core.CallExpression(core.Method.concat)
@@ -1783,7 +1783,7 @@ class SQLCollectionBase(core.EntityCollection):
         the intuitive meaning::
 
                 substringof(A,B) == A in B"""
-        percent = edm.SimpleValue.NewSimpleValue(edm.SimpleType.String)
+        percent = edm.SimpleValue.from_type(edm.SimpleType.String)
         percent.set_from_value(u"'%'")
         percent = UnparameterizedLiteral(percent)
         rconcat = core.CallExpression(core.Method.concat)
@@ -1935,7 +1935,7 @@ class SQLEntityCollection(SQLCollectionBase):
             e.set_key(key)
         if sinfo is None:
             sinfo = core.StreamInfo()
-        etag = e.ETagValues()
+        etag = e.etag_values()
         if len(etag) == 1 and isinstance(etag[0], edm.BinaryValue):
             h = hashlib.sha256()
             etag = etag[0]
@@ -1982,7 +1982,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 (c, params.add_param(self.container.prepare_sql_value(v))))
             query.append(' WHERE ')
             where = []
-            for k, kv in e.KeyDict().items():
+            for k, kv in e.key_dict().items():
                 where.append(
                     '%s=%s' %
                     (self.container.mangled_names[(self.entity_set.name, k)],
@@ -2131,15 +2131,15 @@ class SQLEntityCollection(SQLCollectionBase):
                 binding = dv.bindings[0]
                 if not isinstance(binding, edm.Entity):
                     # just a key, grab the entity
-                    with target_set.OpenCollection() as targetCollection:
-                        targetCollection.SelectKeys()
+                    with target_set.open() as targetCollection:
+                        targetCollection.select_keys()
                         target_entity = targetCollection[binding]
                     dv.bindings[0] = target_entity
                 else:
                     target_entity = binding
                     if not target_entity.exists:
                         # add this entity to it's base collection
-                        with target_set.OpenCollection() as targetCollection:
+                        with target_set.open() as targetCollection:
                             targetCollection.insert_entity_sql(
                                 target_entity,
                                 link_end.otherEnd,
@@ -2163,7 +2163,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     entity.auto_key()
                     if not self.test_key(entity, transaction):
                         break
-            entity.SetConcurrencyTokens()
+            entity.set_concurrency_tokens()
             query = ['INSERT INTO ', self.table_name, ' (']
             insert_values = list(self.insert_fields(entity))
             # watch out for exposed FK fields!
@@ -2199,7 +2199,7 @@ class SQLEntityCollection(SQLCollectionBase):
                 self.get_auto(entity, auto_fields, transaction)
             entity.exists = True
             # Step 3
-            for k, dv in entity.NavigationItems():
+            for k, dv in entity.navigation_items():
                 link_end = self.entity_set.navigation[k]
                 if not dv.bindings:
                     continue
@@ -2207,14 +2207,14 @@ class SQLEntityCollection(SQLCollectionBase):
                     dv.bindings = []
                     continue
                 aset_name = link_end.parent.name
-                target_set = dv.Target()
+                target_set = dv.target()
                 target_fk_mapping = self.container.fk_table[target_set.name]
-                with dv.OpenCollection() as navCollection:
-                    with target_set.OpenCollection() as targetCollection:
+                with dv.open() as navCollection:
+                    with target_set.open() as targetCollection:
                         while dv.bindings:
                             binding = dv.bindings[0]
                             if not isinstance(binding, edm.Entity):
-                                targetCollection.SelectKeys()
+                                targetCollection.select_keys()
                                 binding = targetCollection[binding]
                             if binding.exists:
                                 navCollection.insert_link(binding, transaction)
@@ -2290,7 +2290,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     "Integrity check failure, non-unique key after insert")
             for value, new_value in zip(values, row):
                 self.container.read_sql_value(value, new_value)
-            entity.Expand(self.expand, self.select)
+            entity.expand(self.expand, self.select)
             transaction.commit()
         except Exception as e:
             transaction.rollback(e)
@@ -2370,7 +2370,7 @@ class SQLEntityCollection(SQLCollectionBase):
         try:
             transaction.begin()
             nav_done = set()
-            for k, dv in entity.NavigationItems():
+            for k, dv in entity.navigation_items():
                 link_end = self.entity_set.navigation[k]
                 if not dv.bindings:
                     continue
@@ -2391,15 +2391,15 @@ class SQLEntityCollection(SQLCollectionBase):
                 binding = dv.bindings[0]
                 if not isinstance(binding, edm.Entity):
                     # just a key, grab the entity
-                    with target_set.OpenCollection() as targetCollection:
-                        targetCollection.SelectKeys()
+                    with target_set.open() as targetCollection:
+                        targetCollection.select_keys()
                         target_entity = targetCollection[binding]
                     dv.bindings[0] = target_entity
                 else:
                     target_entity = binding
                     if not target_entity.exists:
                         # add this entity to it's base collection
-                        with target_set.OpenCollection() as targetCollection:
+                        with target_set.open() as targetCollection:
                             targetCollection.insert_entity_sql(
                                 target_entity, link_end.otherEnd, transaction)
                 # Finally, we have a target entity, add the foreign key to
@@ -2416,7 +2416,7 @@ class SQLEntityCollection(SQLCollectionBase):
             # constraint
             concurrency_check = False
             constraints = []
-            for k, v in entity.KeyDict().items():
+            for k, v in entity.key_dict().items():
                 constraints.append(
                     (self.container.mangled_names[
                         (self.entity_set.name, k)],
@@ -2430,7 +2430,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     constraints.append(
                         (cname, self.container.prepare_sql_value(v)))
             # now update the entity to have the latest concurrency token
-            entity.SetConcurrencyTokens()
+            entity.set_concurrency_tokens()
             query = ['UPDATE ', self.table_name, ' SET ']
             params = self.container.ParamsClass()
             updates = []
@@ -2485,7 +2485,7 @@ class SQLEntityCollection(SQLCollectionBase):
             # insert_entity_sql but this time we need to handle the case
             # where there is an existing link and the navigation
             # property is not a collection.
-            for k, dv in entity.NavigationItems():
+            for k, dv in entity.navigation_items():
                 link_end = self.entity_set.navigation[k]
                 if not dv.bindings:
                     continue
@@ -2493,14 +2493,14 @@ class SQLEntityCollection(SQLCollectionBase):
                     dv.bindings = []
                     continue
                 aset_name = link_end.parent.name
-                target_set = dv.Target()
+                target_set = dv.target()
                 target_fk_mapping = self.container.fk_table[target_set.name]
-                with dv.OpenCollection() as navCollection:
-                    with target_set.OpenCollection() as targetCollection:
+                with dv.open() as navCollection:
+                    with target_set.open() as targetCollection:
                         while dv.bindings:
                             binding = dv.bindings[0]
                             if not isinstance(binding, edm.Entity):
-                                targetCollection.SelectKeys()
+                                targetCollection.select_keys()
                                 binding = targetCollection[binding]
                             if binding.exists:
                                 if dv.isCollection:
@@ -2647,11 +2647,11 @@ class SQLEntityCollection(SQLCollectionBase):
             transaction.close()
 
     def __delitem__(self, key):
-        with self.entity_set.OpenCollection() as base:
+        with self.entity_set.open() as base:
             entity = base.new_entity()
             entity.set_key(key)
             entity.exists = True    # an assumption!
-            # base.SelectKeys()
+            # base.select_keys()
             # entity = base[key]
         self.delete_entity(entity)
 
@@ -2696,10 +2696,10 @@ class SQLEntityCollection(SQLCollectionBase):
                             # and it is bound to a navigation property so we
                             # can cascade delete
                             target_entity_set = link_end.otherEnd.entity_set
-                            with entity[nav_name].OpenCollection() as links:
-                                with target_entity_set.OpenCollection() as \
+                            with entity[nav_name].open() as links:
+                                with target_entity_set.open() as \
                                         cascade:
-                                    links.SelectKeys()
+                                    links.select_keys()
                                     for target_entity in links.values():
                                         links.delete_link(target_entity,
                                                           transaction)
@@ -2716,7 +2716,7 @@ class SQLEntityCollection(SQLCollectionBase):
                     else:
                         # we are not required, so just drop the links
                         if nav_name is not None:
-                            with entity[nav_name].OpenCollection() as links:
+                            with entity[nav_name].open() as links:
                                 links.clear_links(transaction)
                         # otherwise annoying, we need to do something special
                         elif aset_name in self.container.aux_table:
@@ -2730,7 +2730,7 @@ class SQLEntityCollection(SQLCollectionBase):
                             # foreign keys are at the other end of the
                             # link, we have a method for that...
                             target_entity_set = link_end.otherEnd.entity_set
-                            with target_entity_set.OpenCollection() as \
+                            with target_entity_set.open() as \
                                     keyCollection:
                                 keyCollection.clear_links(
                                     link_end.otherEnd, entity, transaction)
@@ -2803,7 +2803,7 @@ class SQLEntityCollection(SQLCollectionBase):
         # delete it
         query.append(' WHERE ')
         where = []
-        kd = entity.KeyDict()
+        kd = entity.key_dict()
         for k, v in kd.items():
             where.append(
                 '%s=%s' %
@@ -2916,7 +2916,7 @@ class SQLEntityCollection(SQLCollectionBase):
                             (c, self.container.prepare_sql_type(v, params)))
         # do we have a media stream?
         if self.entity_set.entityType.has_stream():
-            v = edm.EDMValue.NewSimpleValue(edm.SimpleType.Int64)
+            v = edm.EDMValue.from_type(edm.SimpleType.Int64)
             c = self.container.mangled_names[(self.entity_set.name, u'_value')]
             cnames[c] = True
             cols.append("%s %s" %
@@ -3099,7 +3099,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
 
     def __init__(self, **kwargs):
         super(SQLForeignKeyCollection, self).__init__(**kwargs)
-        self.keyCollection = self.from_entity.entity_set.OpenCollection()
+        self.keyCollection = self.from_entity.entity_set.open()
 
     def reset_joins(self):
         """Overridden to provide an inner join to *from_entity*'s table.
@@ -3160,7 +3160,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         if self._joins is None:
             self.reset_joins()
         where = []
-        for k, v in self.from_entity.KeyDict().items():
+        for k, v in self.from_entity.key_dict().items():
             where.append(
                 u"%s.%s=%s" %
                 (self._source_alias, self.container.mangled_names[
@@ -3188,7 +3188,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
             # take place without a commit as the insertion of the link
             # afterwards might still fail.
             transaction.begin()
-            with self.entity_set.OpenCollection() as baseCollection:
+            with self.entity_set.open() as baseCollection:
                 baseCollection.insert_entity_sql(
                     entity, self.from_end.otherEnd, transaction=transaction)
             self.keyCollection.update_link(
@@ -3240,7 +3240,7 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         if self.toMultiplicity == edm.Multiplicity.One:
             raise edm.NavigationError("Can't remove a required link")
         #   Turn the key into an entity object as required by delete_link
-        with self.entity_set.OpenCollection() as targetCollection:
+        with self.entity_set.open() as targetCollection:
             target_entity = targetCollection.new_entity()
             target_entity.set_key(key)
             # we open the base collection and call the update link method
@@ -3270,12 +3270,12 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
 
     def __init__(self, **kwargs):
         super(SQLReverseKeyCollection, self).__init__(**kwargs)
-        self.keyCollection = self.entity_set.OpenCollection()
+        self.keyCollection = self.entity_set.open()
 
     def where_clause(self, entity, params, use_filter=True, use_skip=False):
         """Adds the constraint to entities linked from *from_entity* only."""
         where = []
-        for k, v in self.from_entity.KeyDict().items():
+        for k, v in self.from_entity.key_dict().items():
             where.append(u"%s=%s" % (
                 self.container.mangled_names[
                     (self.entity_set.name, self.aset_name, k)],
@@ -3295,7 +3295,7 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
     def insert_entity(self, entity):
         transaction = SQLTransaction(self.container, self.connection)
         fk_values = []
-        for k, v in self.from_entity.KeyDict().items():
+        for k, v in self.from_entity.key_dict().items():
             fk_values.append(
                 (self.container.mangled_names[
                     (self.entity_set.name, self.aset_name, k)], v))
@@ -3533,7 +3533,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
             return self._joins[name][0]
         # this collection is either 1-1 or Many-Many
         src_multiplicity, dst_multiplicity = \
-            self.entity_set.NavigationMultiplicity(name)
+            self.entity_set.get_multiplicity(name)
         if dst_multiplicity != edm.Multiplicity.One:
             # we can't join on this navigation property
             raise NotImplementedError(
@@ -3560,7 +3560,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
     def where_clause(self, entity, params, use_filter=True, use_skip=False):
         """Provides the *from_entity* constraint in the auxiliary table."""
         where = []
-        for k, v in self.from_entity.KeyDict().items():
+        for k, v in self.from_entity.key_dict().items():
             where.append(
                 u"%s.%s=%s" %
                 (self.atable_name,
@@ -3572,7 +3572,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
                     params.add_param(
                      self.container.prepare_sql_value(v))))
         if entity is not None:
-            for k, v in entity.KeyDict().items():
+            for k, v in entity.key_dict().items():
                 where.append(
                     u"%s.%s=%s" %
                     (self.atable_name,
@@ -3605,7 +3605,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
             transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
-            with self.entity_set.OpenCollection() as baseCollection:
+            with self.entity_set.open() as baseCollection:
                 # if this is a 1-1 relationship insert_entity_sql will
                 # fail (with an unbound navigation property) so we need
                 # to suppress the back-link.
@@ -3628,7 +3628,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
         params = self.container.ParamsClass()
         value_names = []
         values = []
-        for k, v in self.from_entity.KeyDict().items():
+        for k, v in self.from_entity.key_dict().items():
             value_names.append(
                 self.container.mangled_names[
                     (self.aset_name,
@@ -3638,7 +3638,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
             values.append(
                 params.add_param(
                     self.container.prepare_sql_value(v)))
-        for k, v in entity.KeyDict().items():
+        for k, v in entity.key_dict().items():
             value_names.append(
                 self.container.mangled_names[
                     (self.aset_name,
@@ -3704,7 +3704,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
         #   constraint violation.
         if self.uniqueKeys:
             raise edm.NavigationError("Can't remove a required link")
-        with self.entity_set.OpenCollection() as targetCollection:
+        with self.entity_set.open() as targetCollection:
             entity = targetCollection.new_entity()
             entity.set_key(key)
             self.delete_link(entity)
@@ -3812,7 +3812,7 @@ class SQLAssociationCollection(SQLNavigationCollection):
         params = container.ParamsClass()
         query.append(' WHERE ')
         where = []
-        for k, v in from_entity.KeyDict().items():
+        for k, v in from_entity.key_dict().items():
             where.append(
                 u"%s.%s=%s" %
                 (atable_name,
@@ -4306,7 +4306,7 @@ class SQLEntityContainer(object):
         if multiplicity in (
                 (edm.Multiplicity.One, edm.Multiplicity.One),
                 (edm.Multiplicity.ZeroToOne, edm.Multiplicity.ZeroToOne)):
-            entity_set.BindNavigation(
+            entity_set.bind_navigation(
                 name,
                 self.get_symmetric_navigation_class(),
                 container=self,
@@ -4319,7 +4319,7 @@ class SQLEntityContainer(object):
                 self.aux_table[aset_name] = [
                     entity_set, name, target_set, "", True]
         elif multiplicity == (edm.Multiplicity.Many, edm.Multiplicity.Many):
-            entity_set.BindNavigation(
+            entity_set.bind_navigation(
                 name,
                 self.get_symmetric_navigation_class(),
                 container=self,
@@ -4331,18 +4331,18 @@ class SQLEntityContainer(object):
                     entity_set, name, target_set, "", False]
         elif (multiplicity ==
                 (edm.Multiplicity.One, edm.Multiplicity.ZeroToOne)):
-            entity_set.BindNavigation(name,
-                                      self.get_rk_class(),
-                                      container=self, aset_name=aset_name)
+            entity_set.bind_navigation(name,
+                                       self.get_rk_class(),
+                                       container=self, aset_name=aset_name)
             self.fk_table[target_set.name][to_as_end] = (False, True)
         elif multiplicity == (edm.Multiplicity.One, edm.Multiplicity.Many):
-            entity_set.BindNavigation(name,
-                                      self.get_rk_class(),
-                                      container=self, aset_name=aset_name)
+            entity_set.bind_navigation(name,
+                                       self.get_rk_class(),
+                                       container=self, aset_name=aset_name)
             self.fk_table[target_set.name][to_as_end] = (False, False)
         elif (multiplicity ==
                 (edm.Multiplicity.ZeroToOne, edm.Multiplicity.Many)):
-            entity_set.BindNavigation(
+            entity_set.bind_navigation(
                 name,
                 self.get_rk_class(),
                 container=self,
@@ -4350,14 +4350,14 @@ class SQLEntityContainer(object):
             self.fk_table[target_set.name][to_as_end] = (True, False)
         elif (multiplicity ==
                 (edm.Multiplicity.ZeroToOne, edm.Multiplicity.One)):
-            entity_set.BindNavigation(
+            entity_set.bind_navigation(
                 name,
                 self.get_fk_class(),
                 container=self,
                 aset_name=aset_name)
             self.fk_table[entity_set.name][from_as_end] = (False, True)
         elif multiplicity == (edm.Multiplicity.Many, edm.Multiplicity.One):
-            entity_set.BindNavigation(
+            entity_set.bind_navigation(
                 name,
                 self.get_fk_class(),
                 container=self,
@@ -4365,7 +4365,7 @@ class SQLEntityContainer(object):
             self.fk_table[entity_set.name][from_as_end] = (False, False)
         else:
             #           (edm.Multiplicity.Many,edm.Multiplicity.ZeroToOne)
-            entity_set.BindNavigation(name, self.get_fk_class(
+            entity_set.bind_navigation(name, self.get_fk_class(
             ), container=self, aset_name=aset_name)
             self.fk_table[entity_set.name][from_as_end] = (True, False)
 
@@ -4422,7 +4422,7 @@ class SQLEntityContainer(object):
             if es.name not in visited:
                 self.create_table_list(es, visited, create_list)
         for es in create_list:
-            with es.OpenCollection() as collection:
+            with es.open() as collection:
                 if out is None:
                     collection.create_table()
                 else:
@@ -4464,7 +4464,7 @@ class SQLEntityContainer(object):
                 continue
             self.create_table(target_set, visited)
         # now we are free to create the table
-        with es.OpenCollection() as collection:
+        with es.open() as collection:
             collection.create_table()
 
     def create_table_list(self, es, visited, create_list):
@@ -4506,7 +4506,7 @@ class SQLEntityContainer(object):
                 self.create_table_list(es, visited, drop_list)
         drop_list.reverse()
         for es in drop_list:
-            with es.OpenCollection() as collection:
+            with es.open() as collection:
                 if out is None:
                     try:
                         collection.drop_table()
@@ -5112,12 +5112,12 @@ class SQLEntityContainer(object):
 
         This method creates a new instance, selecting the most
         appropriate type to represent sql_value.  By default
-        :py:meth:`pyslet.odata2.csdl.EDMValue.NewSimpleValueFromValue`
+        :py:meth:`pyslet.odata2.csdl.EDMValue.from_value`
         is used.
 
         You may need to override this method to identify the appropriate
         value type."""
-        return edm.EDMValue.NewSimpleValueFromValue(sql_value)
+        return edm.EDMValue.from_value(sql_value)
 
     def select_limit_clause(self, skip, top):
         """Returns a SELECT modifier to limit a query

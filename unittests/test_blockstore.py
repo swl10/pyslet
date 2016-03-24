@@ -330,8 +330,8 @@ class StreamStoreTests(unittest.TestCase):
     def test_store(self):
         ss = StreamStore(bs=self.bs, ls=self.ls,
                          entity_set=self.cdef['Streams'])
-        with self.cdef['Streams'].OpenCollection() as streams:
-            with self.cdef['BlockLists'].OpenCollection() as blocks:
+        with self.cdef['Streams'].open() as streams:
+            with self.cdef['BlockLists'].open() as blocks:
                 stream1 = streams.new_entity()
                 stream1['mimetype'].set_from_value("text/plain")
                 now = TimePoint.from_now_utc()
@@ -436,7 +436,7 @@ class StreamStoreTests(unittest.TestCase):
             self.assertTrue(s.tell() == nbytes)
         self.assertTrue(s1['size'].value == nbytes)
         self.assertTrue(s1['md5'].value == hashlib.md5(data).digest())
-        with self.cdef['BlockLists'].OpenCollection() as blocks:
+        with self.cdef['BlockLists'].open() as blocks:
             # data should spill over to 2 blocks
             self.assertTrue(len(blocks) == 2)
         with ss.open_stream(s1, 'r') as s:

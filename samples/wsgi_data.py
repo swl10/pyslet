@@ -16,7 +16,7 @@ class MyApp(WSGIDataApp):
 
     def home(self, context):
         path = context.environ.get('PATH_INFO', '')
-        with self.container['Hits'].OpenCollection() as collection:
+        with self.container['Hits'].open() as collection:
             ntries = 0
             while ntries < 5:
                 try:

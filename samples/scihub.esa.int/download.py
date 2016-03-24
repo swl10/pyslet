@@ -42,7 +42,7 @@ def main(user, password, product_list):
     c.add_credentials(credentials)
     c.LoadService(SERVICE, metadata=metadata)
 
-    with c.feeds['Products'].OpenCollection() as products:
+    with c.feeds['Products'].open() as products:
         for pid in product_list:
             p = products[pid]
             name = p['Name'].value

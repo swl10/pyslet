@@ -118,7 +118,7 @@ class ClientCollection(core.EntityCollection):
         We override this implementation to ensure that the keys are
         always selected in each entity set."""
         self.AddKeys(self.entity_set, expand, select)
-        self.entity_set.entityType.ValidateExpansion(expand, select)
+        self.entity_set.entityType.validate_expansion(expand, select)
         self.expand = expand
         self.select = select
 
@@ -136,7 +136,7 @@ class ClientCollection(core.EntityCollection):
                 if select and np in select:
                     # recurse
                     cls.AddKeys(
-                        entity_set.NavigationTarget(np), expansion, select[np])
+                        entity_set.get_target(np), expansion, select[np])
                 else:
                     # not being expanded
                     pass
@@ -208,7 +208,7 @@ class ClientCollection(core.EntityCollection):
                 entity.exists = True
                 doc.root.get_value(entity)
                 # so which bindings got handled?  Assume all of them
-                for k, dv in entity.NavigationItems():
+                for k, dv in entity.navigation_items():
                     dv.bindings = []
             else:
                 self.RaiseError(request)
@@ -288,7 +288,7 @@ class ClientCollection(core.EntityCollection):
     def itervalues(self):
         return self.entity_generator()
 
-    def TopMax(self, topmax):
+    def set_topmax(self, topmax):
         raise NotImplementedError("OData client can't override topmax")
 
     def set_page(self, top, skip=0, skiptoken=None):
@@ -368,7 +368,7 @@ class ClientCollection(core.EntityCollection):
             entityURL = str(self.base_uri)
         else:
             entityURL = (str(self.base_uri) +
-                         core.ODataURI.FormatKeyDict(self.entity_set.GetKeyDict(key)))
+                         core.ODataURI.FormatKeyDict(self.entity_set.get_key_dict(key)))
         if self.expand is not None:
             sysQueryOptions[
                 core.SystemQueryOption.expand] = core.FormatExpand(self.expand)
@@ -460,7 +460,7 @@ class ClientCollection(core.EntityCollection):
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
         streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
-            self.entity_set.GetKeyDict(key)) + "/$value"
+            self.entity_set.get_key_dict(key)) + "/$value"
         if sinfo is None:
             sinfo = core.StreamInfo()
         request = http.ClientRequest(streamURL, 'PUT', entity_body=src)
@@ -481,7 +481,7 @@ class ClientCollection(core.EntityCollection):
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
         streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
-            self.entity_set.GetKeyDict(key)) + "/$value"
+            self.entity_set.get_key_dict(key)) + "/$value"
         if out is None:
             request = http.ClientRequest(streamURL, 'HEAD')
         else:
@@ -510,7 +510,7 @@ class ClientCollection(core.EntityCollection):
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
         streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
-            self.entity_set.GetKeyDict(key)) + "/$value"
+            self.entity_set.get_key_dict(key)) + "/$value"
         swrapper = EntityStream(self)
         request = http.ClientRequest(streamURL, 'GET', res_body=swrapper)
         request.set_accept("*/*")
@@ -609,7 +609,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
             # success, nothing to read back but we're not done
             # we've only updated links to existing entities on properties with
             # single cardinality
-            for k, dv in entity.NavigationItems():
+            for k, dv in entity.navigation_items():
                 if not dv.bindings or dv.isCollection:
                     continue
                 # we need to know the location of the target entity set
@@ -674,8 +674,8 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             backLink = self.entity_set.linkEnds[self.from_end.otherEnd]
             if backLink:
                 # there is a navigation property going back
-                entity[backLink].BindEntity(self.from_entity)
-                with self.entity_set.OpenCollection() as baseCollection:
+                entity[backLink].bind_entity(self.from_entity)
+                with self.entity_set.open() as baseCollection:
                     baseCollection.insert_entity(entity)
                 return
             elif self.isCollection:
@@ -696,7 +696,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 raise NotImplementedError(
                     "Can't insert an entity into a 1-(0..)1 relationship without a back-link")
         else:
-            with self.entity_set.OpenCollection() as baseCollection:
+            with self.entity_set.open() as baseCollection:
                 baseCollection.insert_entity(entity)
                 # this link may fail, which isn't what the caller wanted
                 # but it seems like a bad idea to try deleting the
@@ -1042,7 +1042,7 @@ class Client(app.Client):
                 entity_set = self.feeds[f]
                 entity_set.bind(EntityCollection, client=self)
                 for np in entity_set.entityType.NavigationProperty:
-                    entity_set.BindNavigation(
+                    entity_set.bind_navigation(
                         np.name, NavigationCollection, client=self)
                 logging.debug(
                     "Registering feed: %s", str(self.feeds[f].get_location()))

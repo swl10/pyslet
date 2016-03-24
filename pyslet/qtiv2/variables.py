@@ -1904,12 +1904,12 @@ class ItemSessionState(SessionState):
                     self.map[rd.identifier + ".DEFAULT"])
             # and set completionStatus
             self.map['completionStatus'] = IdentifierValue('unknown')
-        return self.item.RenderHTML(self, htmlParent)
+        return self.item.render_html(self, htmlParent)
 
     def SaveSession(self, params, htmlParent=None):
         """Called when we wish to save unsubmitted values."""
         self._SaveParameters(params)
-        return self.item.RenderHTML(self, htmlParent)
+        return self.item.render_html(self, htmlParent)
 
     def SubmitSession(self, params, htmlParent=None):
         """Called when we wish to submit values (i.e., end an attempt)."""
@@ -1922,7 +1922,7 @@ class ItemSessionState(SessionState):
                 self.map[rd.identifier].set_value(self.map[sName].value)
                 del self.map[sName]
         self.EndAttempt()
-        return self.item.RenderHTML(self, htmlParent)
+        return self.item.render_html(self, htmlParent)
 
     def _SaveParameters(self, params):
         orderedParams = {}
