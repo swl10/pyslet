@@ -57,12 +57,10 @@ if py2:
 if py2:
     import test_odata2_client
     all_tests.addTest(test_odata2_client.suite())
-if py2:
-    import test_odata2_csdl
-    all_tests.addTest(test_odata2_csdl.suite())
-if py2:
-    import test_odata2_edmx
-    all_tests.addTest(test_odata2_edmx.suite())
+import test_odata2_csdl
+all_tests.addTest(test_odata2_csdl.suite())
+import test_odata2_edmx
+all_tests.addTest(test_odata2_edmx.suite())
 if py2:
     import test_odata2_memds
     all_tests.addTest(test_odata2_memds.suite())

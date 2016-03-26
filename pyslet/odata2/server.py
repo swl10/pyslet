@@ -450,7 +450,7 @@ class Server(app.Server):
                     if not isinstance(resource, edm.EntityCollection):
                         noNavPath = True
                         # 10-14 have identical constraints, treat them the same
-                        odataURI.ValidateSystemQueryOptions(10)
+                        odataURI.validate_sys_query_options(10)
                 elif isinstance(resource, edm.EntitySet):
                     resource = resource.open()
                 else:
@@ -520,17 +520,17 @@ class Server(app.Server):
                 # Any other type is just a property or simple-type
                 raise core.BadURISegment(name)
         if isinstance(resource, edm.EntityCollection):
-            odataURI.ValidateSystemQueryOptions(1)  # includes 6 Note 2
+            odataURI.validate_sys_query_options(1)  # includes 6 Note 2
         elif isinstance(resource, edm.Entity):
             if odataURI.pathOption == core.PathOption.value:
-                odataURI.ValidateSystemQueryOptions(17)  # media resource value
+                odataURI.validate_sys_query_options(17)  # media resource value
             elif odataURI.pathOption != core.PathOption.links:
-                odataURI.ValidateSystemQueryOptions(2)  # includes 6 Note 1
+                odataURI.validate_sys_query_options(2)  # includes 6 Note 1
         elif isinstance(resource, edm.Complex):
-            odataURI.ValidateSystemQueryOptions(3)
+            odataURI.validate_sys_query_options(3)
         elif isinstance(resource, edm.SimpleValue):
             # 4 & 5 are identical
-            odataURI.ValidateSystemQueryOptions(4)
+            odataURI.validate_sys_query_options(4)
         elif resource is None and parentEntity is not None:
             # there is a very specific use case here, use of
             # <entity>/$links/<nav-et> where the link is NULL
@@ -790,7 +790,7 @@ class Server(app.Server):
                         kp = slug.slug.strip()
                         if kp and kp[0] == '(' and kp[-1] == ')':
                             try:
-                                name, kp = core.ODataURI.SplitSegment(kp)
+                                name, kp = core.ODataURI.split_segment(kp)
                                 # kp is a dictionary for the entity key
                                 key = resource.entity_set.get_key(kp)
                             except ValueError:
@@ -1264,9 +1264,9 @@ class Server(app.Server):
                     input.root.xmlname)
         else:
             if isinstance(value, edm.SimpleValue):
-                core.ReadEntityPropertyInJSON1(value, input)
+                core.simple_property_from_json(value, input)
             else:
-                core.ReadEntityCTInJSON(value, input)
+                core.complex_property_from_json(value, input)
 
     def ReturnValue(
             self,
@@ -1290,16 +1290,16 @@ class Server(app.Server):
         if responseType == "application/json":
             if isinstance(value, edm.Complex):
                 if request.version == 2:
-                    data = '{"d":%s}' % core.EntityCTInJSON2(value)
+                    data = '{"d":%s}' % core.complex_property_to_json_v2(value)
                 else:
-                    data = '{"d":%s}' % core.EntityCTInJSON(value)
+                    data = '{"d":%s}' % core.complex_property_to_json_v1(value)
             else:
                 if request.version == 2:
                     # the spec goes a bit weird here, tripping up over
                     # brackets!
-                    data = '{"d":%s}' % core.EntityPropertyInJSON2(value)
+                    data = '{"d":%s}' % core.simple_property_to_json_v2(value)
                 else:
-                    data = '{"d":{%s}}' % core.EntityPropertyInJSON(value)
+                    data = '{"d":{%s}}' % core.simple_property_to_json_str(value)
         else:
             e = core.Property(None)
             e.set_xmlname((core.ODATA_DATASERVICES_NAMESPACE, value.p_def.name))
@@ -1412,7 +1412,7 @@ class Server(app.Server):
                 406)
         if responseType == "application/json":
             data = '{"d":%s}' % string.join(
-                collection.GenerateCollectionInJSON(request.version))
+                collection.generate_collection_in_json(request.version))
         else:
             e = core.Collection(None)
             e.set_xmlname((core.ODATA_METADATA_NAMESPACE, collection.name))
@@ -1501,13 +1501,13 @@ class Server(app.Server):
         DataServiceVersion mismatch" error response is generated."""
         ua = sa = None
         if "HTTP_DATASERVICEVERSION" in environ:
-            major, minor, ua = core.ParseDataServiceVersion(
+            major, minor, ua = core.parse_dataservice_version(
                 environ["HTTP_DATASERVICEVERSION"])
         else:
             major = 2
             minor = 0
         if "HTTP_MAXDATASERVICEVERSION" in environ:
-            maxMajor, maxMinor, sa = core.ParseMaxDataServiceVersion(
+            maxMajor, maxMinor, sa = core.parse_max_dataservice_version(
                 environ["HTTP_MAXDATASERVICEVERSION"])
         else:
             maxMajor = major

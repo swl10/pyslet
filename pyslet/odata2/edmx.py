@@ -5,11 +5,10 @@ http://msdn.microsoft.com/en-us/library/dd541284(v=prot.10)"""
 
 import itertools
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.rfc2396 as uri
-import pyslet.odata2.csdl as edm
-from pyslet.pep8 import PEP8Compatibility
+from . import csdl as edm
+from .. import rfc2396 as uri
+from ..xml import structures as xml
+from ..xml import namespace as xmlns
 
 
 #: Namespace to use for EDMX elements
@@ -108,10 +107,10 @@ class Document(xmlns.XMLNSDocument):
 
     @classmethod
     def get_element_class(cls, name):
-        """Overrides :py:meth:`pyslet.xml.namespace.XMLNSDocument.get_element_class` to look up name."""
-        eClass = Document.classMap.get(
+        """Overridden to look up name in the class map"""
+        eclass = Document.classMap.get(
             name, Document.classMap.get((name[0], None), xmlns.XMLNSElement))
-        return eClass
+        return eclass
 
     def validate(self):
         # These extensions MUST be used by a data service in conjunction

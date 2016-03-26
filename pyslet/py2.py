@@ -117,6 +117,8 @@ if py2:
     def byte_to_bstr(arg):
         return arg
 
+    long2 = long
+
     range3 = xrange
 
     def dict_keys(d):
@@ -223,6 +225,8 @@ else:
 
     def byte_to_bstr(arg):
         return bytes([arg])
+
+    long2 = int
 
     range3 = range
 
@@ -396,3 +400,14 @@ class CmpMixin(object):
     if py2:
         def __ne__(self, other):    # noqa
             return not self.__eq__(other)
+
+
+class BoolMixin(object):
+
+    """Mixin class for handling legacy __nonzero__
+
+    For compatibility with Python 2 this class defines __nonzero__
+    returning the value of the metho __bool__."""
+
+    def __nonzero__(self):
+        return self.__bool__()

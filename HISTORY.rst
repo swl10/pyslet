@@ -48,14 +48,20 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
-Build 20160323:
+Build 20160326:
+
+Intermediate commit: some deprecation warnings
 
 #3 PEP-8 driven refactoring (ongoing)
 
-OData v2 csdl module refactored to use new method decorators and for
-PEP-8 compliance.
+OData v2 csdl, edmx and core modules refactored to use new method
+decorators and for PEP-8 compliance.
 
 OData v2 docs reorganised into a separate directory for clarity.
+
+#38 Python 3 compatibility work (ongoing)
+
+OData v2 csdl and edmx modules refactored, Python 3 tests passing
 
 
 Build 20160313:

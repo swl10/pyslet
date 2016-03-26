@@ -1,16 +1,24 @@
 #! /usr/bin/env python
 
-import unittest
-import logging
+
+import decimal
 import hashlib
+import logging
+import unittest
+import uuid
+
 from StringIO import StringIO
 
 import pyslet.http.params as params
 import pyslet.http.messages as messages
-from pyslet.vfs import OSFilePath as FilePath
-
+import pyslet.iso8601 as iso
+import pyslet.odata2.core as odata
+import pyslet.odata2.csdl as edm
 import pyslet.odata2.metadata as edmx
-from pyslet.odata2.core import *    # noqa
+
+from pyslet.vfs import OSFilePath as FilePath
+from pyslet.py2 import (
+    is_unicode)
 
 
 def suite(prefix='test'):
@@ -34,7 +42,7 @@ class ODataTests(unittest.TestCase):
 class CommonExpressionTests(unittest.TestCase):
 
     def evaluate_common(self, expr_string):
-        p = Parser(expr_string)
+        p = odata.Parser(expr_string)
         e = p.parse_common_expression()
         return e.Evaluate(None)
 
@@ -42,10 +50,10 @@ class CommonExpressionTests(unittest.TestCase):
         # cursory check:
         # a commonExpression must represent any and all supported common
         # expression types
-        p = Parser("true and false")
+        p = odata.Parser("true and false")
         e = p.parse_common_expression()
-        self.assertTrue(
-            isinstance(e, CommonExpression), "Expected common expression")
+        self.assertTrue(isinstance(e, odata.CommonExpression),
+                        "Expected common expression")
         value = e.Evaluate(None)
         self.assertTrue(isinstance(value, edm.SimpleValue),
                         "Expected EDM value; found %s" % repr(value))
@@ -67,12 +75,13 @@ class CommonExpressionTests(unittest.TestCase):
 
         ...the result of the parenExpression MUST be the result of the
         evaluation of the contained expression."""
-        p = Parser("(false and false or true)")
+        p = odata.Parser("(false and false or true)")
         # note that 'or' is the weakest operator
         e = p.parse_common_expression()
         value = e.Evaluate(None)
         self.assertTrue(value.value is True, "Expected True")
-        p = Parser("(false and (false or true))")   # should change the result
+        p = odata.Parser("(false and (false or true))")
+        # should change the result
         e = p.parse_common_expression()
         value = e.Evaluate(None)
         self.assertTrue(value.value is False, "Expected False")
@@ -128,7 +137,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("2 add '2'")
             self.fail("String promotion to int")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("2 add null")
         self.assertTrue(
@@ -156,7 +165,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("4 sub '2'")
             self.fail("String promotion to int")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("4 sub null")
         self.assertTrue(
@@ -184,7 +193,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("4 mul '2'")
             self.fail("String promotion to int")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("4 mul null")
         self.assertTrue(
@@ -209,7 +218,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("4D div 0")
             self.fail("Division by zero")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("4F div 2D")
         self.assertTrue(
@@ -226,7 +235,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("4 div '2'")
             self.fail("String promotion to int")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("4 div null")
         self.assertTrue(
@@ -252,7 +261,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("5.5D mod 0")
             self.fail("Division by zero")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("5.5F mod 2D")
         self.assertTrue(
@@ -269,7 +278,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("5 mod '2'")
             self.fail("String promotion to int")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("5 mod null")
         self.assertTrue(
@@ -295,7 +304,8 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == -2.0, "Expected -2.0")
-        p = Parser("-(-2F)")  # unary numeric promotion to Double - a bit weird
+        p = odata.Parser("-(-2F)")
+        # unary numeric promotion to Double - a bit weird
         e = p.parse_common_expression()
         value = e.Evaluate(None)
         self.assertTrue(
@@ -308,7 +318,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("-'2'")
             self.fail("String promotion to numeric")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("-null")
         self.assertTrue(
@@ -339,7 +349,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("false and 0")
             self.fail("Integer promotion to Boolean")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("false and true")
         self.assertTrue(value.value is False, "Expected False")
@@ -370,7 +380,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("false or 0")
             self.fail("Integer promotion to Boolean")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("false or true")
         self.assertTrue(value.value is True, "Expected True")
@@ -405,7 +415,7 @@ class CommonExpressionTests(unittest.TestCase):
 
         The eqExpression SHOULD NOT be supported for any other EDM
         Primitive types.
-        
+
         [Given that the previous statement is not a requirement it is
         acceptable to extend these relations to include
         Edm.DateTimeOffset as per the OData v3 specification.]
@@ -439,7 +449,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("2 eq '2'")
             self.fail("String promotion to int")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("'2' eq '2'")
         self.assertTrue(value.value is True, "Expected True")
@@ -491,7 +501,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("2 ne '2'")
             self.fail("String promotion to int")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("'2' ne '2'")
         self.assertTrue(value.value is False, "Expected False")
@@ -564,7 +574,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("2 lt '3'")
             self.fail("String promotion to int")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("'20' lt '3'")
         self.assertTrue(value.value is True, "Expected True")
@@ -591,11 +601,11 @@ class CommonExpressionTests(unittest.TestCase):
             "guid'3fa6109e-f09c-4c5e-a5f3-6cf38d35c9b5'")
         self.assertTrue(value.value is False, "Expected False")
         try:
-            p = Parser("X'DEADBEEF' lt binary'deadbeef'")
+            p = odata.Parser("X'DEADBEEF' lt binary'deadbeef'")
             e = p.parse_common_expression()
             value = e.Evaluate(None)
             self.fail("Relational operation on binary data")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("2 lt null")
         self.assertTrue(value.value is False, "Expected False")
@@ -683,7 +693,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("not 1")
             self.fail("Integer promotion to Boolean")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         value = self.evaluate_common("not null")
         self.assertTrue(value.value is None, "Expected NULL")
@@ -864,7 +874,8 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(value.value == 123.5)
         value = self.evaluate_common(
             "guid'b3afeebc-9658-4699-9d9c-1df551fd6814'")
-        self.assertTrue(value.type_code == edm.SimpleType.Guid, "Expected Guid")
+        self.assertTrue(value.type_code == edm.SimpleType.Guid,
+                        "Expected Guid")
         self.assertTrue(
             value.value == uuid.UUID('b3afeebc-9658-4699-9d9c-1df551fd6814'))
         value = self.evaluate_common("123456")
@@ -884,7 +895,8 @@ class CommonExpressionTests(unittest.TestCase):
             value.type_code == edm.SimpleType.String, "Expected String")
         self.assertTrue(value.value == '123')
         value = self.evaluate_common("time'15:28'")
-        self.assertTrue(value.type_code == edm.SimpleType.Time, "Expected Time")
+        self.assertTrue(value.type_code == edm.SimpleType.Time,
+                        "Expected Time")
         self.assertTrue(value.value.hour == 15)
         self.assertTrue(value.value.minute == 28)
         self.assertTrue(value.value.second == 0)
@@ -935,12 +947,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("endswith('3.14',4)")
             self.fail("integer as suffix")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("endswith('3.14')")
             self.fail("1 parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_index_of_expression(self):
@@ -972,12 +984,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("indexof('3.14',1)")
             self.fail("integer as parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("indexof('3.14')")
             self.fail("1 parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_replace_expression(self):
@@ -1008,12 +1020,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("replace('3.14','1',2)")
             self.fail("integer as parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("replace('3.14','1')")
             self.fail("2 parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_starts_with_expression(self):
@@ -1041,12 +1053,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("startswith('3.14',3)")
             self.fail("integer as prefix")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("startswith('3.14')")
             self.fail("1 parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_to_lower_expression(self):
@@ -1073,12 +1085,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("tolower(3.14F)")
             self.fail("floating lower")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("tolower('Steve','John')")
             self.fail("2 parameters")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_to_upper_expression(self):
@@ -1105,12 +1117,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("toupper(3.14F)")
             self.fail("floating upper")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("toupper('Steve','John')")
             self.fail("2 parameters")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_trim_expression(self):
@@ -1136,12 +1148,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("trim(3.14F)")
             self.fail("floating trim")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("trim('Steve','John')")
             self.fail("2 parameters")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_substring_expression(self):
@@ -1173,12 +1185,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("substring('startswith',1.0D,4)")
             self.fail("double as parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("substring('3.14')")
             self.fail("1 parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_substring_of_expression(self):
@@ -1213,12 +1225,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("substringof(1,'3.14')")
             self.fail("integer as parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("substringof('3.14')")
             self.fail("1 parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_concat_expression(self):
@@ -1244,17 +1256,17 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("concat('3.14',1)")
             self.fail("integer as parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("concat('3.14')")
             self.fail("1 parameter")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("concat('3.1','4','159')")
             self.fail("3 parameters")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_length_expression(self):
@@ -1281,12 +1293,12 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             value = self.evaluate_common("length(3.14F)")
             self.fail("floating length")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
         try:
             value = self.evaluate_common("length('Steve','John')")
             self.fail("2 parameters")
-        except EvaluationError:
+        except odata.EvaluationError:
             pass
 
     def test_evaluate_year_expression(self):
@@ -1320,14 +1332,14 @@ class CommonExpressionTests(unittest.TestCase):
                 value = self.evaluate_common(
                     "%s(datetimeoffset'2013-09-01T10:56:12-05:00')" % f)
                 self.fail("datetimeoffset %s" % f)
-            except EvaluationError:
+            except odata.EvaluationError:
                 pass
             try:
                 value = self.evaluate_common(
                     "%s(datetime'2013-09-01T10:56',"
                     "datetime'2013-09-01T10:57')" % f)
                 self.fail("2 parameters")
-            except EvaluationError:
+            except odata.EvaluationError:
                 pass
 
     def test_evaluate_round_expression(self):
@@ -1388,12 +1400,12 @@ class CommonExpressionTests(unittest.TestCase):
             try:
                 value = self.evaluate_common("%s('3')" % f)
                 self.fail("round string parameter")
-            except EvaluationError:
+            except odata.EvaluationError:
                 pass
             try:
                 value = self.evaluate_common("%s(3.1D,3.2D)" % f)
                 self.fail("two parameters")
-            except EvaluationError:
+            except odata.EvaluationError:
                 pass
 
     def test_operator_precedence(self):
@@ -1461,8 +1473,8 @@ class CommonExpressionTests(unittest.TestCase):
             "ceiling(1.5D)",
             "--2 mul 3 div 1 mul 2 mod 2 add 2 div 2 sub 1 eq 2 and "
                 "false or true", ]:
-            e1 = CommonExpression.from_str(example)
-            e2 = CommonExpression.from_str(unicode(e1))
+            e1 = odata.CommonExpression.from_str(example)
+            e2 = odata.CommonExpression.from_str(unicode(e1))
             self.assertTrue(e1.Evaluate(None) == e2.Evaluate(
                 None), "Mismatch evaluating: %s" % example)
             self.assertTrue(unicode(e1) == unicode(e2),
@@ -1473,21 +1485,21 @@ class CommonExpressionTests(unittest.TestCase):
 class ParamsExpressionTests(unittest.TestCase):
 
     def evaluate_common(self, expr_string):
-        p = Parser(expr_string)
+        p = odata.Parser(expr_string)
         e = p.parse_common_expression()
         return e.Evaluate(None)
 
     def test_noparams_expression(self):
-        p = Parser("true and false")
+        p = odata.Parser("true and false")
         params = {}
         e = p.parse_common_expression(params)
-        self.assertTrue(
-            isinstance(e, CommonExpression), "Expected common expression")
+        self.assertTrue(isinstance(e, odata.CommonExpression),
+                        "Expected common expression")
         value = e.Evaluate(None)
         self.assertTrue(value.value is False, "Expected false")
 
     def test_params_expression(self):
-        p = Parser("true and :bool")
+        p = odata.Parser("true and :bool")
         params = {}
         try:
             e = p.parse_common_expression(params)
@@ -1498,7 +1510,7 @@ class ParamsExpressionTests(unittest.TestCase):
         params = {'bool': edm.EDMValue.from_type(edm.SimpleType.Boolean)}
         p.setpos(0)
         e = p.parse_common_expression(params)
-        self.assertTrue(isinstance(e, CommonExpression),
+        self.assertTrue(isinstance(e, odata.CommonExpression),
                         "Expected common expression: %s" % repr(e))
         # true and null = false
         value = e.Evaluate(None)
@@ -1511,49 +1523,48 @@ class ParamsExpressionTests(unittest.TestCase):
         params['bool'].set_from_value(True)
         value = e.Evaluate(None)
         self.assertTrue(value.value is True, "Expected true")
-        
+
 
 class ODataURITests(unittest.TestCase):
 
     def test_construnctor(self):
-        ds_uri = ODataURI('/')
+        ds_uri = odata.ODataURI('/')
         self.assertTrue(ds_uri.pathPrefix == '', "empty path prefix")
         self.assertTrue(ds_uri.resourcePath == '/', "resource path")
         self.assertTrue(ds_uri.queryOptions == [], 'query options')
         self.assertTrue(ds_uri.navPath == [], "navPath: %s" %
                         repr(ds_uri.navPath))
-        ds_uri = ODataURI('/', '/x')
+        ds_uri = odata.ODataURI('/', '/x')
         self.assertTrue(ds_uri.pathPrefix == '/x', "non-empty path prefix")
         self.assertTrue(ds_uri.resourcePath is None, "resource path")
-        ds_uri = ODataURI('/x', '/x')
+        ds_uri = odata.ODataURI('/x', '/x')
         self.assertTrue(ds_uri.pathPrefix == '/x', "non-empty path prefix")
         self.assertTrue(
             ds_uri.resourcePath == '', "empty resource path, special case")
         self.assertTrue(ds_uri.navPath == [],
                         "empty navPath, special case: %s" %
                         repr(ds_uri.navPath))
-        ds_uri = ODataURI('/x.svc/Products', '/x.svc')
+        ds_uri = odata.ODataURI('/x.svc/Products', '/x.svc')
         self.assertTrue(ds_uri.pathPrefix == '/x.svc', "svc path prefix")
         self.assertTrue(ds_uri.resourcePath == '/Products', "resource path")
         self.assertTrue(len(ds_uri.navPath) == 1, "navPath: %s" %
                         repr(ds_uri.navPath))
-        self.assertTrue(isinstance(ds_uri.navPath[0][0], UnicodeType),
-                        "e set name type")
+        self.assertTrue(is_unicode(ds_uri.navPath[0][0]), "e set name type")
         self.assertTrue(
             ds_uri.navPath[0][0] == 'Products', "e set name: Products")
         self.assertTrue(
             ds_uri.navPath[0][1] is None, "e set no key-predicate")
-        ds_uri = ODataURI('Products', '/x.svc')
+        ds_uri = odata.ODataURI('Products', '/x.svc')
         self.assertTrue(ds_uri.pathPrefix == '/x.svc', "svc path prefix")
         self.assertTrue(ds_uri.resourcePath == '/Products', "resource path")
         try:
-            ds_uri = ODataURI('Products', 'x.svc')
+            ds_uri = odata.ODataURI('Products', 'x.svc')
             self.fail("x.svc/Products  - illegal path")
         except ValueError:
             pass
 
     def test_compound_key(self):
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "/CompoundKeys(K3%3Ddatetime'2013-12-25T15%3A59%3A03.142'%2C"
             "K2%3D'00001'%2CK1%3D1%2CK4%3DX'DEADBEEF')")
         self.assertTrue(
@@ -1566,10 +1577,10 @@ class ODataURITests(unittest.TestCase):
             isinstance(ds_uri.navPath[0][1][u'K3'], edm.DateTimeValue))
         self.assertTrue(
             isinstance(ds_uri.navPath[0][1][u'K4'], edm.BinaryValue))
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "/CompoundKeys(K3%3Ddatetime'2013-12-25T15%3A59%3A03.142',"
-            "K2%3D'00001',K1%3D1,K4%3DX'DEADBEEF')")        
-        
+            "K2%3D'00001',K1%3D1,K4%3DX'DEADBEEF')")
+
     def test_query_options(self):
         """QueryOptions:
 
@@ -1585,71 +1596,72 @@ class ODataURITests(unittest.TestCase):
 
         Custom Query Options (section 2.2.3.6.2) MUST NOT begin with a
         "$"."""
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Products()?$format=json&$top=20&$skip=10&space='%20'", '/x.svc')
         self.assertTrue(set(ds_uri.sysQueryOptions.keys()) ==
-                        set([SystemQueryOption.format,
-                             SystemQueryOption.top,
-                             SystemQueryOption.skip]),
+                        set([odata.SystemQueryOption.format,
+                             odata.SystemQueryOption.top,
+                             odata.SystemQueryOption.skip]),
                         repr(ds_uri.sysQueryOptions))
         self.assertTrue(
             ds_uri.queryOptions == ["space='%20'"],
             'query options')
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Products()?$top=20&space='%20'&$format=json&$skip=10", '/x.svc')
         self.assertTrue(set(ds_uri.sysQueryOptions.keys()) ==
-                        set([SystemQueryOption.format,
-                             SystemQueryOption.top,
-                             SystemQueryOption.skip]),
+                        set([odata.SystemQueryOption.format,
+                             odata.SystemQueryOption.top,
+                             odata.SystemQueryOption.skip]),
                         repr(ds_uri.sysQueryOptions))
         self.assertTrue(
             ds_uri.queryOptions == ["space='%20'"],
             'query options')
         try:
-            ds_uri = ODataURI("Products()?$unsupported=10", '/x.svc')
+            ds_uri = odata.ODataURI("Products()?$unsupported=10", '/x.svc')
             self.fail("$unsupported system query option")
-        except InvalidSystemQueryOption:
+        except odata.InvalidSystemQueryOption:
             pass
 
     def test_common_expression(self):
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Products()?$filter=substringof(CompanyName,%20'bikes')", '/x.svc')
         self.assertTrue(
-            isinstance(ds_uri.sysQueryOptions[SystemQueryOption.filter],
-                       CommonExpression), "Expected common expression")
-        ds_uri = ODataURI("Products()?$filter=true%20and%20false", '/x.svc')
-        f = ds_uri.sysQueryOptions[SystemQueryOption.filter]
+            isinstance(ds_uri.sysQueryOptions[odata.SystemQueryOption.filter],
+                       odata.CommonExpression), "Expected common expression")
+        ds_uri = odata.ODataURI("Products()?$filter=true%20and%20false",
+                                '/x.svc')
+        f = ds_uri.sysQueryOptions[odata.SystemQueryOption.filter]
         self.assertTrue(
-            isinstance(f, CommonExpression),
+            isinstance(f, odata.CommonExpression),
             "Expected common expression")
         self.assertTrue(
-            isinstance(f, BinaryExpression),
+            isinstance(f, odata.BinaryExpression),
             "Expected binary expression, %s" % repr(f))
         self.assertTrue(
-            f.operator == Operator.boolAnd,
+            f.operator == odata.Operator.boolAnd,
             "Expected and: %s" % repr(f.operator))
         try:
-            ds_uri = ODataURI(
+            ds_uri = odata.ODataURI(
                 "Products()?$filter=true%20nand%20false", '/x.svc')
             self.fail("Expected exception for nand")
-        except InvalidSystemQueryOption:
+        except odata.InvalidSystemQueryOption:
             pass
 
     def test_entity_set(self):
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Products()?$format=json&$top=20&$skip=10&space='%20'", '/x.svc')
         self.assertTrue(ds_uri.resourcePath == '/Products()', "resource path")
         self.assertTrue(set(ds_uri.sysQueryOptions.keys()) ==
-                        set([SystemQueryOption.format,
-                             SystemQueryOption.top,
-                             SystemQueryOption.skip]),
+                        set([odata.SystemQueryOption.format,
+                             odata.SystemQueryOption.top,
+                             odata.SystemQueryOption.skip]),
                         repr(ds_uri.sysQueryOptions))
         self.assertTrue(
             ds_uri.queryOptions == ["space='%20'"],
             'query options')
         self.assertTrue(ds_uri.navPath == [(u'Products', {})],
                         "e set: Products, found %s" % repr(ds_uri.navPath))
-        ds_uri = ODataURI('Products()/$count', '/x.svc')
+        ds_uri = odata.ODataURI('Products()/$count', '/x.svc')
         self.assertTrue(
             ds_uri.resourcePath == '/Products()/$count', "resource path")
         self.assertTrue(ds_uri.sysQueryOptions == {}, 'sysQueryOptions')
@@ -1657,8 +1669,8 @@ class ODataURITests(unittest.TestCase):
         self.assertTrue(ds_uri.navPath == [(u'Products', {})],
                         "path: %s" % repr(ds_uri.navPath))
         self.assertTrue(
-            ds_uri.pathOption == PathOption.count, "$count recognised")
-        ds_uri = ODataURI('Products(1)/$value', '/x.svc')
+            ds_uri.pathOption == odata.PathOption.count, "$count recognised")
+        ds_uri = odata.ODataURI('Products(1)/$value', '/x.svc')
         self.assertTrue(len(ds_uri.navPath) == 1)
         self.assertTrue(ds_uri.navPath[0][0] == u'Products')
         self.assertTrue(len(ds_uri.navPath[0][1]))
@@ -1668,8 +1680,8 @@ class ODataURITests(unittest.TestCase):
         self.assertTrue(ds_uri.navPath[0][1][u''].value == 1, "Key value")
         # [(u'Products',{'':1})]
         self.assertTrue(
-            ds_uri.pathOption == PathOption.value, "$value recognised")
-        ds_uri = ODataURI('Products(x=1,y=2)', '/x.svc')
+            ds_uri.pathOption == odata.PathOption.value, "$value recognised")
+        ds_uri = odata.ODataURI('Products(x=1,y=2)', '/x.svc')
         self.assertTrue(len(ds_uri.navPath) == 1)
         self.assertTrue(ds_uri.navPath[0][0] == u'Products')
         self.assertTrue(
@@ -1681,8 +1693,8 @@ class ODataURITests(unittest.TestCase):
             "Key value type")
         self.assertTrue(ds_uri.navPath[0][1][u'y'].value == 2, "y Key value")
         # [(u'Products',{u'x':1,u'y':2})]
-        ds_uri = ODataURI("/service.svc/Customers('ALF%2FKI')/Orders",
-                          '/service.svc')
+        ds_uri = odata.ODataURI("/service.svc/Customers('ALF%2FKI')/Orders",
+                                '/service.svc')
         self.assertTrue(len(ds_uri.navPath) == 2)
         self.assertTrue(ds_uri.navPath[0][0] == u'Customers')
         self.assertTrue(
@@ -1691,8 +1703,9 @@ class ODataURITests(unittest.TestCase):
         self.assertTrue(ds_uri.navPath[0][1][u''].value == 'ALF/KI',
                         "String Key value")
         self.assertTrue(ds_uri.navPath[1][0] == u'Orders')
-        ds_uri = ODataURI("/service.svc/Customers(%27ALF%2FKI%27)/Orders",
-                          '/service.svc')
+        ds_uri = odata.ODataURI(
+            "/service.svc/Customers(%27ALF%2FKI%27)/Orders",
+            '/service.svc')
         self.assertTrue(len(ds_uri.navPath) == 2)
         self.assertTrue(ds_uri.navPath[0][0] == u'Customers')
         self.assertTrue(
@@ -1706,66 +1719,70 @@ class ODataURITests(unittest.TestCase):
         """Redundant expandClause rules on the same data service URI can
         be considered valid, but MUST NOT alter the meaning of the
         URI."""
-        ds_uri = ODataURI("Customers?$expand=Orders", '/x.svc')
-        expand = ds_uri.sysQueryOptions[SystemQueryOption.expand]
+        ds_uri = odata.ODataURI("Customers?$expand=Orders", '/x.svc')
+        expand = ds_uri.sysQueryOptions[odata.SystemQueryOption.expand]
         self.assertTrue(len(expand) == 1, "One path")
         self.assertTrue(expand['Orders'] is None, "Orders nav path")
-        self.assertTrue(FormatExpand(expand) == "Orders", FormatExpand(expand))
-        ds_uri = ODataURI("Customers?$expand=Orders,Orders", '/x.svc')
-        expand = ds_uri.sysQueryOptions[SystemQueryOption.expand]
+        self.assertTrue(odata.format_expand(expand) == "Orders",
+                        odata.format_expand(expand))
+        ds_uri = odata.ODataURI("Customers?$expand=Orders,Orders", '/x.svc')
+        expand = ds_uri.sysQueryOptions[odata.SystemQueryOption.expand]
         self.assertTrue(len(expand) == 1, "One path")
         self.assertTrue(expand['Orders'] is None, "redundant Orders nav path")
-        self.assertTrue(FormatExpand(expand) == "Orders", FormatExpand(expand))
-        ds_uri = ODataURI(
+        self.assertTrue(odata.format_expand(expand) == "Orders",
+                        odata.format_expand(expand))
+        ds_uri = odata.ODataURI(
             "Orders?$expand=OrderLines/Product,Customer", '/x.svc')
-        expand = ds_uri.sysQueryOptions[SystemQueryOption.expand]
+        expand = ds_uri.sysQueryOptions[odata.SystemQueryOption.expand]
         self.assertTrue(expand['OrderLines'] == {
                         'Product': None},
                         "OrderLines expansion: %s" % str(expand))
         self.assertTrue(expand['Customer'] is None, "Customer expansion")
-        self.assertTrue(FormatExpand(expand) == "Customer,OrderLines/Product")
+        self.assertTrue(odata.format_expand(expand) ==
+                        "Customer,OrderLines/Product")
 
     def test_filter(self):
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Orders?$filter=ShipCountry%20eq%20'France'", '/x.svc')
-        filter = ds_uri.sysQueryOptions[SystemQueryOption.filter]
+        filter = ds_uri.sysQueryOptions[odata.SystemQueryOption.filter]
         self.assertTrue(
-            isinstance(filter, BinaryExpression),
+            isinstance(filter, odata.BinaryExpression),
             "Binary expression component")
-        self.assertTrue(isinstance(filter.operands[0], PropertyExpression))
+        self.assertTrue(isinstance(filter.operands[0],
+                                   odata.PropertyExpression))
         self.assertTrue(filter.operands[0].name == "ShipCountry")
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Orders?$filter%20=%20Customers/ContactName%20ne%20'Fred'",
             '/x.svc')
-        filter = ds_uri.sysQueryOptions[SystemQueryOption.filter]
+        filter = ds_uri.sysQueryOptions[odata.SystemQueryOption.filter]
         self.assertTrue(filter.operands[0].operands[1].name == "ContactName")
 
     def test_format(self):
-        ds_uri = ODataURI("Orders?$format=json", '/x.svc')
-        format = ds_uri.sysQueryOptions[SystemQueryOption.format]
+        ds_uri = odata.ODataURI("Orders?$format=json", '/x.svc')
+        format = ds_uri.sysQueryOptions[odata.SystemQueryOption.format]
         self.assertTrue(
             isinstance(format, messages.AcceptList),
             "Format is an HTTP AcceptList instance")
         self.assertTrue(str(format) == 'application/json', str(format[0]))
 
     def test_orderby(self):
-        ds_uri = ODataURI("Orders?$orderby=ShipCountry", '/x.svc')
-        orderby = ds_uri.sysQueryOptions[SystemQueryOption.orderby]
+        ds_uri = odata.ODataURI("Orders?$orderby=ShipCountry", '/x.svc')
+        orderby = ds_uri.sysQueryOptions[odata.SystemQueryOption.orderby]
         self.assertTrue(len(orderby) == 1, "Single orderby clause")
         orderby = orderby[0]
         self.assertTrue(orderby[1] == 1, "default is asc")
         self.assertTrue(
-            isinstance(orderby[0], PropertyExpression),
+            isinstance(orderby[0], odata.PropertyExpression),
             "orderby is a property expression")
         self.assertTrue(orderby[0].name == 'ShipCountry', str(orderby[0]))
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Orders?$orderby%20=%20ShipCountry%20ne%20'France'%20desc",
             '/x.svc')
-        orderby = ds_uri.sysQueryOptions[SystemQueryOption.orderby]
+        orderby = ds_uri.sysQueryOptions[odata.SystemQueryOption.orderby]
         orderby = orderby[0]
         self.assertTrue(orderby[1] == -1, "desc")
         self.assertTrue(
-            isinstance(orderby[0], BinaryExpression),
+            isinstance(orderby[0], odata.BinaryExpression),
             "orderby is a binary expression")
         self.assertTrue(
             orderby[0].operands[0].name == 'ShipCountry',
@@ -1773,90 +1790,98 @@ class ODataURITests(unittest.TestCase):
         self.assertTrue(
             orderby[0].operands[0].name == 'ShipCountry',
             str(orderby[0].operands[0]))
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Orders?$orderby%20=%20ShipCountry%20ne%20'France'%20desc,"
             "OrderID%20asc", '/x.svc')
-        orderby = ds_uri.sysQueryOptions[SystemQueryOption.orderby]
+        orderby = ds_uri.sysQueryOptions[odata.SystemQueryOption.orderby]
         self.assertTrue(len(orderby) == 2, "Two orderby clauses")
 
     def test_skip(self):
         """The value of this query option ... MUST be an integer greater
         than or equal to zero. If a value less than 0 is specified, the
         URI should be considered malformed."""
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Orders?$orderby=OrderDate%20desc&$skip=10",
             '/x.svc')
-        skip = ds_uri.sysQueryOptions[SystemQueryOption.skip]
-        self.assertTrue(isinstance(skip, IntType), "skip type")
+        skip = ds_uri.sysQueryOptions[odata.SystemQueryOption.skip]
+        self.assertTrue(isinstance(skip, int), "skip type")
         self.assertTrue(skip == 10, "skip 10")
-        ds_uri = ODataURI("Customers('ALFKI')/Orders?$skip=10", '/x.svc')
-        skip = ds_uri.sysQueryOptions[SystemQueryOption.skip]
+        ds_uri = odata.ODataURI("Customers('ALFKI')/Orders?$skip=10", '/x.svc')
+        skip = ds_uri.sysQueryOptions[odata.SystemQueryOption.skip]
         self.assertTrue(skip == 10, "skip 10")
-        ds_uri = ODataURI("Orders?$orderby=OrderDate%20desc&$skip=0", '/x.svc')
-        skip = ds_uri.sysQueryOptions[SystemQueryOption.skip]
+        ds_uri = odata.ODataURI("Orders?$orderby=OrderDate%20desc&$skip=0",
+                                '/x.svc')
+        skip = ds_uri.sysQueryOptions[odata.SystemQueryOption.skip]
         self.assertTrue(skip == 0, "skip 0")
         try:
-            ds_uri = ODataURI(
+            ds_uri = odata.ODataURI(
                 "Orders?$orderby=OrderDate%20desc&$skip=-1", '/x.svc')
             self.fail("skip=-1")
-        except InvalidSystemQueryOption:
+        except odata.InvalidSystemQueryOption:
             pass
 
     def test_top(self):
         """The value of this query option ... MUST be an integer greater
         than or equal to zero. If a value less than 0 is specified, the
         URI should be considered malformed."""
-        ds_uri = ODataURI("Orders?$orderby=OrderDate%20desc&$top=10", '/x.svc')
-        top = ds_uri.sysQueryOptions[SystemQueryOption.top]
-        self.assertTrue(isinstance(top, IntType), "top type")
+        ds_uri = odata.ODataURI("Orders?$orderby=OrderDate%20desc&$top=10",
+                                '/x.svc')
+        top = ds_uri.sysQueryOptions[odata.SystemQueryOption.top]
+        self.assertTrue(isinstance(top, int), "top type")
         self.assertTrue(top == 10, "top 10")
-        ds_uri = ODataURI("Customers('ALFKI')/Orders?$top=10", '/x.svc')
-        top = ds_uri.sysQueryOptions[SystemQueryOption.top]
+        ds_uri = odata.ODataURI("Customers('ALFKI')/Orders?$top=10", '/x.svc')
+        top = ds_uri.sysQueryOptions[odata.SystemQueryOption.top]
         self.assertTrue(top == 10, "top 10")
-        ds_uri = ODataURI("Orders?$orderby=OrderDate%20desc&$top=0", '/x.svc')
-        top = ds_uri.sysQueryOptions[SystemQueryOption.top]
+        ds_uri = odata.ODataURI("Orders?$orderby=OrderDate%20desc&$top=0",
+                                '/x.svc')
+        top = ds_uri.sysQueryOptions[odata.SystemQueryOption.top]
         self.assertTrue(top == 0, "top 0")
         try:
-            ds_uri = ODataURI(
+            ds_uri = odata.ODataURI(
                 "Orders?$orderby=OrderDate%20desc&$top=-1", '/x.svc')
             self.fail("top=-1")
-        except InvalidSystemQueryOption:
+        except odata.InvalidSystemQueryOption:
             pass
 
     def test_skiptoken(self):
         """The value of this query option ... MUST be an integer greater
         than or equal to zero. If a value less than 0 is specified, the
         URI should be considered malformed."""
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Orders?$orderby=OrderDate%20desc&$skiptoken=AEF134ad", '/x.svc')
-        skiptoken = ds_uri.sysQueryOptions[SystemQueryOption.skiptoken]
-        self.assertTrue(isinstance(skiptoken, UnicodeType), "skiptoken type")
+        skiptoken = ds_uri.sysQueryOptions[odata.SystemQueryOption.skiptoken]
+        self.assertTrue(is_unicode(skiptoken), "skiptoken type")
         self.assertTrue(skiptoken == u"AEF134ad", "skiptoken opqque string")
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Customers('ALFKI')/Orders?$skiptoken=0%2010", '/x.svc')
-        skiptoken = ds_uri.sysQueryOptions[SystemQueryOption.skiptoken]
+        skiptoken = ds_uri.sysQueryOptions[odata.SystemQueryOption.skiptoken]
         self.assertTrue(skiptoken == u"0 10", "skiptoken 010")
 
     def test_inlinecount(self):
         """inlinecountQueryOp = "$inlinecount=" ("allpages" / "none") """
-        ds_uri = ODataURI("Orders?$inlinecount=allpages", '/x.svc')
-        inlinecount = ds_uri.sysQueryOptions[SystemQueryOption.inlinecount]
+        ds_uri = odata.ODataURI("Orders?$inlinecount=allpages", '/x.svc')
+        inlinecount = ds_uri.sysQueryOptions[
+            odata.SystemQueryOption.inlinecount]
         self.assertTrue(
-            inlinecount == InlineCount.allpages, "allpages constant")
-        ds_uri = ODataURI("Orders?$inlinecount=allpages&$top=10", '/x.svc')
-        inlinecount = ds_uri.sysQueryOptions[SystemQueryOption.inlinecount]
+            inlinecount == odata.InlineCount.allpages, "allpages constant")
+        ds_uri = odata.ODataURI("Orders?$inlinecount=allpages&$top=10",
+                                '/x.svc')
+        inlinecount = ds_uri.sysQueryOptions[
+            odata.SystemQueryOption.inlinecount]
         self.assertTrue(
-            inlinecount == InlineCount.allpages, "allpages constant")
-        ds_uri = ODataURI("Orders?$inlinecount=none&$top=10", '/x.svc')
-        inlinecount = ds_uri.sysQueryOptions[SystemQueryOption.inlinecount]
-        self.assertTrue(inlinecount == InlineCount.none, "none constant")
-        ds_uri = ODataURI(
+            inlinecount == odata.InlineCount.allpages, "allpages constant")
+        ds_uri = odata.ODataURI("Orders?$inlinecount=none&$top=10", '/x.svc')
+        inlinecount = ds_uri.sysQueryOptions[
+            odata.SystemQueryOption.inlinecount]
+        self.assertTrue(inlinecount == odata.InlineCount.none, "none constant")
+        ds_uri = odata.ODataURI(
             "Orders?$inlinecount=allpages&"
             "$filter=ShipCountry%20eq%20'France'",
             '/x.svc')
-        inlinecount = ds_uri.sysQueryOptions[SystemQueryOption.inlinecount]
+        inlinecount = ds_uri.sysQueryOptions[
+            odata.SystemQueryOption.inlinecount]
         self.assertTrue(
-            inlinecount == InlineCount.allpages, "allpages constant")
+            inlinecount == odata.InlineCount.allpages, "allpages constant")
 
     def test_select(self):
         """Syntax::
@@ -1868,55 +1893,57 @@ class ODataURITests(unittest.TestCase):
         selectedProperty = entityProperty / entityComplexProperty
         selectedNavProperty = entityNavProperty-es / entityNavProperty-et
         star = "*"	"""
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Customers?$select=CustomerID,CompanyName,Address", '/x.svc')
-        select = ds_uri.sysQueryOptions[SystemQueryOption.select]
+        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
         self.assertTrue(len(select) == 3, "Three paths")
         self.assertTrue(
             select == {'CompanyName': None,
                        'CustomerID': None,
                        'Address': None})
-        ds_uri = ODataURI("Customers?$select=CustomerID,Orders", '/x.svc')
-        select = ds_uri.sysQueryOptions[SystemQueryOption.select]
+        ds_uri = odata.ODataURI("Customers?$select=CustomerID,Orders",
+                                '/x.svc')
+        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
         self.assertTrue(select == {'CustomerID': None, 'Orders': None})
-        ds_uri = ODataURI(
+        ds_uri = odata.ODataURI(
             "Customers?$select=CustomerID,Orders&$expand=Orders/OrderDetails",
             '/x.svc')
-        select = ds_uri.sysQueryOptions[SystemQueryOption.select]
+        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
         self.assertTrue(select == {'CustomerID': None, 'Orders': None})
-        ds_uri = ODataURI("Customers?$select=*", '/x.svc')
-        select = ds_uri.sysQueryOptions[SystemQueryOption.select]
+        ds_uri = odata.ODataURI("Customers?$select=*", '/x.svc')
+        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
         self.assertTrue(select == {'*': None})
-        ds_uri = ODataURI("Customers?$select=CustomerID,Orders/*&"
-                          "$expand=Orders/OrderDetails", '/x.svc')
-        select = ds_uri.sysQueryOptions[SystemQueryOption.select]
+        ds_uri = odata.ODataURI("Customers?$select=CustomerID,Orders/*&"
+                                "$expand=Orders/OrderDetails", '/x.svc')
+        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
         self.assertTrue(select == {'CustomerID': None, 'Orders': {'*': None}})
-        ds_uri = ODataURI("/service.svc/Customers?$expand=Orders&"
-                          "$filter=substringof(CompanyName,%20'bikes')&"
-                          "$orderby=CompanyName%20asc&$top=2&$skip=3&"
-                          "$skiptoken='Contoso','AKFNU'&"
-                          "$inlinecount=allpages&"
-                          "$select=CustomerID,CompanyName,Orders&$format=xml")
-        select = ds_uri.sysQueryOptions[SystemQueryOption.select]
+        ds_uri = odata.ODataURI(
+            "/service.svc/Customers?$expand=Orders&"
+            "$filter=substringof(CompanyName,%20'bikes')&"
+            "$orderby=CompanyName%20asc&$top=2&$skip=3&"
+            "$skiptoken='Contoso','AKFNU'&"
+            "$inlinecount=allpages&"
+            "$select=CustomerID,CompanyName,Orders&$format=xml")
+        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
         self.assertTrue(len(select) == 3, "Three paths")
         try:
-            ds_uri = ODataURI("Customers?$select=CustomerID,*/Orders")
+            ds_uri = odata.ODataURI("Customers?$select=CustomerID,*/Orders")
             self.fail("* must be last item in a select clause")
-        except InvalidSystemQueryOption:
+        except odata.InvalidSystemQueryOption:
             pass
 
 
 class StreamInfoTests(unittest.TestCase):
 
     def test_init(self):
-        sinfo = StreamInfo()
+        sinfo = odata.StreamInfo()
         self.assertTrue(sinfo.type, params.MediaType)
         self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM)
         self.assertTrue(sinfo.created is None)
         self.assertTrue(sinfo.modified is None)
         self.assertTrue(sinfo.size is None)
         self.assertTrue(sinfo.md5 is None)
-        sinfo2 = StreamInfo(type=params.PLAIN_TEXT)
+        sinfo2 = odata.StreamInfo(type=params.PLAIN_TEXT)
         self.assertTrue(sinfo2.type == params.PLAIN_TEXT)
 
 
@@ -2263,7 +2290,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # UPDATE
             # nothing to change, should do nothing!
             coll.update_entity(got_e)
-            check_e = coll[100]
+            coll[100]
             # DELETE
             del coll[100]
             self.assertTrue(
@@ -2273,7 +2300,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.fail("Index into coll after only_keys DELETE")
             except KeyError:
                 pass
-        
+
     def runtest_compound_key(self):
         compound_keys = self.ds[
             'RegressionModel.RegressionContainer.CompoundKeys']
@@ -2334,7 +2361,6 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.fail("Index into coll after CompoundKey DELETE")
             except KeyError:
                 pass
-                
 
     def runtest_simple_select(self):
         select_set = self.ds[
@@ -2429,7 +2455,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     result[4].key() == (0, 9), "max 5: last e on page 2")
                 # now add an ordering
                 coll.set_orderby(
-                    CommonExpression.OrderByFromString(u"Sum desc"))
+                    odata.CommonExpression.OrderByFromString(u"Sum desc"))
                 # must have rest the skiptoken
                 self.assertTrue(
                     coll.next_skiptoken() is None, "No page set")
@@ -2510,7 +2536,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     nav is None, "Failed to read back reverse navigation link")
                 self.assertTrue(nav['K'] == 1)
                 # READ with deep filter
-                filter = CommonExpression.from_str(
+                filter = odata.CommonExpression.from_str(
                     "OX/Data eq 'NavigationOneX'")
                 coll.set_filter(filter)
                 self.assertTrue(1 in coll)
@@ -2518,7 +2544,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 coll.set_filter(None)
                 # READ with deep 'back' filter
                 with e['OX'].open() as navCollection:
-                    filter = CommonExpression.from_str(
+                    filter = odata.CommonExpression.from_str(
                         "O/Data eq 'NavigationOne'")
                     navCollection.set_filter(filter)
                     self.assertTrue(100 in navCollection)
@@ -2612,7 +2638,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     nav_x is not None, "Failed to read back navigation link")
                 self.assertTrue(nav_x['K'] == 100)
                 # READ with deep filter
-                filter = CommonExpression.from_str(
+                filter = odata.CommonExpression.from_str(
                     "OX/Data eq 'NavigationOneX'")
                 coll.set_filter(filter)
                 self.assertTrue(1 in coll)
@@ -2772,18 +2798,18 @@ class DataServiceRegressionTests(unittest.TestCase):
                     "Failed to read back reverse navigation link")
                 self.assertTrue(nav_zo['K'] == 1)
                 # READ with deep filter both ways
-                filter = CommonExpression.from_str(
+                filter = odata.CommonExpression.from_str(
                     "O/Data eq 'NavigationOne'")
                 collectionZO.set_filter(filter)
                 self.assertTrue(1 in collectionZO)
                 self.assertFalse(2 in collectionZO)
                 collectionZO.set_filter(None)
-                filter = CommonExpression.from_str(
+                filter = odata.CommonExpression.from_str(
                     "ZO/Data eq 'NavigationZeroOne'")
                 collectionO.set_filter(filter)
                 self.assertTrue(100 in collectionO)
                 self.assertFalse(200 in collectionO)
-                collectionO.set_filter(None)                
+                collectionO.set_filter(None)
                 # UPDATE - by replacing the required target of a link,
                 # should work
                 try:
@@ -3018,8 +3044,9 @@ class DataServiceRegressionTests(unittest.TestCase):
                         navCollection.insert_entity(e_zo2)
                     except NotImplementedError:
                         # acceptable to reject this as there is no back link
-                        logging.warning("Insertion into O[2].ZO not supported due "
-                                        "to absence of back-link")
+                        logging.warning(
+                            "Insertion into O[2].ZO not supported due "
+                            "to absence of back-link")
                     except edm.ConstraintError:
                         self.fail("Failed to insert a new e at the 0..1 end "
                                   "of an empty link")
@@ -3362,7 +3389,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # e_many, e_many2 <-> e_o
                 # e_many3 <-> e_o2
                 # [] <-> e_o3
-                self.assertTrue(collectionMany[2]['O'].get_entity().key() == 
+                self.assertTrue(collectionMany[2]['O'].get_entity().key() ==
                                 100)
                 # DELETE - link
                 with e_many3['O'].open() as navCollection:
@@ -3620,8 +3647,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.assertTrue(nav_zo['K'] == 100)
                 try:
                     nav_zo['Many'].get_entity()
-                    self.fail("get_entity should fail on a deferred value with "
-                              "multiplicity *")
+                    self.fail("get_entity should fail on a deferred value "
+                              "with multiplicity *")
                 except edm.NavigationError:
                     pass
                 with nav_zo['Many'].open() as navCollection:
@@ -3981,8 +4008,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e_zo['Many'].bind_entity(e_many2)
                 try:
                     e_zo.commit()
-                    self.fail("bind_entity/commit on 0..1-* navigation property "
-                              "should fail")
+                    self.fail("bind_entity/commit on 0..1-* navigation "
+                              "property should fail")
                 except edm.ConstraintError:
                     pass
                 # DELETE - link
@@ -4571,8 +4598,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # READ both ways
                 try:
                     e_many['ManyX'].get_entity()
-                    self.fail("get_entity should fail on a deferred value with "
-                              "multiplicity *")
+                    self.fail("get_entity should fail on a deferred value "
+                              "with multiplicity *")
                 except edm.NavigationError:
                     pass
                 e_many2 = collectionMany[2]
@@ -5032,8 +5059,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             try:
                 e5.commit()
             except edm.ConstraintError:
-                self.fail(
-                    "bind_entity/commit on *-* navigation property should pass")
+                self.fail("bind_entity/commit on *-* navigation property "
+                          "should pass")
             # e3 <- e1 -> e5
             # [] <- e2 -> e3, e4, e5
             # e2 <- e3 -> e1
@@ -5258,16 +5285,17 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(len(coll) == 1)
             fout = StringIO()
             sinfo = coll.read_stream(e1.key(), fout)
-            self.assertTrue(isinstance(sinfo, StreamInfo))
-            self.assertTrue(fout.getvalue() == fox,"Read back: "+fout.getvalue())
+            self.assertTrue(isinstance(sinfo, odata.StreamInfo))
+            self.assertTrue(fout.getvalue() == fox,
+                            "Read back: "+fout.getvalue())
             self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM)
             self.assertTrue(sinfo.size == len(fox))
             self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))
             self.assertTrue(sinfo.md5 == hashlib.md5(fox).digest())
             # now try inserting with additional metadata
             t = iso.TimePoint.from_str('20140614T180000-0400')
-            sinfo = StreamInfo(type=params.PLAIN_TEXT,
-                               created=t, modified=t)
+            sinfo = odata.StreamInfo(type=params.PLAIN_TEXT,
+                                     created=t, modified=t)
             fin.seek(0)
             e2 = coll.new_stream(fin, key='foxy', sinfo=sinfo)
             self.assertTrue(len(coll) == 2)
@@ -5280,8 +5308,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(sinfo.created == t)
             # we can update a stream by using an existing key
             fin = StringIO(cafe + fox)
-            sinfo = StreamInfo(type=params.PLAIN_TEXT,
-                               size=len(cafe))
+            sinfo = odata.StreamInfo(type=params.PLAIN_TEXT,
+                                     size=len(cafe))
             # the size prevents reading to the end of the stream
             coll.update_stream(fin, key='foxy', sinfo=sinfo)
             sinfo = coll.read_stream('foxy')
@@ -5312,12 +5340,12 @@ class DataServiceRegressionTests(unittest.TestCase):
             # ...and has an empty stream
             sinfo = coll.read_stream(e.key())
             self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM,
-                str(sinfo.type))
+                            str(sinfo.type))
             self.assertTrue(sinfo.size == 0)
             # but it should have our requested title
             e2 = coll[e.key()]
             self.assertTrue(e2['title'].value == 'The quick fox')
-            
+
     def runtest_composite_slug(self):
         streams = self.ds[
             'RegressionModel.RegressionContainer.XYStreams']
@@ -5331,14 +5359,15 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(len(coll) == 1)
             fout = StringIO()
             sinfo = coll.read_stream(e1.key(), fout)
-            self.assertTrue(isinstance(sinfo, StreamInfo))
-            self.assertTrue(fout.getvalue() == fox,"Read back: "+fout.getvalue())
+            self.assertTrue(isinstance(sinfo, odata.StreamInfo))
+            self.assertTrue(fout.getvalue() == fox,
+                            "Read back: "+fout.getvalue())
             self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM)
             self.assertTrue(sinfo.size == len(fox))
             self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))
             self.assertTrue(sinfo.md5 == hashlib.md5(fox).digest())
             # now try inserting with complex key
-            fah = (3,'Fox & Hounds')
+            fah = (3, 'Fox & Hounds')
             fin.seek(0)
             e2 = coll.new_stream(fin, key=fah)
             self.assertTrue(len(coll) == 2)
@@ -5347,8 +5376,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             sinfo = coll.read_stream(e2.key())
             # we can update a stream by using an existing key
             fin = StringIO(cafe + fox)
-            sinfo = StreamInfo(type=params.PLAIN_TEXT,
-                               size=len(cafe))
+            sinfo = odata.StreamInfo(type=params.PLAIN_TEXT,
+                                     size=len(cafe))
             # the size prevents reading to the end of the stream
             coll.update_stream(fin, key=fah, sinfo=sinfo)
             sinfo = coll.read_stream(fah)

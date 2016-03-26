@@ -224,7 +224,7 @@ class ClientCollection(core.EntityCollection):
             feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "/$count?" +
-                core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                core.ODataURI.format_sys_query_options(sysQueryOptions))
         else:
             feedURL = uri.URI.from_octets(str(feedURL) + "/$count")
         request = http.ClientRequest(str(feedURL))
@@ -244,10 +244,10 @@ class ClientCollection(core.EntityCollection):
                 core.SystemQueryOption.filter] = unicode(self.filter)
         if self.expand is not None:
             sysQueryOptions[
-                core.SystemQueryOption.expand] = core.FormatExpand(self.expand)
+                core.SystemQueryOption.expand] = core.format_expand(self.expand)
         if self.select is not None:
             sysQueryOptions[
-                core.SystemQueryOption.select] = core.FormatSelect(self.select)
+                core.SystemQueryOption.select] = core.format_select(self.select)
         if self.orderby is not None:
             sysQueryOptions[
                 core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
@@ -256,7 +256,7 @@ class ClientCollection(core.EntityCollection):
             feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "?" +
-                core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                core.ODataURI.format_sys_query_options(sysQueryOptions))
         while True:
             request = http.ClientRequest(str(feedURL))
             request.set_header('Accept', 'application/atom+xml')
@@ -304,10 +304,10 @@ class ClientCollection(core.EntityCollection):
                 core.SystemQueryOption.filter] = unicode(self.filter)
         if self.expand is not None:
             sysQueryOptions[
-                core.SystemQueryOption.expand] = core.FormatExpand(self.expand)
+                core.SystemQueryOption.expand] = core.format_expand(self.expand)
         if self.select is not None:
             sysQueryOptions[
-                core.SystemQueryOption.select] = core.FormatSelect(self.select)
+                core.SystemQueryOption.select] = core.format_select(self.select)
         if self.orderby is not None:
             sysQueryOptions[
                 core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
@@ -322,7 +322,7 @@ class ClientCollection(core.EntityCollection):
             feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "?" +
-                core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                core.ODataURI.format_sys_query_options(sysQueryOptions))
         request = http.ClientRequest(str(feedURL))
         request.set_header('Accept', 'application/atom+xml')
         self.client.process_request(request)
@@ -371,15 +371,15 @@ class ClientCollection(core.EntityCollection):
                          core.ODataURI.FormatKeyDict(self.entity_set.get_key_dict(key)))
         if self.expand is not None:
             sysQueryOptions[
-                core.SystemQueryOption.expand] = core.FormatExpand(self.expand)
+                core.SystemQueryOption.expand] = core.format_expand(self.expand)
         if self.select is not None:
             sysQueryOptions[
-                core.SystemQueryOption.select] = core.FormatSelect(self.select)
+                core.SystemQueryOption.select] = core.format_select(self.select)
         if sysQueryOptions:
             entityURL = uri.URI.from_octets(
                 entityURL +
                 "?" +
-                core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                core.ODataURI.format_sys_query_options(sysQueryOptions))
         request = http.ClientRequest(str(entityURL))
         if self.filter:
             request.set_header('Accept', 'application/atom+xml')
@@ -717,7 +717,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
-                    core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                    core.ODataURI.format_sys_query_options(sysQueryOptions))
             request = http.ClientRequest(str(entityURL))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)
@@ -751,17 +751,17 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.filter] = unicode(self.filter)
             if self.expand is not None:
                 sysQueryOptions[
-                    core.SystemQueryOption.expand] = core.FormatExpand(
+                    core.SystemQueryOption.expand] = core.format_expand(
                     self.expand)
             if self.select is not None:
                 sysQueryOptions[
-                    core.SystemQueryOption.select] = core.FormatSelect(
+                    core.SystemQueryOption.select] = core.format_select(
                     self.select)
             if sysQueryOptions:
                 entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
-                    core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                    core.ODataURI.format_sys_query_options(sysQueryOptions))
             request = http.ClientRequest(str(entityURL))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)
@@ -793,17 +793,17 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.filter] = unicode(self.filter)
             if self.expand is not None:
                 sysQueryOptions[
-                    core.SystemQueryOption.expand] = core.FormatExpand(
+                    core.SystemQueryOption.expand] = core.format_expand(
                     self.expand)
             if self.select is not None:
                 sysQueryOptions[
-                    core.SystemQueryOption.select] = core.FormatSelect(
+                    core.SystemQueryOption.select] = core.format_select(
                     self.select)
             if sysQueryOptions:
                 entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
-                    core.ODataURI.FormatSysQueryOptions(sysQueryOptions))
+                    core.ODataURI.format_sys_query_options(sysQueryOptions))
             request = http.ClientRequest(str(entityURL))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)

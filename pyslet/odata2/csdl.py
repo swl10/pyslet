@@ -9,19 +9,14 @@ import copy
 import datetime
 import decimal
 import hashlib
+import io
 import itertools
 import logging
 import math
 import pickle
 import random
-import string
-import StringIO
 import uuid
 import warnings
-
-from types import (
-    FloatType, StringTypes, StringType, UnicodeType, BooleanType,
-    IntType, LongType, TupleType, DictType)
 
 from .. import iso8601
 from ..pep8 import (
@@ -29,10 +24,25 @@ from ..pep8 import (
     old_function,
     old_method,
     PEP8Compatibility)
+from ..py2 import (
+    BoolMixin,
+    byte_value,
+    dict_items,
+    is_text,
+    long2,
+    py2,
+    range3,
+    to_text,
+    u8,
+    uempty,
+    ul,
+    UnicodeMixin)
 from ..xml import structures as xml
 from ..xml import namespace as xmlns
 from ..xml import xsdatatypes as xsi
 
+
+udp = ul(".")
 
 #: Namespace to use for CSDL elements
 EDM_NAMESPACE = "http://schemas.microsoft.com/ado/2009/11/edm"
@@ -177,6 +187,13 @@ class DictionaryLike(object):
 
     """An abstract class for behaving like a dictionary.
 
+    Python 3 note: the dictionary interface has changed in Python 3 with
+    the introduction of the dictionary view object and the corresponding
+    change in behaviour of the keys, values and items methods.  This
+    class has not changed so is currently Python 2 dictionary like only.
+    It is envisaged that when Pyslet is extended to include support for
+    OData 4 a more Python3-friendly class will be used.
+
     Derived classes must override :py:meth:`__iter__` and
     :py:meth:`__getitem__` and if the dictionary is writable
     :py:meth:`__setitem__` and probably
@@ -197,8 +214,7 @@ class DictionaryLike(object):
 
     Finally, one other difference worth noting is touched on in a
     comment from the following question on Stack Overflow:
-    http://stackoverflow.com/questions/3358770/python-dictionary-is-
-    thread-safe
+    http://stackoverflow.com/questions/3358770/python-dictionary-is-thread-safe
 
     This question is about whether a dictionary can be modified during
     iteration.  Although not typically a thread-safety issue the
@@ -470,9 +486,9 @@ class NameTableMixin(DictionaryLike):
         skey = key.split(".")
         path_len = 1
         while path_len < len(skey):
-            scope = self.nameTable.get(string.join(skey[:path_len], "."), None)
+            scope = self.nameTable.get(".".join(skey[:path_len]), None)
             if isinstance(scope, NameTableMixin):
-                return scope, string.join(skey[path_len:], ".")
+                return scope, ".".join(skey[path_len:])
             path_len += 1
         return None, key
 
@@ -528,9 +544,9 @@ class SimpleType(xsi.EnumerationNoCase):
     prefix. As a result you can use, e.g., SimpleType.Int32 as the symbolic
     representation in code but the following are all True::
 
-            SimpleType.from_str(u"Edm.Int32")==SimpleType.Int32
-            SimpleType.from_str(u"Int32")==SimpleType.Int32
-            SimpleType.to_str(SimpleType.Int32)==u"Edm.Int32"  """
+            SimpleType.from_str("Edm.Int32") == SimpleType.Int32
+            SimpleType.from_str("Int32") == SimpleType.Int32
+            SimpleType.to_str(SimpleType.Int32) == "Edm.Int32"  """
     decode = {
         'Edm.Binary': 1,
         'Edm.Boolean': 2,
@@ -586,16 +602,20 @@ class SimpleType(xsi.EnumerationNoCase):
     module) to a constant from this class indicating a safe
     representation in the EDM.  For example::
 
-        SimpleType.PythonType[types.IntType]==SimpleType.Int64"""
+        SimpleType.PythonType[int]==SimpleType.Int64"""
 
 
 SimpleType.PythonType = {
-    BooleanType: SimpleType.Boolean,
-    FloatType: SimpleType.Double,
-    IntType: SimpleType.Int64,
-    LongType: SimpleType.Decimal,
-    StringType: SimpleType.String,
-    UnicodeType: SimpleType.String}
+    bool: SimpleType.Boolean,
+    float: SimpleType.Double,
+    int: SimpleType.Int64,
+    str: SimpleType.String}
+
+if py2:
+    SimpleType.PythonType[long2] = SimpleType.Decimal
+    SimpleType.PythonType[type(uempty)] = SimpleType.String
+else:
+    SimpleType.PythonType[bytes] = SimpleType.Binary
 
 
 Numeric = collections.namedtuple(
@@ -625,7 +645,7 @@ class Parser(xsi.BasicParser):
         while i < len(hex_str):
             output.append(chr(int(hex_str[i:i + 2], 16)))
             i = i + 2
-        return string.join(output, '')
+        return ''.join(output)
 
     def parse_boolean_literal(self):
         """Parses a boolean literal returning True, False or None if no boolean
@@ -730,7 +750,7 @@ class Parser(xsi.BasicParser):
                         12,
                         12),
                     production))
-            value = uuid.UUID(string.join(guid, ''))
+            value = uuid.UUID(''.join(guid))
         except ValueError:
             self.setpos(savepos)
             return None
@@ -813,13 +833,16 @@ class Parser(xsi.BasicParser):
         return value
 
 
-class EDMValue(PEP8Compatibility):
+class EDMValue(BoolMixin, PEP8Compatibility):
 
     """Abstract class to represent a value in the EDMModel.
 
     This class is used to wrap or 'box' instances of a value.  In
     particular, it can be used in a context where that value can have
-    either a simple or complex type."""
+    either a simple or complex type.
+
+    EDMValue instances are treated as being non-zero if
+    :py:meth:`is_null` returns False."""
 
     def __init__(self, p_def=None):
         # unlikely that people will have derived classes here
@@ -835,9 +858,7 @@ class EDMValue(PEP8Compatibility):
     _TypeClass = {
     }
 
-    def __nonzero__(self):
-        """EDMValue instances are treated as being non-zero if :py:meth:`is_null`
-        returns False."""
+    def __bool__(self):
         return not self.is_null()
 
     def is_null(self):
@@ -911,7 +932,7 @@ class EDMValue(PEP8Compatibility):
         return result
 
 
-class SimpleValue(EDMValue):
+class SimpleValue(UnicodeMixin, EDMValue):
 
     """An abstract class that represents a value of a simple type in the EDMModel.
 
@@ -941,7 +962,7 @@ class SimpleValue(EDMValue):
             int
 
         Edm.Int64:
-            long
+            int (Python 2: long)
 
         Edm.Double, Edm.Single:
             python float
@@ -957,10 +978,10 @@ class SimpleValue(EDMValue):
             note corrected v2 specification of OData)
 
         Edm.Binary:
-            raw string
+            binary string
 
         Edm.String:
-            unicode string
+            character string (unicode in Python 2)
 
         Edm.Guid:
             python UUID instance (from uuid module)
@@ -1024,7 +1045,7 @@ class SimpleValue(EDMValue):
         ValueError."""
         if self.value is None:
             raise ValueError("%s is NULL" % self.name)
-        return unicode(self.value)
+        return to_text(self.value)
 
     def set_from_literal(self, value):
         """Decodes a value from the value's literal form.
@@ -1080,15 +1101,15 @@ class BinaryValue(SimpleValue):
     def __unicode__(self):
         if self.value is None:
             raise ValueError("%s is Null" % self.name)
-        input = StringIO.StringIO(self.value)
-        output = StringIO.StringIO()
+        input = io.BytesIO(self.value)
+        output = io.StringIO()
         while True:
-            byte = input.read(1)
-            if len(byte):
-                output.write("%02X" % ord(byte))
+            b = input.read(1)
+            if len(b):
+                output.write(ul("%02X") % byte_value(b))
             else:
                 break
-        return unicode(output.getvalue())
+        return output.getvalue()
 
     def set_from_literal(self, value):
         p = Parser(value)
@@ -1115,19 +1136,22 @@ class BooleanValue(SimpleValue):
                     true | false
 
     Boolean values can be set from their Python equivalents and from any
-    int, long, float or Decimal where the non-zero test is used to set
-    the value."""
+    int, (Python 2 long,) float or Decimal where the non-zero test is
+    used to set the value."""
+
+    utrue = ul("true")
+    ufalse = ul("false")
 
     def __unicode__(self):
         if self.value is None:
             raise ValueError("%s is Null" % self.name)
-        return u"true" if self.value else u"false"
+        return self.utrue if self.value else self.ufalse
 
     def set_from_literal(self, value):
         test_value = value.lower()
-        if test_value == u"true":
+        if test_value == self.utrue:
             self.value = True
-        elif test_value == u"false":
+        elif test_value == self.ufalse:
             self.value = False
         else:
             raise ValueError("Failed to parse boolean literal from %s" % value)
@@ -1135,10 +1159,9 @@ class BooleanValue(SimpleValue):
     def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
-        elif isinstance(new_value, decimal.Decimal) or \
-                type(new_value) in (IntType, LongType, FloatType):
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)):
             self.value = (new_value != 0)
-        elif isinstance(new_value, BooleanType):
+        elif isinstance(new_value, bool):
             self.value = new_value
         else:
             raise TypeError("Can't set Boolean from %s" % str(new_value))
@@ -1153,11 +1176,11 @@ class NumericValue(SimpleValue):
     obtain a numeric tuple and then the value is set using
     :py:meth:`set_from_numeric_literal`
 
-    All numeric types may have their value set directly from int, long,
-    float or Decimal.
+    All numeric types may have their value set directly from int,
+    (Python 2 long,) float or Decimal.
 
     Integer representations are rounded towards zero using the python
-    *int* or *long* functions when necessary."""
+    *int* (or Python 2 *long*) functions when necessary."""
 
     @old_method('SetToZero')
     def set_to_zero(self):
@@ -1188,7 +1211,7 @@ class NumericValue(SimpleValue):
             r.append('E')
             r.append(num.esign)
             r.append(num.edigits)
-        return string.join(r, '')
+        return ''.join(r)
 
 
 class ByteValue(NumericValue):
@@ -1197,7 +1220,8 @@ class ByteValue(NumericValue):
 
     Byte literals must not have a sign, decimal point or exponent.
 
-    Byte values can be set from an int, long, float or Decimal"""
+    Byte values can be set from an int, (Python 2: long,) float or
+    Decimal"""
 
     def __unicode__(self):
         if self.value is None:
@@ -1217,11 +1241,11 @@ class ByteValue(NumericValue):
         self.set_from_value(int(num.ldigits))
 
     def set_from_value(self, new_value):
-        """*new_value* must be of type int, long, float or Decimal."""
+        """*new_value* must be of type int, (Python 2: long,) float or
+        Decimal."""
         if new_value is None:
             self.value = None
-        elif isinstance(new_value, decimal.Decimal) or \
-                type(new_value) in (IntType, LongType, FloatType):
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)):
             if new_value < 0 or new_value > 255:
                 raise ValueError("Illegal value for Byte: %s" % str(new_value))
             self.value = int(new_value)
@@ -1238,7 +1262,8 @@ class DateTimeValue(SimpleValue):
             yyyy-mm-ddThh:mm[:ss[.fffffff]]
 
     DateTime values can be set from an instance of
-    :py:class:`iso8601.TimePoint` or type int, long, float or Decimal.
+    :py:class:`iso8601.TimePoint` or type int, (Python 2: long,) float
+    or Decimal.
 
     Any zone specifier is ignored.  There is *no* conversion to UTC, the
     value simply becomes a local time in an unspecified zone.  This is a
@@ -1251,9 +1276,9 @@ class DateTimeValue(SimpleValue):
     TimePoint for information.
 
     If a property definition was set on construction then the defined
-    precision is used when representing the value as a unicode string.
+    precision is used when representing the value as a character string.
     For example, if the property has precision 3 then the output of the
-    unicode conversion will appear in the following form::
+    string conversion will appear in the following form::
 
             1969-07-20T20:17:40.000"""
 
@@ -1266,7 +1291,7 @@ class DateTimeValue(SimpleValue):
             precision = self.p_def.precision
         if precision is None:
             precision = 0
-        return self.value.get_calendar_string(ndp=precision, dp=u".")
+        return self.value.get_calendar_string(ndp=precision, dp=udp)
 
     def set_from_literal(self, value):
         p = Parser(value)
@@ -1278,8 +1303,7 @@ class DateTimeValue(SimpleValue):
             self.value = None
         elif isinstance(new_value, iso8601.TimePoint):
             self.value = new_value.with_zone(zdirection=None)
-        elif (isinstance(new_value, decimal.Decimal) or
-                type(new_value) in (IntType, LongType, FloatType)) and \
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)) and \
                 new_value >= 0:
             self.value = iso8601.TimePoint.from_unix_time(float(new_value))
         elif isinstance(new_value, datetime.datetime):
@@ -1309,7 +1333,8 @@ class DateTimeOffsetValue(SimpleValue):
     lexical representation.
 
     DateTimeOffset values can be set from an instance of
-    :py:class:`iso8601.TimePoint` or type int, long, float or Decimal.
+    :py:class:`iso8601.TimePoint` or type int, (Python 2: long,) float
+    or Decimal.
 
     TimePoint instances must have a zone specifier.  There is *no*
     automatic assumption of UTC.
@@ -1320,9 +1345,9 @@ class DateTimeOffsetValue(SimpleValue):
     TimePoint for information.
 
     If a property definition was set on construction then the defined
-    precision is used when representing the value as a unicode string.
+    precision is used when representing the value as a character string.
     For example, if the property has precision 3 then the output of the
-    unicode conversion will appear in the following form::
+    string conversion will appear in the following form::
 
             1969-07-20T15:17:40.000-05:00
 
@@ -1341,7 +1366,7 @@ class DateTimeOffsetValue(SimpleValue):
             precision = self.p_def.precision
         if precision is None:
             precision = 0
-        result = self.value.get_calendar_string(ndp=precision, dp=u".")
+        result = self.value.get_calendar_string(ndp=precision, dp=udp)
         if result[-1] == "Z":
             # the specification is not clear if the Z form is supported, use
             # numbers for safety
@@ -1369,8 +1394,7 @@ class DateTimeOffsetValue(SimpleValue):
                     "DateTimeOffset requires a complete representation: %s" %
                     str(new_value))
             self.value = new_value
-        elif (isinstance(new_value, decimal.Decimal) or
-                type(new_value) in (IntType, LongType, FloatType)) and \
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)) and \
                 new_value >= 0:
             self.value = iso8601.TimePoint.from_unix_time(float(new_value))
         else:
@@ -1380,26 +1404,26 @@ class DateTimeOffsetValue(SimpleValue):
 
 class TimeValue(SimpleValue):
 
-    u"""Represents a simple value of type Edm.Time
+    u8(b"""Represents a simple value of type Edm.Time
 
     Time literals allow content in the form:
 
             hh:mm:ss.sss
 
     Time values can be set from an instance of
-    :py:class:`pyslet.iso8601.Time`, int, long, float or
+    :py:class:`pyslet.iso8601.Time`, int, (Python 2: long,) float or
     Decimal and from datetime.timedelta values.
 
     When set from a numeric value the value must be in the range
-    0..86399.9\u0305 and is treated as an elapsed time in seconds since
+    0..86399.9\xcc\x85 and is treated as an elapsed time in seconds since
     midnight.
 
     If a property definition was set on construction then the defined
-    precision is used when representing the value as a unicode string.
+    precision is used when representing the value as a character string.
     For example, if the property has precision 3 then the output of the
-    unicode conversion will appear in the following form::
+    string conversion will appear in the following form::
 
-            20:17:40.000"""
+            20:17:40.000""")
 
     def __unicode__(self):
         if self.value is None:
@@ -1410,7 +1434,7 @@ class TimeValue(SimpleValue):
             precision = self.p_def.precision
         if precision is None:
             precision = 0
-        return self.value.get_string(ndp=precision, dp=u".")
+        return self.value.get_string(ndp=precision, dp=udp)
 
     def set_from_literal(self, value):
         p = Parser(value)
@@ -1421,14 +1445,13 @@ class TimeValue(SimpleValue):
             self.value = None
         elif isinstance(new_value, iso8601.Time):
             self.value = new_value
-        elif (isinstance(new_value, decimal.Decimal) or
-                type(new_value) in (IntType, LongType, FloatType)) and \
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)) and \
                 new_value >= 0:
             if new_value < 0:
                 raise ValueError(
                     "Can't set Time from %.3f" % float(new_value))
             tvalue = iso8601.Time()
-            if type(new_value) in (IntType, LongType):
+            if isinstance(new_value, (int, long2)):
                 tvalue, days = tvalue.offset(seconds=new_value)
             else:
                 tvalue, days = tvalue.offset(seconds=float(new_value))
@@ -1458,7 +1481,8 @@ class DecimalValue(NumericValue):
     Decimal literals must not use exponent notation and there must be no
     more than 29 digits to the left and right of the decimal point.
 
-    Decimal values can be set from int, long, float or Decimal values."""
+    Decimal values can be set from int, (Python 2: long,) float or
+    Decimal values."""
     Max = decimal.Decimal(
         10) ** 29 - 1     # max decimal in the default context
     # min decimal for string representation
@@ -1485,7 +1509,7 @@ class DecimalValue(NumericValue):
         else:
             d = self.value
         # now ensure there is no exponent in the format
-        return unicode(d.__format__('f'))
+        return to_text(d.__format__('f'))
 
     def set_from_numeric_literal(self, num):
         dstr = self.join_numeric_literal(num)
@@ -1509,7 +1533,7 @@ class DecimalValue(NumericValue):
             d = new_value
         elif isinstance(new_value, float):
             d = decimal.Decimal(str(new_value))
-        elif type(new_value) in (IntType, LongType):
+        elif isinstance(new_value, (int, long2)):
             d = decimal.Decimal(new_value)
         else:
             raise TypeError("Can't set Decimal from %s" % str(new_value))
@@ -1525,7 +1549,7 @@ class FloatValue(NumericValue):
 
     """Abstract class that represents one of Edm.Double or Edm.Single.
 
-    Values can be set from int, long, float or Decimal.
+    Values can be set from int, (Python 2: long,) float or Decimal.
 
     There is no hard-and-fast rule about the representation of float in
     Python and we may refuse to accept values that fall within the
@@ -1536,7 +1560,7 @@ class FloatValue(NumericValue):
     :py:class:`DoubleValue` only differ in the Max value used
     when range checking.
 
-    Values are formatted using Python's default unicode conversion."""
+    Values are formatted using Python's default string conversion."""
 
     def set_from_value(self, new_value):
         if new_value is None:
@@ -1548,12 +1572,12 @@ class FloatValue(NumericValue):
                 raise ValueError(
                     "Value for Double out of range: %s" % str(new_value))
             self.value = float(new_value)
-        elif type(new_value) in (IntType, LongType):
+        elif isinstance(new_value, (int, long2)):
             if new_value < -self.Max or new_value > self.Max:
                 raise ValueError(
                     "Value for Double out of range: %s" % str(new_value))
             self.value = float(new_value)
-        elif isinstance(new_value, FloatType):
+        elif isinstance(new_value, float):
             if math.isnan(new_value) or math.isinf(new_value):
                 self.value = new_value
             elif new_value < -self.Max or new_value > self.Max:
@@ -1610,7 +1634,7 @@ class DoubleValue(FloatValue):
         self.set_from_value(float(dstr))
 
 
-for i in xrange(1023, 0, -1):
+for i in range3(1023, 0, -1):
     try:
         DoubleValue.Max = (2 - 2 ** -52) * 2 ** i
         break
@@ -1676,7 +1700,7 @@ class SingleValue(FloatValue):
         self.set_from_value(float(dstr))
 
 
-for i in xrange(127, 0, -1):
+for i in range3(127, 0, -1):
     try:
         SingleValue.Max = (2 - 2 ** -23) * 2 ** i
         break
@@ -1698,13 +1722,15 @@ class GuidValue(SimpleValue):
 
     Guid values can also be set directly from either binary or hex
     strings. Binary strings must be of length 16 and are passed as raw
-    bytes to the UUID constructor, hexadecimal strings can be string or
-    unicode strings and must be of length 32 characters."""
+    bytes to the UUID constructor, hexadecimal strings must be of length
+    32 characters.  (In Python 2 both str and unicode types are accepted
+    as hexadecimal strings, the length being used to determine if the
+    source is a binary or hexadecimal representation.)"""
 
     def __unicode__(self):
         if self.value is None:
             raise ValueError("%s is Null" % self.name)
-        return unicode(self.value)
+        return to_text(self.value)
 
     def set_from_literal(self, value):
         p = Parser(value)
@@ -1720,9 +1746,9 @@ class GuidValue(SimpleValue):
             self.value = None
         elif isinstance(new_value, uuid.UUID):
             self.value = new_value
-        elif isinstance(new_value, StringType) and len(new_value) == 16:
+        elif isinstance(new_value, bytes) and len(new_value) == 16:
             self.value = uuid.UUID(bytes=new_value)
-        elif type(new_value) in StringTypes and len(new_value) == 32:
+        elif is_text(new_value) and len(new_value) == 32:
             self.value = uuid.UUID(hex=new_value)
         else:
             raise TypeError("Can't set Guid from %s" % repr(new_value))
@@ -1746,8 +1772,7 @@ class Int16Value(NumericValue):
     def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
-        elif isinstance(new_value, decimal.Decimal) or \
-                type(new_value) in (IntType, LongType, FloatType):
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)):
             if new_value < -32768 or new_value > 32767:
                 raise ValueError(
                     "Illegal value for Int16: %s" % str(new_value))
@@ -1776,8 +1801,7 @@ class Int32Value(NumericValue):
     def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
-        elif isinstance(new_value, decimal.Decimal) or \
-                type(new_value) in (IntType, LongType, FloatType):
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)):
             if new_value < -2147483648 or new_value > 2147483647:
                 raise ValueError(
                     "Illegal value for Int32: %s" % str(new_value))
@@ -1812,13 +1836,12 @@ class Int64Value(NumericValue):
     def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
-        elif isinstance(new_value, decimal.Decimal) or \
-                type(new_value) in (IntType, LongType, FloatType):
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)):
             if new_value < -9223372036854775808 or \
                     new_value > 9223372036854775807:
                 raise ValueError(
                     "Illegal value for Int64: %s" % str(new_value))
-            self.value = long(new_value)
+            self.value = long2(new_value)
         else:
             raise TypeError("Can't set Int64 from %s" % str(new_value))
 
@@ -1835,21 +1858,19 @@ class StringValue(SimpleValue):
 
     The literal form of a string is the string itself.
 
-    Values may be set from any string or object which supports the
-    native unicode function."""
+    Values may be set from any string or object which supports
+    conversion to character string."""
 
     def __unicode__(self):
         if self.value is None:
             raise ValueError("%s is Null" % self.name)
-        return unicode(self.value)
+        return to_text(self.value)
 
     def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
-        elif isinstance(new_value, UnicodeType):
-            self.value = new_value
         else:
-            self.value = unicode(new_value)
+            self.value = to_text(new_value)
 
     @old_method('SetFromLiteral')
     def set_from_literal(self, value):
@@ -1872,9 +1893,9 @@ class StringValue(SimpleValue):
                 # shorten base
                 base = base[:self.p_def.maxLength - rbytes]
         value = [base]
-        for r in xrange(rbytes):
+        for r in range3(rbytes):
             value.append("%X" % random.randint(0, 15))
-        self.set_from_value(string.join(value, ''))
+        self.set_from_value(''.join(value))
 
 
 class SByteValue(NumericValue):
@@ -1893,8 +1914,7 @@ class SByteValue(NumericValue):
     def set_from_value(self, new_value):
         if new_value is None:
             self.value = None
-        elif isinstance(new_value, decimal.Decimal) or \
-                type(new_value) in (IntType, LongType, FloatType):
+        elif isinstance(new_value, (int, long2, float, decimal.Decimal)):
             if new_value < -128 or new_value > 127:
                 raise ValueError(
                     "Illegal value for SByte: %s" % str(new_value))
@@ -2519,7 +2539,7 @@ class Entity(TypeInstance):
         else:
             k = iter(key)
             for pRef in self.type_def.Key.PropertyRef:
-                self[pRef.name].set_from_value(k.next())
+                self[pRef.name].set_from_value(next(k))
 
     def auto_key(self, base=None):
         """Sets the key to a random value
@@ -2535,7 +2555,7 @@ class Entity(TypeInstance):
         for pRef in self.type_def.Key.PropertyRef:
             if base is not None:
                 bv = self.type_def[pRef.name]()
-                bv.set_from_value(base.next())
+                bv.set_from_value(next(base))
             else:
                 bv = None
             v = self[pRef.name]
@@ -2667,7 +2687,7 @@ class Entity(TypeInstance):
             elif not v:
                 continue
             else:
-                h.update(unicode(v).encode('utf-8'))
+                h.update(to_text(v).encode('utf-8'))
         return h
 
     def _complex_ctoken(self, h, ct):
@@ -2680,7 +2700,7 @@ class Entity(TypeInstance):
             elif not v:
                 continue
             else:
-                h.update(unicode(v).encode('utf-8'))
+                h.update(to_text(v).encode('utf-8'))
 
     @old_method('SetConcurrencyTokens')
     def set_concurrency_tokens(self):
@@ -3163,7 +3183,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
             self.lastEntity = e
             if e.key() == key:
                 return e
-        raise KeyError(unicode(key))
+        raise KeyError(to_text(key))
 
     def __setitem__(self, key, value):
         if not isinstance(value, Entity) or \
@@ -3172,7 +3192,7 @@ class EntityCollection(DictionaryLike, PEP8Compatibility):
         if key != value.key():
             raise ValueError
         if key not in self:
-            raise KeyError(unicode(key))
+            raise KeyError(to_text(key))
 
     def __delitem__(self, key):
         raise NotImplementedError
@@ -3465,7 +3485,7 @@ class ExpandedEntityCollection(NavigationCollection):
             if self.expand or self.select:
                 result.expand(self.expand, self.select)
             return result
-        raise KeyError("%s" % unicode(key))
+        raise KeyError("%s" % to_text(key))
 
 
 class FunctionEntityCollection(EntityCollection):
@@ -3614,7 +3634,7 @@ class TypeRef(object):
         #: a :py:class:`ComplexType` or :py:class:`EntityType` instance.
         self.type_def = None
         if "(" in type_def and type_def[-1] == ')':
-            if type_def[:type_def.index('(')].lower() != u"collection":
+            if type_def[:type_def.index('(')].lower() != "collection":
                 raise KeyError("%s is not a valid type" % type_def)
             self.collection = True
             type_name = type_def[type_def.index('(') + 1:-1]
@@ -3993,7 +4013,7 @@ class Type(NameTableMixin, CSDLElement):
         if schema is None:
             return self.name
         else:
-            return string.join((schema.name, '.', self.name), '')
+            return ''.join((schema.name, '.', self.name))
 
 
 class EntityType(Type):
@@ -4039,11 +4059,9 @@ class EntityType(Type):
 
         Specifically the following are checked:
 
-        1.  That "*" only ever appears as the last item in a select
-                path
+        1.  That "*" only ever appears as the last item in a select path
 
-        2.  That nothing appears after a simple property in a select
-                path
+        2.  That nothing appears after a simple property in a select path
 
         3.  That all names are valid property names
 
@@ -4052,7 +4070,7 @@ class EntityType(Type):
             expand = {}
         if select is None:
             select = {}
-        for name, value in select.iteritems():
+        for name, value in dict_items(select):
             if name == "*":
                 # must be the last item in the selectItem
                 if value is not None:
@@ -4078,7 +4096,7 @@ class EntityType(Type):
                 except KeyError:
                     raise ValueError(
                         "%s is not a property of %s" % (name, self.name))
-        for name, value in expand.iteritems():
+        for name, value in dict_items(expand):
             try:
                 p = self[name]
                 if isinstance(p, NavigationProperty):
@@ -4114,7 +4132,7 @@ class EntityType(Type):
                     aroles[p.from_end].append(p)
         # now if there are any duplicates these are ambiguous references
         # and need to be marked as such
-        for arole, plist in aroles.items():
+        for arole, plist in dict_items(aroles):
             if len(plist) > 1:
                 # these are all duplicates!
                 for p in plist:
@@ -4220,7 +4238,7 @@ class Association(NameTableMixin, CSDLElement):
         if schema is None:
             return self.name
         else:
-            return string.join((schema.name, '.', self.name), '')
+            return ''.join((schema.name, '.', self.name))
 
     def update_type_refs(self, scope, stop_on_errors=False):
         for iEnd in self.AssociationEnd:
@@ -4493,7 +4511,7 @@ class EntitySet(CSDLElement):
                 name.append(self.parent.parent.name)
             name.append(self.parent.name)
         name.append(self.name)
-        return string.join(name, '.')
+        return '.'.join(name)
 
     @old_method('GetLocation')
     def get_location(self):
@@ -4676,7 +4694,7 @@ class EntitySet(CSDLElement):
 
         If *keylike* cannot be turned in to a valid key the KeyError is
         raised."""
-        if isinstance(keylike, TupleType):
+        if isinstance(keylike, tuple):
             if len(self.entityType.Key.PropertyRef) == 1:
                 if len(keylike) == 1:
                     return keylike[0]
@@ -4685,7 +4703,7 @@ class EntitySet(CSDLElement):
                         "Unexpected compound key: %s" % repr(keylike))
             else:
                 return keylike
-        elif isinstance(keylike, DictType) or isinstance(keylike, Entity):
+        elif isinstance(keylike, (dict, Entity)):
             k = []
             for kp in self.entityType.Key.PropertyRef:
                 try:
@@ -4725,7 +4743,7 @@ class EntitySet(CSDLElement):
         if klen == 1:
             kv = self.entityType[self.keys[0]]()
             try:
-                if type(keyvalue) in StringTypes:
+                if is_text(keyvalue):
                     kv.set_from_literal(keyvalue)
                 else:
                     kv.set_from_value(keyvalue)
@@ -4738,7 +4756,7 @@ class EntitySet(CSDLElement):
             for kvi in keyvalue:
                 kv = self.entityType[self.keys[i]]()
                 try:
-                    if type(kvi) in StringTypes:
+                    if is_text(kvi):
                         kv.set_from_literal(kvi)
                     else:
                         kv.set_from_value(kvi)
@@ -4755,11 +4773,11 @@ class EntitySet(CSDLElement):
         as the key in the mapping, even if the key refers to a single
         property.  This contrasts with :meth:`get_key_dict`."""
         key_dict = {}
-        if not isinstance(key, TupleType):
+        if not isinstance(key, tuple):
             key = (key,)
         ki = iter(key)
         for kp in self.entityType.Key.PropertyRef:
-            k = ki.next()
+            k = next(ki)
             #   create a new simple value to hold k
             kv = kp.property()
             kv.set_from_value(k)
@@ -4775,14 +4793,14 @@ class EntitySet(CSDLElement):
         single property defines the entity key it is represented using
         the empty string, *not* the property name."""
         key_dict = {}
-        if not isinstance(key, TupleType):
+        if not isinstance(key, tuple):
             no_name = True
             key = (key,)
         else:
             no_name = False
         ki = iter(key)
         for kp in self.entityType.Key.PropertyRef:
-            k = ki.next()
+            k = next(ki)
             #   create a new simple value to hold k
             kv = kp.property()
             kv.set_from_value(k)

@@ -64,7 +64,7 @@ class EDMXTests(unittest.TestCase):
             try:
                 doc.read()
                 doc.validate()
-            except (edm.ModelError, edm.DuplicateName), e:
+            except (edm.ModelError, edm.DuplicateName) as e:
                 self.fail("%s is valid but raised "
                           "InvalidMetadataDocument: %s" % (fName, str(e)))
 

@@ -75,13 +75,13 @@ class MockODataServer:
         major = minor = 0
         dsv = handler.headers["DataServiceVersion"]
         if dsv is not None:
-            major, minor, ua = core.ParseDataServiceVersion(dsv)
+            major, minor, ua = core.parse_dataservice_version(dsv)
         if major != 2 or minor != 0:
             raise ValueError("DataServiceVersion: %s" % dsv)
         maxDSV = handler.headers["MaxDataServiceVersion"]
         major = minor = 0
         if maxDSV is not None:
-            major, minor, sa = ParseMaxDataServiceVersion(maxDSV)
+            major, minor, sa = parse_max_dataservice_version(maxDSV)
         if major != 2 or minor != 0:
             raise ValueError("MaxDataServiceVersion: %s" % maxDSV)
 
@@ -200,70 +200,70 @@ class ODataTests(unittest.TestCase):
         application of the following rules in the order specified:
 
         If either operand is of type Edm.Decimal, the other operand is converted to Edm.Decimal unless it is of type Edm.Single or Edm.Double."""
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Decimal, edm.SimpleType.Int64)
+        self.assertTrue(core.promote_types(edm.SimpleType.Decimal, edm.SimpleType.Int64)
                         == edm.SimpleType.Decimal, "Decimal promotion of Int64")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Decimal, edm.SimpleType.Int32)
+        self.assertTrue(core.promote_types(edm.SimpleType.Decimal, edm.SimpleType.Int32)
                         == edm.SimpleType.Decimal, "Decimal promotion of Int32")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Decimal, edm.SimpleType.Int16)
+        self.assertTrue(core.promote_types(edm.SimpleType.Decimal, edm.SimpleType.Int16)
                         == edm.SimpleType.Decimal, "Decimal promotion of Int16")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Decimal, edm.SimpleType.Byte)
+        self.assertTrue(core.promote_types(edm.SimpleType.Decimal, edm.SimpleType.Byte)
                         == edm.SimpleType.Decimal, "Decimal promotion of Byte")
         # Otherwise, if either operand is Edm.Double, the other operand is
         # converted to type Edm.Double.
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Decimal, edm.SimpleType.Double)
+        self.assertTrue(core.promote_types(edm.SimpleType.Decimal, edm.SimpleType.Double)
                         == edm.SimpleType.Double, "Double promotion of Decimal")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Single, edm.SimpleType.Double)
+        self.assertTrue(core.promote_types(edm.SimpleType.Single, edm.SimpleType.Double)
                         == edm.SimpleType.Double, "Double promotion of Single")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Double, edm.SimpleType.Int64)
+        self.assertTrue(core.promote_types(edm.SimpleType.Double, edm.SimpleType.Int64)
                         == edm.SimpleType.Double, "Double promotion of Int64")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Double, edm.SimpleType.Int32)
+        self.assertTrue(core.promote_types(edm.SimpleType.Double, edm.SimpleType.Int32)
                         == edm.SimpleType.Double, "Double promotion of Int32")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Double, edm.SimpleType.Int16)
+        self.assertTrue(core.promote_types(edm.SimpleType.Double, edm.SimpleType.Int16)
                         == edm.SimpleType.Double, "Double promotion of Int16")
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Double, edm.SimpleType.Byte) == edm.SimpleType.Double, "Double promotion of Byte")
         # Otherwise, if either operand is Edm.Single, the other operand is
         # converted to type Edm.Single.
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Decimal, edm.SimpleType.Single)
+        self.assertTrue(core.promote_types(edm.SimpleType.Decimal, edm.SimpleType.Single)
                         == edm.SimpleType.Single, "Single promotion of Decimal")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Single, edm.SimpleType.Int64)
+        self.assertTrue(core.promote_types(edm.SimpleType.Single, edm.SimpleType.Int64)
                         == edm.SimpleType.Single, "Single promotion of Int64")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Single, edm.SimpleType.Int32)
+        self.assertTrue(core.promote_types(edm.SimpleType.Single, edm.SimpleType.Int32)
                         == edm.SimpleType.Single, "Single promotion of Int32")
-        self.assertTrue(core.PromoteTypes(edm.SimpleType.Single, edm.SimpleType.Int16)
+        self.assertTrue(core.promote_types(edm.SimpleType.Single, edm.SimpleType.Int16)
                         == edm.SimpleType.Single, "Single promotion of Int16")
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Single, edm.SimpleType.Byte) == edm.SimpleType.Single, "Single promotion of Byte")
         # Otherwise, if either operand is Edm.Int64, the other operand is
         # converted to type Edm.Int64.
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Int64, edm.SimpleType.Int32) == edm.SimpleType.Int64, "Int64 promotion of Int32")
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Int64, edm.SimpleType.Int16) == edm.SimpleType.Int64, "Int64 promotion of Int16")
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Int64, edm.SimpleType.Byte) == edm.SimpleType.Int64, "Int64 promotion of Byte")
         # Otherwise, if either operand is Edm.Int32, the other operand is
         # converted to type Edm.Int32
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Int32, edm.SimpleType.Int16) == edm.SimpleType.Int32, "Int32 promotion of Int16")
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Int32, edm.SimpleType.Byte) == edm.SimpleType.Int32, "Int32 promotion of Byte")
         # Otherwise, if either operand is Edm.Int16, the other operand is
         # converted to type Edm.Int16.
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Int16, edm.SimpleType.Byte) == edm.SimpleType.Int16, "Int16 promotion of Byte")
         # Special case, if either operand is null we return the type of the
         # other operand
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Int16, None) == edm.SimpleType.Int16, "Int16 promotion of NULL")
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             edm.SimpleType.Int32, None) == edm.SimpleType.Int32, "Int32 promotion of NULL")
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             None, edm.SimpleType.Int64) == edm.SimpleType.Int64, "Int64 promotion of NULL")
-        self.assertTrue(core.PromoteTypes(
+        self.assertTrue(core.promote_types(
             None, edm.SimpleType.Single) == edm.SimpleType.Single, "Single promotion of NULL")
         try:
-            core.PromoteTypes(edm.SimpleType.String, edm.SimpleType.Single)
+            core.promote_types(edm.SimpleType.String, edm.SimpleType.Single)
             self.fail("Type promotion of String and Single")
         except core.EvaluationError:
             pass
@@ -902,7 +902,7 @@ class ServerTests(unittest.TestCase):
                         "No DataServiceVersion:\n\n" + request.wfile.getvalue())
         self.assertTrue('DATASERVICEVERSION' in request.responseHeaders,
                         "Missing DataServiceVersion in response")
-        major, minor, ua = core.ParseDataServiceVersion(
+        major, minor, ua = core.parse_dataservice_version(
             request.responseHeaders['DATASERVICEVERSION'])
         self.assertTrue(
             major == 2 and minor == 0, "No version should return 2.0")
@@ -911,7 +911,7 @@ class ServerTests(unittest.TestCase):
         request.send(s)
         self.assertTrue(request.responseCode == 200,
                         "Version 1.0 request:\n\n" + request.wfile.getvalue())
-        major, minor, ua = core.ParseDataServiceVersion(
+        major, minor, ua = core.parse_dataservice_version(
             request.responseHeaders['DATASERVICEVERSION'])
         self.assertTrue(
             major == 1 and minor == 0, "Version 1.0 request should return 1.0 response")
@@ -919,7 +919,7 @@ class ServerTests(unittest.TestCase):
         request.set_header('DataServiceVersion', "2.0; current request")
         request.send(s)
         self.assertTrue(request.responseCode == 200)
-        major, minor, ua = core.ParseDataServiceVersion(
+        major, minor, ua = core.parse_dataservice_version(
             request.responseHeaders['DATASERVICEVERSION'])
         self.assertTrue(
             major == 2 and minor == 0, "Version 2.0 request should return 2.0 response")
@@ -960,7 +960,7 @@ class ServerTests(unittest.TestCase):
         request.set_header('MaxDataServiceVersion', "1.0; old max")
         request.send(s)
         self.assertTrue(request.responseCode == 200)
-        major, minor, ua = core.ParseDataServiceVersion(
+        major, minor, ua = core.parse_dataservice_version(
             request.responseHeaders['DATASERVICEVERSION'])
         self.assertTrue(major == 1 and minor == 0,
                         "MaxVersion 1.0 request should return 1.0 response: %i.%i" % (major, minor))
@@ -969,7 +969,7 @@ class ServerTests(unittest.TestCase):
         request.set_header('MaxDataServiceVersion', "2.0; current max")
         request.send(s)
         self.assertTrue(request.responseCode == 200)
-        major, minor, ua = core.ParseDataServiceVersion(
+        major, minor, ua = core.parse_dataservice_version(
             request.responseHeaders['DATASERVICEVERSION'])
         self.assertTrue(
             major == 2 and minor == 0, "MaxVersion 2.0 request should return 2.0 response")
@@ -978,7 +978,7 @@ class ServerTests(unittest.TestCase):
         request.set_header('MaxDataServiceVersion', "2.1; future max")
         request.send(s)
         self.assertTrue(request.responseCode == 200)
-        major, minor, ua = core.ParseDataServiceVersion(
+        major, minor, ua = core.parse_dataservice_version(
             request.responseHeaders['DATASERVICEVERSION'])
         self.assertTrue(
             major == 2 and minor == 0, "MaxVersion 2.1 request should return 2.0 response")
@@ -2570,7 +2570,7 @@ class SampleServerTests(unittest.TestCase):
         for ct in obj["results"]:
             #	should be a complex type
             c = edm.Complex(fakeP)
-            core.ReadEntityCTInJSON(c, obj)
+            core.complex_property_from_json(c, obj)
             if c['Street'] == "Mill Road":
                 self.assertTrue(c['City'] == "Chunton")
                 iChunton = i
@@ -2676,7 +2676,7 @@ class SampleServerTests(unittest.TestCase):
         for prim in obj["results"]:
             #	should be a simple type
             v = edm.StringValue()
-            core.ReadEntityPropertyValueInJSON(v, prim)
+            core.simple_value_from_json(v, prim)
             i = i + 1
         #	check version 1 json output
         request = MockRequest(
@@ -4275,7 +4275,7 @@ class SampleServerTests(unittest.TestCase):
         customer['Address']['Street'].set_from_value("High Street")
         request = MockRequest("/service.svc/Customers('ALFKI')/Address", "PUT")
         request.set_header('Accept', "application/json")
-        data = core.EntityCTInJSON(customer['Address'])
+        data = core.complex_property_to_json_v1(customer['Address'])
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(str(data))
@@ -4329,7 +4329,7 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName", "PUT")
         request.set_header('Accept', "application/json")
-        data = core.EntityPropertyInJSON1(customer['CompanyName'])
+        data = core.simple_property_to_json_v1(customer['CompanyName'])
         request.set_header('Content-Type', "application/json")
         request.set_header('Content-Length', str(len(data)))
         request.rfile.write(str(data))

@@ -286,6 +286,14 @@ Bytes
 
     In Python 2 this is a no-operation but in Python 3 it is effectively
     the same as the above.
+
+
+Numeric Definitions
+-------------------
+
+..  function:: long2
+
+    Missing from Python 3, equivalent to the builtin int.
     
 
 Iterable Fixes 

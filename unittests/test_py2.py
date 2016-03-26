@@ -356,6 +356,35 @@ class Python2Tests(unittest.TestCase):
         self.assertFalse(X(1) >= X(2))
         self.assertFalse(X(1) >= 2)
 
+    def test_bool(self):
+        class X(py2.BoolMixin):
+            def __init__(self, value):
+                self.value = value
+
+            def __bool__(self):
+                return self.value
+
+        x = X(True)
+        self.assertTrue(x)
+        x = X(False)
+        self.assertFalse(x)
+
+        class X(py2.BoolMixin):
+            def __init__(self, value):
+                self.value = value
+
+            def __len__(self):
+                return 0
+
+            def __bool__(self):
+                return self.value
+
+        # now test that __bool__ takes precedence over __len__
+        x = X(True)
+        self.assertTrue(x)
+        x = X(False)
+        self.assertFalse(x)
+
     def test_literals(self):
         data1 = "hello"
         if sys.version_info[0] < 3:
@@ -442,6 +471,12 @@ class Python2Tests(unittest.TestCase):
             self.fail('16-bit qualified literal uncaught encode error')
         except ValueError:
             pass
+
+    def test_long(self):
+        if sys.version_info[0] < 3:
+            self.assertTrue(py2.long2 is long)
+        else:
+            self.assertTrue(py2.long2 is int)
 
     def test_range(self):
         if sys.version_info[0] < 3:

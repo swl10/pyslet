@@ -5,7 +5,10 @@ import decimal
 
 import pyslet.xml.structures as xml
 
-from pyslet.odata2.csdl import *    # noqa
+from pyslet.py2 import (
+    long2,
+    uempty)
+from pyslet.odata2 import csdl as edm
 
 
 def suite():
@@ -25,9 +28,9 @@ def load_tests(loader, tests, pattern):
 class CSDLTests(unittest.TestCase):
 
     def test_constants(self):
-        self.assertTrue(EDM_NAMESPACE ==
+        self.assertTrue(edm.EDM_NAMESPACE ==
                         "http://schemas.microsoft.com/ado/2009/11/edm",
-                        "Wrong CSDL namespace: %s" % EDM_NAMESPACE)
+                        "Wrong CSDL namespace: %s" % edm.EDM_NAMESPACE)
 
     def test_simple_identifier(self):
         # basic tests here:
@@ -37,39 +40,39 @@ class CSDLTests(unittest.TestCase):
                       "M(", "M)", "M[", "M]", "M,", "M;", "M*", "M."
                       ):
             try:
-                self.assertFalse(validate_simple_identifier(iTest),
+                self.assertFalse(edm.validate_simple_identifier(iTest),
                                  "%s: Fail" % repr(iTest))
             except ValueError:
                 pass
-        save_pattern = set_simple_identifier_re(
-            SIMPLE_IDENTIFIER_COMPATIBILITY_RE)
-        self.assertTrue(validate_simple_identifier("M-"), "hyphen allowed")
-        set_simple_identifier_re(save_pattern)
+        save_pattern = edm.set_simple_identifier_re(
+            edm.SIMPLE_IDENTIFIER_COMPATIBILITY_RE)
+        self.assertTrue(edm.validate_simple_identifier("M-"), "hyphen allowed")
+        edm.set_simple_identifier_re(save_pattern)
 
     def test_simple_type(self):
         """Test the SimpleType enumeration."""
-        self.assertTrue(SimpleType.Binary == getattr(
-            SimpleType, 'Edm.Binary'), "Dual declaration form.")
+        self.assertTrue(edm.SimpleType.Binary == getattr(
+            edm.SimpleType, 'Edm.Binary'), "Dual declaration form.")
         # Given a python type value (as returned by the type() function) we
         # find the SimpleType
         self.assertTrue(
-            SimpleType.PythonType[type(3.14)] == SimpleType.Double,
+            edm.SimpleType.PythonType[type(3.14)] == edm.SimpleType.Double,
             "Bad float type")
         self.assertTrue(
-            SimpleType.PythonType[type(3)] == SimpleType.Int64,
+            edm.SimpleType.PythonType[type(3)] == edm.SimpleType.Int64,
             "Bad int type")
         self.assertTrue(
-            SimpleType.PythonType[type("Hello")] == SimpleType.String,
+            edm.SimpleType.PythonType[type("Hello")] == edm.SimpleType.String,
             "Bad string type")
         self.assertTrue(
-            SimpleType.PythonType[type(u"Hello")] == SimpleType.String,
+            edm.SimpleType.PythonType[type(uempty)] == edm.SimpleType.String,
             "Bad unicode type")
 
     def test_schema(self):
-        s = Schema(None)
+        s = edm.Schema(None)
         self.assertTrue(
             isinstance(s, xml.Element), "Schema not an XML element")
-        self.assertTrue(s.ns == EDM_NAMESPACE, "CSDL namespace")
+        self.assertTrue(s.ns == edm.EDM_NAMESPACE, "CSDL namespace")
         self.assertTrue(s.name == 'Default', 'Namespace default')
         self.assertTrue(s.alias is None, 'Alias default')
         self.assertTrue(
@@ -88,16 +91,16 @@ class CSDLTests(unittest.TestCase):
                         "No Annotations elements allowed on construction")
         self.assertTrue(len(s.ValueTerm) == 0,
                         "No ValueTerm elements allowed on construction")
-        e = s.add_child(EntityType)
+        e = s.add_child(edm.EntityType)
         e.name = "TestType"
         s.content_changed()
         self.assertTrue(
             s['TestType'] is e, "Schema subscripting, EntityType declared")
 
     def test_entity_type(self):
-        et = EntityType(None)
+        et = edm.EntityType(None)
         self.assertTrue(
-            isinstance(et, CSDLElement), "EntityType not a CSDLelement")
+            isinstance(et, edm.CSDLElement), "EntityType not a CSDLelement")
         self.assertTrue(et.name == "Default", "Default name")
         et.set_attribute('Name', "NewName")
         self.assertTrue(et.name == "NewName", "Name attribute setter")
@@ -122,9 +125,9 @@ class CSDLTests(unittest.TestCase):
                         "No ValueAnnotation elements allowed on construction")
 
     def test_property(self):
-        p = Property(None)
+        p = edm.Property(None)
         self.assertTrue(
-            isinstance(p, CSDLElement), "Property not a CSDLelement")
+            isinstance(p, edm.CSDLElement), "Property not a CSDLelement")
         self.assertTrue(p.name == "Default", "Default name")
         p.set_attribute('Name', "NewName")
         self.assertTrue(p.name == "NewName", "Name attribute setter")
@@ -161,8 +164,8 @@ class CSDLTests(unittest.TestCase):
                         "No ValueAnnotation elements allowed on construction")
 
     def test_navigation_property(self):
-        np = NavigationProperty(None)
-        self.assertTrue(isinstance(np, CSDLElement),
+        np = edm.NavigationProperty(None)
+        self.assertTrue(isinstance(np, edm.CSDLElement),
                         "NavigationProperty not a CSDLElement")
         self.assertTrue(np.name == "Default", "Default name")
         self.assertTrue(np.relationship is None, "Default relationship")
@@ -176,21 +179,22 @@ class CSDLTests(unittest.TestCase):
                         "No ValueAnnotation elements allowed on construction")
 
     def test_key(self):
-        k = Key(None)
-        self.assertTrue(isinstance(k, CSDLElement), "Key not a CSDLElement")
+        k = edm.Key(None)
+        self.assertTrue(isinstance(k, edm.CSDLElement),
+                        "Key not a CSDLElement")
         self.assertTrue(len(k.PropertyRef) == 0,
                         "No PropertyRef elements allowed on construction")
 
     def test_property_ref(self):
-        pr = PropertyRef(None)
+        pr = edm.PropertyRef(None)
         self.assertTrue(
-            isinstance(pr, CSDLElement), "PropertyRef not a CSDLElement")
+            isinstance(pr, edm.CSDLElement), "PropertyRef not a CSDLElement")
         self.assertTrue(pr.name == "Default", "Default name")
 
     def test_complex_type(self):
-        ct = ComplexType(None)
+        ct = edm.ComplexType(None)
         self.assertTrue(
-            isinstance(ct, CSDLElement), "ComplexType not a CSDLElement")
+            isinstance(ct, edm.CSDLElement), "ComplexType not a CSDLElement")
         self.assertTrue(ct.name == "Default", "Default name")
         self.assertTrue(ct.baseType is None, "Default baseType")
         ct.set_attribute('BaseType', "ParentClass")
@@ -209,9 +213,9 @@ class CSDLTests(unittest.TestCase):
                         "No ValueAnnotation elements allowed on construction")
 
     def test_association(self):
-        a = Association(None)
+        a = edm.Association(None)
         self.assertTrue(
-            isinstance(a, CSDLElement), "Association not a CSDLElement")
+            isinstance(a, edm.CSDLElement), "Association not a CSDLElement")
         self.assertTrue(a.name == "Default", "Default name")
         a.set_attribute('Name', "NewName")
         self.assertTrue(
@@ -229,9 +233,9 @@ class CSDLTests(unittest.TestCase):
                         "No ValueAnnotation elements allowed on construction")
 
     def test_end(self):
-        e = AssociationEnd(None)
+        e = edm.AssociationEnd(None)
         self.assertTrue(
-            isinstance(e, CSDLElement), "AssociationEnd not a CSDLElement")
+            isinstance(e, edm.CSDLElement), "AssociationEnd not a CSDLElement")
         self.assertTrue(e.type is None, "Default type")
         e.set_attribute('Type', "MySchema.Person")
         self.assertTrue(e.type == "MySchema.Person", "Type attribute setter")
@@ -239,12 +243,12 @@ class CSDLTests(unittest.TestCase):
         e.set_attribute('Role', "Source")
         self.assertTrue(e.name == "Source", "Role attribute setter")
         self.assertTrue(
-            e.multiplicity == Multiplicity.One, "Default Multiplicity")
+            e.multiplicity == edm.Multiplicity.One, "Default Multiplicity")
         e.set_attribute('Multiplicity', "0..1")
-        self.assertTrue(e.multiplicity == Multiplicity.ZeroToOne,
+        self.assertTrue(e.multiplicity == edm.Multiplicity.ZeroToOne,
                         "Multiplicity attribute setter")
         e.set_attribute('Multiplicity', "*")
-        self.assertTrue(e.multiplicity == Multiplicity.Many,
+        self.assertTrue(e.multiplicity == edm.Multiplicity.Many,
                         "Multiplicity attribute setter")
         self.assertTrue(e.Documentation is None,
                         "No Documentation elements allowed on construction")
@@ -285,26 +289,26 @@ class CSDLTests(unittest.TestCase):
         <End Role="Order" Type="SampleModel.Order" Multiplicity="*"/>
     </Association>
 </Schema>"""
-        doc = Document()
+        doc = edm.Document()
         doc.read(src=min_nav_schema)
-        scope = NameTableMixin()
+        scope = edm.NameTableMixin()
         scope.declare(doc.root)
         doc.root.update_type_refs(scope)
         doc.root.update_set_refs(scope)
         es = doc.root["SampleEntities.Customers"]
-        e = Entity(es)
+        e = edm.Entity(es)
         # initially the entity is marked as a new entity
         self.assertFalse(e.exists)
-        self.assertTrue(isinstance(e['CustomerID'], StringValue),
+        self.assertTrue(isinstance(e['CustomerID'], edm.StringValue),
                         "Type of simple property")
-        self.assertTrue(isinstance(e['Orders'], DeferredValue),
+        self.assertTrue(isinstance(e['Orders'], edm.DeferredValue),
                         "Type of navigation property")
 
     def test_function(self):
         """Tests the FunctionImport class."""
-        f = FunctionImport(None)
+        f = edm.FunctionImport(None)
         self.assertTrue(
-            isinstance(f, CSDLElement), "FunctionImport not a CSDLElement")
+            isinstance(f, edm.CSDLElement), "FunctionImport not a CSDLElement")
         # FunctionImport MUST have a Name attribute defined
         self.assertTrue(f.name == "Default", "Default name")
         f.set_attribute('Name', "annualCustomerSales")
@@ -341,9 +345,9 @@ class CSDLTests(unittest.TestCase):
         <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
     </EntityType>
 </Schema>"""
-        doc = Document()
+        doc = edm.Document()
         doc.read(src=min_func_schema)
-        scope = NameTableMixin()
+        scope = edm.NameTableMixin()
         scope.declare(doc.root)
         doc.root.update_type_refs(scope)
         doc.root.update_set_refs(scope)
@@ -351,12 +355,12 @@ class CSDLTests(unittest.TestCase):
         # ComplexType that is in scope or a collection of one of these
         # in-scope types
         f = doc.root["SampleEntities.activeCustomerCount"]
-        self.assertTrue(isinstance(f.returnTypeRef, TypeRef))
+        self.assertTrue(isinstance(f.returnTypeRef, edm.TypeRef))
         self.assertFalse(f.is_collection())
         self.assertFalse(f.is_entity_collection())
-        self.assertTrue(f.returnTypeRef.simpleTypeCode == SimpleType.Int32)
+        self.assertTrue(f.returnTypeRef.simpleTypeCode == edm.SimpleType.Int32)
         f = doc.root["SampleEntities.annualCustomerSales"]
-        self.assertTrue(isinstance(f.returnTypeRef, TypeRef))
+        self.assertTrue(isinstance(f.returnTypeRef, edm.TypeRef))
         self.assertTrue(f.is_collection())
         self.assertTrue(f.is_entity_collection())
         self.assertTrue(f.returnTypeRef.simpleTypeCode is None)
@@ -366,21 +370,21 @@ class ValueTests(unittest.TestCase):
 
     def test_simple_value(self):
         """Test the SimpleValue class."""
-        p = Property(None)
-        p.simpleTypeCode = SimpleType.Boolean
-        v = SimpleValue.from_property(p)
+        p = edm.Property(None)
+        p.simpleTypeCode = edm.SimpleType.Boolean
+        v = edm.SimpleValue.from_property(p)
         self.assertTrue(
-            isinstance(v, EDMValue), "SimpleValue inherits from EDMValue")
+            isinstance(v, edm.EDMValue), "SimpleValue inherits from EDMValue")
         self.assertTrue(v.value is None, "Null value on construction")
         p.name = "flag"
-        v = SimpleValue.from_property(p)
+        v = edm.SimpleValue.from_property(p)
         self.assertTrue(v.p_def.name == "flag",
                         "SimpleValue property definition set on constructor")
         self.assertTrue(v.value is None, "Null value on construction")
 
     def test_binary_value(self):
         """Test the BinaryValue class."""
-        v = EDMValue.from_type(SimpleType.Binary)
+        v = edm.EDMValue.from_type(edm.SimpleType.Binary)
         # check __nonzero__
         self.assertFalse(v)
         # check is_null
@@ -390,13 +394,13 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v)
         # check is_null
         self.assertFalse(v.is_null())
-        # v2 = EDMValue.from_type(SimpleType.Binary)
+        # v2 = edm.EDMValue.from_type(edm.SimpleType.Binary)
         # v2.set_random_value(v)
         # self.assertFalse(v2.value == v.value)
 
     def test_int32_value(self):
         """Test the Int32Value class."""
-        v = EDMValue.from_type(SimpleType.Int32)
+        v = edm.EDMValue.from_type(edm.SimpleType.Int32)
         # check __nonzero__
         self.assertFalse(v)
         # check is_null
@@ -406,7 +410,7 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v)
         # check is_null
         self.assertFalse(v.is_null())
-        v2 = EDMValue.from_type(SimpleType.Int32)
+        v2 = edm.EDMValue.from_type(edm.SimpleType.Int32)
         v2.set_random_value(v)
         self.assertTrue(v2.value >= 0)
         v.set_from_value(-1)
@@ -415,7 +419,7 @@ class ValueTests(unittest.TestCase):
 
     def test_int64_value(self):
         """Test the Int64Value class."""
-        v = EDMValue.from_type(SimpleType.Int64)
+        v = edm.EDMValue.from_type(edm.SimpleType.Int64)
         # check __nonzero__
         self.assertFalse(v)
         # check is_null
@@ -425,7 +429,7 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v)
         # check is_null
         self.assertFalse(v.is_null())
-        v2 = EDMValue.from_type(SimpleType.Int64)
+        v2 = edm.EDMValue.from_type(edm.SimpleType.Int64)
         v2.set_random_value(v)
         self.assertTrue(v2.value >= 0)
         v.set_from_value(-1)
@@ -434,7 +438,7 @@ class ValueTests(unittest.TestCase):
 
     def test_string_value(self):
         """Test the StringValue class."""
-        v = EDMValue.from_type(SimpleType.String)
+        v = edm.EDMValue.from_type(edm.SimpleType.String)
         # check __nonzero__
         self.assertFalse(v)
         # check is_null
@@ -444,7 +448,7 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v)
         # check is_null
         self.assertFalse(v.is_null())
-        v2 = EDMValue.from_type(SimpleType.String)
+        v2 = edm.EDMValue.from_type(edm.SimpleType.String)
         v2.set_random_value()
         self.assertTrue(len(v2.value) == 8,
                         "Expected 8 characters: %s" % v2.value)
@@ -453,49 +457,49 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(len(v2.value) == 12 and v2.value[0:4] == "stem")
 
     def test_casts(self):
-        p = Property(None)
-        p.simpleTypeCode = SimpleType.Byte
-        v = SimpleValue.from_property(p)
+        p = edm.Property(None)
+        p.simpleTypeCode = edm.SimpleType.Byte
+        v = edm.SimpleValue.from_property(p)
         v.value = 13
-        cast = Property(None)
-        cast.simpleTypeCode = SimpleType.Int16
-        v2 = v.cast(EDMValue.from_property(cast))
+        cast = edm.Property(None)
+        cast.simpleTypeCode = edm.SimpleType.Int16
+        v2 = v.cast(edm.EDMValue.from_property(cast))
         self.assertTrue(
-            isinstance(v2, SimpleValue), "cast gives a SimpleValue")
+            isinstance(v2, edm.SimpleValue), "cast gives a SimpleValue")
         self.assertTrue(
-            v2.type_code == SimpleType.Int16, "cast uses passed type")
+            v2.type_code == edm.SimpleType.Int16, "cast uses passed type")
         self.assertTrue(v2.value == 13, "cast to Int16")
-        cast = Property(None)
-        cast.simpleTypeCode = SimpleType.Int32
-        v2 = v2.cast(EDMValue.from_property(cast))
+        cast = edm.Property(None)
+        cast.simpleTypeCode = edm.SimpleType.Int32
+        v2 = v2.cast(edm.EDMValue.from_property(cast))
         self.assertTrue(
-            v2.type_code == SimpleType.Int32, "cast uses passed type")
+            v2.type_code == edm.SimpleType.Int32, "cast uses passed type")
         self.assertTrue(v2.value == 13, "cast to Int32")
-        cast = Property(None)
-        cast.simpleTypeCode = SimpleType.Int64
-        v2 = v2.cast(EDMValue.from_property(cast))
+        cast = edm.Property(None)
+        cast.simpleTypeCode = edm.SimpleType.Int64
+        v2 = v2.cast(edm.EDMValue.from_property(cast))
         self.assertTrue(
-            v2.type_code == SimpleType.Int64, "cast uses passed type")
-        self.assertTrue(type(v2.value) is LongType, "cast to Int64")
-        self.assertTrue(v2.value == 13L, "cast to Int64")
-        cast = Property(None)
-        cast.simpleTypeCode = SimpleType.Single
-        v3 = v2.cast(EDMValue.from_property(cast))
+            v2.type_code == edm.SimpleType.Int64, "cast uses passed type")
+        self.assertTrue(isinstance(v2.value, long2), "cast to Int64")
+        self.assertTrue(v2.value == long2(13), "cast to Int64")
+        cast = edm.Property(None)
+        cast.simpleTypeCode = edm.SimpleType.Single
+        v3 = v2.cast(edm.EDMValue.from_property(cast))
         self.assertTrue(
-            v3.type_code == SimpleType.Single, "cast uses passed type")
-        self.assertTrue(type(v3.value) is FloatType, "cast to Single")
-        cast = Property(None)
-        cast.simpleTypeCode = SimpleType.Double
-        v3 = v3.cast(EDMValue.from_property(cast))
+            v3.type_code == edm.SimpleType.Single, "cast uses passed type")
+        self.assertTrue(isinstance(v3.value, float), "cast to Single")
+        cast = edm.Property(None)
+        cast.simpleTypeCode = edm.SimpleType.Double
+        v3 = v3.cast(edm.EDMValue.from_property(cast))
         self.assertTrue(
-            v3.type_code == SimpleType.Double, "cast uses passed type")
-        self.assertTrue(type(v3.value) is FloatType, "cast to Double")
+            v3.type_code == edm.SimpleType.Double, "cast uses passed type")
+        self.assertTrue(isinstance(v3.value, float), "cast to Double")
         self.assertTrue(v3.value == 13.0, "cast to Double")
-        cast = Property(None)
-        cast.simpleTypeCode = SimpleType.Decimal
-        v3 = v2.cast(EDMValue.from_property(cast))
+        cast = edm.Property(None)
+        cast.simpleTypeCode = edm.SimpleType.Decimal
+        v3 = v2.cast(edm.EDMValue.from_property(cast))
         self.assertTrue(
-            v3.type_code == SimpleType.Decimal, "cast uses passed type")
+            v3.type_code == edm.SimpleType.Decimal, "cast uses passed type")
         self.assertTrue(
             isinstance(v3.value, decimal.Decimal), "cast to Decimal")
         self.assertTrue(v3 == 13, "cast to Double")
@@ -525,25 +529,25 @@ class EntityTests(unittest.TestCase):
         <Property Name="Region" Type="Edm.Int32"/>
     </EntityType>
 </Schema>"""
-        doc = Document()
+        doc = edm.Document()
         doc.read(src=min_es_schema)
-        scope = NameTableMixin()
+        scope = edm.NameTableMixin()
         scope.declare(doc.root)
         doc.root.update_type_refs(scope)
         doc.root.update_set_refs(scope)
         self.es = doc.root['SampleEntities.Customers']
 
     def test_init(self):
-        e = Entity(self.es)
+        e = edm.Entity(self.es)
         self.assertFalse(e.exists)
 
     def test_merge(self):
-        e = Entity(self.es)
+        e = edm.Entity(self.es)
         e.set_key("abc")
         e['Name'].set_from_value("Widget Co")
         e['Address']['City'].set_from_value("Smalltown")
         # regions and address street are NULL
-        e2 = Entity(self.es)
+        e2 = edm.Entity(self.es)
         e2.set_key("xyz")
         e2['Address']['Street'].set_from_value("1 Main Street")
         e2['Region'].set_from_value(1)

@@ -509,10 +509,10 @@ class SQLCollectionBase(core.EntityCollection):
             p = core.Parser(skiptoken)
             self.skiptoken = []
             while True:
-                p.ParseWSP()
+                p.parse_wsp()
                 self.skiptoken.append(
                     p.require_production(p.ParseURILiteral()))
-                p.ParseWSP()
+                p.parse_wsp()
                 if not p.parse(','):
                     if p.match_end():
                         break
