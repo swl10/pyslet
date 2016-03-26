@@ -339,7 +339,7 @@ navigation properties::
 							data.update_entity(data_point)
 						id=id+1
 		with weather_notes.open() as collection:
-			collection.set_orderby(core.CommonExpression.OrderByFromString('StartDate desc'))
+			collection.set_orderby(core.CommonExpression.orderby_from_str('StartDate desc'))
 			for e in collection.itervalues():
 				with e['DataPoints'].open() as affectedData:
 					print "%s-%s: %s (%i data points affected)"%(unicode(e['StartDate'].value),
@@ -398,7 +398,7 @@ along with any linked note::
 			load_data(weatherData,SAMPLE_DIR)
 			load_notes(weather_notes,'weathernotes.txt',weatherData)
 		with weatherData.open() as collection:
-			collection.set_orderby(core.CommonExpression.OrderByFromString('WindSpeedMax desc'))
+			collection.set_orderby(core.CommonExpression.orderby_from_str('WindSpeedMax desc'))
 			collection.set_page(30)
 			for e in collection.iterpage():
 				note=e['Note'].get_entity()

@@ -13,7 +13,7 @@ weather.make_mysql_container(doc, host=config.DB_HOST, database=config.DB_USER,
                              user=config.DB_USER, password=config.DB_PASSWORD)
 server = ReadOnlyServer(serviceRoot=config.SERVICE_ROOT)
 server.SetModel(doc)
-logging.debug("Path prefix: %s", server.pathPrefix)
+logging.debug("Path prefix: %s", server.path_prefix)
 
 
 def application(environ, start_response):

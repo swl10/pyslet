@@ -561,9 +561,9 @@ class StreamStore(object):
         if new_hash == hash_key:
             return
         filter = core.BinaryExpression(core.Operator.eq)
-        filter.AddOperand(core.PropertyExpression('hash'))
+        filter.add_operand(core.PropertyExpression('hash'))
         hash_value = edm.EDMValue.from_type(edm.SimpleType.String)
-        filter.AddOperand(core.LiteralExpression(hash_value))
+        filter.add_operand(core.LiteralExpression(hash_value))
         # filter is: hash eq <hash_value>
         with self.block_set.open() as base_coll:
             with self.ls.lock(hash_key):
@@ -581,7 +581,7 @@ class StreamStore(object):
     def retrieve_blocklist(self, stream):
         with stream['Blocks'].open() as blocks:
             blocks.set_orderby(
-                core.CommonExpression.OrderByFromString("num asc"))
+                core.CommonExpression.orderby_from_str("num asc"))
             for block in blocks.itervalues():
                 yield block
 
@@ -591,9 +591,9 @@ class StreamStore(object):
     def delete_blocks(self, stream, from_num=0):
         blocks = list(self.retrieve_blocklist(stream))
         filter = core.BinaryExpression(core.Operator.eq)
-        filter.AddOperand(core.PropertyExpression('hash'))
+        filter.add_operand(core.PropertyExpression('hash'))
         hash_value = edm.EDMValue.from_type(edm.SimpleType.String)
-        filter.AddOperand(core.LiteralExpression(hash_value))
+        filter.add_operand(core.LiteralExpression(hash_value))
         # filter is: hash eq <hash_value>
         with self.block_set.open() as base_coll:
             for block in blocks:

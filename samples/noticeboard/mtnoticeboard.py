@@ -282,7 +282,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
                 consumer = lti.ToolConsumer(consumer, self.app_cipher)
                 query = urllib.urlencode(
                     {'cid':
-                     odata.ODataURI.FormatLiteral(consumer.entity['ID'])})
+                     odata.ODataURI.format_literal(consumer.entity['ID'])})
                 citem['consumer'] = consumer
                 citem['cedit_link'] = xml.escape_char_data7(
                     'edit?' + query, True)
@@ -290,7 +290,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
                     'del?' + query, True)
                 consumer_list.append(citem)
             query = urllib.urlencode(
-                {'silo': odata.ODataURI.FormatLiteral(silo['ID'])})
+                {'silo': odata.ODataURI.format_literal(silo['ID'])})
             page_context['cadd_link'] = xml.escape_char_data7(
                 'add?' + query, True)
         page_context['consumers'] = consumer_list
@@ -341,7 +341,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
         silo = owner['Silo'].get_entity()
         page_context['silo'] = silo
         query = context.get_query()
-        cid = odata.ParseURILiteral(query.get('cid', '')).value
+        cid = odata.uri_literal_from_str(query.get('cid', '')).value
         with silo['Consumers'].open() as collection:
             try:
                 consumer = lti.ToolConsumer(collection[cid], self.app_cipher)
@@ -390,7 +390,7 @@ class MultiTenantTPApp(lti.ToolProviderApp):
         silo = owner['Silo'].get_entity()
         page_context['silo'] = silo
         query = context.get_query()
-        cid = odata.ParseURILiteral(query.get('cid', '')).value
+        cid = odata.uri_literal_from_str(query.get('cid', '')).value
         with silo['Consumers'].open() as collection:
             try:
                 consumer = collection[cid]

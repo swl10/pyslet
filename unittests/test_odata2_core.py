@@ -44,7 +44,7 @@ class CommonExpressionTests(unittest.TestCase):
     def evaluate_common(self, expr_string):
         p = odata.Parser(expr_string)
         e = p.parse_common_expression()
-        return e.Evaluate(None)
+        return e.evaluate(None)
 
     def test_evaluate_common_expression(self):
         # cursory check:
@@ -54,7 +54,7 @@ class CommonExpressionTests(unittest.TestCase):
         e = p.parse_common_expression()
         self.assertTrue(isinstance(e, odata.CommonExpression),
                         "Expected common expression")
-        value = e.Evaluate(None)
+        value = e.evaluate(None)
         self.assertTrue(isinstance(value, edm.SimpleValue),
                         "Expected EDM value; found %s" % repr(value))
         self.assertTrue(value.value is False, "Expected false")
@@ -78,12 +78,12 @@ class CommonExpressionTests(unittest.TestCase):
         p = odata.Parser("(false and false or true)")
         # note that 'or' is the weakest operator
         e = p.parse_common_expression()
-        value = e.Evaluate(None)
+        value = e.evaluate(None)
         self.assertTrue(value.value is True, "Expected True")
         p = odata.Parser("(false and (false or true))")
         # should change the result
         e = p.parse_common_expression()
-        value = e.Evaluate(None)
+        value = e.evaluate(None)
         self.assertTrue(value.value is False, "Expected False")
         value = self.evaluate_common(
             "(((((((false) and (((false)) or true)))))))")
@@ -307,7 +307,7 @@ class CommonExpressionTests(unittest.TestCase):
         p = odata.Parser("-(-2F)")
         # unary numeric promotion to Double - a bit weird
         e = p.parse_common_expression()
-        value = e.Evaluate(None)
+        value = e.evaluate(None)
         self.assertTrue(
             value.type_code == edm.SimpleType.Double, "Expected Double")
         self.assertTrue(value.value == 2.0, "Expected 2.0")
@@ -603,7 +603,7 @@ class CommonExpressionTests(unittest.TestCase):
         try:
             p = odata.Parser("X'DEADBEEF' lt binary'deadbeef'")
             e = p.parse_common_expression()
-            value = e.Evaluate(None)
+            value = e.evaluate(None)
             self.fail("Relational operation on binary data")
         except odata.EvaluationError:
             pass
@@ -1475,7 +1475,7 @@ class CommonExpressionTests(unittest.TestCase):
                 "false or true", ]:
             e1 = odata.CommonExpression.from_str(example)
             e2 = odata.CommonExpression.from_str(unicode(e1))
-            self.assertTrue(e1.Evaluate(None) == e2.Evaluate(
+            self.assertTrue(e1.evaluate(None) == e2.evaluate(
                 None), "Mismatch evaluating: %s" % example)
             self.assertTrue(unicode(e1) == unicode(e2),
                             "Unstable expression: %s, %s!=%s" %
@@ -1487,7 +1487,7 @@ class ParamsExpressionTests(unittest.TestCase):
     def evaluate_common(self, expr_string):
         p = odata.Parser(expr_string)
         e = p.parse_common_expression()
-        return e.Evaluate(None)
+        return e.evaluate(None)
 
     def test_noparams_expression(self):
         p = odata.Parser("true and false")
@@ -1495,7 +1495,7 @@ class ParamsExpressionTests(unittest.TestCase):
         e = p.parse_common_expression(params)
         self.assertTrue(isinstance(e, odata.CommonExpression),
                         "Expected common expression")
-        value = e.Evaluate(None)
+        value = e.evaluate(None)
         self.assertTrue(value.value is False, "Expected false")
 
     def test_params_expression(self):
@@ -1513,15 +1513,15 @@ class ParamsExpressionTests(unittest.TestCase):
         self.assertTrue(isinstance(e, odata.CommonExpression),
                         "Expected common expression: %s" % repr(e))
         # true and null = false
-        value = e.Evaluate(None)
+        value = e.evaluate(None)
         self.assertTrue(value.value is False, "Expected false")
         # true and false = false
         params['bool'].set_from_value(False)
-        value = e.Evaluate(None)
+        value = e.evaluate(None)
         self.assertTrue(value.value is False, "Expected false")
         # true and true = true
         params['bool'].set_from_value(True)
-        value = e.Evaluate(None)
+        value = e.evaluate(None)
         self.assertTrue(value.value is True, "Expected true")
 
 
@@ -1529,34 +1529,34 @@ class ODataURITests(unittest.TestCase):
 
     def test_construnctor(self):
         ds_uri = odata.ODataURI('/')
-        self.assertTrue(ds_uri.pathPrefix == '', "empty path prefix")
-        self.assertTrue(ds_uri.resourcePath == '/', "resource path")
-        self.assertTrue(ds_uri.queryOptions == [], 'query options')
-        self.assertTrue(ds_uri.navPath == [], "navPath: %s" %
-                        repr(ds_uri.navPath))
+        self.assertTrue(ds_uri.path_prefix == '', "empty path prefix")
+        self.assertTrue(ds_uri.resource_path == '/', "resource path")
+        self.assertTrue(ds_uri.query_options == [], 'query options')
+        self.assertTrue(ds_uri.nav_path == [], "nav_path: %s" %
+                        repr(ds_uri.nav_path))
         ds_uri = odata.ODataURI('/', '/x')
-        self.assertTrue(ds_uri.pathPrefix == '/x', "non-empty path prefix")
-        self.assertTrue(ds_uri.resourcePath is None, "resource path")
+        self.assertTrue(ds_uri.path_prefix == '/x', "non-empty path prefix")
+        self.assertTrue(ds_uri.resource_path is None, "resource path")
         ds_uri = odata.ODataURI('/x', '/x')
-        self.assertTrue(ds_uri.pathPrefix == '/x', "non-empty path prefix")
+        self.assertTrue(ds_uri.path_prefix == '/x', "non-empty path prefix")
         self.assertTrue(
-            ds_uri.resourcePath == '', "empty resource path, special case")
-        self.assertTrue(ds_uri.navPath == [],
-                        "empty navPath, special case: %s" %
-                        repr(ds_uri.navPath))
+            ds_uri.resource_path == '', "empty resource path, special case")
+        self.assertTrue(ds_uri.nav_path == [],
+                        "empty nav_path, special case: %s" %
+                        repr(ds_uri.nav_path))
         ds_uri = odata.ODataURI('/x.svc/Products', '/x.svc')
-        self.assertTrue(ds_uri.pathPrefix == '/x.svc', "svc path prefix")
-        self.assertTrue(ds_uri.resourcePath == '/Products', "resource path")
-        self.assertTrue(len(ds_uri.navPath) == 1, "navPath: %s" %
-                        repr(ds_uri.navPath))
-        self.assertTrue(is_unicode(ds_uri.navPath[0][0]), "e set name type")
+        self.assertTrue(ds_uri.path_prefix == '/x.svc', "svc path prefix")
+        self.assertTrue(ds_uri.resource_path == '/Products', "resource path")
+        self.assertTrue(len(ds_uri.nav_path) == 1, "nav_path: %s" %
+                        repr(ds_uri.nav_path))
+        self.assertTrue(is_unicode(ds_uri.nav_path[0][0]), "e set name type")
         self.assertTrue(
-            ds_uri.navPath[0][0] == 'Products', "e set name: Products")
+            ds_uri.nav_path[0][0] == 'Products', "e set name: Products")
         self.assertTrue(
-            ds_uri.navPath[0][1] is None, "e set no key-predicate")
+            ds_uri.nav_path[0][1] is None, "e set no key-predicate")
         ds_uri = odata.ODataURI('Products', '/x.svc')
-        self.assertTrue(ds_uri.pathPrefix == '/x.svc', "svc path prefix")
-        self.assertTrue(ds_uri.resourcePath == '/Products', "resource path")
+        self.assertTrue(ds_uri.path_prefix == '/x.svc', "svc path prefix")
+        self.assertTrue(ds_uri.resource_path == '/Products', "resource path")
         try:
             ds_uri = odata.ODataURI('Products', 'x.svc')
             self.fail("x.svc/Products  - illegal path")
@@ -1568,15 +1568,15 @@ class ODataURITests(unittest.TestCase):
             "/CompoundKeys(K3%3Ddatetime'2013-12-25T15%3A59%3A03.142'%2C"
             "K2%3D'00001'%2CK1%3D1%2CK4%3DX'DEADBEEF')")
         self.assertTrue(
-            ds_uri.navPath[0][0] == 'CompoundKeys', "e set name")
+            ds_uri.nav_path[0][0] == 'CompoundKeys', "e set name")
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u'K1'], edm.Int32Value))
+            isinstance(ds_uri.nav_path[0][1][u'K1'], edm.Int32Value))
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u'K2'], edm.StringValue))
+            isinstance(ds_uri.nav_path[0][1][u'K2'], edm.StringValue))
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u'K3'], edm.DateTimeValue))
+            isinstance(ds_uri.nav_path[0][1][u'K3'], edm.DateTimeValue))
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u'K4'], edm.BinaryValue))
+            isinstance(ds_uri.nav_path[0][1][u'K4'], edm.BinaryValue))
         ds_uri = odata.ODataURI(
             "/CompoundKeys(K3%3Ddatetime'2013-12-25T15%3A59%3A03.142',"
             "K2%3D'00001',K1%3D1,K4%3DX'DEADBEEF')")
@@ -1598,23 +1598,23 @@ class ODataURITests(unittest.TestCase):
         "$"."""
         ds_uri = odata.ODataURI(
             "Products()?$format=json&$top=20&$skip=10&space='%20'", '/x.svc')
-        self.assertTrue(set(ds_uri.sysQueryOptions.keys()) ==
+        self.assertTrue(set(ds_uri.sys_query_options.keys()) ==
                         set([odata.SystemQueryOption.format,
                              odata.SystemQueryOption.top,
                              odata.SystemQueryOption.skip]),
-                        repr(ds_uri.sysQueryOptions))
+                        repr(ds_uri.sys_query_options))
         self.assertTrue(
-            ds_uri.queryOptions == ["space='%20'"],
+            ds_uri.query_options == ["space='%20'"],
             'query options')
         ds_uri = odata.ODataURI(
             "Products()?$top=20&space='%20'&$format=json&$skip=10", '/x.svc')
-        self.assertTrue(set(ds_uri.sysQueryOptions.keys()) ==
+        self.assertTrue(set(ds_uri.sys_query_options.keys()) ==
                         set([odata.SystemQueryOption.format,
                              odata.SystemQueryOption.top,
                              odata.SystemQueryOption.skip]),
-                        repr(ds_uri.sysQueryOptions))
+                        repr(ds_uri.sys_query_options))
         self.assertTrue(
-            ds_uri.queryOptions == ["space='%20'"],
+            ds_uri.query_options == ["space='%20'"],
             'query options')
         try:
             ds_uri = odata.ODataURI("Products()?$unsupported=10", '/x.svc')
@@ -1626,11 +1626,12 @@ class ODataURITests(unittest.TestCase):
         ds_uri = odata.ODataURI(
             "Products()?$filter=substringof(CompanyName,%20'bikes')", '/x.svc')
         self.assertTrue(
-            isinstance(ds_uri.sysQueryOptions[odata.SystemQueryOption.filter],
-                       odata.CommonExpression), "Expected common expression")
+            isinstance(
+                ds_uri.sys_query_options[odata.SystemQueryOption.filter],
+                odata.CommonExpression), "Expected common expression")
         ds_uri = odata.ODataURI("Products()?$filter=true%20and%20false",
                                 '/x.svc')
-        f = ds_uri.sysQueryOptions[odata.SystemQueryOption.filter]
+        f = ds_uri.sys_query_options[odata.SystemQueryOption.filter]
         self.assertTrue(
             isinstance(f, odata.CommonExpression),
             "Expected common expression")
@@ -1650,90 +1651,90 @@ class ODataURITests(unittest.TestCase):
     def test_entity_set(self):
         ds_uri = odata.ODataURI(
             "Products()?$format=json&$top=20&$skip=10&space='%20'", '/x.svc')
-        self.assertTrue(ds_uri.resourcePath == '/Products()', "resource path")
-        self.assertTrue(set(ds_uri.sysQueryOptions.keys()) ==
+        self.assertTrue(ds_uri.resource_path == '/Products()', "resource path")
+        self.assertTrue(set(ds_uri.sys_query_options.keys()) ==
                         set([odata.SystemQueryOption.format,
                              odata.SystemQueryOption.top,
                              odata.SystemQueryOption.skip]),
-                        repr(ds_uri.sysQueryOptions))
+                        repr(ds_uri.sys_query_options))
         self.assertTrue(
-            ds_uri.queryOptions == ["space='%20'"],
+            ds_uri.query_options == ["space='%20'"],
             'query options')
-        self.assertTrue(ds_uri.navPath == [(u'Products', {})],
-                        "e set: Products, found %s" % repr(ds_uri.navPath))
+        self.assertTrue(ds_uri.nav_path == [(u'Products', {})],
+                        "e set: Products, found %s" % repr(ds_uri.nav_path))
         ds_uri = odata.ODataURI('Products()/$count', '/x.svc')
         self.assertTrue(
-            ds_uri.resourcePath == '/Products()/$count', "resource path")
-        self.assertTrue(ds_uri.sysQueryOptions == {}, 'sysQueryOptions')
-        self.assertTrue(ds_uri.queryOptions == [], 'query options')
-        self.assertTrue(ds_uri.navPath == [(u'Products', {})],
-                        "path: %s" % repr(ds_uri.navPath))
+            ds_uri.resource_path == '/Products()/$count', "resource path")
+        self.assertTrue(ds_uri.sys_query_options == {}, 'sys_query_options')
+        self.assertTrue(ds_uri.query_options == [], 'query options')
+        self.assertTrue(ds_uri.nav_path == [(u'Products', {})],
+                        "path: %s" % repr(ds_uri.nav_path))
         self.assertTrue(
-            ds_uri.pathOption == odata.PathOption.count, "$count recognised")
+            ds_uri.path_option == odata.PathOption.count, "$count recognised")
         ds_uri = odata.ODataURI('Products(1)/$value', '/x.svc')
-        self.assertTrue(len(ds_uri.navPath) == 1)
-        self.assertTrue(ds_uri.navPath[0][0] == u'Products')
-        self.assertTrue(len(ds_uri.navPath[0][1]))
+        self.assertTrue(len(ds_uri.nav_path) == 1)
+        self.assertTrue(ds_uri.nav_path[0][0] == u'Products')
+        self.assertTrue(len(ds_uri.nav_path[0][1]))
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u''], edm.Int32Value),
+            isinstance(ds_uri.nav_path[0][1][u''], edm.Int32Value),
             "Key value type")
-        self.assertTrue(ds_uri.navPath[0][1][u''].value == 1, "Key value")
+        self.assertTrue(ds_uri.nav_path[0][1][u''].value == 1, "Key value")
         # [(u'Products',{'':1})]
         self.assertTrue(
-            ds_uri.pathOption == odata.PathOption.value, "$value recognised")
+            ds_uri.path_option == odata.PathOption.value, "$value recognised")
         ds_uri = odata.ODataURI('Products(x=1,y=2)', '/x.svc')
-        self.assertTrue(len(ds_uri.navPath) == 1)
-        self.assertTrue(ds_uri.navPath[0][0] == u'Products')
+        self.assertTrue(len(ds_uri.nav_path) == 1)
+        self.assertTrue(ds_uri.nav_path[0][0] == u'Products')
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u'x'], edm.Int32Value),
+            isinstance(ds_uri.nav_path[0][1][u'x'], edm.Int32Value),
             "Key value type")
-        self.assertTrue(ds_uri.navPath[0][1][u'x'].value == 1, "x Key value")
+        self.assertTrue(ds_uri.nav_path[0][1][u'x'].value == 1, "x Key value")
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u'y'], edm.Int32Value),
+            isinstance(ds_uri.nav_path[0][1][u'y'], edm.Int32Value),
             "Key value type")
-        self.assertTrue(ds_uri.navPath[0][1][u'y'].value == 2, "y Key value")
+        self.assertTrue(ds_uri.nav_path[0][1][u'y'].value == 2, "y Key value")
         # [(u'Products',{u'x':1,u'y':2})]
         ds_uri = odata.ODataURI("/service.svc/Customers('ALF%2FKI')/Orders",
                                 '/service.svc')
-        self.assertTrue(len(ds_uri.navPath) == 2)
-        self.assertTrue(ds_uri.navPath[0][0] == u'Customers')
+        self.assertTrue(len(ds_uri.nav_path) == 2)
+        self.assertTrue(ds_uri.nav_path[0][0] == u'Customers')
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u''], edm.StringValue),
+            isinstance(ds_uri.nav_path[0][1][u''], edm.StringValue),
             "Key value type")
-        self.assertTrue(ds_uri.navPath[0][1][u''].value == 'ALF/KI',
+        self.assertTrue(ds_uri.nav_path[0][1][u''].value == 'ALF/KI',
                         "String Key value")
-        self.assertTrue(ds_uri.navPath[1][0] == u'Orders')
+        self.assertTrue(ds_uri.nav_path[1][0] == u'Orders')
         ds_uri = odata.ODataURI(
             "/service.svc/Customers(%27ALF%2FKI%27)/Orders",
             '/service.svc')
-        self.assertTrue(len(ds_uri.navPath) == 2)
-        self.assertTrue(ds_uri.navPath[0][0] == u'Customers')
+        self.assertTrue(len(ds_uri.nav_path) == 2)
+        self.assertTrue(ds_uri.nav_path[0][0] == u'Customers')
         self.assertTrue(
-            isinstance(ds_uri.navPath[0][1][u''], edm.StringValue),
+            isinstance(ds_uri.nav_path[0][1][u''], edm.StringValue),
             "Key value type")
-        self.assertTrue(ds_uri.navPath[0][1][u''].value == 'ALF/KI',
+        self.assertTrue(ds_uri.nav_path[0][1][u''].value == 'ALF/KI',
                         "String Key value")
-        self.assertTrue(ds_uri.navPath[1][0] == u'Orders')
+        self.assertTrue(ds_uri.nav_path[1][0] == u'Orders')
 
     def test_expand(self):
         """Redundant expandClause rules on the same data service URI can
         be considered valid, but MUST NOT alter the meaning of the
         URI."""
         ds_uri = odata.ODataURI("Customers?$expand=Orders", '/x.svc')
-        expand = ds_uri.sysQueryOptions[odata.SystemQueryOption.expand]
+        expand = ds_uri.sys_query_options[odata.SystemQueryOption.expand]
         self.assertTrue(len(expand) == 1, "One path")
         self.assertTrue(expand['Orders'] is None, "Orders nav path")
         self.assertTrue(odata.format_expand(expand) == "Orders",
                         odata.format_expand(expand))
         ds_uri = odata.ODataURI("Customers?$expand=Orders,Orders", '/x.svc')
-        expand = ds_uri.sysQueryOptions[odata.SystemQueryOption.expand]
+        expand = ds_uri.sys_query_options[odata.SystemQueryOption.expand]
         self.assertTrue(len(expand) == 1, "One path")
         self.assertTrue(expand['Orders'] is None, "redundant Orders nav path")
         self.assertTrue(odata.format_expand(expand) == "Orders",
                         odata.format_expand(expand))
         ds_uri = odata.ODataURI(
             "Orders?$expand=OrderLines/Product,Customer", '/x.svc')
-        expand = ds_uri.sysQueryOptions[odata.SystemQueryOption.expand]
+        expand = ds_uri.sys_query_options[odata.SystemQueryOption.expand]
         self.assertTrue(expand['OrderLines'] == {
                         'Product': None},
                         "OrderLines expansion: %s" % str(expand))
@@ -1744,7 +1745,7 @@ class ODataURITests(unittest.TestCase):
     def test_filter(self):
         ds_uri = odata.ODataURI(
             "Orders?$filter=ShipCountry%20eq%20'France'", '/x.svc')
-        filter = ds_uri.sysQueryOptions[odata.SystemQueryOption.filter]
+        filter = ds_uri.sys_query_options[odata.SystemQueryOption.filter]
         self.assertTrue(
             isinstance(filter, odata.BinaryExpression),
             "Binary expression component")
@@ -1754,12 +1755,12 @@ class ODataURITests(unittest.TestCase):
         ds_uri = odata.ODataURI(
             "Orders?$filter%20=%20Customers/ContactName%20ne%20'Fred'",
             '/x.svc')
-        filter = ds_uri.sysQueryOptions[odata.SystemQueryOption.filter]
+        filter = ds_uri.sys_query_options[odata.SystemQueryOption.filter]
         self.assertTrue(filter.operands[0].operands[1].name == "ContactName")
 
     def test_format(self):
         ds_uri = odata.ODataURI("Orders?$format=json", '/x.svc')
-        format = ds_uri.sysQueryOptions[odata.SystemQueryOption.format]
+        format = ds_uri.sys_query_options[odata.SystemQueryOption.format]
         self.assertTrue(
             isinstance(format, messages.AcceptList),
             "Format is an HTTP AcceptList instance")
@@ -1767,7 +1768,7 @@ class ODataURITests(unittest.TestCase):
 
     def test_orderby(self):
         ds_uri = odata.ODataURI("Orders?$orderby=ShipCountry", '/x.svc')
-        orderby = ds_uri.sysQueryOptions[odata.SystemQueryOption.orderby]
+        orderby = ds_uri.sys_query_options[odata.SystemQueryOption.orderby]
         self.assertTrue(len(orderby) == 1, "Single orderby clause")
         orderby = orderby[0]
         self.assertTrue(orderby[1] == 1, "default is asc")
@@ -1778,7 +1779,7 @@ class ODataURITests(unittest.TestCase):
         ds_uri = odata.ODataURI(
             "Orders?$orderby%20=%20ShipCountry%20ne%20'France'%20desc",
             '/x.svc')
-        orderby = ds_uri.sysQueryOptions[odata.SystemQueryOption.orderby]
+        orderby = ds_uri.sys_query_options[odata.SystemQueryOption.orderby]
         orderby = orderby[0]
         self.assertTrue(orderby[1] == -1, "desc")
         self.assertTrue(
@@ -1793,7 +1794,7 @@ class ODataURITests(unittest.TestCase):
         ds_uri = odata.ODataURI(
             "Orders?$orderby%20=%20ShipCountry%20ne%20'France'%20desc,"
             "OrderID%20asc", '/x.svc')
-        orderby = ds_uri.sysQueryOptions[odata.SystemQueryOption.orderby]
+        orderby = ds_uri.sys_query_options[odata.SystemQueryOption.orderby]
         self.assertTrue(len(orderby) == 2, "Two orderby clauses")
 
     def test_skip(self):
@@ -1803,15 +1804,15 @@ class ODataURITests(unittest.TestCase):
         ds_uri = odata.ODataURI(
             "Orders?$orderby=OrderDate%20desc&$skip=10",
             '/x.svc')
-        skip = ds_uri.sysQueryOptions[odata.SystemQueryOption.skip]
+        skip = ds_uri.sys_query_options[odata.SystemQueryOption.skip]
         self.assertTrue(isinstance(skip, int), "skip type")
         self.assertTrue(skip == 10, "skip 10")
         ds_uri = odata.ODataURI("Customers('ALFKI')/Orders?$skip=10", '/x.svc')
-        skip = ds_uri.sysQueryOptions[odata.SystemQueryOption.skip]
+        skip = ds_uri.sys_query_options[odata.SystemQueryOption.skip]
         self.assertTrue(skip == 10, "skip 10")
         ds_uri = odata.ODataURI("Orders?$orderby=OrderDate%20desc&$skip=0",
                                 '/x.svc')
-        skip = ds_uri.sysQueryOptions[odata.SystemQueryOption.skip]
+        skip = ds_uri.sys_query_options[odata.SystemQueryOption.skip]
         self.assertTrue(skip == 0, "skip 0")
         try:
             ds_uri = odata.ODataURI(
@@ -1826,15 +1827,15 @@ class ODataURITests(unittest.TestCase):
         URI should be considered malformed."""
         ds_uri = odata.ODataURI("Orders?$orderby=OrderDate%20desc&$top=10",
                                 '/x.svc')
-        top = ds_uri.sysQueryOptions[odata.SystemQueryOption.top]
+        top = ds_uri.sys_query_options[odata.SystemQueryOption.top]
         self.assertTrue(isinstance(top, int), "top type")
         self.assertTrue(top == 10, "top 10")
         ds_uri = odata.ODataURI("Customers('ALFKI')/Orders?$top=10", '/x.svc')
-        top = ds_uri.sysQueryOptions[odata.SystemQueryOption.top]
+        top = ds_uri.sys_query_options[odata.SystemQueryOption.top]
         self.assertTrue(top == 10, "top 10")
         ds_uri = odata.ODataURI("Orders?$orderby=OrderDate%20desc&$top=0",
                                 '/x.svc')
-        top = ds_uri.sysQueryOptions[odata.SystemQueryOption.top]
+        top = ds_uri.sys_query_options[odata.SystemQueryOption.top]
         self.assertTrue(top == 0, "top 0")
         try:
             ds_uri = odata.ODataURI(
@@ -1849,36 +1850,36 @@ class ODataURITests(unittest.TestCase):
         URI should be considered malformed."""
         ds_uri = odata.ODataURI(
             "Orders?$orderby=OrderDate%20desc&$skiptoken=AEF134ad", '/x.svc')
-        skiptoken = ds_uri.sysQueryOptions[odata.SystemQueryOption.skiptoken]
+        skiptoken = ds_uri.sys_query_options[odata.SystemQueryOption.skiptoken]
         self.assertTrue(is_unicode(skiptoken), "skiptoken type")
         self.assertTrue(skiptoken == u"AEF134ad", "skiptoken opqque string")
         ds_uri = odata.ODataURI(
             "Customers('ALFKI')/Orders?$skiptoken=0%2010", '/x.svc')
-        skiptoken = ds_uri.sysQueryOptions[odata.SystemQueryOption.skiptoken]
+        skiptoken = ds_uri.sys_query_options[odata.SystemQueryOption.skiptoken]
         self.assertTrue(skiptoken == u"0 10", "skiptoken 010")
 
     def test_inlinecount(self):
         """inlinecountQueryOp = "$inlinecount=" ("allpages" / "none") """
         ds_uri = odata.ODataURI("Orders?$inlinecount=allpages", '/x.svc')
-        inlinecount = ds_uri.sysQueryOptions[
+        inlinecount = ds_uri.sys_query_options[
             odata.SystemQueryOption.inlinecount]
         self.assertTrue(
             inlinecount == odata.InlineCount.allpages, "allpages constant")
         ds_uri = odata.ODataURI("Orders?$inlinecount=allpages&$top=10",
                                 '/x.svc')
-        inlinecount = ds_uri.sysQueryOptions[
+        inlinecount = ds_uri.sys_query_options[
             odata.SystemQueryOption.inlinecount]
         self.assertTrue(
             inlinecount == odata.InlineCount.allpages, "allpages constant")
         ds_uri = odata.ODataURI("Orders?$inlinecount=none&$top=10", '/x.svc')
-        inlinecount = ds_uri.sysQueryOptions[
+        inlinecount = ds_uri.sys_query_options[
             odata.SystemQueryOption.inlinecount]
         self.assertTrue(inlinecount == odata.InlineCount.none, "none constant")
         ds_uri = odata.ODataURI(
             "Orders?$inlinecount=allpages&"
             "$filter=ShipCountry%20eq%20'France'",
             '/x.svc')
-        inlinecount = ds_uri.sysQueryOptions[
+        inlinecount = ds_uri.sys_query_options[
             odata.SystemQueryOption.inlinecount]
         self.assertTrue(
             inlinecount == odata.InlineCount.allpages, "allpages constant")
@@ -1895,7 +1896,7 @@ class ODataURITests(unittest.TestCase):
         star = "*"	"""
         ds_uri = odata.ODataURI(
             "Customers?$select=CustomerID,CompanyName,Address", '/x.svc')
-        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
+        select = ds_uri.sys_query_options[odata.SystemQueryOption.select]
         self.assertTrue(len(select) == 3, "Three paths")
         self.assertTrue(
             select == {'CompanyName': None,
@@ -1903,19 +1904,19 @@ class ODataURITests(unittest.TestCase):
                        'Address': None})
         ds_uri = odata.ODataURI("Customers?$select=CustomerID,Orders",
                                 '/x.svc')
-        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
+        select = ds_uri.sys_query_options[odata.SystemQueryOption.select]
         self.assertTrue(select == {'CustomerID': None, 'Orders': None})
         ds_uri = odata.ODataURI(
             "Customers?$select=CustomerID,Orders&$expand=Orders/OrderDetails",
             '/x.svc')
-        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
+        select = ds_uri.sys_query_options[odata.SystemQueryOption.select]
         self.assertTrue(select == {'CustomerID': None, 'Orders': None})
         ds_uri = odata.ODataURI("Customers?$select=*", '/x.svc')
-        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
+        select = ds_uri.sys_query_options[odata.SystemQueryOption.select]
         self.assertTrue(select == {'*': None})
         ds_uri = odata.ODataURI("Customers?$select=CustomerID,Orders/*&"
                                 "$expand=Orders/OrderDetails", '/x.svc')
-        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
+        select = ds_uri.sys_query_options[odata.SystemQueryOption.select]
         self.assertTrue(select == {'CustomerID': None, 'Orders': {'*': None}})
         ds_uri = odata.ODataURI(
             "/service.svc/Customers?$expand=Orders&"
@@ -1924,7 +1925,7 @@ class ODataURITests(unittest.TestCase):
             "$skiptoken='Contoso','AKFNU'&"
             "$inlinecount=allpages&"
             "$select=CustomerID,CompanyName,Orders&$format=xml")
-        select = ds_uri.sysQueryOptions[odata.SystemQueryOption.select]
+        select = ds_uri.sys_query_options[odata.SystemQueryOption.select]
         self.assertTrue(len(select) == 3, "Three paths")
         try:
             ds_uri = odata.ODataURI("Customers?$select=CustomerID,*/Orders")
@@ -2455,7 +2456,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     result[4].key() == (0, 9), "max 5: last e on page 2")
                 # now add an ordering
                 coll.set_orderby(
-                    odata.CommonExpression.OrderByFromString(u"Sum desc"))
+                    odata.CommonExpression.orderby_from_str(u"Sum desc"))
                 # must have rest the skiptoken
                 self.assertTrue(
                     coll.next_skiptoken() is None, "No page set")

@@ -50,8 +50,6 @@ Version 0.7
 
 Build 20160326:
 
-Intermediate commit: some deprecation warnings
-
 #3 PEP-8 driven refactoring (ongoing)
 
 OData v2 csdl, edmx and core modules refactored to use new method

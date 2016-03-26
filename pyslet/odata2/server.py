@@ -154,13 +154,13 @@ class Server(app.Server):
             # The service root must be absolute (or missing completely)!
             raise ValueError("serviceRoot must not be relative")
         if self.serviceRoot.abs_path is None:
-            self.pathPrefix = ''
+            self.path_prefix = ''
         else:
-            self.pathPrefix = self.serviceRoot.abs_path
-        # pathPrefix must not have a tailing slash, even if this makes it an
+            self.path_prefix = self.serviceRoot.abs_path
+        # path_prefix must not have a tailing slash, even if this makes it an
         # empty string
-        if self.pathPrefix[-1] == '/':
-            self.pathPrefix = self.pathPrefix[:-1]
+        if self.path_prefix[-1] == '/':
+            self.path_prefix = self.path_prefix[:-1]
         # : a single workspace that contains all collections
         self.ws = self.service.add_child(app.Workspace)
         self.ws.add_child(atom.Title).set_value("Default")
@@ -289,15 +289,15 @@ class Server(app.Server):
             query = environ.get('QUERY_STRING', None)
             if query:
                 path = path + '?' + query
-            request = core.ODataURI(path, self.pathPrefix, version)
-            if request.resourcePath is None:
+            request = core.ODataURI(path, self.path_prefix, version)
+            if request.resource_path is None:
                 # this is not a URI for us, pass to our superclass
                 wrapper = WSGIWrapper(
                     environ, start_response, response_headers)
                 # super essentially allows us to pass a bound method of
                 # our parent that we ourselves are hiding.
                 return wrapper.call(super(Server, self).__call__)
-            elif request.resourcePath == '':
+            elif request.resource_path == '':
                 # An empty resource path means they hit the service root,
                 # redirect
                 location = str(self.serviceRoot)
@@ -395,7 +395,7 @@ class Server(app.Server):
             # case
             responseType = "application/xml"
         if responseType == "application/json":
-            data = str(string.join(e.GenerateStdErrorJSON(), ''))
+            data = str(string.join(e.generate_std_error_json(), ''))
         else:
             data = str(e)
         response_headers.append(("Content-Type", str(responseType)))
@@ -419,14 +419,14 @@ class Server(app.Server):
                 href.get_canonical_root()):
             # This isn't even for us
             return None
-        request = core.ODataURI(href, self.pathPrefix)
+        request = core.ODataURI(href, self.path_prefix)
         return self.GetResource(request)[0]
 
     def GetResource(self, odataURI):
         resource = self.model
         noNavPath = (resource is None)
         parentEntity = None
-        for segment in odataURI.navPath:
+        for segment in odataURI.nav_path:
             name, keyPredicate = segment
             if noNavPath:
                 raise core.BadURISegment(name)
@@ -467,7 +467,7 @@ class Server(app.Server):
                         except KeyError as e:
                             raise core.MissingURISegment(
                                 "%s%s" %
-                                (name, core.ODataURI.FormatKeyDict(keyPredicate)))
+                                (name, core.ODataURI.format_key_dict(keyPredicate)))
                 elif resource is None:
                     raise core.MissingURISegment(name)
             elif isinstance(resource,
@@ -522,9 +522,9 @@ class Server(app.Server):
         if isinstance(resource, edm.EntityCollection):
             odataURI.validate_sys_query_options(1)  # includes 6 Note 2
         elif isinstance(resource, edm.Entity):
-            if odataURI.pathOption == core.PathOption.value:
+            if odataURI.path_option == core.PathOption.value:
                 odataURI.validate_sys_query_options(17)  # media resource value
-            elif odataURI.pathOption != core.PathOption.links:
+            elif odataURI.path_option != core.PathOption.links:
                 odataURI.validate_sys_query_options(2)  # includes 6 Note 1
         elif isinstance(resource, edm.Complex):
             odataURI.validate_sys_query_options(3)
@@ -534,7 +534,7 @@ class Server(app.Server):
         elif resource is None and parentEntity is not None:
             # there is a very specific use case here, use of
             # <entity>/$links/<nav-et> where the link is NULL
-            if not odataURI.pathOption == core.PathOption.links:
+            if not odataURI.path_option == core.PathOption.links:
                 # <entity>/<nav-et> where the link is NULL raises a 404
                 # See the resolution:
                 # https://tools.oasis-open.org/issues/browse/ODATA-412
@@ -547,7 +547,7 @@ class Server(app.Server):
         if etag is not None:
             s = "%s" if entity.etag_is_strong() else "W/%s"
             etag = s % grammar.quote_string(
-                string.join(map(core.ODataURI.FormatLiteral, etag), ','))
+                string.join(map(core.ODataURI.format_literal, etag), ','))
             response_headers.append(("ETag", etag))
 
     def HandleRequest(
@@ -560,14 +560,14 @@ class Server(app.Server):
 
         *request*
             An :py:class:`core.ODataURI` instance with a non-empty
-            resourcePath."""
+            resource_path."""
         method = environ["REQUEST_METHOD"].upper()
         try:
             resource, parentEntity = self.GetResource(request)
-            if request.pathOption == core.PathOption.metadata:
+            if request.path_option == core.PathOption.metadata:
                 return self.ReturnMetadata(
                     request, environ, start_response, response_headers)
-            elif request.pathOption == core.PathOption.batch:
+            elif request.path_option == core.PathOption.batch:
                 return self.ODataError(
                     request,
                     environ,
@@ -575,13 +575,13 @@ class Server(app.Server):
                     "Bad Request",
                     "Batch requests not supported",
                     404)
-            elif request.pathOption == core.PathOption.count:
+            elif request.path_option == core.PathOption.count:
                 if isinstance(resource, edm.Entity):
                     return self.ReturnCount(
                         1, request, environ, start_response, response_headers)
                 elif isinstance(resource, edm.EntityCollection):
                     resource.set_filter(
-                        request.sysQueryOptions.get(
+                        request.sys_query_options.get(
                             core.SystemQueryOption.filter,
                             None))
                     return self.ReturnCount(
@@ -594,9 +594,9 @@ class Server(app.Server):
                     raise core.BadURISegment(
                         "$count must be applied to "
                         "an EntitySet or single EntityType instance")
-            elif request.pathOption == core.PathOption.links:
+            elif request.path_option == core.PathOption.links:
                 # parentEntity will be source entity
-                # request.linksProperty is the name of the navigation
+                # request.links_property is the name of the navigation
                 # property in the source entity
                 # resource will be the target entity, a collection or
                 # None
@@ -609,13 +609,13 @@ class Server(app.Server):
                         with resource as collection:
                             collection.select_keys()
                             collection.set_page(
-                                request.sysQueryOptions.get(
+                                request.sys_query_options.get(
                                     core.SystemQueryOption.top, None),
-                                request.sysQueryOptions.get(
+                                request.sys_query_options.get(
                                     core.SystemQueryOption.skip, None),
-                                request.sysQueryOptions.get(
+                                request.sys_query_options.get(
                                     core.SystemQueryOption.skiptoken, None))
-                            inlinecount = request.sysQueryOptions.get(
+                            inlinecount = request.sys_query_options.get(
                                 core.SystemQueryOption.inlinecount, None)
                             collection.set_inlinecount(
                                 inlinecount == core.InlineCount.allpages)
@@ -636,13 +636,13 @@ class Server(app.Server):
                     else:
                         # resource is None - no linked entity
                         raise core.MissingURISegment(
-                            "%s, no entity is related" % request.linksProperty)
+                            "%s, no entity is related" % request.links_property)
                 elif method == "POST":
                     if resource is None:
                         # can you POST to Orders(1)/$links/Customer ? - only if
                         # it is currently NULL (0..1)
                         resource = parentEntity[
-                            request.linksProperty].open()
+                            request.links_property].open()
                     if isinstance(resource, edm.EntityCollection):
                         with resource as collection:
                             targetEntity = self.ReadEntityFromLink(environ)
@@ -654,14 +654,14 @@ class Server(app.Server):
                         raise core.BadURISegment(
                             "%s is already linked, use PUT "
                             "instead of POST to update it" %
-                            request.linksProperty)
+                            request.links_property)
                 elif method == "PUT":
-                    if parentEntity[request.linksProperty].isCollection:
+                    if parentEntity[request.links_property].isCollection:
                         raise core.BadURISegment(
                             "%s: can't update a link with multiplicity *" %
-                            request.linksProperty)
+                            request.links_property)
                     with parentEntity[
-                            request.linksProperty].open() as \
+                            request.links_property].open() as \
                             collection:
                         targetEntity = self.ReadEntityFromLink(environ)
                         collection.replace(targetEntity)
@@ -670,12 +670,12 @@ class Server(app.Server):
                     if isinstance(resource, edm.EntityCollection):
                         raise core.BadURISegment(
                             "%s: DELETE must specify a single link" %
-                            request.linksProperty)
+                            request.links_property)
                     elif resource is None:
                         raise core.MissingURISegment(
-                            "%s, no entity is related" % request.linksProperty)
+                            "%s, no entity is related" % request.links_property)
                     with parentEntity[
-                            request.linksProperty].open() as \
+                            request.links_property].open() as \
                             collection:
                         del collection[resource.key()]
                     return self.ReturnEmpty(start_response, response_headers)
@@ -683,7 +683,7 @@ class Server(app.Server):
                     raise core.InvalidMethod("%s not supported here" % method)
             elif isinstance(resource, edm.Entity):
                 if method == "GET" or method == "HEAD":
-                    if request.pathOption == core.PathOption.value:
+                    if request.path_option == core.PathOption.value:
                         if resource.type_def.has_stream():
                             return self.ReturnStream(
                                 resource,
@@ -697,7 +697,7 @@ class Server(app.Server):
                                 "$value cannot be used since "
                                 "the entity is not a media stream")
                     else:
-                        self.ExpandResource(resource, request.sysQueryOptions)
+                        self.ExpandResource(resource, request.sys_query_options)
                         return self.ReturnEntity(
                             resource,
                             request,
@@ -705,7 +705,7 @@ class Server(app.Server):
                             start_response,
                             response_headers)
                 elif method == "PUT":
-                    if request.pathOption == core.PathOption.value:
+                    if request.path_option == core.PathOption.value:
                         if resource.type_def.has_stream():
                             sinfo = core.StreamInfo()
                             if "CONTENT_TYPE" in environ:
@@ -736,7 +736,7 @@ class Server(app.Server):
                         return self.ReturnEmpty(
                             start_response, response_headers)
                 elif method == "DELETE":
-                    if request.pathOption == core.PathOption.value:
+                    if request.path_option == core.PathOption.value:
                         raise core.BadURISegment(
                             "$value cannot be used with DELETE")
                     resource.delete()
@@ -745,23 +745,23 @@ class Server(app.Server):
                     raise core.InvalidMethod("%s not supported here" % method)
             elif isinstance(resource, edm.EntityCollection):
                 if method == "GET":
-                    self.ExpandResource(resource, request.sysQueryOptions)
+                    self.ExpandResource(resource, request.sys_query_options)
                     resource.set_filter(
-                        request.sysQueryOptions.get(
+                        request.sys_query_options.get(
                             core.SystemQueryOption.filter,
                             None))
                     resource.set_orderby(
-                        request.sysQueryOptions.get(
+                        request.sys_query_options.get(
                             core.SystemQueryOption.orderby,
                             None))
                     resource.set_page(
-                        request.sysQueryOptions.get(
+                        request.sys_query_options.get(
                             core.SystemQueryOption.top, None),
-                        request.sysQueryOptions.get(
+                        request.sys_query_options.get(
                             core.SystemQueryOption.skip, None),
-                        request.sysQueryOptions.get(
+                        request.sys_query_options.get(
                             core.SystemQueryOption.skiptoken, None))
-                    inlinecount = request.sysQueryOptions.get(
+                    inlinecount = request.sys_query_options.get(
                         core.SystemQueryOption.inlinecount, None)
                     resource.set_inlinecount(
                         inlinecount == core.InlineCount.allpages)
@@ -839,7 +839,7 @@ class Server(app.Server):
                     raise core.InvalidMethod("%s not supported here" % method)
             elif isinstance(resource, edm.EDMValue):
                 if method == "GET":
-                    if request.pathOption == core.PathOption.value:
+                    if request.path_option == core.PathOption.value:
                         if resource:
                             return self.ReturnDereferencedValue(
                                 parentEntity,
@@ -860,7 +860,7 @@ class Server(app.Server):
                             start_response,
                             response_headers)
                 elif method == "PUT":
-                    if request.pathOption == core.PathOption.value:
+                    if request.path_option == core.PathOption.value:
                         if resource:
                             self.ReadDereferencedValue(resource, environ)
                         else:
@@ -872,7 +872,7 @@ class Server(app.Server):
                     self.set_etag(parentEntity, response_headers)
                     return self.ReturnEmpty(start_response, response_headers)
                 elif method == "DELETE":
-                    if request.pathOption == core.PathOption.value:
+                    if request.path_option == core.PathOption.value:
                         raise core.BadURISegment(
                             "$value cannot be used with DELETE")
                     # make this one NULL, only if it is nullable
@@ -960,10 +960,10 @@ class Server(app.Server):
                 str(e),
                 405)
 
-    def ExpandResource(self, resource, sysQueryOptions):
+    def ExpandResource(self, resource, sys_query_options):
         try:
-            expand = sysQueryOptions.get(core.SystemQueryOption.expand, None)
-            select = sysQueryOptions.get(core.SystemQueryOption.select, None)
+            expand = sys_query_options.get(core.SystemQueryOption.expand, None)
+            select = sys_query_options.get(core.SystemQueryOption.select, None)
             if expand is None and select is None:
                 return
             if not isinstance(resource, (edm.EntityCollection, edm.Entity)):
@@ -1465,7 +1465,7 @@ class Server(app.Server):
         returns the best match.  If there is no match then None is
         returned.  We also handle an accept list override in the form of
         acceptList, e.g., parsed from the $format parameter."""
-        alist = request.sysQueryOptions.get(core.SystemQueryOption.format,
+        alist = request.sys_query_options.get(core.SystemQueryOption.format,
                                             None)
         if alist is None:
             if "HTTP_ACCEPT" in environ:
@@ -1537,7 +1537,7 @@ class ReadOnlyServer(Server):
 
         *request*
             An :py:class:`core.ODataURI` instance with a non-empty
-            resourcePath.
+            resource_path.
 
         If the method is anything other than GET or HEAD a 403 response
         is returned"""

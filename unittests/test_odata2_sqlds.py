@@ -605,7 +605,7 @@ class SQLDSTests(unittest.TestCase):
                 collection.insert_entity(new_hire)
             self.assertTrue(len(collection) == 20)
             collection.set_orderby(
-                core.CommonExpression.OrderByFromString(
+                core.CommonExpression.orderby_from_str(
                     "EmployeeName asc,Address/City desc"))
             last_talent = None
             for talent in collection.values():
@@ -706,14 +706,14 @@ class SQLDSTests(unittest.TestCase):
         # now check the association is working with filter and orderby too
         with customer['Orders'].open() as collection:
             collection.set_orderby(
-                core.CommonExpression.OrderByFromString("ShippedDate desc"))
+                core.CommonExpression.orderby_from_str("ShippedDate desc"))
             self.assertTrue(len(collection) == 2)
             orders = collection.values()
             self.assertTrue(
                 orders[0]['ShippedDate'].value >
                 orders[1]['ShippedDate'].value)
             collection.set_orderby(
-                core.CommonExpression.OrderByFromString("ShippedDate asc"))
+                core.CommonExpression.orderby_from_str("ShippedDate asc"))
             self.assertTrue(len(collection) == 2)
             orders = collection.values()
             self.assertTrue(

@@ -590,7 +590,7 @@ and iterpage, will return entities in the order specified.
 The easiest way to define an ordering is to compile one directly from a
 string representation using OData's query language.  For example::
 
-	>>> ordering=core.CommonExpression.OrderByFromString("ProductName desc")
+	>>> ordering=core.CommonExpression.orderby_from_str("ProductName desc")
 	>>> products.set_orderby(ordering)
 	>>> for p in products.itervalues(): print p.key(), p['ProductName'].value
 	... 

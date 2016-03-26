@@ -147,7 +147,7 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
         try:
             query = context.get_query()
             logging.debug("edit key=%s", query['id'])
-            key = odata.ParseURILiteral(query.get('id', '')).value
+            key = odata.uri_literal_from_str(query.get('id', '')).value
             with context.group['Notices'].open() \
                     as collection:
                 collection.set_expand({'User': None})
@@ -180,7 +180,8 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
         if context.group is None:
             raise wsgi.PageNotAuthorized
         try:
-            key = odata.ParseURILiteral(context.get_form_string('id')).value
+            key = odata.uri_literal_from_str(
+                context.get_form_string('id')).value
             with context.group['Notices'].open() \
                     as collection:
                 collection.set_expand({'User': None})
@@ -211,7 +212,7 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
             raise wsgi.PageNotAuthorized
         try:
             query = context.get_query()
-            key = odata.ParseURILiteral(query.get('id', '')).value
+            key = odata.uri_literal_from_str(query.get('id', '')).value
             with context.group['Notices'].open() \
                     as collection:
                 collection.set_expand({'User': None})
@@ -244,7 +245,8 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
         if context.group is None:
             raise wsgi.PageNotAuthorized
         try:
-            key = odata.ParseURILiteral(context.get_form_string('id')).value
+            key = odata.uri_literal_from_str(
+                context.get_form_string('id')).value
             with context.group['Notices'].open() \
                     as collection:
                 collection.set_expand({'User': None})

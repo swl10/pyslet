@@ -414,7 +414,7 @@ class EntityCollection(odata.EntityCollection):
                 logging.error("Failed to find an unused key in %s "
                               "after 100 attempts", entity.entity_set.name)
                 raise edm.EDMError("Auto-key failure" %
-                                   odata.ODataURI.FormatEntityKey(entity))
+                                   odata.ODataURI.format_entity_key(entity))
             # Check constraints
             entity.check_navigation_constraints(from_end)
             self.entity_store.add_entity(entity)

@@ -123,7 +123,7 @@ class ClientTests(unittest.TestCase):
         names = set()
         with c.feeds['Products'].open() as collection:
             collection.set_orderby(
-                core.CommonExpression.OrderByFromString("ProductName asc"))
+                core.CommonExpression.orderby_from_str("ProductName asc"))
             firstValue = None
             lastValue = None
             for product in collection.itervalues():

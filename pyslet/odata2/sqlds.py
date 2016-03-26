@@ -511,7 +511,7 @@ class SQLCollectionBase(core.EntityCollection):
             while True:
                 p.parse_wsp()
                 self.skiptoken.append(
-                    p.require_production(p.ParseURILiteral()))
+                    p.require_production(p.uri_literal_from_str()))
                 p.parse_wsp()
                 if not p.parse(','):
                     if p.match_end():
@@ -541,7 +541,7 @@ class SQLCollectionBase(core.EntityCollection):
         if self.nextSkiptoken:
             token = []
             for t in self.nextSkiptoken:
-                token.append(core.ODataURI.FormatLiteral(t))
+                token.append(core.ODataURI.format_literal(t))
             return string.join(token, u",")
         else:
             return None

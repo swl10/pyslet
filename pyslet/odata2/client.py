@@ -216,15 +216,15 @@ class ClientCollection(core.EntityCollection):
     def __len__(self):
         # use $count
         feedURL = self.base_uri
-        sysQueryOptions = {}
+        sys_query_options = {}
         if self.filter is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.filter] = unicode(self.filter)
-        if sysQueryOptions:
+        if sys_query_options:
             feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "/$count?" +
-                core.ODataURI.format_sys_query_options(sysQueryOptions))
+                core.ODataURI.format_sys_query_options(sys_query_options))
         else:
             feedURL = uri.URI.from_octets(str(feedURL) + "/$count")
         request = http.ClientRequest(str(feedURL))
@@ -238,25 +238,25 @@ class ClientCollection(core.EntityCollection):
 
     def entity_generator(self):
         feedURL = self.base_uri
-        sysQueryOptions = {}
+        sys_query_options = {}
         if self.filter is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.filter] = unicode(self.filter)
         if self.expand is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.expand] = core.format_expand(self.expand)
         if self.select is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.select] = core.format_select(self.select)
         if self.orderby is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
                 self.orderby)
-        if sysQueryOptions:
+        if sys_query_options:
             feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "?" +
-                core.ODataURI.format_sys_query_options(sysQueryOptions))
+                core.ODataURI.format_sys_query_options(sys_query_options))
         while True:
             request = http.ClientRequest(str(feedURL))
             request.set_header('Accept', 'application/atom+xml')
@@ -298,31 +298,31 @@ class ClientCollection(core.EntityCollection):
 
     def iterpage(self, set_next=False):
         feedURL = self.base_uri
-        sysQueryOptions = {}
+        sys_query_options = {}
         if self.filter is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.filter] = unicode(self.filter)
         if self.expand is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.expand] = core.format_expand(self.expand)
         if self.select is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.select] = core.format_select(self.select)
         if self.orderby is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
                 self.orderby)
         if self.top is not None:
-            sysQueryOptions[core.SystemQueryOption.top] = unicode(self.top)
+            sys_query_options[core.SystemQueryOption.top] = unicode(self.top)
         if self.skip is not None:
-            sysQueryOptions[core.SystemQueryOption.skip] = unicode(self.skip)
+            sys_query_options[core.SystemQueryOption.skip] = unicode(self.skip)
         if self.skiptoken is not None:
-            sysQueryOptions[core.SystemQueryOption.skiptoken] = self.skiptoken
-        if sysQueryOptions:
+            sys_query_options[core.SystemQueryOption.skiptoken] = self.skiptoken
+        if sys_query_options:
             feedURL = uri.URI.from_octets(
                 str(feedURL) +
                 "?" +
-                core.ODataURI.format_sys_query_options(sysQueryOptions))
+                core.ODataURI.format_sys_query_options(sys_query_options))
         request = http.ClientRequest(str(feedURL))
         request.set_header('Accept', 'application/atom+xml')
         self.client.process_request(request)
@@ -345,8 +345,8 @@ class ClientCollection(core.EntityCollection):
                     break
             if feedURL is not None:
                 # extract the skiptoken from this link
-                feedURL = core.ODataURI(feedURL, self.client.pathPrefix)
-                self.nextSkiptoken = feedURL.sysQueryOptions.get(
+                feedURL = core.ODataURI(feedURL, self.client.path_prefix)
+                self.nextSkiptoken = feedURL.sys_query_options.get(
                     core.SystemQueryOption.skiptoken, None)
             if set_next:
                 if self.nextSkiptoken is not None:
@@ -360,26 +360,26 @@ class ClientCollection(core.EntityCollection):
             raise core.InvalidFeedDocument(str(feedURL))
 
     def __getitem__(self, key):
-        sysQueryOptions = {}
+        sys_query_options = {}
         if self.filter is not None:
-            sysQueryOptions[core.SystemQueryOption.filter] = "%s and %s" % (
+            sys_query_options[core.SystemQueryOption.filter] = "%s and %s" % (
                 core.ODataURI.key_dict_to_query(self.entity_set.key_dict(key)),
                 unicode(self.filter))
             entityURL = str(self.base_uri)
         else:
             entityURL = (str(self.base_uri) +
-                         core.ODataURI.FormatKeyDict(self.entity_set.get_key_dict(key)))
+                         core.ODataURI.format_key_dict(self.entity_set.get_key_dict(key)))
         if self.expand is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.expand] = core.format_expand(self.expand)
         if self.select is not None:
-            sysQueryOptions[
+            sys_query_options[
                 core.SystemQueryOption.select] = core.format_select(self.select)
-        if sysQueryOptions:
+        if sys_query_options:
             entityURL = uri.URI.from_octets(
                 entityURL +
                 "?" +
-                core.ODataURI.format_sys_query_options(sysQueryOptions))
+                core.ODataURI.format_sys_query_options(sys_query_options))
         request = http.ClientRequest(str(entityURL))
         if self.filter:
             request.set_header('Accept', 'application/atom+xml')
@@ -435,7 +435,7 @@ class ClientCollection(core.EntityCollection):
             # composite key
             request.set_header(
                 "Slug",
-                core.ODataURI.FormatKeyDict(self.entity_set.key_dict(key)))
+                core.ODataURI.format_key_dict(self.entity_set.key_dict(key)))
         else:
             # single string is sent 'as is'
             request.set_header("Slug", str(app.Slug(unicode(key))))
@@ -459,7 +459,7 @@ class ClientCollection(core.EntityCollection):
         collection."""
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
-        streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
+        streamURL = str(self.base_uri) + core.ODataURI.format_key_dict(
             self.entity_set.get_key_dict(key)) + "/$value"
         if sinfo is None:
             sinfo = core.StreamInfo()
@@ -480,7 +480,7 @@ class ClientCollection(core.EntityCollection):
         """Reads a media resource"""
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
-        streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
+        streamURL = str(self.base_uri) + core.ODataURI.format_key_dict(
             self.entity_set.get_key_dict(key)) + "/$value"
         if out is None:
             request = http.ClientRequest(streamURL, 'HEAD')
@@ -509,7 +509,7 @@ class ClientCollection(core.EntityCollection):
         """Creates a generator for a media resource."""
         if not self.is_medialink_collection():
             raise ExpectedMediaLinkCollection
-        streamURL = str(self.base_uri) + core.ODataURI.FormatKeyDict(
+        streamURL = str(self.base_uri) + core.ODataURI.format_key_dict(
             self.entity_set.get_key_dict(key)) + "/$value"
         swrapper = EntityStream(self)
         request = http.ClientRequest(streamURL, 'GET', res_body=swrapper)
@@ -640,7 +640,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         if kwargs.pop('baseURI', None):
             logging.warn(
                 'OData Client NavigationCollection ignored baseURI argument')
-        navPath = uri.escape_data(name.encode('utf-8'))
+        nav_path = uri.escape_data(name.encode('utf-8'))
         location = str(from_entity.get_location())
         super(
             NavigationCollection,
@@ -650,10 +650,10 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             baseURI=uri.URI.from_octets(
                 location +
                 "/" +
-                navPath),
+                nav_path),
             **kwargs)
         self.isCollection = self.from_entity[name].isCollection
-        self.linksURI = uri.URI.from_octets(location + "/$links/" + navPath)
+        self.linksURI = uri.URI.from_octets(location + "/$links/" + nav_path)
 
     def insert_entity(self, entity):
         """Inserts *entity* into this collection.
@@ -709,15 +709,15 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         else:
             # This is clumsy as we grab the entity itself
             entityURL = str(self.base_uri)
-            sysQueryOptions = {}
+            sys_query_options = {}
             if self.filter is not None:
-                sysQueryOptions[
+                sys_query_options[
                     core.SystemQueryOption.filter] = unicode(self.filter)
-            if sysQueryOptions:
+            if sys_query_options:
                 entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
-                    core.ODataURI.format_sys_query_options(sysQueryOptions))
+                    core.ODataURI.format_sys_query_options(sys_query_options))
             request = http.ClientRequest(str(entityURL))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)
@@ -745,23 +745,23 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             # The baseURI points to a single entity already, we must not add
             # the key
             entityURL = str(self.base_uri)
-            sysQueryOptions = {}
+            sys_query_options = {}
             if self.filter is not None:
-                sysQueryOptions[
+                sys_query_options[
                     core.SystemQueryOption.filter] = unicode(self.filter)
             if self.expand is not None:
-                sysQueryOptions[
+                sys_query_options[
                     core.SystemQueryOption.expand] = core.format_expand(
                     self.expand)
             if self.select is not None:
-                sysQueryOptions[
+                sys_query_options[
                     core.SystemQueryOption.select] = core.format_select(
                     self.select)
-            if sysQueryOptions:
+            if sys_query_options:
                 entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
-                    core.ODataURI.format_sys_query_options(sysQueryOptions))
+                    core.ODataURI.format_sys_query_options(sys_query_options))
             request = http.ClientRequest(str(entityURL))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)
@@ -787,23 +787,23 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             # The baseURI points to a single entity already, we must not add
             # the key
             entityURL = str(self.base_uri)
-            sysQueryOptions = {}
+            sys_query_options = {}
             if self.filter is not None:
-                sysQueryOptions[
+                sys_query_options[
                     core.SystemQueryOption.filter] = unicode(self.filter)
             if self.expand is not None:
-                sysQueryOptions[
+                sys_query_options[
                     core.SystemQueryOption.expand] = core.format_expand(
                     self.expand)
             if self.select is not None:
-                sysQueryOptions[
+                sys_query_options[
                     core.SystemQueryOption.select] = core.format_select(
                     self.select)
-            if sysQueryOptions:
+            if sys_query_options:
                 entityURL = uri.URI.from_octets(
                     entityURL +
                     "?" +
-                    core.ODataURI.format_sys_query_options(sysQueryOptions))
+                    core.ODataURI.format_sys_query_options(sys_query_options))
             request = http.ClientRequest(str(entityURL))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)
@@ -908,7 +908,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             entity = self.new_entity()
             entity.set_key(key)
             request = http.ClientRequest(
-                str(self.linksURI) + core.ODataURI.FormatEntityKey(entity),
+                str(self.linksURI) + core.ODataURI.format_entity_key(entity),
                 'DELETE')
         else:
             # danger, how do we know that key really is the right one?
@@ -937,7 +937,7 @@ class Client(app.Client):
         # : service root
         self.serviceRoot = None
         # a path prefix string of the service root
-        self.pathPrefix = None
+        self.path_prefix = None
         #: a dictionary of feed titles, mapped to
         #: :py:class:`csdl.EntitySet` instances
         self.feeds = {}
@@ -999,9 +999,9 @@ class Client(app.Client):
                         self.feeds[f.Title.get_value()] = url
         else:
             raise InvalidServiceDocument(str(serviceRoot))
-        self.pathPrefix = self.serviceRoot.abs_path
-        if self.pathPrefix[-1] == u"/":
-            self.pathPrefix = self.pathPrefix[:-1]
+        self.path_prefix = self.serviceRoot.abs_path
+        if self.path_prefix[-1] == u"/":
+            self.path_prefix = self.path_prefix[:-1]
         if metadata is None:
             metadata = uri.URI.from_octets('$metadata').resolve(
                 self.serviceRoot)

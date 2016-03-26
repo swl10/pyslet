@@ -273,7 +273,7 @@ class ODataURILiteralTests(unittest.TestCase):
 
     def testCaseNullLiteral(self):
         """	nullLiteral = "null" """
-        v = core.ParseURILiteral("null")
+        v = core.uri_literal_from_str("null")
         self.assertTrue(v.is_null(), "null type is_null")
         self.assertTrue(v.type_code is None, "null type: %s" % repr(v.type_code))
         self.assertTrue(v.value is None, "null value: %s" % repr(v.value))
@@ -284,31 +284,31 @@ class ODataURILiteralTests(unittest.TestCase):
                 caseSensitiveToken = "X" / "binary"
                 ; X is case sensitive binary is not
                 hexDigPair = 2*HEXDIG [hexDigPair] """
-        v = core.ParseURILiteral("X'0A'")
+        v = core.uri_literal_from_str("X'0A'")
         self.assertTrue(
             v.type_code == edm.SimpleType.Binary, "binary type: %s" % repr(v.type_code))
         self.assertTrue(v.value == '\x0a', "binary type: %s" % repr(v.value))
-        v = core.ParseURILiteral("X'0a'")
+        v = core.uri_literal_from_str("X'0a'")
         self.assertTrue(v.value == "\x0a", "binary type: %s" % repr(v.value))
         try:
-            v = core.ParseURILiteral("x'0a'")
+            v = core.uri_literal_from_str("x'0a'")
             self.fail("Syntax error")
         except ValueError:
             pass
-        v = core.ParseURILiteral("binary'0A'")
+        v = core.uri_literal_from_str("binary'0A'")
         self.assertTrue(
             v.type_code == edm.SimpleType.Binary, "binary type: %s" % repr(v.type_code))
         self.assertTrue(v.value == '\x0a', "binary type: %s" % repr(v.value))
-        v = core.ParseURILiteral("BINARY'0A'")
+        v = core.uri_literal_from_str("BINARY'0A'")
         self.assertTrue(
             v.type_code == edm.SimpleType.Binary, "binary type: %s" % repr(v.type_code))
         self.assertTrue(v.value == '\x0a', "binary type: %s" % repr(v.value))
         # gotta love those recursive rules
-        v = core.ParseURILiteral("X'deadBEEF'")
+        v = core.uri_literal_from_str("X'deadBEEF'")
         self.assertTrue(
             v.value == "\xde\xad\xbe\xef", "binary type: %s" % repr(v.value))
         try:
-            v = core.ParseURILiteral("X'de'ad")
+            v = core.uri_literal_from_str("X'de'ad")
             self.fail("Spurious data")
         except ValueError:
             pass
@@ -320,11 +320,11 @@ class ODataURILiteralTests(unittest.TestCase):
 
         The spec is ambiguous here because 0 and 1 are valid literals for
         integer types."""
-        v = core.ParseURILiteral("true")
+        v = core.uri_literal_from_str("true")
         self.assertTrue(
             v.type_code == edm.SimpleType.Boolean, "boolean type: %s" % repr(v.type_code))
         self.assertTrue(v.value is True, "boolean value: %s" % repr(v.value))
-        v = core.ParseURILiteral("false")
+        v = core.uri_literal_from_str("false")
         self.assertTrue(
             v.type_code == edm.SimpleType.Boolean, "boolean type: %s" % repr(v.type_code))
         self.assertTrue(v.value is False, "boolean value: %s" % repr(v.value))
@@ -335,31 +335,31 @@ class ODataURILiteralTests(unittest.TestCase):
         int32Literal= sign 1*10DIGIT
         sbyteliteral= sign 1*3DIGIT	
         All returned as an int32 with python int value."""
-        v = core.ParseURILiteral("0")
+        v = core.uri_literal_from_str("0")
         self.assertTrue(
             v.type_code == edm.SimpleType.Int32, "0 type: %s" % repr(v.type_code))
         self.assertTrue(v.value == 0, "0 value: %s" % repr(v.value))
-        v = core.ParseURILiteral("1")
+        v = core.uri_literal_from_str("1")
         self.assertTrue(
             v.type_code == edm.SimpleType.Int32, "1 type: %s" % repr(v.type_code))
         self.assertTrue(v.value == 1, "1 value: %s" % repr(v.value))
-        v = core.ParseURILiteral("2147483647")
+        v = core.uri_literal_from_str("2147483647")
         self.assertTrue(
             v.type_code == edm.SimpleType.Int32, "2147483647 type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == 2147483647, "2147483647 value: %s" % repr(v.value))
-        v = core.ParseURILiteral("0000000000")
+        v = core.uri_literal_from_str("0000000000")
         self.assertTrue(
             v.type_code == edm.SimpleType.Int32, "0000000000 type: %s" % repr(v.type_code))
         self.assertTrue(v.value == 0, "0000000000 value: %s" % repr(v.value))
-        v = core.ParseURILiteral("-2147483648")
+        v = core.uri_literal_from_str("-2147483648")
         self.assertTrue(
             v.type_code == edm.SimpleType.Int32, "-2147483648 type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == -2147483648, "-2147483648 value: %s" % repr(v.value))
         for bad in ["00000000000", "2147483648", "-2147483649", "+1"]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s" % bad)
             except ValueError:
                 pass
@@ -382,30 +382,30 @@ class ODataURILiteralTests(unittest.TestCase):
         Strangely annoying but this is very close to iso, except the relaxed attitude
         to single-digits variants.
         """
-        v = core.ParseURILiteral("datetime'2012-06-30T23:59'")
+        v = core.uri_literal_from_str("datetime'2012-06-30T23:59'")
         self.assertTrue(
             v.type_code == edm.SimpleType.DateTime, "date time type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, iso.TimePoint), "value type: %s" % repr(v.value))
         self.assertTrue(
             str(v.value) == "2012-06-30T23:59:00", "value: %s" % str(v.value))
-        v = core.ParseURILiteral("datetime'2012-06-30T23:59:59'")
+        v = core.uri_literal_from_str("datetime'2012-06-30T23:59:59'")
         self.assertTrue(
             v.type_code == edm.SimpleType.DateTime, "date time type: %s" % repr(v.type_code))
         self.assertTrue(
             str(v.value) == "2012-06-30T23:59:59", "value: %s" % str(v.value))
-        v = core.ParseURILiteral("datetime'2012-06-30T23:59:59.9999999'")
+        v = core.uri_literal_from_str("datetime'2012-06-30T23:59:59.9999999'")
         self.assertTrue(
             v.type_code == edm.SimpleType.DateTime, "date time type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value.get_calendar_string(ndp=7, dp=".") == "2012-06-30T23:59:59.9999999")
         # Now for the big one!
-        v = core.ParseURILiteral("datetime'2012-06-30T23:59:60'")
+        v = core.uri_literal_from_str("datetime'2012-06-30T23:59:60'")
         self.assertTrue(v.type_code == edm.SimpleType.DateTime,
                         "date time type for leap second: %s" % repr(v.type_code))
         self.assertTrue(str(v.value) == "2012-06-30T23:59:60",
                         "value for leap second: %s" % str(v.value))
-        v = core.ParseURILiteral("datetime'2012-06-30T24:00:00'")
+        v = core.uri_literal_from_str("datetime'2012-06-30T24:00:00'")
         self.assertTrue(v.type_code == edm.SimpleType.DateTime,
                         "date time extreme: %s" % repr(v.type_code))
         self.assertTrue(
@@ -416,7 +416,7 @@ class ODataURILiteralTests(unittest.TestCase):
                 "datetime'2012-06-1T23:59:59'",
                 "datetime'2012-06-30T3:59:59'"
         ]:
-            v = core.ParseURILiteral(crappy)
+            v = core.uri_literal_from_str(crappy)
             self.assertTrue(
                 v.type_code == edm.SimpleType.DateTime, "date time type: %s" % repr(v.type_code))
         for bad in [
@@ -435,7 +435,7 @@ class ODataURILiteralTests(unittest.TestCase):
                 "2012-06-30T23:59"
         ]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s resulted in %s (%s)" % (
                     bad, repr(v.value), edm.SimpleType.to_str(v.type_code)))
             except ValueError:
@@ -447,36 +447,36 @@ class ODataURILiteralTests(unittest.TestCase):
                 decimalLiteral = sign 1*29DIGIT
                 ["." 1*29DIGIT]
         All returned as a python Decimal instance."""
-        v = core.ParseURILiteral("0M")
+        v = core.uri_literal_from_str("0M")
         self.assertTrue(
             v.type_code == edm.SimpleType.Decimal, "0M type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, decimal.Decimal), "0M value type: %s" % repr(v.value))
         self.assertTrue(v.value == 0, "0M value: %s" % repr(v.value))
-        v = core.ParseURILiteral("1.1m")
+        v = core.uri_literal_from_str("1.1m")
         self.assertTrue(
             v.type_code == edm.SimpleType.Decimal, "1.1m type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, decimal.Decimal), "1.1m value type: %s" % repr(v.value))
         self.assertTrue(v.value * 10 == 11, "1.1m value: %s" % repr(v.value))
-        v = core.ParseURILiteral("12345678901234567890123456789m")
+        v = core.uri_literal_from_str("12345678901234567890123456789m")
         self.assertTrue(
             v.type_code == edm.SimpleType.Decimal, "29-digit type: %s" % repr(v.type_code))
         self.assertTrue(
             int(v.value.log10()) == 28, "29-digit log10 value: %s" % repr(v.value))
-        v2 = core.ParseURILiteral(
+        v2 = core.uri_literal_from_str(
             "12345678901234567890123456789.12345678901234567890123456789m")
         self.assertTrue(v2.value - v.value < decimal.Decimal('0.13') and
                         v2.value - v.value > decimal.Decimal('0.12'),
                         "29digit.29digit value: %s" % repr(v2.value - v.value))
-        v = core.ParseURILiteral("-2147483648M")
+        v = core.uri_literal_from_str("-2147483648M")
         self.assertTrue(v.type_code == edm.SimpleType.Decimal,
                         "-2147483648 type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == -2147483648, "-2147483648 value: %s" % repr(v.value))
         for bad in ["123456789012345678901234567890m", "1.m", "1.123456789012345678901234567890m", "+1M"]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s" % bad)
             except ValueError:
                 pass
@@ -491,65 +491,65 @@ class ODataURILiteralTests(unittest.TestCase):
         We decide to be generous here and accept *16DIGIT
 
         Also, the production allows .D and -.D as, presumably, valid forms of 0"""
-        v = core.ParseURILiteral("0D")
+        v = core.uri_literal_from_str("0D")
         self.assertTrue(
             v.type_code == edm.SimpleType.Double, "0D type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) is FloatType, "0D value type: %s" % repr(v.value))
         self.assertTrue(v.value == 0, "0D value: %s" % repr(v.value))
-        v = core.ParseURILiteral("1.1d")
+        v = core.uri_literal_from_str("1.1d")
         self.assertTrue(
             v.type_code == edm.SimpleType.Double, "1.1d type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) is FloatType, "1.1d value type: %s" % repr(v.value))
         self.assertTrue(v.value * 10 == 11, "1.1d value: %s" % repr(v.value))
-        v = core.ParseURILiteral("12345678901234567D")
+        v = core.uri_literal_from_str("12345678901234567D")
         self.assertTrue(
             v.type_code == edm.SimpleType.Double, "17-digit type: %s" % repr(v.type_code))
         self.assertTrue(round(math.log10(v.value), 3) ==
                         16.092, "29-digit log10 value: %s" % repr(v.value))
-        v = core.ParseURILiteral("-12345678901234567D")
+        v = core.uri_literal_from_str("-12345678901234567D")
         self.assertTrue(v.type_code == edm.SimpleType.Double,
                         "17-digit negative type: %s" % repr(v.type_code))
         self.assertTrue(round(math.log10(-v.value), 3) ==
                         16.092, "29-digit log10 value: %s" % repr(v.value))
-        v = core.ParseURILiteral(
+        v = core.uri_literal_from_str(
             "123456789012345678901234567890.123456789012345678901234567890D")
         self.assertTrue(v.type_code == edm.SimpleType.Double,
                         "30digit.30digit type: %s" % repr(v.type_code))
         self.assertTrue(round(math.log10(v.value), 3) ==
                         29.092, "30digit.30digit value: %s" % repr(v.value))
-        v = core.ParseURILiteral(
+        v = core.uri_literal_from_str(
             "-123456789012345678901234567890.123456789012345678901234567890D")
         self.assertTrue(round(math.log10(-v.value), 3) == 29.092,
                         "30digit.30digit negative value: %s" % repr(v.value))
-        v = core.ParseURILiteral(".142D")
+        v = core.uri_literal_from_str(".142D")
         self.assertTrue(
             v.value == 0.142, "Empty left value: %s" % repr(v.value))
-        v = core.ParseURILiteral("-.142D")
+        v = core.uri_literal_from_str("-.142D")
         self.assertTrue(
             v.value == -0.142, "Empty left neg value: %s" % repr(v.value))
-        v = core.ParseURILiteral("3.D")
+        v = core.uri_literal_from_str("3.D")
         self.assertTrue(v.value == 3, "Empty right value: %s" % repr(v.value))
-        v = core.ParseURILiteral("-3.D")
+        v = core.uri_literal_from_str("-3.D")
         self.assertTrue(
             v.value == -3, "Empty right neg value: %s" % repr(v.value))
-        v = core.ParseURILiteral("3.14159e000d")
+        v = core.uri_literal_from_str("3.14159e000d")
         self.assertTrue(
             round(v.value, 3) == 3.142, "zero exp: %s" % repr(v.value))
-        v = core.ParseURILiteral("NanD")
+        v = core.uri_literal_from_str("NanD")
         self.assertTrue(math.isnan(v.value), "Nan double: %s" % repr(v.value))
-        v = core.ParseURILiteral("INFD")
+        v = core.uri_literal_from_str("INFD")
         self.assertTrue(
             v.value > 0 and math.isinf(v.value), "Inf double: %s" % repr(v.value))
-        v = core.ParseURILiteral("-INFD")
+        v = core.uri_literal_from_str("-INFD")
         self.assertTrue(v.value < 0 and math.isinf(
             v.value), "Negative Inf double: %s" % repr(v.value))
         for bad in ["123456789012345678D", "+1D", ".1e1d", "+1.0E1d",
                     "1.12345678901234567E10d", "3.141Ed", "3.141E1234d", "3.141E+10d", ".123E1D",
                     "+NanD", "-NanD", "+INFD", ".D", "-.D", "-123456789012345678901234567890.1234567890123456E1d"]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s" % bad)
             except ValueError:
                 pass
@@ -565,67 +565,67 @@ class ODataURILiteralTests(unittest.TestCase):
         decide to be generous here and accept *8DIGIT
 
         The production allows .F and -.f as, presumably, valid forms of 0"""
-        v = core.ParseURILiteral("0F")
+        v = core.uri_literal_from_str("0F")
         self.assertTrue(
             v.type_code == edm.SimpleType.Single, "0f type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) is FloatType, "0f value type: %s" % repr(v.value))
         self.assertTrue(v.value == 0, "0f value: %s" % repr(v.value))
-        v = core.ParseURILiteral("1.1f")
+        v = core.uri_literal_from_str("1.1f")
         self.assertTrue(
             v.type_code == edm.SimpleType.Single, "1.1f type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) is FloatType, "1.1f value type: %s" % repr(v.value))
         self.assertTrue(v.value * 10 == 11, "1.1f value: %s" % repr(v.value))
-        v = core.ParseURILiteral("12345678F")
+        v = core.uri_literal_from_str("12345678F")
         self.assertTrue(
             v.type_code == edm.SimpleType.Single, "8-digit type: %s" % repr(v.type_code))
         self.assertTrue(v.value == 12345678, "8-digit: %s" % repr(v.value))
-        v = core.ParseURILiteral("-12345678F")
+        v = core.uri_literal_from_str("-12345678F")
         self.assertTrue(v.type_code == edm.SimpleType.Single,
                         "8-digit negative type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == -12345678, "8-digit neg value: %s" % repr(v.value))
-        v = core.ParseURILiteral(
+        v = core.uri_literal_from_str(
             "123456789012345678901234567890.123456789012345678901234567890f")
         self.assertTrue(v.type_code == edm.SimpleType.Single,
                         "30digit.30digit type: %s" % repr(v.type_code))
         self.assertTrue(round(math.log10(v.value), 3) ==
                         29.092, "30digit.30digit value: %s" % repr(v.value))
-        v = core.ParseURILiteral(
+        v = core.uri_literal_from_str(
             "-123456789012345678901234567890.123456789012345678901234567890F")
         self.assertTrue(round(math.log10(-v.value), 3) == 29.092,
                         "30digit.30digit negative value: %s" % repr(v.value))
-        v = core.ParseURILiteral(".142f")
+        v = core.uri_literal_from_str(".142f")
         self.assertTrue(
             v.value == 0.142, "Empty left value: %s" % repr(v.value))
-        v = core.ParseURILiteral("-.142F")
+        v = core.uri_literal_from_str("-.142F")
         self.assertTrue(
             v.value == -0.142, "Empty left neg value: %s" % repr(v.value))
-        v = core.ParseURILiteral("3.F")
+        v = core.uri_literal_from_str("3.F")
         self.assertTrue(v.value == 3, "Empty right value: %s" % repr(v.value))
-        v = core.ParseURILiteral("-3.F")
+        v = core.uri_literal_from_str("-3.F")
         self.assertTrue(
             v.value == -3, "Empty right neg value: %s" % repr(v.value))
-        v = core.ParseURILiteral("3.14159e00F")
+        v = core.uri_literal_from_str("3.14159e00F")
         self.assertTrue(
             round(v.value, 3) == 3.142, "zero exp: %s" % repr(v.value))
-        v = core.ParseURILiteral("3.E1F")
+        v = core.uri_literal_from_str("3.E1F")
         self.assertTrue(
             v.value == 30, "Empty right exp value: %s" % repr(v.value))
-        v = core.ParseURILiteral("NanF")
+        v = core.uri_literal_from_str("NanF")
         self.assertTrue(math.isnan(v.value), "Nan single: %s" % repr(v.value))
-        v = core.ParseURILiteral("InfF")
+        v = core.uri_literal_from_str("InfF")
         self.assertTrue(
             v.value > 0 and math.isinf(v.value), "Inf single: %s" % repr(v.value))
-        v = core.ParseURILiteral("-INFF")
+        v = core.uri_literal_from_str("-INFF")
         self.assertTrue(v.value < 0 and math.isinf(
             v.value), "Negative Inf single: %s" % repr(v.value))
         for bad in ["123456789F", "+1F", ".1e1F", "+1.0E1F",
                     "1.123456789E10F", "3.141EF", "3.141E023F", "3.141E+10F", ".123E1F",
                     "+NanF", "-NanF", "+INFF", ".f", "-.F", "-123456789012345678901234567890.12345678E1F"]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s" % bad)
             except ValueError:
                 pass
@@ -644,14 +644,14 @@ class ODataURILiteralTests(unittest.TestCase):
                 To be honest, I don't think the person who wrote this rule was having
                 a good day because 8*HEXDIG means at least 8 hex-digits and not exactly
                 8 hex digits as the author clearly intended."""
-        v = core.ParseURILiteral("guid'C0DEC0DE-C0DE-C0DE-C0DEC0DEC0DE'")
+        v = core.uri_literal_from_str("guid'C0DEC0DE-C0DE-C0DE-C0DEC0DEC0DE'")
         self.assertTrue(
             v.type_code == edm.SimpleType.Guid, "guide type: %s" % repr(v.type_code))
         self.assertTrue(
             isinstance(v.value, uuid.UUID), "guide type: %s" % repr(v.value))
         self.assertTrue(v.value.hex.lower(
         ) == 'c0dec0dec0dec0deffffc0dec0dec0de', "guid value (missing bytes): %s" % repr(v.value))
-        v = core.ParseURILiteral("guid'cd04f705-390c-4736-98dc-a3baa6b3a283'")
+        v = core.uri_literal_from_str("guid'cd04f705-390c-4736-98dc-a3baa6b3a283'")
         self.assertTrue(
             v.type_code == edm.SimpleType.Guid, "guide type: %s" % repr(v.type_code))
         self.assertTrue(
@@ -673,7 +673,7 @@ class ODataURILiteralTests(unittest.TestCase):
                 "guid'cd04f705-390c-4736-98dc-a3baa6b3a283FF'",
                 "guid\"cd04f705-390c-4736-98dc-a3baa6b3a283\""]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s" % bad)
             except ValueError:
                 pass
@@ -683,18 +683,18 @@ class ODataURILiteralTests(unittest.TestCase):
                 int64Literal = sign 1*19DIGIT
 
                 Return as a python long integer"""
-        v = core.ParseURILiteral("0L")
+        v = core.uri_literal_from_str("0L")
         self.assertTrue(
             v.type_code == edm.SimpleType.Int64, "0L type: %s" % repr(v.type_code))
         self.assertTrue(
             type(v.value) == LongType, "0L value type: %s" % repr(v.value))
         self.assertTrue(v.value == 0, "0L value: %s" % repr(v.value))
-        v = core.ParseURILiteral("1234567890123456789l")
+        v = core.uri_literal_from_str("1234567890123456789l")
         self.assertTrue(
             v.type_code == edm.SimpleType.Int64, "19-digit type: %s" % repr(v.type_code))
         self.assertTrue(
             v.value == 1234567890123456789L, "19-digit value: %s" % repr(v.value))
-        v = core.ParseURILiteral("-1234567890123456789l")
+        v = core.uri_literal_from_str("-1234567890123456789l")
         self.assertTrue(
             v.type_code == edm.SimpleType.Int64, "19-digit neg type: %s" % repr(v.type_code))
         self.assertTrue(
@@ -702,7 +702,7 @@ class ODataURILiteralTests(unittest.TestCase):
         for bad in ["12345678901234567890L", "01234567890123456789l",
                     "+1l", "+0L"]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s" % bad)
             except ValueError:
                 pass
@@ -710,14 +710,14 @@ class ODataURILiteralTests(unittest.TestCase):
     def testCaseStringLiteral(self):
         """stringUriLiteral = SQUOTE [*characters] SQUOTE
                 characters = UTF8-char """
-        v = core.ParseURILiteral("'0A'")
+        v = core.uri_literal_from_str("'0A'")
         self.assertTrue(
             v.type_code == edm.SimpleType.String,
             "string type: %s" % repr(v.type_code))
         self.assertTrue(v.value == '0A', "string type: %s" % repr(v.value))
-        v = core.ParseURILiteral("'0a'")
+        v = core.uri_literal_from_str("'0a'")
         self.assertTrue(v.value == "0a", "string type: %s" % repr(v.value))
-        v = core.ParseURILiteral("'Caf%C3%A9'")
+        v = core.uri_literal_from_str("'Caf%C3%A9'")
         # When parsed from a URL we assume that UTF-8 and then
         # %-encoding has been applied
         self.assertTrue(
@@ -729,16 +729,16 @@ class ODataURILiteralTests(unittest.TestCase):
         # automatically
         # %-encode single-quote in URLs even though it is not reserved by
         # RFC2396.
-        v = core.ParseURILiteral("'Peter O''Toole'")
+        v = core.uri_literal_from_str("'Peter O''Toole'")
         self.assertTrue(
             v.value == u"Peter O'Toole", "double SQUOTE: %s" % repr(v.value))
-        v = core.ParseURILiteral("%27Peter O%27%27Toole%27")
+        v = core.uri_literal_from_str("%27Peter O%27%27Toole%27")
         self.assertTrue(
             v.value == u"Peter O'Toole",
             "%%-encoding removed: %s" % repr(v.value))
         for bad in ["0A", "'0a", "'Caf\xc3 Curtains'", "'Peter O'Toole'"]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s" % bad)
             except UnicodeDecodeError:
                 pass
@@ -754,11 +754,11 @@ class ODataURILiteralTests(unittest.TestCase):
 # 		timeLiteral = <Defined by the lexical representation for duration in [XMLSCHEMA2/2]>
 #
 # 		We test by using the examples from XMLSchema"""
-# 		v=core.ParseURILiteral("time'P1Y2M3DT10H30M'")
+# 		v=core.uri_literal_from_str("time'P1Y2M3DT10H30M'")
 # 		self.assertTrue(v.type_code==edm.SimpleType.Time,"date time type: %s"%repr(v.type_code))
 # 		self.assertTrue(isinstance(v.value,xsi.Duration),"value type: %s"%repr(v.value))
 # 		self.assertTrue(str(v.value)=="P1Y2M3DT10H30M","value: %s"%str(v.value))
-# 		v=core.ParseURILiteral("time'-P120D'")
+# 		v=core.uri_literal_from_str("time'-P120D'")
 # 		self.assertTrue(v.type_code==edm.SimpleType.Time,"date time type: %s"%repr(v.type_code))
 # There is no canonical representation so this is a weak test
 # 		self.assertTrue(str(v.value)=="-P0Y0M120D","value: %s"%str(v.value))
@@ -769,7 +769,7 @@ class ODataURILiteralTests(unittest.TestCase):
 # 			"time'P0Y1347M'",
 # 			"time'P0Y1347M0D'",
 # 			"time'-P1347M'"]:
-# 			v=core.ParseURILiteral(good)
+# 			v=core.uri_literal_from_str(good)
 # 			self.assertTrue(v.type_code==edm.SimpleType.Time,"date time type: %s"%repr(v.type_code))
 # 			self.assertTrue(isinstance(v.value,xsi.Duration),"value type: %s"%repr(v.value))
 # 		for bad in [
@@ -780,7 +780,7 @@ class ODataURILiteralTests(unittest.TestCase):
 # 			"P1Y2M3DT10H30M"
 # 			]:
 # 			try:
-# 				v=core.ParseURILiteral(bad)
+# 				v=core.uri_literal_from_str(bad)
 # 				self.fail("Bad parse: %s resulted in %s (%s)"%(bad,str(v.value),edm.SimpleType.to_str(v.type_code)))
 # 			except ValueError:
 # 				pass
@@ -791,7 +791,7 @@ class ODataURILiteralTests(unittest.TestCase):
         dateTimeOffsetLiteral = <Defined by the lexical representation for datetime (including timezone offset) in [XMLSCHEMA2/2]>
 
         We test by using the examples from XMLSchema"""
-        v = core.ParseURILiteral("datetimeoffset'2002-10-10T12:00:00-05:00'")
+        v = core.uri_literal_from_str("datetimeoffset'2002-10-10T12:00:00-05:00'")
         self.assertTrue(v.type_code == edm.SimpleType.DateTimeOffset,
                         "date time offset type: %s" % repr(v.type_code))
         self.assertTrue(
@@ -806,7 +806,7 @@ class ODataURILiteralTests(unittest.TestCase):
                 "datetimeoffset'2002-10-10T00:00:00+05:00'",
                 "datetimeoffset'2002-10-09T19:00:00Z'"
         ]:
-            v = core.ParseURILiteral(good)
+            v = core.uri_literal_from_str(good)
             self.assertTrue(v.type_code == edm.SimpleType.DateTimeOffset,
                             "date time offset type: %s" % repr(v.type_code))
             self.assertTrue(
@@ -817,7 +817,7 @@ class ODataURILiteralTests(unittest.TestCase):
                 "datetimeoffset2002-10-10T17:00:00Z",  # missing quotes
         ]:
             try:
-                v = core.ParseURILiteral(bad)
+                v = core.uri_literal_from_str(bad)
                 self.fail("Bad parse: %s resulted in %s (%s)" % (
                     bad, str(v.value), edm.SimpleType.to_str(v.type_code)))
             except ValueError:
@@ -1866,7 +1866,7 @@ class SampleServerTests(unittest.TestCase):
         # Simple Property
         p = core.Parser("OrderID")
         e = p.parse_common_expression()
-        value = e.Evaluate(order)
+        value = e.evaluate(order)
         self.assertTrue(
             value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == 1, "Expected 1")
@@ -1876,7 +1876,7 @@ class SampleServerTests(unittest.TestCase):
         # Complex Property
         p = core.Parser("Address")
         e = p.parse_common_expression()
-        value = e.Evaluate(customer)
+        value = e.evaluate(customer)
         self.assertTrue(
             isinstance(value, edm.Complex), "Expected Complex value")
         self.assertTrue(value['City'].value == 'Chunton', "Expected Chunton")
@@ -1884,19 +1884,19 @@ class SampleServerTests(unittest.TestCase):
         customer00 = customers.open()['XX=00']
         p = core.Parser("Version")
         e = p.parse_common_expression()
-        value = e.Evaluate(customer00)
+        value = e.evaluate(customer00)
         self.assertTrue(
             value.type_code == edm.SimpleType.Binary, "Expected Binary")
         self.assertTrue(value.value is None, "Expected NULL")
         # Navigation property
         p = core.Parser("Customer")
         e = p.parse_common_expression()
-        value = e.Evaluate(order)
+        value = e.evaluate(order)
         self.assertTrue(isinstance(value, edm.Entity), "Expected Entity")
         self.assertTrue(
             value['CustomerID'].value == 'ALFKI', "Expected Customer('ALFKI')")
         # Navigation property with Null
-        value = e.Evaluate(orders.open()[4])
+        value = e.evaluate(orders.open()[4])
         self.assertTrue(isinstance(value, edm.SimpleValue),
                         "Expected SimpleValue (for NULL) found %s" % repr(value))
         self.assertFalse(value, "Expected NULL")
@@ -1904,7 +1904,7 @@ class SampleServerTests(unittest.TestCase):
         p = core.Parser("Orders")
         e = p.parse_common_expression()
         try:
-            value = e.Evaluate(customer)
+            value = e.evaluate(customer)
             self.fail("Navigation property cardinality")
         except core.EvaluationError:
             pass
@@ -1930,14 +1930,14 @@ class SampleServerTests(unittest.TestCase):
         # Known Entity: SimpleProperty
         p = core.Parser("Customer/CustomerID")
         e = p.parse_common_expression()
-        value = e.Evaluate(order)
+        value = e.evaluate(order)
         self.assertTrue(
             value.type_code == edm.SimpleType.String, "Expected string")
         self.assertTrue(value.value == 'ALFKI', "Expected 'ALKFI'")
         # Known ComplexType: SimpleProperty
         p = core.Parser("Customer/Address/City")
         e = p.parse_common_expression()
-        value = e.Evaluate(order)
+        value = e.evaluate(order)
         self.assertTrue(
             value.type_code == edm.SimpleType.String, "Expected string")
         self.assertTrue(value.value == 'Chunton', "Expected 'Chunton'")
@@ -1946,7 +1946,7 @@ class SampleServerTests(unittest.TestCase):
         # Simple Property (NULL)
         p = core.Parser("Customer/Version")
         e = p.parse_common_expression()
-        value = e.Evaluate(order3)
+        value = e.evaluate(order3)
         self.assertTrue(
             value.type_code == edm.SimpleType.Binary, "Expected Binary")
         self.assertTrue(value.value is None, "Expected NULL")
@@ -1954,7 +1954,7 @@ class SampleServerTests(unittest.TestCase):
         p = core.Parser("Customer/Orders")
         e = p.parse_common_expression()
         try:
-            value = e.Evaluate(order)
+            value = e.evaluate(order)
             self.fail("Navigation property cardinality")
         except core.EvaluationError:
             pass
@@ -1968,13 +1968,13 @@ class SampleServerTests(unittest.TestCase):
         # Known Entity: SimpleProperty
         p = core.Parser("Customer eq Customer")
         e = p.parse_common_expression()
-        value = e.Evaluate(order)
+        value = e.evaluate(order)
         self.assertTrue(
             value.type_code == edm.SimpleType.Boolean, "Expected boolean")
         self.assertTrue(value.value == True, "Expected True")
         p = core.Parser("Customer eq OrderLine")
         e = p.parse_common_expression()
-        value = e.Evaluate(order)
+        value = e.evaluate(order)
         self.assertTrue(value.value == False, "Expected False")
 
     def testCaseServiceRoot(self):

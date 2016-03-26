@@ -242,7 +242,7 @@ def load_notes(weather_notes, file_name, weather_data):
                         id = id + 1
     with weather_notes.open() as collection:
         collection.set_orderby(
-            core.CommonExpression.OrderByFromString('StartDate desc'))
+            core.CommonExpression.orderby_from_str('StartDate desc'))
         for e in collection.itervalues():
             with e['DataPoints'].open() as affectedData:
                 print "%s-%s: %s (%i data points affected)" % (
@@ -276,7 +276,7 @@ def test_model(drop=False):
         load_notes(weather_notes, 'weathernotes.txt', weather_data)
     with weather_data.open() as collection:
         collection.set_orderby(
-            core.CommonExpression.OrderByFromString('WindSpeedMax desc'))
+            core.CommonExpression.orderby_from_str('WindSpeedMax desc'))
         collection.set_page(30)
         for e in collection.iterpage():
             note = e['Note'].get_entity()
@@ -328,7 +328,7 @@ def run_weather_loader(container=None, max_load=30,
     not_before_point = iso.TimePoint.from_str(not_before)
     with weather_data.open() as collection:
         collection.set_orderby(
-            core.CommonExpression.OrderByFromString('TimePoint desc'))
+            core.CommonExpression.orderby_from_str('TimePoint desc'))
         sleep_interval = 60
         collection.set_page(1)
         last_point = list(collection.iterpage())
