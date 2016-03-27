@@ -298,7 +298,7 @@ class SortableMixin(object):
 
         The difference between this method and :meth:`sortkey` is that
         this method takes an arbitrary object and either returns the key
-        to use when comparising with this instance or NotImplemented if
+        to use when comparing with this instance or NotImplemented if
         the sorting is not supported.
 
         You don't have to override this implementation, by default it

@@ -6,7 +6,6 @@ import decimal
 import itertools
 import json
 import math
-import string
 import uuid
 import warnings
 
@@ -24,7 +23,12 @@ from ..pep8 import (
     old_method,
     PEP8Compatibility)
 from ..py2 import (
+    dict_items,
+    dict_values,
     is_text,
+    SortableMixin,
+    to_text,
+    uempty,
     UnicodeMixin)
 from ..unicode5 import CharClass
 from ..xml import namespace as xmlns
@@ -37,13 +41,13 @@ ODATA_METADATA_NAMESPACE = \
     "http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
 
 IS_DEFAULT_ENTITY_CONTAINER = (
-    ODATA_METADATA_NAMESPACE, u"IsDefaultEntityContainer")
+    ODATA_METADATA_NAMESPACE, "IsDefaultEntityContainer")
 
-MIME_TYPE = (ODATA_METADATA_NAMESPACE, u"MimeType")
+MIME_TYPE = (ODATA_METADATA_NAMESPACE, "MimeType")
 
-HttpMethod = (ODATA_METADATA_NAMESPACE, u"HttpMethod")
+HttpMethod = (ODATA_METADATA_NAMESPACE, "HttpMethod")
 
-HAS_STREAM = (ODATA_METADATA_NAMESPACE, u"HasStream")
+HAS_STREAM = (ODATA_METADATA_NAMESPACE, "HasStream")
 
 DATA_SERVICE_VERSION = (ODATA_METADATA_NAMESPACE, "DataServiceVersion")
 FC_KeepInContent = (ODATA_METADATA_NAMESPACE, "FC_KeepInContent")
@@ -368,7 +372,7 @@ class Method(xsi.Enumeration):
     }
 
 
-class CommonExpression(UnicodeMixin, MigratedClass):
+class CommonExpression(SortableMixin, UnicodeMixin, MigratedClass):
 
     """Represents a common expression, used by $filter and $orderby
     system query options."""
@@ -386,14 +390,16 @@ class CommonExpression(UnicodeMixin, MigratedClass):
     def evaluate(self, context_entity):
         raise NotImplementedError
 
-    def __cmp__(self, other):
-        """We implement __cmp__ based on operator precedence."""
-        if other.operator is None or self.operator is None:
-            raise ValueError("Expression without operator cannot be compared")
-        return cmp(
-            Operator.Category[
-                self.operator], Operator.Category[
-                other.operator])
+    def sortkey(self):
+        """We implement comparisons based on operator precedence."""
+        if self.operator is None:
+            return NotImplemented
+        return Operator.Category[self.operator]
+
+    def otherkey(self, other):
+        if not isinstance(other, CommonExpression) or other.operator is None:
+            return NotImplemented
+        return Operator.Category[other.operator]
 
     @staticmethod
     def from_str(src, params=None):
@@ -412,8 +418,9 @@ class CommonExpression(UnicodeMixin, MigratedClass):
     @staticmethod
     @old_method('OrderByToString')
     def orderby_to_str(orderby):
-        return string.join(map(lambda x: "%s %s" % (
-            unicode(x[0]), "asc" if x[1] > 0 else "desc"), orderby), ', ')
+        return ', '.join(
+            "%s %s" % (to_text(x[0]), "asc" if x[1] > 0 else "desc")
+            for x in orderby)
 
     def __unicode__(self):
         raise NotImplementedError
@@ -431,16 +438,16 @@ class UnaryExpression(CommonExpression):
 
     def __unicode__(self):
         if self.operator == Operator.negate:
-            op = u"-"
+            op = "-"
         else:
-            op = u"%s " % Operator.to_str(self.operator)
+            op = "%s " % Operator.to_str(self.operator)
         rvalue = self.operands[0]
         if rvalue.operator is not None and rvalue < self:
             # right expression is weaker than us, use brackets
-            result = "%s(%s)" % (op, unicode(rvalue))
+            result = "%s(%s)" % (op, to_text(rvalue))
         else:
-            result = "%s%s" % (op, unicode(rvalue))
-        return result
+            result = "%s%s" % (op, to_text(rvalue))
+        return to_text(result)
 
     def evaluate(self, context_entity):
         rvalue = self.operands[0].evaluate(context_entity)
@@ -502,9 +509,9 @@ class BinaryExpression(CommonExpression):
         op_prefix = op_suffix = ''
         if self.operator in Operator.IsSpecial:
             if self.operator == Operator.member:
-                op = u"/"
+                op = "/"
             elif self.operator in (Operator.cast, Operator.isof):
-                op_prefix = u"%s(" % Operator.to_str(self.operator)
+                op_prefix = "%s(" % Operator.to_str(self.operator)
                 op = ","
                 op_suffix = ")"
             else:
@@ -512,20 +519,20 @@ class BinaryExpression(CommonExpression):
                     "Can't format %s as a binary operator" & Operator.to_str(
                         self.operator))
         else:
-            op = u" %s " % Operator.to_str(self.operator)
+            op = " %s " % Operator.to_str(self.operator)
         lvalue = self.operands[0]
         rvalue = self.operands[1]
         if lvalue.operator is not None and lvalue < self:
             # left expression is weaker than us, use brackets
-            lvalue = "(%s)" % unicode(lvalue)
+            lvalue = "(%s)" % to_text(lvalue)
         else:
-            lvalue = unicode(lvalue)
+            lvalue = to_text(lvalue)
         if rvalue.operator is not None and rvalue < self:
             # right expression is weaker than us, use brackets
-            rvalue = "(%s)" % unicode(rvalue)
+            rvalue = "(%s)" % to_text(rvalue)
         else:
-            rvalue = unicode(rvalue)
-        return string.join((op_prefix, lvalue, op, rvalue, op_suffix), '')
+            rvalue = to_text(rvalue)
+        return uempty.join((op_prefix, lvalue, op, rvalue, op_suffix))
 
     def evaluate(self, context_entity):
         lvalue = self.operands[0].evaluate(context_entity)
@@ -889,7 +896,7 @@ BinaryExpression.EvalMethod = {
 
 class LiteralExpression(CommonExpression):
 
-    """When converted to str return for example, 42L or 'Paddy O''brian'
+    """When converted to str return for example, '42L' or 'Paddy O''brian'
     - note that %-encoding is not applied"""
 
     def __init__(self, value):
@@ -900,7 +907,7 @@ class LiteralExpression(CommonExpression):
         if not self.value:
             return "null"
         else:
-            result = unicode(self.value)
+            result = to_text(self.value)
             if self.value.type_code == edm.SimpleType.Binary:
                 result = "X'%s'" % result
             elif self.value.type_code == edm.SimpleType.DateTime:
@@ -921,7 +928,7 @@ class LiteralExpression(CommonExpression):
                 result = "datetimeoffset'%s'" % result
             elif self.value.type_code == edm.SimpleType.String:
                 # double up on single quotes
-                result = "'%s'" % string.join(result.split("'"), "''")
+                result = "'%s'" % "''".join(result.split("'"))
             return result
 
     def evaluate(self, context_entity):
@@ -936,7 +943,7 @@ class PropertyExpression(CommonExpression):
         self.name = name
 
     def __unicode__(self):
-        return unicode(self.name)
+        return to_text(self.name)
 
     def evaluate(self, context_entity):
         if context_entity:
@@ -976,14 +983,13 @@ class CallExpression(CommonExpression):
         self.method = method_call
 
     def __unicode__(self):
-        return "%s(%s)" % (Method.to_str(self.method), string.join(
-            map(lambda x: unicode(x), self.operands), ','))
+        return "%s(%s)" % (Method.to_str(self.method),
+                           ','.join(to_text(x) for x in self.operands))
 
     def evaluate(self, context_entity):
         return self.EvalMethod[
-            self.method](
-            self, map(
-                lambda x: x.evaluate(context_entity), self.operands))
+            self.method](self, list(x.evaluate(context_entity)
+                                    for x in self.operands))
 
     def promote_param(self, arg, type_code):
         if isinstance(arg, edm.SimpleValue):
@@ -1507,7 +1513,7 @@ class Parser(edm.Parser):
             else:
                 break
         if result:
-            return string.join(result, '')
+            return ''.join(result)
         else:
             return None
 
@@ -1638,8 +1644,8 @@ class Parser(edm.Parser):
         separated list of name components, each of which must start with
         a letter and continue with a letter, number or underscore."""
         if self.SimpleIdentifierStartClass is None:
-            load_class = CharClass(CharClass.ucd_category(u"L"))
-            load_class.add_class(CharClass.ucd_category(u"Nl"))
+            load_class = CharClass(CharClass.ucd_category("L"))
+            load_class.add_class(CharClass.ucd_category("Nl"))
             self.__class__.SimpleIdentifierStartClass = load_class
         if self.SimpleIdentifierClass is None:
             load_class = CharClass(self.SimpleIdentifierStartClass)
@@ -1663,7 +1669,7 @@ class Parser(edm.Parser):
             if not self.parse('.'):
                 break
             result.append('.')
-        return string.join(result, '')
+        return ''.join(result)
 
     def parse_string_uri_literal(self):
         if self.parse("'"):
@@ -1682,7 +1688,7 @@ class Parser(edm.Parser):
                     # a repeated SQUOTE, go around again
                     continue
                 break
-            value = string.join(value, "'")
+            value = "'".join(value)
             if self.raw:
                 value = value.decode('utf-8')
             result.value = value
@@ -1829,7 +1835,7 @@ class Parser(edm.Parser):
                     self.require_production(self.parse_hex_digits(8, 8),
                                             "guid"))
             self.require("'", "guid")
-            result.value = uuid.UUID(hex=string.join(hex, ''))
+            result.value = uuid.UUID(hex=''.join(hex))
             return result
         else:
             self.setpos(savepos)
@@ -1885,7 +1891,7 @@ def parse_dataservice_version(src):
             else:
                 break
     # we are generous in what we accept, don't bother checking for the end
-    return major, minor, string.join(ua_str, ' ')
+    return major, minor, ' '.join(ua_str)
 
 
 def parse_max_dataservice_version(src):
@@ -1908,7 +1914,7 @@ def parse_max_dataservice_version(src):
                 "Expected max data service version, found %s" % version_str)
     else:
         raise grammar.BadSyntax("Expected max data service version")
-    ua_str = string.join(src[1:], ';')
+    ua_str = ';'.join(src[1:])
     return major, minor, ua_str
 
 
@@ -2059,18 +2065,18 @@ specification"""
 def format_expand(expand):
     """Returns a unicode string representation of the *expand* rules."""
     result = sorted(_format_expand_list(expand))
-    return string.join(result, ',')
+    return ','.join(result)
 
 
 def _format_expand_list(expand):
     """Returns a list of unicode strings representing the *expand* rules."""
     result = []
-    for k, v in expand.iteritems():
+    for k, v in dict_items(expand):
         if not v:
             result.append(k)
         else:
-            result = result + map(lambda x: "%s/%s" %
-                                  (k, x), _format_expand_list(v))
+            result = result + list("%s/%s" % (k, x)
+                                   for x in _format_expand_list(v))
     return result
 
 
@@ -2323,16 +2329,16 @@ class ODataURI(PEP8Compatibility):
                     if c == "'":
                         qmode = not qmode
                     if c == ',' and not qmode:
-                        keylist.append((kname, string.join(vstring, '')))
+                        keylist.append((kname, ''.join(vstring)))
                         kname = ''
                         vstring = []
                     elif c == '=' and not qmode:
-                        kname = string.join(vstring, '')
+                        kname = ''.join(vstring)
                         vstring = []
                     else:
                         vstring.append(c)
                 if vstring or kname:
-                    keylist.append((kname, string.join(vstring, '')))
+                    keylist.append((kname, ''.join(vstring)))
                 keys = keylist
             if len(keys) == 0:
                 return name, {}
@@ -2367,12 +2373,12 @@ class ODataURI(PEP8Compatibility):
 
         For example, (42L), or ('Salt%20%26%20Pepper')."""
         if len(d) == 1:
-            key_str = "(%s)" % cls.format_literal(d.values()[0])
+            key_str = "(%s)" % cls.format_literal(list(dict_values(d))[0])
         else:
             key_str = []
-            for k, v in d.iteritems():
+            for k, v in dict_items(d):
                 key_str.append("%s=%s" % (k, cls.format_literal(v)))
-            key_str = "(%s)" % string.join(key_str, ",")
+            key_str = "(%s)" % ",".join(key_str)
         return uri.escape_data(key_str.encode('utf-8'))
 
     @classmethod
@@ -2384,9 +2390,9 @@ class ODataURI(PEP8Compatibility):
         'Salt%20%26%20Pepper'", in cases with composite keys the
         expressions are joined with the and operator."""
         key_str = []
-        for k, v in d.iteritems():
+        for k, v in dict_items(d):
             key_str.append("%s eq %s" % (k, cls.format_literal(v)))
-        return string.join(key_str, " and ")
+        return " and ".join(key_str)
 
     @classmethod
     @old_method('FormatEntityKey')
@@ -2399,16 +2405,14 @@ class ODataURI(PEP8Compatibility):
         """Returns a URI-literal-formatted value as a character string.
         For example, "42L" or "'Paddy O''brian'"
         """
-        return unicode(LiteralExpression(value))
+        return to_text(LiteralExpression(value))
 
     @staticmethod
     def format_sys_query_options(sys_query_options):
-        return string.join(
-            map(lambda x: "$%s=%s" % (
-                str(SystemQueryOption.to_str(x[0])),
-                uri.escape_data(x[1].encode('utf-8'))),
-                sys_query_options.items()),
-            '&')
+        return '&'.join(
+            "$%s=%s" % (str(SystemQueryOption.to_str(x[0])),
+                        uri.escape_data(x[1].encode('utf-8')))
+            for x in dict_items(sys_query_options))
 
 
 class StreamInfo(object):
@@ -2593,7 +2597,7 @@ class Entity(edm.Entity):
             s = "" if self.etag_is_strong() else "W/"
             yield ',"etag":%s' % json.dumps(
                 s + grammar.quote_string(
-                    string.join(map(ODataURI.format_literal, etag), ',')))
+                    ','.join(ODataURI.format_literal(x) for x in etag)))
         if media_link_resource:
             yield ',"media_src":%s' % json.dumps(location + "/$value")
             yield ',"content_type":%s' % json.dumps(
@@ -2603,7 +2607,7 @@ class Entity(edm.Entity):
                 s = "" if self.etag_is_strong() else "W/"
                 yield ',"media_etag":%s' % json.dumps(
                     s + grammar.quote_string(
-                        string.join(map(ODataURI.format_literal, etag), ',')))
+                        ','.join(ODataURI.format_literal(x) for x in etag)))
         yield '}'
         for k, v in self.data_items():
             # watch out for unselected properties
@@ -2728,7 +2732,7 @@ def complex_value_to_json_str(complex_value):
         else:
             value = complex_property_to_json_str(v)
         result.append(value)
-    return "{%s}" % string.join(result, ',')
+    return "{%s}" % ','.join(result)
 
 
 def complex_value_from_json(complex_value, obj):
@@ -2779,7 +2783,7 @@ def simple_value_to_json_str(v):
     elif isinstance(v, (edm.BooleanValue, edm.ByteValue, edm.Int16Value,
                         edm.Int32Value, edm.SByteValue)):
         # naked representation
-        return unicode(v)
+        return to_text(v)
     elif isinstance(v, edm.DateTimeValue):
         # a strange format based on ticks, by definition, DateTime has no
         # offset
@@ -2790,7 +2794,7 @@ def simple_value_to_json_str(v):
                         edm.Int64Value, edm.SingleValue, edm.StringValue,
                         edm.TimeValue)):
         # just use the literal form as a json string
-        return json.dumps(unicode(v))
+        return json.dumps(to_text(v))
     elif isinstance(v, (edm.DateTimeOffsetValue)):
         # a strange format based on ticks, by definition, DateTime has no
         # offset
@@ -2798,9 +2802,9 @@ def simple_value_to_json_str(v):
             TICKS_PER_DAY + int(v.value.time.get_total_seconds() * 1000)
         dir, offset = v.get_zone()
         if dir > 0:
-            s = u"+"
+            s = "+"
         else:
-            s = u"-"
+            s = "-"
         return json.dumps("/Date(%i%s%04i)/" % (ticks, s, offset))
     else:
         raise ValueError("SimpleValue: %s" % repr(v))
@@ -2882,7 +2886,7 @@ class EntityCollection(edm.EntityCollection):
             sys_query_options = {}
             if self.filter is not None:
                 sys_query_options[
-                    SystemQueryOption.filter] = unicode(self.filter)
+                    SystemQueryOption.filter] = to_text(self.filter)
             if self.expand is not None:
                 sys_query_options[
                     SystemQueryOption.expand] = format_expand(self.expand)
@@ -2893,7 +2897,7 @@ class EntityCollection(edm.EntityCollection):
                 sys_query_options[
                     SystemQueryOption.orderby] = \
                         CommonExpression.orderby_to_str(self.orderby)
-            sys_query_options[SystemQueryOption.skiptoken] = unicode(token)
+            sys_query_options[SystemQueryOption.skiptoken] = to_text(token)
             return uri.URI.from_octets(
                 str(base_url) +
                 "?" +
@@ -3087,10 +3091,9 @@ class NavigationCollection(EntityCollection, edm.NavigationCollection):
 
         We override the location based on the source entity set + the
         fromKey."""
-        return uri.URI.from_octets(string.join([
+        return uri.URI.from_octets(''.join([
             str(self.from_entity.get_location()),
-            '/',
-            uri.escape_data(self.name)], ''))
+            '/', uri.escape_data(self.name)]))
 
     def get_title(self):
         return self.name
@@ -3250,7 +3253,7 @@ class Property(ODataElement):
                     edm.SimpleType.to_str(
                         value.type_code))
             if value:
-                ODataElement.set_value(self, unicode(value))
+                ODataElement.set_value(self, to_text(value))
             else:
                 self.set_attribute((ODATA_METADATA_NAMESPACE, 'null'), "true")
         elif isinstance(value, edm.Complex):
@@ -3625,7 +3628,7 @@ class Entry(atom.Entry):
                     for child in target_element.get_children():
                         if is_text(child):
                             data.append(child)
-                    v.set_from_literal(string.join(data, ''))
+                    v.set_from_literal(''.join(data))
                     selected.add(k)
             else:
                 # and watch out for unselected properties
@@ -3764,22 +3767,22 @@ class Entry(atom.Entry):
                         break
                 if isinstance(target_element, atom.Date) and v:
                     if isinstance(v, edm.DateTimeOffsetValue):
-                        target_element.set_value(unicode(v))
+                        target_element.set_value(to_text(v))
                     elif isinstance(v, edm.DateTimeValue):
                         # assume UTC
                         dt_offset = v.value.with_zone(zdirection=0)
-                        target_element.set_value(unicode(dt_offset))
+                        target_element.set_value(to_text(dt_offset))
                     elif isinstance(v, edm.StringValue):
                         try:
                             dt_offset = iso.TimePoint.from_str(v.value)
                             if dt_offset.get_zone()[0] is None:
                                 dt_offset = dt_offset.with_zone(zdirection=0)
-                            target_element.set_value(unicode(dt_offset))
+                            target_element.set_value(to_text(dt_offset))
                         except iso.DateTimeError:
                             # do nothing
                             pass
                 elif isinstance(v, edm.SimpleValue) and v:
-                    target_element.add_data(unicode(v))
+                    target_element.add_data(to_text(v))
         # now do the links
         location = str(entity.get_location())
         self.add_child(atom.AtomId).set_value(location)
@@ -3794,15 +3797,10 @@ class Entry(atom.Entry):
                 if self.etag:
                     s = "" if entity.etag_is_strong() else "W/"
                     link.set_attribute(
-                        (ODATA_METADATA_NAMESPACE,
-                         'etag'),
-                        s +
-                        grammar.quote_string(
-                            string.join(
-                                map(
-                                    ODataURI.format_literal,
-                                    self.etag),
-                                ',')))
+                        (ODATA_METADATA_NAMESPACE, 'etag'),
+                        s + grammar.quote_string(
+                            ','.join(ODataURI.format_literal(x)
+                                     for x in self.etag)))
             for nav_property, navValue in entity.navigation_items():
                 link = self.add_child(self.LinkClass)
                 link.href = location + '/' + nav_property
@@ -3916,22 +3914,22 @@ class Entry(atom.Entry):
     def set_fcvalue(self, target_element, v):
         if isinstance(target_element, atom.Date) and v:
             if isinstance(v, edm.DateTimeOffsetValue):
-                target_element.set_value(unicode(v))
+                target_element.set_value(to_text(v))
             elif isinstance(v, edm.DateTimeValue):
                 # assume UTC
                 dt_offset = v.value.with_zone(zdirection=0)
-                target_element.set_value(unicode(dt_offset))
+                target_element.set_value(to_text(dt_offset))
             elif isinstance(v, edm.StringValue):
                 try:
                     dt_offset = iso.TimePoint.from_str(v.value)
                     if dt_offset.get_zone()[0] is None:
                         dt_offset = dt_offset.with_zone(zdirection=0)
-                    target_element.set_value(unicode(dt_offset))
+                    target_element.set_value(to_text(dt_offset))
                 except iso.DateTimeError:
                     # do nothing
                     pass
         elif isinstance(v, edm.SimpleValue) and v:
-            target_element.add_data(unicode(v))
+            target_element.add_data(to_text(v))
 
 
 class URI(ODataElement):

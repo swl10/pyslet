@@ -511,7 +511,7 @@ class SQLCollectionBase(core.EntityCollection):
             while True:
                 p.parse_wsp()
                 self.skiptoken.append(
-                    p.require_production(p.uri_literal_from_str()))
+                    p.require_production(p.parse_uri_literal()))
                 p.parse_wsp()
                 if not p.parse(','):
                     if p.match_end():

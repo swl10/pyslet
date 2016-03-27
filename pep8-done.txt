@@ -30,9 +30,10 @@ pyslet/odata2/csdl.py
 unittests/test_odata2_csdl.py
 pyslet/odata2/edmx.py
 unittests/test_odata2_edmx.py
-pyslet/odata2/metadata.py
 pyslet/odata2/memds.py
 unittests/test_odata2_memds.py
+pyslet/odata2/metadata.py
+unittests/test_odata2_metadata.py
 pyslet/odata2/sqlds.py
 unittests/test_odata2_sqlds.py
 pyslet/pep8.py

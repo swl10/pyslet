@@ -26,9 +26,11 @@ from ..pep8 import (
     PEP8Compatibility)
 from ..py2 import (
     BoolMixin,
+    byte,
     byte_value,
     dict_items,
     is_text,
+    join_bytes,
     long2,
     py2,
     range3,
@@ -643,9 +645,9 @@ class Parser(xsi.BasicParser):
                 "Trailing nibble in binary literal: '%s'" % hex_str[-1])
         i = 0
         while i < len(hex_str):
-            output.append(chr(int(hex_str[i:i + 2], 16)))
+            output.append(byte(int(hex_str[i:i + 2], 16)))
             i = i + 2
-        return ''.join(output)
+        return join_bytes(output)
 
     def parse_boolean_literal(self):
         """Parses a boolean literal returning True, False or None if no boolean
@@ -1106,7 +1108,7 @@ class BinaryValue(SimpleValue):
         while True:
             b = input.read(1)
             if len(b):
-                output.write(ul("%02X") % byte_value(b))
+                output.write(ul("%02X") % byte_value(b[0]))
             else:
                 break
         return output.getvalue()

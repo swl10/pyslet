@@ -3,15 +3,15 @@
 
 import warnings
 
-import pyslet.http.grammar as grammar
-import pyslet.http.params as params
-import pyslet.rfc4287 as atom
-import pyslet.xml.namespace as xmlns
-from pyslet.pep8 import MigratedClass, old_method
+from .. import rfc4287 as atom
+from ..http import grammar
+from ..http import params
+from ..pep8 import MigratedClass, old_method
+from ..xml import namespace as xmlns
 
-import csdl as edm
-import edmx as edmx
-import core as core
+from . import csdl as edm
+from . import edmx
+from . import core
 
 
 # Legacy name for compatibilty
@@ -62,7 +62,7 @@ class FeedCustomisationMixin(MigratedClass):
                 return self.AtomPaths[path]
             else:
                 ns = self.get_attribute(core.FC_NsUri)
-                return map(lambda x: (ns, x), path.split('/'))
+                return [(ns, x) for x in path.split('/')]
         except KeyError:
             return None
 
@@ -331,7 +331,7 @@ class Document(edmx.Document):
         for f in self.root.find_children_depth_first(edm.FunctionImport):
             try:
                 if f.get_attribute(core.HttpMethod) in (
-                        u"POST", u"PUT", u"GET", u"MERGE", u"DELETE"):
+                        "POST", "PUT", "GET", "MERGE", "DELETE"):
                     continue
                 raise edm.InvalidMetadataDocument(
                     "Bad HttpMethod: %s" % f.get_attribute(core.HttpMethod))

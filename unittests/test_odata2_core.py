@@ -3,11 +3,10 @@
 
 import decimal
 import hashlib
+import io
 import logging
 import unittest
 import uuid
-
-from StringIO import StringIO
 
 import pyslet.http.params as params
 import pyslet.http.messages as messages
@@ -18,7 +17,11 @@ import pyslet.odata2.metadata as edmx
 
 from pyslet.vfs import OSFilePath as FilePath
 from pyslet.py2 import (
-    is_unicode)
+    is_unicode,
+    range3,
+    to_text,
+    u8,
+    ul)
 
 
 def suite(prefix='test'):
@@ -847,7 +850,7 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("X'DEAD'")
         self.assertTrue(
             value.type_code == edm.SimpleType.Binary, "Expected Binary")
-        self.assertTrue(value.value == '\xde\xad')
+        self.assertTrue(value.value == b'\xde\xad')
         value = self.evaluate_common("true")
         self.assertTrue(
             value.type_code == edm.SimpleType.Boolean, "Expected Booelan")
@@ -1009,14 +1012,14 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("replace('startswith','tart','cake')")
         self.assertTrue(
             value.type_code == edm.SimpleType.String, "Expected String")
-        self.assertTrue(value.value == u"scakeswith")
+        self.assertTrue(value.value == "scakeswith")
         value = self.evaluate_common("replace('startswith','t','x')")
-        self.assertTrue(value.value == u"sxarxswixh")
+        self.assertTrue(value.value == "sxarxswixh")
         # not case insensitive
         value = self.evaluate_common("replace('sTartswith','t','x')")
-        self.assertTrue(value.value == u"sTarxswixh")
+        self.assertTrue(value.value == "sTarxswixh")
         value = self.evaluate_common("replace('startswith','t','tx')")
-        self.assertTrue(value.value == u"stxartxswitxh")
+        self.assertTrue(value.value == "stxartxswitxh")
         try:
             value = self.evaluate_common("replace('3.14','1',2)")
             self.fail("integer as parameter")
@@ -1077,11 +1080,11 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("tolower('Steve')")
         self.assertTrue(
             value.type_code == edm.SimpleType.String, "Expected String")
-        self.assertTrue(value.value == u"steve")
-        value = self.evaluate_common(u"tolower('CAF\xc9')")
-        self.assertTrue(value.value == u'caf\xe9')
-        value = self.evaluate_common(u"tolower('caf\xe9')")
-        self.assertTrue(value.value == u'caf\xe9')
+        self.assertTrue(value.value == "steve")
+        value = self.evaluate_common(ul("tolower('CAF\xc9')"))
+        self.assertTrue(value.value == ul('caf\xe9'))
+        value = self.evaluate_common(ul("tolower('caf\xe9')"))
+        self.assertTrue(value.value == ul('caf\xe9'))
         try:
             value = self.evaluate_common("tolower(3.14F)")
             self.fail("floating lower")
@@ -1109,11 +1112,11 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("toupper('Steve')")
         self.assertTrue(
             value.type_code == edm.SimpleType.String, "Expected String")
-        self.assertTrue(value.value == u"STEVE")
-        value = self.evaluate_common(u"toupper('CAF\xc9')")
-        self.assertTrue(value.value == u'CAF\xc9')
-        value = self.evaluate_common(u"toupper('caf\xe9')")
-        self.assertTrue(value.value == u'CAF\xc9')
+        self.assertTrue(value.value == ul("STEVE"))
+        value = self.evaluate_common(ul("toupper('CAF\xc9')"))
+        self.assertTrue(value.value == ul('CAF\xc9'))
+        value = self.evaluate_common(ul("toupper('caf\xe9')"))
+        self.assertTrue(value.value == ul('CAF\xc9'))
         try:
             value = self.evaluate_common("toupper(3.14F)")
             self.fail("floating upper")
@@ -1142,9 +1145,9 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("trim('  Steve\t\n\r \r\n')")
         self.assertTrue(
             value.type_code == edm.SimpleType.String, "Expected String")
-        self.assertTrue(value.value == u"Steve")
-        value = self.evaluate_common(u"trim(' C  a  f \xe9 ')")
-        self.assertTrue(value.value == u'C  a  f \xe9')
+        self.assertTrue(value.value == ul("Steve"))
+        value = self.evaluate_common(ul("trim(' C  a  f \xe9 ')"))
+        self.assertTrue(value.value == ul('C  a  f \xe9'))
         try:
             value = self.evaluate_common("trim(3.14F)")
             self.fail("floating trim")
@@ -1179,9 +1182,9 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("substring('startswith',1,4)")
         self.assertTrue(
             value.type_code == edm.SimpleType.String, "Expected String")
-        self.assertTrue(value.value == u"tart")
+        self.assertTrue(value.value == "tart")
         value = self.evaluate_common("substring('startswith',1)")
-        self.assertTrue(value.value == u"tartswith")
+        self.assertTrue(value.value == "tartswith")
         try:
             value = self.evaluate_common("substring('startswith',1.0D,4)")
             self.fail("double as parameter")
@@ -1250,9 +1253,9 @@ class CommonExpressionTests(unittest.TestCase):
         value = self.evaluate_common("concat('starts','with')")
         self.assertTrue(
             value.type_code == edm.SimpleType.String, "Expected String")
-        self.assertTrue(value.value == u"startswith")
+        self.assertTrue(value.value == "startswith")
         value = self.evaluate_common("concat('3.1',concat('4','159'))")
-        self.assertTrue(value.value == u"3.14159")
+        self.assertTrue(value.value == "3.14159")
         try:
             value = self.evaluate_common("concat('3.14',1)")
             self.fail("integer as parameter")
@@ -1286,9 +1289,9 @@ class CommonExpressionTests(unittest.TestCase):
         self.assertTrue(
             value.type_code == edm.SimpleType.Int32, "Expected Int32")
         self.assertTrue(value.value == 5)
-        value = self.evaluate_common(u"length('CAF\xc9')")
+        value = self.evaluate_common(ul("length('CAF\xc9')"))
         self.assertTrue(value.value == 4)
-        value = self.evaluate_common(u"length('')")
+        value = self.evaluate_common(ul("length('')"))
         self.assertTrue(value.value == 0)
         try:
             value = self.evaluate_common("length(3.14F)")
@@ -1415,8 +1418,8 @@ class CommonExpressionTests(unittest.TestCase):
 
     def test_string_conversion_expression(self):
         for example in [
-            u"true and false",
-            u"(((((((false) and (((false)) or true)))))))",
+            ul("true and false"),
+            ul("(((((((false) and (((false)) or true)))))))"),
             "(false and (false or true))",
             "2M add 2M",
             "2D add 2M",
@@ -1474,12 +1477,12 @@ class CommonExpressionTests(unittest.TestCase):
             "--2 mul 3 div 1 mul 2 mod 2 add 2 div 2 sub 1 eq 2 and "
                 "false or true", ]:
             e1 = odata.CommonExpression.from_str(example)
-            e2 = odata.CommonExpression.from_str(unicode(e1))
+            e2 = odata.CommonExpression.from_str(to_text(e1))
             self.assertTrue(e1.evaluate(None) == e2.evaluate(
                 None), "Mismatch evaluating: %s" % example)
-            self.assertTrue(unicode(e1) == unicode(e2),
+            self.assertTrue(to_text(e1) == to_text(e2),
                             "Unstable expression: %s, %s!=%s" %
-                            (example, unicode(e1), unicode(e2)))
+                            (example, to_text(e1), to_text(e2)))
 
 
 class ParamsExpressionTests(unittest.TestCase):
@@ -1570,13 +1573,13 @@ class ODataURITests(unittest.TestCase):
         self.assertTrue(
             ds_uri.nav_path[0][0] == 'CompoundKeys', "e set name")
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u'K1'], edm.Int32Value))
+            isinstance(ds_uri.nav_path[0][1]['K1'], edm.Int32Value))
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u'K2'], edm.StringValue))
+            isinstance(ds_uri.nav_path[0][1]['K2'], edm.StringValue))
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u'K3'], edm.DateTimeValue))
+            isinstance(ds_uri.nav_path[0][1]['K3'], edm.DateTimeValue))
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u'K4'], edm.BinaryValue))
+            isinstance(ds_uri.nav_path[0][1]['K4'], edm.BinaryValue))
         ds_uri = odata.ODataURI(
             "/CompoundKeys(K3%3Ddatetime'2013-12-25T15%3A59%3A03.142',"
             "K2%3D'00001',K1%3D1,K4%3DX'DEADBEEF')")
@@ -1660,61 +1663,61 @@ class ODataURITests(unittest.TestCase):
         self.assertTrue(
             ds_uri.query_options == ["space='%20'"],
             'query options')
-        self.assertTrue(ds_uri.nav_path == [(u'Products', {})],
+        self.assertTrue(ds_uri.nav_path == [('Products', {})],
                         "e set: Products, found %s" % repr(ds_uri.nav_path))
         ds_uri = odata.ODataURI('Products()/$count', '/x.svc')
         self.assertTrue(
             ds_uri.resource_path == '/Products()/$count', "resource path")
         self.assertTrue(ds_uri.sys_query_options == {}, 'sys_query_options')
         self.assertTrue(ds_uri.query_options == [], 'query options')
-        self.assertTrue(ds_uri.nav_path == [(u'Products', {})],
+        self.assertTrue(ds_uri.nav_path == [('Products', {})],
                         "path: %s" % repr(ds_uri.nav_path))
         self.assertTrue(
             ds_uri.path_option == odata.PathOption.count, "$count recognised")
         ds_uri = odata.ODataURI('Products(1)/$value', '/x.svc')
         self.assertTrue(len(ds_uri.nav_path) == 1)
-        self.assertTrue(ds_uri.nav_path[0][0] == u'Products')
+        self.assertTrue(ds_uri.nav_path[0][0] == 'Products')
         self.assertTrue(len(ds_uri.nav_path[0][1]))
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u''], edm.Int32Value),
+            isinstance(ds_uri.nav_path[0][1][''], edm.Int32Value),
             "Key value type")
-        self.assertTrue(ds_uri.nav_path[0][1][u''].value == 1, "Key value")
-        # [(u'Products',{'':1})]
+        self.assertTrue(ds_uri.nav_path[0][1][''].value == 1, "Key value")
+        # [('Products',{'':1})]
         self.assertTrue(
             ds_uri.path_option == odata.PathOption.value, "$value recognised")
         ds_uri = odata.ODataURI('Products(x=1,y=2)', '/x.svc')
         self.assertTrue(len(ds_uri.nav_path) == 1)
-        self.assertTrue(ds_uri.nav_path[0][0] == u'Products')
+        self.assertTrue(ds_uri.nav_path[0][0] == 'Products')
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u'x'], edm.Int32Value),
+            isinstance(ds_uri.nav_path[0][1]['x'], edm.Int32Value),
             "Key value type")
-        self.assertTrue(ds_uri.nav_path[0][1][u'x'].value == 1, "x Key value")
+        self.assertTrue(ds_uri.nav_path[0][1]['x'].value == 1, "x Key value")
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u'y'], edm.Int32Value),
+            isinstance(ds_uri.nav_path[0][1]['y'], edm.Int32Value),
             "Key value type")
-        self.assertTrue(ds_uri.nav_path[0][1][u'y'].value == 2, "y Key value")
-        # [(u'Products',{u'x':1,u'y':2})]
+        self.assertTrue(ds_uri.nav_path[0][1]['y'].value == 2, "y Key value")
+        # [('Products',{'x':1,'y':2})]
         ds_uri = odata.ODataURI("/service.svc/Customers('ALF%2FKI')/Orders",
                                 '/service.svc')
         self.assertTrue(len(ds_uri.nav_path) == 2)
-        self.assertTrue(ds_uri.nav_path[0][0] == u'Customers')
+        self.assertTrue(ds_uri.nav_path[0][0] == 'Customers')
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u''], edm.StringValue),
+            isinstance(ds_uri.nav_path[0][1][''], edm.StringValue),
             "Key value type")
-        self.assertTrue(ds_uri.nav_path[0][1][u''].value == 'ALF/KI',
+        self.assertTrue(ds_uri.nav_path[0][1][''].value == 'ALF/KI',
                         "String Key value")
-        self.assertTrue(ds_uri.nav_path[1][0] == u'Orders')
+        self.assertTrue(ds_uri.nav_path[1][0] == 'Orders')
         ds_uri = odata.ODataURI(
             "/service.svc/Customers(%27ALF%2FKI%27)/Orders",
             '/service.svc')
         self.assertTrue(len(ds_uri.nav_path) == 2)
-        self.assertTrue(ds_uri.nav_path[0][0] == u'Customers')
+        self.assertTrue(ds_uri.nav_path[0][0] == 'Customers')
         self.assertTrue(
-            isinstance(ds_uri.nav_path[0][1][u''], edm.StringValue),
+            isinstance(ds_uri.nav_path[0][1][''], edm.StringValue),
             "Key value type")
-        self.assertTrue(ds_uri.nav_path[0][1][u''].value == 'ALF/KI',
+        self.assertTrue(ds_uri.nav_path[0][1][''].value == 'ALF/KI',
                         "String Key value")
-        self.assertTrue(ds_uri.nav_path[1][0] == u'Orders')
+        self.assertTrue(ds_uri.nav_path[1][0] == 'Orders')
 
     def test_expand(self):
         """Redundant expandClause rules on the same data service URI can
@@ -1852,11 +1855,11 @@ class ODataURITests(unittest.TestCase):
             "Orders?$orderby=OrderDate%20desc&$skiptoken=AEF134ad", '/x.svc')
         skiptoken = ds_uri.sys_query_options[odata.SystemQueryOption.skiptoken]
         self.assertTrue(is_unicode(skiptoken), "skiptoken type")
-        self.assertTrue(skiptoken == u"AEF134ad", "skiptoken opqque string")
+        self.assertTrue(skiptoken == "AEF134ad", "skiptoken opqque string")
         ds_uri = odata.ODataURI(
             "Customers('ALFKI')/Orders?$skiptoken=0%2010", '/x.svc')
         skiptoken = ds_uri.sys_query_options[odata.SystemQueryOption.skiptoken]
-        self.assertTrue(skiptoken == u"0 10", "skiptoken 010")
+        self.assertTrue(skiptoken == "0 10", "skiptoken 010")
 
     def test_inlinecount(self):
         """inlinecountQueryOp = "$inlinecount=" ("allpages" / "none") """
@@ -2026,13 +2029,13 @@ class DataServiceRegressionTests(unittest.TestCase):
             e['ByteValue'].set_from_value(3)
             # <Property Name="UnicodeString" Type="Edm.String"
             # Unicode="true" FixedLength="false" MaxLength="10"/>
-            e['UnicodeString'].set_from_value(u"Caf\xe9")
+            e['UnicodeString'].set_from_value(ul("Caf\xe9"))
             # <Property Name="ASCIIString" Type="Edm.String"
             # Unicode="false" FixedLength="false" MaxLength="10"/>
-            e['ASCIIString'].set_from_value(u"Cafe")
+            e['ASCIIString'].set_from_value(ul("Cafe"))
             # <Property Name="FixedString" Type="Edm.String"
             # FixedLength="true" MaxLength="5"/>
-            e['FixedString'].set_from_value(u"ALFKI")
+            e['FixedString'].set_from_value(ul("ALFKI"))
             # CREATE
             coll.insert_entity(e)
             self.assertTrue(e.exists is True)
@@ -2099,13 +2102,13 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(
                 got_e['ByteValue'].value == 3, "ByteValue on read")
             self.assertTrue(
-                got_e['UnicodeString'].value == u"Caf\xe9",
+                got_e['UnicodeString'].value == ul("Caf\xe9"),
                 "UnicodeString on read")
             self.assertTrue(
-                got_e['ASCIIString'].value == u"Cafe",
+                got_e['ASCIIString'].value == "Cafe",
                 "ASCIIString on read")
             self.assertTrue(
-                got_e['FixedString'].value == u"ALFKI",
+                got_e['FixedString'].value == "ALFKI",
                 "FixedString on read")
             # UPDATE
             got_e['BinaryFixed'].set_from_value(
@@ -2128,10 +2131,11 @@ class DataServiceRegressionTests(unittest.TestCase):
             got_e['Int16Value'].set_from_value(-101)
             got_e['Int64Value'].set_from_value(-101)
             got_e['ByteValue'].set_from_value(255)
-            got_e['UnicodeString'].set_from_value(u"I\u2764Unicode")
-            got_e['ASCIIString'].set_from_value(u"Bistro")
+            got_e['UnicodeString'].set_from_value(u8(b'I\xe2\x9d\xa4Unicode'))
+            got_e['ASCIIString'].set_from_value("Bistro")
             got_e['FixedString'].set_from_value(
-                u"\u2780\u2781\u2782\u2783\u2784")
+                u8(b'\xe2\x9e\x80\xe2\x9e\x81\xe2\x9e\x82\xe2\x9e\x83'
+                   b'\xe2\x9e\x84'))
             coll.update_entity(got_e)
             check_e = coll[1]
             self.assertTrue(check_e['BinaryFixed'].value ==
@@ -2188,12 +2192,13 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(
                 check_e['ByteValue'].value == 255, "ByteValue on read")
             self.assertTrue(
-                check_e['UnicodeString'].value == u"I\u2764Unicode",
+                check_e['UnicodeString'].value == u8(b'I\xe2\x9d\xa4Unicode'),
                 "UnicodeString on read")
-            self.assertTrue(check_e['ASCIIString'].value == u"Bistro",
+            self.assertTrue(check_e['ASCIIString'].value == "Bistro",
                             "ASCIIString on read")
             self.assertTrue(check_e['FixedString'].value ==
-                            u"\u2780\u2781\u2782\u2783\u2784",
+                            u8(b'\xe2\x9e\x80\xe2\x9e\x81\xe2\x9e\x82'
+                               b'\xe2\x9e\x83\xe2\x9e\x84'),
                             "FixedString on read")
             # DELETE
             del coll[1]
@@ -2397,8 +2402,8 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_paging(self):
         paging_set = self.ds['RegressionModel.RegressionContainer.PagingSet']
         with paging_set.open() as coll:
-            for i in xrange(10):
-                for j in xrange(10):
+            for i in range3(10):
+                for j in range3(10):
                     e = coll.new_entity()
                     e.set_key((i, j))
                     e['Sum'].set_from_value(i + j)
@@ -2418,7 +2423,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 result[0].key() == (0, 2), "10,2: first page repeated")
             self.assertTrue(
                 len(result) == 10, "10,2: length, first page repeated")
-            for i in xrange(8):
+            for i in range3(8):
                 result = list(coll.iterpage(set_next=True))
                 self.assertTrue(
                     result[0].key() == (1 + i, 2), "10,2: page %i" % (i + 2))
@@ -2441,7 +2446,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 # there should be a skiptoken
                 token = coll.next_skiptoken()
                 self.assertTrue(token is not None, "skip token present")
-                for i in xrange(4):
+                for i in range3(4):
                     logging.info("$skiptoken=%s", coll.next_skiptoken())
                     result = list(coll.iterpage(set_next=True))
                     self.assertTrue(len(result) == 5, "max 5: length")
@@ -2456,7 +2461,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     result[4].key() == (0, 9), "max 5: last e on page 2")
                 # now add an ordering
                 coll.set_orderby(
-                    odata.CommonExpression.orderby_from_str(u"Sum desc"))
+                    odata.CommonExpression.orderby_from_str(ul("Sum desc")))
                 # must have rest the skiptoken
                 self.assertTrue(
                     coll.next_skiptoken() is None, "No page set")
@@ -2480,7 +2485,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.assertTrue(
                     result[1].key() == (6, 9),
                     "second page with ordering (9,8)")
-                for i in xrange(18):
+                for i in range3(18):
                     logging.info("$skiptoken=%s", coll.next_skiptoken())
                     result = list(coll.iterpage(set_next=True))
                 self.assertTrue(
@@ -5277,14 +5282,14 @@ class DataServiceRegressionTests(unittest.TestCase):
         streams = self.ds[
             'RegressionModel.RegressionContainer.Streams']
         fox = 'The quick brown fox jumped over the lazy dog'
-        cafe = u'I like going to the Caf\xe9'.encode('utf-8')
+        cafe = ul('I like going to the Caf\xe9').encode('utf-8')
         with streams.open() as coll:
-            fin = StringIO(fox)
+            fin = io.BytesIO(fox)
             e1 = coll.new_stream(fin)
             # successful call results in an entity that exists
             self.assertTrue(e1.exists)
             self.assertTrue(len(coll) == 1)
-            fout = StringIO()
+            fout = io.BytesIO()
             sinfo = coll.read_stream(e1.key(), fout)
             self.assertTrue(isinstance(sinfo, odata.StreamInfo))
             self.assertTrue(fout.getvalue() == fox,
@@ -5308,7 +5313,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(sinfo.modified == t)
             self.assertTrue(sinfo.created == t)
             # we can update a stream by using an existing key
-            fin = StringIO(cafe + fox)
+            fin = io.BytesIO(cafe + fox)
             sinfo = odata.StreamInfo(type=params.PLAIN_TEXT,
                                      size=len(cafe))
             # the size prevents reading to the end of the stream
@@ -5351,14 +5356,14 @@ class DataServiceRegressionTests(unittest.TestCase):
         streams = self.ds[
             'RegressionModel.RegressionContainer.XYStreams']
         fox = 'The quick brown fox jumped over the lazy dog'
-        cafe = u'I like going to the Caf\xe9'.encode('utf-8')
+        cafe = ul('I like going to the Caf\xe9').encode('utf-8')
         with streams.open() as coll:
-            fin = StringIO(fox)
+            fin = io.BytesIO(fox)
             e1 = coll.new_stream(fin)
             # successful call results in an entity that exists
             self.assertTrue(e1.exists)
             self.assertTrue(len(coll) == 1)
-            fout = StringIO()
+            fout = io.BytesIO()
             sinfo = coll.read_stream(e1.key(), fout)
             self.assertTrue(isinstance(sinfo, odata.StreamInfo))
             self.assertTrue(fout.getvalue() == fox,
@@ -5376,7 +5381,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             # alternative read form with no stream to copy to
             sinfo = coll.read_stream(e2.key())
             # we can update a stream by using an existing key
-            fin = StringIO(cafe + fox)
+            fin = io.BytesIO(cafe + fox)
             sinfo = odata.StreamInfo(type=params.PLAIN_TEXT,
                                      size=len(cafe))
             # the size prevents reading to the end of the stream

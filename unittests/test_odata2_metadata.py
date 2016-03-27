@@ -1,14 +1,12 @@
 #! /usr/bin/env python
 
 import logging
-import unittest
 import os
+import unittest
 
-import pyslet.xml.structures as xml
-import pyslet.rfc2396 as uri
-
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.metadata as edmx
+from pyslet.odata2 import csdl as edm
+from pyslet.odata2 import metadata as edmx
+from pyslet import rfc2396 as uri
 
 
 TEST_DATA_DIR = os.path.join(
@@ -40,7 +38,7 @@ class EDMXTests(unittest.TestCase):
             doc.read()
             try:
                 doc.validate()
-            except edm.InvalidMetadataDocument, e:
+            except edm.InvalidMetadataDocument as e:
                 self.fail("%s is valid but raised "
                           "InvalidMetadataDocument: %s" % (fName, str(e)))
 
