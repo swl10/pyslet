@@ -9,9 +9,8 @@ import logging
 import sys
 
 all_tests = unittest.TestSuite()
-if py2:
-    import test_blockstore
-    all_tests.addTest(test_blockstore.suite())
+import test_blockstore
+all_tests.addTest(test_blockstore.suite())
 import test_html401
 all_tests.addTest(test_html401.suite())
 import test_http_auth
@@ -60,17 +59,15 @@ import test_odata2_csdl
 all_tests.addTest(test_odata2_csdl.suite())
 import test_odata2_edmx
 all_tests.addTest(test_odata2_edmx.suite())
-if py2:
-    import test_odata2_memds
-    all_tests.addTest(test_odata2_memds.suite())
+import test_odata2_memds
+all_tests.addTest(test_odata2_memds.suite())
 import test_odata2_metadata
 all_tests.addTest(test_odata2_metadata.suite())
 if py2:
     import test_odata2_server
     all_tests.addTest(test_odata2_server.suite())
-if py2:
-    import test_odata2_sqlds
-    all_tests.addTest(test_odata2_sqlds.suite())
+import test_odata2_sqlds
+all_tests.addTest(test_odata2_sqlds.suite())
 import test_pep8
 all_tests.addTest(test_pep8.suite())
 import test_py2

@@ -389,7 +389,7 @@ class ValueTests(unittest.TestCase):
         self.assertFalse(v)
         # check is_null
         self.assertTrue(v.is_null())
-        v.set_from_value('1234567890')
+        v.set_from_value(b'1234567890')
         # check __nonzero__
         self.assertTrue(v)
         # check is_null

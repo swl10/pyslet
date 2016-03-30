@@ -48,6 +48,19 @@ Not sure which version you are using?  Try::
 Version 0.7
 -----------
 
+Warning: for future compatibility with Python 3 you should ensure that
+you use the bytes type (and the 'b' prefix on any string constants) when
+initialising OData entity properties of type Edm.Binary.  Failure to do
+so will raise an error in Python 3.
+
+
+Build 20160330:
+
+#38 Python 3 compatibility work (ongoing)
+
+OData v2 memds/sqlds and blockstore modules: tests passing in Python 3.
+
+
 Build 20160327:
 
 #3 PEP-8 driven refactoring (ongoing)

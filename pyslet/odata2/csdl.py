@@ -34,6 +34,7 @@ from ..py2 import (
     long2,
     py2,
     range3,
+    SortableMixin,
     to_text,
     u8,
     uempty,
@@ -1125,6 +1126,10 @@ class BinaryValue(SimpleValue):
             self.value = bytes(new_value)
         elif new_value is None:
             self.value = None
+        elif isinstance(new_value, str):
+            raise ValueError(
+                "Can't set BinaryValue from character string: %s" %
+                repr(new_value))
         else:
             self.value = pickle.dumps(new_value)
 
@@ -2243,7 +2248,7 @@ class DeferredValue(MigratedClass):
         self.bindings = []
 
 
-class Entity(TypeInstance):
+class Entity(SortableMixin, TypeInstance):
 
     """Represents a single instance of an :py:class:`EntityType`.
 
@@ -2326,13 +2331,19 @@ class Entity(TypeInstance):
         for np in self.type_def.NavigationProperty:
             self.data[np.name] = DeferredValue(np.name, self)
 
-    def __cmp__(self, other):
-        if other is None:
-            return 1
+    def sortkey(self):
+        return self.key()
+
+    def otherkey(self, other):
+        # entity > None would always return True, but we really
+        # wanted to ensure that entity == None always returned False!
+        #
+        # if other is None:
+        #    return 1
         if (not isinstance(other, Entity) or
                 other.entity_set is not self.entity_set):
-            raise TypeError
-        return cmp(self.key(), other.key())
+            return NotImplemented
+        return other.key()
 
     def __iter__(self):
         """Iterates over the property names, including the navigation
@@ -4969,7 +4980,7 @@ class AssociationSet(CSDLElement):
                 raise
 
 
-class AssociationSetEnd(CSDLElement):
+class AssociationSetEnd(SortableMixin, CSDLElement):
 
     """Represents the links between two entity sets
 
@@ -5017,24 +5028,27 @@ class AssociationSetEnd(CSDLElement):
         else:
             return "." + self.name
 
+    def sortkey(self):
+        return self.get_qualified_name()
+
     def __hash__(self):
-        return hash(self.get_qualified_name())
+        return hash(self.sortkey())
 
-    def __eq__(self, other):
-        if isinstance(other, AssociationSetEnd):
-            return cmp(self.get_qualified_name(),
-                       other.get_qualified_name()) == 0
-        else:
-            return False
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __cmp__(self, other):
-        if isinstance(other, AssociationSetEnd):
-            return cmp(self.get_qualified_name(), other.get_qualified_name())
-        else:
-            raise TypeError
+#     def __eq__(self, other):
+#         if isinstance(other, AssociationSetEnd):
+#             return cmp(self.get_qualified_name(),
+#                        other.get_qualified_name()) == 0
+#         else:
+#             return False
+#
+#     def __ne__(self, other):
+#         return not self.__eq__(other)
+#
+#     def __cmp__(self, other):
+#         if isinstance(other, AssociationSetEnd):
+#             return cmp(self.get_qualified_name(), other.get_qualified_name())
+#         else:
+#             raise TypeError
 
     def get_children(self):
         if self.Documentation:

@@ -1,22 +1,18 @@
 #! /usr/bin/env python
 """A simple Entity store using a python dictionary"""
 
-import string
 import hashlib
 import threading
 import logging
-from StringIO import StringIO
 
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.core as odata
-import pyslet.http.params as params
-import pyslet.iso8601 as iso
-
-try:
-    from cStringIO import StringIO as RStringIO
-except ImportError:
-    RStringIO = StringIO
-WStringIO = RStringIO
+from . import csdl as edm
+from . import core as odata
+from .. import iso8601 as iso
+from ..py2 import (
+    dict_items,
+    dict_keys,
+    dict_values,
+    range3)
 
 
 class InMemoryEntityStore(object):
@@ -103,7 +99,7 @@ class InMemoryEntityStore(object):
         deleted during the iteration *may* not be yielded but an entity
         inserted during the iteration will never be yielded."""
         with self.container.lock:
-            keys = self.data.keys()
+            keys = dict_keys(self.data)
         for k in keys:
             e = self.read_entity(k, select)
             if e is not None:
@@ -117,8 +113,7 @@ class InMemoryEntityStore(object):
             e = Entity(self.entity_set, self)
             if select is not None:
                 e.expand(None, select)
-            kv = zip(e.data_keys(), value)
-            for pName, pValue in kv:
+            for pName, pValue in zip(e.data_keys(), value):
                 p = e[pName]
                 if (select is None or e.is_selected(pName) or
                         pName in self.entity_set.keys):
@@ -219,9 +214,9 @@ class InMemoryEntityStore(object):
 
     def delete_entity(self, key):
         with self.container.lock:
-            for aindex in self.associations.values():
+            for aindex in dict_values(self.associations):
                 aindex.delete_hook(key)
-            for aindex in self.reverseAssociations.values():
+            for aindex in dict_values(self.reverseAssociations):
                 aindex.rdelete_hook(key)
             del self.data[key]
             if key in self.streams:
@@ -348,20 +343,20 @@ class InMemoryAssociationIndex(object):
             pass
 
 
-class WEntityStream(StringIO):
-
-    def __init__(self, entity):
-        self.entity = entity
-        StringIO.__init__(self)
-
-    def close(self):
-        type, data = self.entity.get_stream_info()
-        if type is None:
-            type = params.APPLICATION_OCTETSTREAM
-        self.entity.set_stream(type, [self.getvalue()])
-        StringIO.close(self)
-
-
+# class WEntityStream(StringIO):
+#
+#     def __init__(self, entity):
+#         self.entity = entity
+#         StringIO.__init__(self)
+#
+#     def close(self):
+#         type, data = self.entity.get_stream_info()
+#         if type is None:
+#             type = params.APPLICATION_OCTETSTREAM
+#         self.entity.set_stream(type, [self.getvalue()])
+#         StringIO.close(self)
+#
+#
 class Entity(odata.Entity):
 
     """We override the CSDL's Entity class for legacy reasons"""
@@ -403,7 +398,7 @@ class EntityCollection(odata.EntityCollection):
             except KeyError:
                 # if the entity doesn't have a key, autogenerate one
                 # until we have one that is good
-                for i in xrange(100):
+                for i in range3(100):
                     entity.auto_key()
                     key = entity.key()
                     if not self.entity_store.test_key(key):
@@ -459,7 +454,7 @@ class EntityCollection(odata.EntityCollection):
             # we're already being deleted so do nothing
             return
         try:
-            for linkEnd, navName in self.entity_set.linkEnds.iteritems():
+            for linkEnd, navName in dict_items(self.entity_set.linkEnds):
                 if linkEnd.associationEnd.multiplicity != edm.Multiplicity.One:
                     continue
                 # there must be one of us, delete the other end with
@@ -525,7 +520,7 @@ class EntityCollection(odata.EntityCollection):
                 break
             else:
                 value.append(data)
-        return string.join(value, '')
+        return b''.join(value)
 
     def new_stream(self, src, sinfo=None, key=None):
         e = self.new_entity()
@@ -554,7 +549,7 @@ class EntityCollection(odata.EntityCollection):
                 e.auto_key()
             else:
                 e.set_key(key)
-            for i in xrange(1000):
+            for i in range3(1000):
                 key = e.key()
                 if not self.entity_store.test_key(key):
                     break

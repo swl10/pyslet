@@ -117,6 +117,8 @@ if py2:
     def byte_to_bstr(arg):
         return arg
 
+    buffer2 = types.BufferType
+
     long2 = long
 
     range3 = xrange
@@ -225,6 +227,8 @@ else:
 
     def byte_to_bstr(arg):
         return bytes([arg])
+
+    buffer2 = bytes
 
     long2 = int
 

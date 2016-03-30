@@ -1993,10 +1993,10 @@ class DataServiceRegressionTests(unittest.TestCase):
             e['ID'].set_from_value(1)
             # <Property Name="BinaryFixed" Type="Edm.Binary"
             # MaxLength="10" FixedLength="true"/>
-            e['BinaryFixed'].set_from_value('1234567890')
+            e['BinaryFixed'].set_from_value(b'1234567890')
             # <Property Name="BinaryVariable" Type="Edm.Binary"
             # MaxLength="10" FixedLength="false"/>
-            e['BinaryVariable'].set_from_value('1234567')
+            e['BinaryVariable'].set_from_value(b'1234567')
             # <Property Name="BooleanProperty" Type="Edm.Boolean"/>
             e['BooleanProperty'].set_from_value(True)
             # <Property Name="DateTimeProperty" Type="Edm.DateTime"
@@ -2051,9 +2051,9 @@ class DataServiceRegressionTests(unittest.TestCase):
             # READ (by key)
             got_e = coll[1]
             self.assertTrue(got_e['ID'].value == 1, "ID on read")
-            self.assertTrue(got_e['BinaryFixed'].value == '1234567890',
+            self.assertTrue(got_e['BinaryFixed'].value == b'1234567890',
                             "BinaryFixed on read")
-            self.assertTrue(got_e['BinaryVariable'].value == '1234567',
+            self.assertTrue(got_e['BinaryVariable'].value == b'1234567',
                             "BinaryVariable on read")
             self.assertTrue(got_e['BooleanProperty'].value is True,
                             "BooleanProperty on read")
@@ -2112,8 +2112,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 "FixedString on read")
             # UPDATE
             got_e['BinaryFixed'].set_from_value(
-                '\x00\x01\x02\x03\x04~\xDE\xAD\xBE\xEF')
-            got_e['BinaryVariable'].set_from_value('\x00~\xDE\xAD\xBE\xEF')
+                b'\x00\x01\x02\x03\x04~\xDE\xAD\xBE\xEF')
+            got_e['BinaryVariable'].set_from_value(b'\x00~\xDE\xAD\xBE\xEF')
             got_e['BooleanProperty'].set_from_value(False)
             got_e['DateTimeProperty'].set_from_value(
                 iso.TimePoint.from_str('2013-12-25T15:59:03.142'))
@@ -2139,10 +2139,10 @@ class DataServiceRegressionTests(unittest.TestCase):
             coll.update_entity(got_e)
             check_e = coll[1]
             self.assertTrue(check_e['BinaryFixed'].value ==
-                            '\x00\x01\x02\x03\x04~\xDE\xAD\xBE\xEF',
+                            b'\x00\x01\x02\x03\x04~\xDE\xAD\xBE\xEF',
                             "BinaryFixed on read")
             self.assertTrue(check_e['BinaryVariable'].value ==
-                            '\x00~\xDE\xAD\xBE\xEF',
+                            b'\x00~\xDE\xAD\xBE\xEF',
                             "BinaryVariable on read")
             self.assertTrue(check_e['BooleanProperty'].value is False,
                             "BooleanProperty on read")
@@ -2318,7 +2318,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             e['K2'].set_from_value('00001')
             e['K3'].set_from_value(
                 iso.TimePoint.from_str('2013-12-25T15:59:03.142'))
-            e['K4'].set_from_value('\xde\xad\xbe\xef')
+            e['K4'].set_from_value(b'\xde\xad\xbe\xef')
             e['Data'].set_from_value("Compound Key")
             # CREATE
             coll.insert_entity(e)
@@ -2330,17 +2330,17 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(got_e['K2'].value == '00001')
             self.assertTrue(got_e['K3'].value.get_calendar_string(
                 ndp=3, dp=".") == '2013-12-25T15:59:03.142')
-            self.assertTrue(got_e['K4'].value == '\xde\xad\xbe\xef')
+            self.assertTrue(got_e['K4'].value == b'\xde\xad\xbe\xef')
             self.assertTrue(got_e['Data'].value == 'Compound Key')
             # READ (by key)
             got_e = coll[(1, '00001', iso.TimePoint.from_str(
-                '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
+                '2013-12-25T15:59:03.142'), b'\xde\xad\xbe\xef')]
             self.assertTrue(got_e['Data'].value == "Compound Key")
             # UPDATE
             got_e['Data'].set_from_value("Updated Compound Key")
             coll.update_entity(got_e)
             check_e = coll[(1, '00001', iso.TimePoint.from_str(
-                '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
+                '2013-12-25T15:59:03.142'), b'\xde\xad\xbe\xef')]
             self.assertTrue(
                 check_e['Data'].value == 'Updated Compound Key')
             with compound_keyxs.open() as collx:
@@ -2358,12 +2358,12 @@ class DataServiceRegressionTests(unittest.TestCase):
                 self.assertTrue(match_e == got_e)
             # DELETE
             del coll[(1, '00001', iso.TimePoint.from_str(
-                '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
+                '2013-12-25T15:59:03.142'), b'\xde\xad\xbe\xef')]
             self.assertTrue(
                 len(coll) == 0, "CompoundKey length after DELETE")
             try:
                 got_e = coll[(1, '00001', iso.TimePoint.from_str(
-                    '2013-12-25T15:59:03.142'), '\xde\xad\xbe\xef')]
+                    '2013-12-25T15:59:03.142'), b'\xde\xad\xbe\xef')]
                 self.fail("Index into coll after CompoundKey DELETE")
             except KeyError:
                 pass
@@ -5281,7 +5281,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_mediaresource(self):
         streams = self.ds[
             'RegressionModel.RegressionContainer.Streams']
-        fox = 'The quick brown fox jumped over the lazy dog'
+        fox = b'The quick brown fox jumped over the lazy dog'
         cafe = ul('I like going to the Caf\xe9').encode('utf-8')
         with streams.open() as coll:
             fin = io.BytesIO(fox)
@@ -5293,7 +5293,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             sinfo = coll.read_stream(e1.key(), fout)
             self.assertTrue(isinstance(sinfo, odata.StreamInfo))
             self.assertTrue(fout.getvalue() == fox,
-                            "Read back: "+fout.getvalue())
+                            "Read back: "+fout.getvalue().decode('latin-1'))
             self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM)
             self.assertTrue(sinfo.size == len(fox))
             self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))
@@ -5355,7 +5355,7 @@ class DataServiceRegressionTests(unittest.TestCase):
     def runtest_composite_slug(self):
         streams = self.ds[
             'RegressionModel.RegressionContainer.XYStreams']
-        fox = 'The quick brown fox jumped over the lazy dog'
+        fox = b'The quick brown fox jumped over the lazy dog'
         cafe = ul('I like going to the Caf\xe9').encode('utf-8')
         with streams.open() as coll:
             fin = io.BytesIO(fox)
@@ -5367,7 +5367,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             sinfo = coll.read_stream(e1.key(), fout)
             self.assertTrue(isinstance(sinfo, odata.StreamInfo))
             self.assertTrue(fout.getvalue() == fox,
-                            "Read back: "+fout.getvalue())
+                            "Read back: "+fout.getvalue().decode('latin-1'))
             self.assertTrue(sinfo.type == params.APPLICATION_OCTETSTREAM)
             self.assertTrue(sinfo.size == len(fox))
             self.assertTrue(isinstance(sinfo.modified, iso.TimePoint))

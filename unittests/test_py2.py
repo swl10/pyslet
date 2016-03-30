@@ -478,6 +478,12 @@ class Python2Tests(unittest.TestCase):
         else:
             self.assertTrue(py2.long2 is int)
 
+    def test_buffer(self):
+        if sys.version_info[0] < 3:
+            self.assertTrue(py2.buffer2 is buffer)
+        else:
+            self.assertTrue(py2.buffer2 is bytes)
+
     def test_range(self):
         if sys.version_info[0] < 3:
             self.assertTrue(isinstance(py2.range3, type(xrange)))

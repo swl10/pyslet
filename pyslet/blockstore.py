@@ -1,19 +1,23 @@
 #! /usr/bin/env python
 
+import binascii
 import hashlib
+import io
+import logging
 import os
+import random
 import threading
 import time
-import random
-import logging
-import string
-import io
 
-from pyslet.vfs import OSFilePath as FilePath
-from pyslet.iso8601 import TimePoint
-import pyslet.http.params as params
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.core as core
+from .http import params
+from .iso8601 import TimePoint
+from .odata2 import core
+from .odata2 import csdl as edm
+from .py2 import (
+    byte,
+    join_bytes,
+    range3)
+from .vfs import OSFilePath as FilePath
 
 
 MAX_BLOCK_SIZE = 65536
@@ -25,13 +29,13 @@ def _magic():
     try:
         magic = os.urandom(4)
     except NotImplementedError:
-        logging.warn("weak magic: urandom not available, "
-                     "falling back to random.randint")
+        logging.warning("weak magic: urandom not available, "
+                        "falling back to random.randint")
         magic = []
-        for i in xrange(4):
-            magic.append(unichr(random.randint(0, 255)))
-        magic = string.join(magic, '')
-    return magic.encode('hex')
+        for i in range3(4):
+            magic.append(byte(random.randint(0, 255)))
+        magic = join_bytes(magic)
+    return binascii.hexlify(magic)
 
 
 class BlockSize(Exception):
@@ -76,7 +80,7 @@ class BlockStore(object):
 
     def key(self, data):
         if isinstance(data, bytearray):
-            data = str(data)
+            data = bytes(data)
         return self.hash_class(data).hexdigest().lower()
 
     def store(self, data):
@@ -325,8 +329,8 @@ class LockStore(object):
                     lock['owner'].set_from_value(owner)
                     try:
                         locks.update_entity(lock)
-                        logging.warn("LockingBlockStore removed stale lock "
-                                     "on %s", hash_key)
+                        logging.warning("LockingBlockStore removed stale lock "
+                                        "on %s", hash_key)
                         return LockStoreContext(self, hash_key)
                     except KeyError:
                         twait = 0
@@ -336,7 +340,7 @@ class LockStore(object):
                         pass
                 twait = random.randint(0, timeout // 5)
                 tnow = time.time()
-        logging.warn("LockingBlockStore: timeout locking %s", hash_key)
+        logging.warning("LockingBlockStore: timeout locking %s", hash_key)
         raise LockError
 
     def unlock(self, hash_key):
@@ -384,16 +388,16 @@ class LockStore(object):
                     del locks[hash_key]
                 else:
                     # we're not the owner
-                    logging.warn("LockingBlockStore: stale lock reused "
-                                 "on busy hash %s", hash_key)
+                    logging.warning("LockingBlockStore: stale lock reused "
+                                    "on busy hash %s", hash_key)
             except KeyError:
                 # someone deleted the lock already - timeout?
-                logging.warn("LockingBlockStore: stale lock detected "
-                             "on hash %s", hash_key)
+                logging.warning("LockingBlockStore: stale lock detected "
+                                "on hash %s", hash_key)
                 pass
             except edm.ConstraintError:
-                logging.warn("LockingBlockStore: stale lock race "
-                             "on busy hash %s", hash_key)
+                logging.warning("LockingBlockStore: stale lock race "
+                                "on busy hash %s", hash_key)
 
 
 class StreamStore(object):
@@ -691,12 +695,12 @@ class BlockStream(io.RawIOBase):
             if data:
                 block = self.blocks[self._bnum]
                 if block.exists:
-                    self.ss.update_block(block, str(data))
+                    self.ss.update_block(block, bytes(data))
                 else:
                     self.blocks[self._bnum] = self.ss.store_block(
                         self.stream, self._bnum, data)
                 if self._md5 is not None and self._bnum == self._md5num:
-                    self._md5.update(str(data))
+                    self._md5.update(bytes(data))
                     self._md5num += 1
                 else:
                     self._md5 = None

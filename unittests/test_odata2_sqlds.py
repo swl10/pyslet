@@ -3,20 +3,22 @@
 import logging
 import random
 import sqlite3
-import string
 import threading
 import uuid
 import unittest
 
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.core as core
-import pyslet.odata2.metadata as edmx
-import pyslet.http.params as params
+from pyslet.http import params
+from pyslet.odata2 import core
+from pyslet.odata2 import csdl as edm
+from pyslet.odata2 import metadata as edmx
+from pyslet.odata2 import sqlds
+from pyslet.py2 import (
+    long2,
+    range3,
+    ul)
 from pyslet.vfs import OSFilePath as FilePath
 
 from test_odata2_core import DataServiceRegressionTests
-
-import pyslet.odata2.sqlds as sqlds
 
 
 TEST_DATA_DIR = FilePath(
@@ -43,15 +45,15 @@ def load_tests(loader, tests, pattern):
 class ParamTests(unittest.TestCase):
 
     def setUp(self):        # noqa
-        self.testparams = [uuid.UUID(int=0), 1, 2L, 3.141, '4', u"five", True,
-                           False, None]
+        self.testparams = [uuid.UUID(int=0), 1, long2(2), 3.141, '4',
+                           ul("five"), True, False, None]
 
     def test_qmark(self):
         params = sqlds.QMarkParams()
         query = []
         for p in self.testparams:
             query.append(params.add_param(p))
-        query = string.join(query, ' ')
+        query = ' '.join(query)
         self.assertTrue(query == '? ? ? ? ? ? ? ? ?')
         self.assertTrue(params.params == self.testparams)
 
@@ -60,7 +62,7 @@ class ParamTests(unittest.TestCase):
         query = []
         for p in self.testparams:
             query.append(params.add_param(p))
-        query = string.join(query, ' ')
+        query = ' '.join(query)
         self.assertTrue(query == ':1 :2 :3 :4 :5 :6 :7 :8 :9')
         self.assertTrue(params.params == self.testparams)
 
@@ -69,7 +71,7 @@ class ParamTests(unittest.TestCase):
         query = []
         for p in self.testparams:
             query.append(params.add_param(p))
-        query = string.join(query, ' ')
+        query = ' '.join(query)
         self.assertTrue(query == ':p0 :p1 :p2 :p3 :p4 :p5 :p6 :p7 :p8', query)
         self.assertTrue(
             params.params == dict(zip(['p0', 'p1', 'p2', 'p3', 'p4', 'p5',
@@ -166,9 +168,9 @@ def deep_runner(container):
     depth = random.randint(1, 10)
     i = 0
     connections = [None] * depth
-    for i in xrange(depth):
+    for i in range3(depth):
         connections[i] = container.acquire_connection()
-    for i in xrange(depth - 1, -1, -1):
+    for i in range3(depth - 1, -1, -1):
         container.release_connection(connections[i])
 
 
@@ -349,7 +351,7 @@ class ThreadTests(unittest.TestCase):
                                   max_connections=5)
         self.assertTrue(container.cpool_max == 5, "Expected 5 connections")
         threads = []
-        for i in xrange(100):
+        for i in range3(100):
             threads.append(
                 threading.Thread(
                     target=deep_runner,
@@ -366,7 +368,7 @@ class ThreadTests(unittest.TestCase):
 
     def test_retry(self):
         dbapi = MockAPI(1)
-        for i in xrange(5):
+        for i in range3(5):
             container = MockContainer(container=self.container, dbapi=dbapi,
                                       max_connections=5)
             container.bad_count = i
@@ -528,7 +530,7 @@ class SQLDSTests(unittest.TestCase):
         es = self.schema['SampleEntities.Employees']
         with es.open() as collection:
             collection.create_table()
-            for i in xrange(10):
+            for i in range3(10):
                 new_hire = collection.new_entity()
                 new_hire.set_key('%05X' % i)
                 new_hire["EmployeeName"].set_from_value('Talent #%i' % i)
@@ -549,7 +551,7 @@ class SQLDSTests(unittest.TestCase):
         es = self.schema['SampleEntities.Employees']
         with es.open() as collection:
             collection.create_table()
-            for i in xrange(20):
+            for i in range3(20):
                 new_hire = collection.new_entity()
                 new_hire.set_key('%05X' % i)
                 new_hire["EmployeeName"].set_from_value('Talent #%i' % i)
@@ -590,7 +592,7 @@ class SQLDSTests(unittest.TestCase):
         es = self.schema['SampleEntities.Employees']
         with es.open() as collection:
             collection.create_table()
-            for i in xrange(20):
+            for i in range3(20):
                 new_hire = collection.new_entity()
                 new_hire.set_key('%05X' % i)
                 new_hire["EmployeeName"].set_from_value(
@@ -621,7 +623,7 @@ class SQLDSTests(unittest.TestCase):
             last_talent = None
             for talent in collection.values():
                 self.assertTrue(
-                    talent["Address"]["Street"].value == u'Privet Drive')
+                    talent["Address"]["Street"].value == 'Privet Drive')
                 if last_talent is not None:
                     self.assertTrue(
                         talent['EmployeeName'].value >=
@@ -740,7 +742,7 @@ class SQLDSTests(unittest.TestCase):
 class CustomisedContainer(sqlds.SQLiteEntityContainer):
 
     def mangle_name(self, source_path):
-        if source_path == (u'Files', ):
+        if source_path == ('Files', ):
             return self.quote_identifier("prefix_Files")
         elif source_path == ('Blobs', ):
             return self.quote_identifier("prefix_Blobs")
@@ -895,5 +897,5 @@ class RegressionTests(DataServiceRegressionTests):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     unittest.main()
