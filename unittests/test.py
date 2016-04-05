@@ -52,9 +52,8 @@ import test_iso8601
 all_tests.addTest(test_iso8601.suite())
 import test_odata2_core
 all_tests.addTest(test_odata2_core.suite())
-if py2:
-    import test_odata2_client
-    all_tests.addTest(test_odata2_client.suite())
+import test_odata2_client
+all_tests.addTest(test_odata2_client.suite())
 import test_odata2_csdl
 all_tests.addTest(test_odata2_csdl.suite())
 import test_odata2_edmx
@@ -63,9 +62,8 @@ import test_odata2_memds
 all_tests.addTest(test_odata2_memds.suite())
 import test_odata2_metadata
 all_tests.addTest(test_odata2_metadata.suite())
-if py2:
-    import test_odata2_server
-    all_tests.addTest(test_odata2_server.suite())
+import test_odata2_server
+all_tests.addTest(test_odata2_server.suite())
 import test_odata2_sqlds
 all_tests.addTest(test_odata2_sqlds.suite())
 import test_pep8

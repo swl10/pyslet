@@ -29,7 +29,7 @@ def fetch_url(url, username=None, password=None):
         cred.password = password
         cred.protectionSpace = url.get_canonical_root()
         mgr.add_credentials(cred)
-    doc = edmx.Document(baseURI=url, reqManager=mgr)
+    doc = edmx.Document(base_uri=url, reqManager=mgr)
     doc.read()
     mgr.close()
     if not doc.root.get_base():

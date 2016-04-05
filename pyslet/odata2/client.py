@@ -1,26 +1,26 @@
 #! /usr/bin/env python
-"""This module implements the Open Data Protocol specification defined by Microsoft."""
+"""This module implements the Open Data Protocol specification defined
+by Microsoft."""
 
-import sys
-import urllib
-import logging
 import io
-from StringIO import StringIO
+import logging
 
-import pyslet.info as info
-import pyslet.rfc2396 as uri
-import pyslet.http.client as http
-import pyslet.http.params as params
-import pyslet.http.messages as messages
-import pyslet.xml.structures as xml
-import pyslet.rfc4287 as atom
-import pyslet.rfc5023 as app
-
-from pyslet.py2 import is_text
-
-import core
-import csdl as edm
-import metadata as edmx
+from . import core
+from . import csdl as edm
+from . import metadata as edmx
+from .. import info
+from .. import rfc2396 as uri
+from .. import rfc4287 as atom
+from .. import rfc5023 as app
+from ..http import client as http
+from ..http import params
+from ..http import messages
+from ..pep8 import old_method
+from ..py2 import (
+    dict_items,
+    dict_keys,
+    to_text)
+from ..xml import structures as xml
 
 
 class ClientException(Exception):
@@ -49,82 +49,29 @@ class DataFormatError(ClientException):
     pass
 
 
-# class MediaLinkEntry(core.Entity):
-#
-#     def __init__(self, entity_set, client):
-#         core.Entity.__init__(self, entity_set)
-#         self.client = client
-#
-#     def GetStreamType(self):
-#         """Returns the content type of the entity's media stream by issuing a HEAD request."""
-#         streamURL = str(self.get_location()) + "/$value"
-#         request = http.ClientRequest(str(streamURL), 'HEAD')
-#         request.set_header('Accept', '*/*')
-#         self.client.process_request(request)
-#         if request.status == 404:
-#             return None
-#         elif request.status != 200:
-#             raise UnexpectedHTTPResponse(
-#                 "%i %s" % (request.status, request.response.reason))
-#         return request.response.get_content_type()
-#
-#     def GetStreamSize(self):
-#         """Returns the size of the entity's media stream in bytes by issuing a HEAD request."""
-#         streamURL = str(self.get_location()) + "/$value"
-#         request = http.ClientRequest(str(streamURL), 'HEAD')
-#         request.set_header('Accept', '*/*')
-#         self.client.process_request(request)
-#         if request.status == 404:
-#             return None
-#         elif request.status != 200:
-#             raise UnexpectedHTTPResponse(
-#                 "%i %s" % (request.status, request.response.reason))
-#         return request.response.get_content_length()
-#
-#     def get_stream_generator(self):
-#         """A generator function that yields blocks (strings) of data from the entity's media stream."""
-#         streamURL = str(self.get_location()) + "/$value"
-#         request = http.ClientRequest(str(streamURL), 'GET')
-#         request.set_header('Accept', '*/*')
-#         self.client.process_request(request)
-#         if request.status == 404:
-#             return
-#         elif request.status != 200:
-#             raise UnexpectedHTTPResponse(
-#                 "%i %s" % (request.status, request.response.reason))
-#         yield request.res_body
-
-
 class ClientCollection(core.EntityCollection):
 
-    def __init__(self, client, baseURI=None, **kwargs):
+    def __init__(self, client, base_uri=None, **kwargs):
         super(ClientCollection, self).__init__(**kwargs)
-        if baseURI is None:
+        if base_uri is None:
             self.base_uri = self.entity_set.get_location()
         else:
-            self.base_uri = baseURI
+            self.base_uri = base_uri
         self.client = client
-
-#     def new_entity(self, autoKey=False):
-#         """Returns an OData aware instance"""
-#         if self.is_medialink_collection():
-#             return MediaLinkEntry(self.entity_set, self.client)
-#         else:
-#             return core.Entity(self.entity_set)
 
     def set_expand(self, expand, select=None):
         """Sets the expand and select query options for this collection.
 
         We override this implementation to ensure that the keys are
         always selected in each entity set."""
-        self.AddKeys(self.entity_set, expand, select)
+        self.add_keys(self.entity_set, expand, select)
         self.entity_set.entityType.validate_expansion(expand, select)
         self.expand = expand
         self.select = select
 
     @classmethod
-    def AddKeys(cls, entity_set, expand, select):
-        if select is None or u"*" in select:
+    def add_keys(cls, entity_set, expand, select):
+        if select is None or "*" in select:
             pass
         else:
             # force the keys to be in the selection
@@ -132,16 +79,17 @@ class ClientCollection(core.EntityCollection):
                 select[k] = None
         # now we look for anything that is being expanded
         if expand is not None:
-            for np, expansion in expand.iteritems():
+            for np, expansion in dict_items(expand):
                 if select and np in select:
                     # recurse
-                    cls.AddKeys(
+                    cls.add_keys(
                         entity_set.get_target(np), expansion, select[np])
                 else:
                     # not being expanded
                     pass
 
-    def RaiseError(self, request):
+    @old_method('RaiseError')
+    def raise_error(self, request):
         """Given a :py:class:`pyslet.http.messages.Message` object
         containing an unexpected status in the response, parses an error
         response and raises an error accordingly."""
@@ -159,33 +107,33 @@ class ClientCollection(core.EntityCollection):
             etype = edm.ConstraintError
         else:
             etype = UnexpectedHTTPResponse
-        debugMsg = None
+        debug_msg = None
         if request.res_body:
             doc = core.Document()
             doc.read(src=request.res_body)
             if isinstance(doc.root, core.Error):
-                errorMsg = "%s: %s" % (
+                error_msg = "%s: %s" % (
                     doc.root.Code.get_value(), doc.root.Message.get_value())
                 if doc.root.InnerError is not None:
-                    debugMsg = doc.root.InnerError.get_value()
+                    debug_msg = doc.root.InnerError.get_value()
             else:
-                errorMsg = request.response.reason
+                error_msg = request.response.reason
         else:
-            errorMsg = request.response.reason
+            error_msg = request.response.reason
         if etype == KeyError:
-            logging.info("404: %s", errorMsg)
+            logging.info("404: %s", error_msg)
         else:
-            logging.info("%i: %s", request.status, errorMsg)
-            if debugMsg:
-                logging.debug(debugMsg)
-        raise etype(errorMsg)
+            logging.info("%i: %s", request.status, error_msg)
+            if debug_msg:
+                logging.debug(debug_msg)
+        raise etype(error_msg)
 
     def insert_entity(self, entity):
         if entity.exists:
             raise edm.EntityExists(str(entity.get_location()))
         if self.is_medialink_collection():
             # insert a blank stream and then update
-            mle = self.new_stream(src=StringIO(),
+            mle = self.new_stream(src=io.BytesIO(),
                                   sinfo=core.StreamInfo(size=0))
             entity.set_key(mle.key())
             # 2-way merge
@@ -195,7 +143,7 @@ class ClientCollection(core.EntityCollection):
             self.update_entity(entity)
         else:
             doc = core.Document(root=core.Entry(None, entity))
-            data = str(doc)
+            data = str(doc).encode('utf-8')
             request = http.ClientRequest(
                 str(self.base_uri), 'POST', entity_body=data)
             request.set_content_type(
@@ -211,23 +159,23 @@ class ClientCollection(core.EntityCollection):
                 for k, dv in entity.navigation_items():
                     dv.bindings = []
             else:
-                self.RaiseError(request)
+                self.raise_error(request)
 
     def __len__(self):
         # use $count
-        feedURL = self.base_uri
+        feed_url = self.base_uri
         sys_query_options = {}
         if self.filter is not None:
             sys_query_options[
-                core.SystemQueryOption.filter] = unicode(self.filter)
+                core.SystemQueryOption.filter] = to_text(self.filter)
         if sys_query_options:
-            feedURL = uri.URI.from_octets(
-                str(feedURL) +
+            feed_url = uri.URI.from_octets(
+                str(feed_url) +
                 "/$count?" +
                 core.ODataURI.format_sys_query_options(sys_query_options))
         else:
-            feedURL = uri.URI.from_octets(str(feedURL) + "/$count")
-        request = http.ClientRequest(str(feedURL))
+            feed_url = uri.URI.from_octets(str(feed_url) + "/$count")
+        request = http.ClientRequest(str(feed_url))
         request.set_header('Accept', 'text/plain')
         self.client.process_request(request)
         if request.status == 200:
@@ -237,34 +185,33 @@ class ClientCollection(core.EntityCollection):
                 "%i %s" % (request.status, request.response.reason))
 
     def entity_generator(self):
-        feedURL = self.base_uri
+        feed_url = self.base_uri
         sys_query_options = {}
         if self.filter is not None:
             sys_query_options[
-                core.SystemQueryOption.filter] = unicode(self.filter)
+                core.SystemQueryOption.filter] = to_text(self.filter)
         if self.expand is not None:
-            sys_query_options[
-                core.SystemQueryOption.expand] = core.format_expand(self.expand)
+            sys_query_options[core.SystemQueryOption.expand] = \
+                core.format_expand(self.expand)
         if self.select is not None:
-            sys_query_options[
-                core.SystemQueryOption.select] = core.format_select(self.select)
+            sys_query_options[core.SystemQueryOption.select] = \
+                core.format_select(self.select)
         if self.orderby is not None:
             sys_query_options[
-                core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
-                self.orderby)
+                core.SystemQueryOption.orderby] = \
+                    core.CommonExpression.OrderByToString(self.orderby)
         if sys_query_options:
-            feedURL = uri.URI.from_octets(
-                str(feedURL) +
-                "?" +
+            feed_url = uri.URI.from_octets(
+                str(feed_url) + "?" +
                 core.ODataURI.format_sys_query_options(sys_query_options))
         while True:
-            request = http.ClientRequest(str(feedURL))
+            request = http.ClientRequest(str(feed_url))
             request.set_header('Accept', 'application/atom+xml')
             self.client.process_request(request)
             if request.status != 200:
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
-            doc = core.Document(baseURI=feedURL)
+            doc = core.Document(base_uri=feed_url)
             doc.read(request.res_body)
             if isinstance(doc.root, atom.Feed):
                 if len(doc.root.Entry):
@@ -276,13 +223,13 @@ class ClientCollection(core.EntityCollection):
                 else:
                     break
             else:
-                raise core.InvalidFeedDocument(str(feedURL))
-            feedURL = None
+                raise core.InvalidFeedDocument(str(feed_url))
+            feed_url = None
             for link in doc.root.Link:
                 if link.rel == "next":
-                    feedURL = link.resolve_uri(link.href)
+                    feed_url = link.resolve_uri(link.href)
                     break
-            if feedURL is None:
+            if feed_url is None:
                 break
 
     def itervalues(self):
@@ -297,39 +244,38 @@ class ClientCollection(core.EntityCollection):
         self.skiptoken = skiptoken  # opaque in the client implementation
 
     def iterpage(self, set_next=False):
-        feedURL = self.base_uri
+        feed_url = self.base_uri
         sys_query_options = {}
         if self.filter is not None:
             sys_query_options[
-                core.SystemQueryOption.filter] = unicode(self.filter)
+                core.SystemQueryOption.filter] = to_text(self.filter)
         if self.expand is not None:
-            sys_query_options[
-                core.SystemQueryOption.expand] = core.format_expand(self.expand)
+            sys_query_options[core.SystemQueryOption.expand] = \
+                core.format_expand(self.expand)
         if self.select is not None:
-            sys_query_options[
-                core.SystemQueryOption.select] = core.format_select(self.select)
+            sys_query_options[core.SystemQueryOption.select] = \
+                core.format_select(self.select)
         if self.orderby is not None:
-            sys_query_options[
-                core.SystemQueryOption.orderby] = core.CommonExpression.OrderByToString(
-                self.orderby)
+            sys_query_options[core.SystemQueryOption.orderby] = \
+                    core.CommonExpression.OrderByToString(self.orderby)
         if self.top is not None:
-            sys_query_options[core.SystemQueryOption.top] = unicode(self.top)
+            sys_query_options[core.SystemQueryOption.top] = to_text(self.top)
         if self.skip is not None:
-            sys_query_options[core.SystemQueryOption.skip] = unicode(self.skip)
+            sys_query_options[core.SystemQueryOption.skip] = to_text(self.skip)
         if self.skiptoken is not None:
-            sys_query_options[core.SystemQueryOption.skiptoken] = self.skiptoken
+            sys_query_options[core.SystemQueryOption.skiptoken] = \
+                self.skiptoken
         if sys_query_options:
-            feedURL = uri.URI.from_octets(
-                str(feedURL) +
-                "?" +
+            feed_url = uri.URI.from_octets(
+                str(feed_url) + "?" +
                 core.ODataURI.format_sys_query_options(sys_query_options))
-        request = http.ClientRequest(str(feedURL))
+        request = http.ClientRequest(str(feed_url))
         request.set_header('Accept', 'application/atom+xml')
         self.client.process_request(request)
         if request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
-        doc = core.Document(baseURI=feedURL)
+        doc = core.Document(base_uri=feed_url)
         doc.read(request.res_body)
         if isinstance(doc.root, atom.Feed):
             if len(doc.root.Entry):
@@ -338,15 +284,15 @@ class ClientCollection(core.EntityCollection):
                     entity.exists = True
                     e.get_value(entity)
                     yield entity
-            feedURL = self.nextSkiptoken = None
+            feed_url = self.nextSkiptoken = None
             for link in doc.root.Link:
                 if link.rel == "next":
-                    feedURL = link.resolve_uri(link.href)
+                    feed_url = link.resolve_uri(link.href)
                     break
-            if feedURL is not None:
+            if feed_url is not None:
                 # extract the skiptoken from this link
-                feedURL = core.ODataURI(feedURL, self.client.path_prefix)
-                self.nextSkiptoken = feedURL.sys_query_options.get(
+                feed_url = core.ODataURI(feed_url, self.client.path_prefix)
+                self.nextSkiptoken = feed_url.sys_query_options.get(
                     core.SystemQueryOption.skiptoken, None)
             if set_next:
                 if self.nextSkiptoken is not None:
@@ -357,30 +303,30 @@ class ClientCollection(core.EntityCollection):
                 else:
                     self.skip = len(doc.root.Entry)
         else:
-            raise core.InvalidFeedDocument(str(feedURL))
+            raise core.InvalidFeedDocument(str(feed_url))
 
     def __getitem__(self, key):
         sys_query_options = {}
         if self.filter is not None:
             sys_query_options[core.SystemQueryOption.filter] = "%s and %s" % (
                 core.ODataURI.key_dict_to_query(self.entity_set.key_dict(key)),
-                unicode(self.filter))
-            entityURL = str(self.base_uri)
+                to_text(self.filter))
+            entity_url = str(self.base_uri)
         else:
-            entityURL = (str(self.base_uri) +
-                         core.ODataURI.format_key_dict(self.entity_set.get_key_dict(key)))
+            entity_url = (str(self.base_uri) + core.ODataURI.format_key_dict(
+                            self.entity_set.get_key_dict(key)))
         if self.expand is not None:
-            sys_query_options[
-                core.SystemQueryOption.expand] = core.format_expand(self.expand)
+            sys_query_options[core.SystemQueryOption.expand] = \
+                core.format_expand(self.expand)
         if self.select is not None:
-            sys_query_options[
-                core.SystemQueryOption.select] = core.format_select(self.select)
+            sys_query_options[core.SystemQueryOption.select] = \
+                core.format_select(self.select)
         if sys_query_options:
-            entityURL = uri.URI.from_octets(
-                entityURL +
+            entity_url = uri.URI.from_octets(
+                entity_url +
                 "?" +
                 core.ODataURI.format_sys_query_options(sys_query_options))
-        request = http.ClientRequest(str(entityURL))
+        request = http.ClientRequest(str(entity_url))
         if self.filter:
             request.set_header('Accept', 'application/atom+xml')
         else:
@@ -391,7 +337,7 @@ class ClientCollection(core.EntityCollection):
         elif request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
-        doc = core.Document(baseURI=entityURL)
+        doc = core.Document(base_uri=entity_url)
         doc.read(request.res_body)
         if isinstance(doc.root, atom.Entry):
             entity = core.Entity(self.entity_set)
@@ -410,16 +356,16 @@ class ClientCollection(core.EntityCollection):
                 return entity
             else:
                 raise UnexpectedHTTPResponse("%i entities returned from %s" %
-                                             nresults, entityURL)
+                                             nresults, entity_url)
         elif isinstance(doc.root, core.Error):
             raise KeyError(key)
         else:
-            raise core.InvalidEntryDocument(str(entityURL))
+            raise core.InvalidEntryDocument(str(entity_url))
 
     def new_stream(self, src, sinfo=None, key=None):
         """Creates a media resource"""
         if not self.is_medialink_collection():
-            raise ExpectedMediaLinkCollection
+            raise core.ExpectedMediaLinkCollection
         if sinfo is None:
             sinfo = core.StreamInfo()
         if sinfo.size is not None and sinfo.size == 0:
@@ -438,7 +384,7 @@ class ClientCollection(core.EntityCollection):
                 core.ODataURI.format_key_dict(self.entity_set.key_dict(key)))
         else:
             # single string is sent 'as is'
-            request.set_header("Slug", str(app.Slug(unicode(key))))
+            request.set_header("Slug", str(app.Slug(to_text(key))))
         self.client.process_request(request)
         if request.status == 201:
             # success, read the entity back from the response
@@ -449,7 +395,7 @@ class ClientCollection(core.EntityCollection):
             doc.root.get_value(entity)
             return entity
         else:
-            self.RaiseError(request)
+            self.raise_error(request)
 
     def update_stream(self, src, key, sinfo=None):
         """Updates an existing media resource.
@@ -458,12 +404,12 @@ class ClientCollection(core.EntityCollection):
         the key must be present and must be an existing key in the
         collection."""
         if not self.is_medialink_collection():
-            raise ExpectedMediaLinkCollection
-        streamURL = str(self.base_uri) + core.ODataURI.format_key_dict(
+            raise core.ExpectedMediaLinkCollection
+        stream_url = str(self.base_uri) + core.ODataURI.format_key_dict(
             self.entity_set.get_key_dict(key)) + "/$value"
         if sinfo is None:
             sinfo = core.StreamInfo()
-        request = http.ClientRequest(streamURL, 'PUT', entity_body=src)
+        request = http.ClientRequest(stream_url, 'PUT', entity_body=src)
         request.set_content_type(sinfo.type)
         if sinfo.size is not None:
             request.set_content_length(sinfo.size)
@@ -474,18 +420,18 @@ class ClientCollection(core.EntityCollection):
             # success, read the entity back from the response
             return
         else:
-            self.RaiseError(request)
+            self.raise_error(request)
 
     def read_stream(self, key, out=None):
         """Reads a media resource"""
         if not self.is_medialink_collection():
-            raise ExpectedMediaLinkCollection
-        streamURL = str(self.base_uri) + core.ODataURI.format_key_dict(
+            raise core.ExpectedMediaLinkCollection
+        stream_url = str(self.base_uri) + core.ODataURI.format_key_dict(
             self.entity_set.get_key_dict(key)) + "/$value"
         if out is None:
-            request = http.ClientRequest(streamURL, 'HEAD')
+            request = http.ClientRequest(stream_url, 'HEAD')
         else:
-            request = http.ClientRequest(streamURL, 'GET', res_body=out)
+            request = http.ClientRequest(stream_url, 'GET', res_body=out)
         request.set_accept("*/*")
         self.client.process_request(request)
         if request.status == 200:
@@ -503,16 +449,16 @@ class ClientCollection(core.EntityCollection):
             sinfo.size = 0
             return sinfo
         else:
-            self.RaiseError(request)
+            self.raise_error(request)
 
     def read_stream_close(self, key):
         """Creates a generator for a media resource."""
         if not self.is_medialink_collection():
-            raise ExpectedMediaLinkCollection
-        streamURL = str(self.base_uri) + core.ODataURI.format_key_dict(
+            raise core.ExpectedMediaLinkCollection
+        stream_url = str(self.base_uri) + core.ODataURI.format_key_dict(
             self.entity_set.get_key_dict(key)) + "/$value"
         swrapper = EntityStream(self)
-        request = http.ClientRequest(streamURL, 'GET', res_body=swrapper)
+        request = http.ClientRequest(stream_url, 'GET', res_body=swrapper)
         request.set_accept("*/*")
         swrapper.start_request(request)
         return swrapper.sinfo, swrapper.data_gen()
@@ -538,7 +484,7 @@ class EntityStream(io.RawIOBase):
                 else:
                     # discard data received before the response status
                     logging.debug("EntityStream discarding data... %i",
-                                  sum(map(lambda x: len(x), self.data)))
+                                  sum(len(x) for x in self.data))
                     self.data = []
         if self.request.response.status == 200:
             self.sinfo = core.StreamInfo()
@@ -553,7 +499,7 @@ class EntityStream(io.RawIOBase):
             self.sinfo.size = 0
         else:
             # unexpected HTTP response
-            self.collection.RaiseError(self.request)
+            self.collection.raise_error(self.request)
 
     def data_gen(self):
         """Generates the data written to the stream.
@@ -583,9 +529,11 @@ class EntityStream(io.RawIOBase):
         return False
 
     def write(self, b):
+        if not isinstance(b, bytes):
+            raise TypeError("write requires bytes, not %s" % repr(type(b)))
         if b:
             logging.debug("EntityStream: reading %i bytes", len(b))
-            self.data.append(str(b))
+            self.data.append(b)
         return len(b)
 
 
@@ -599,7 +547,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
             raise edm.NonExistentEntity(str(entity.get_location()))
         doc = core.Document(root=core.Entry)
         doc.root.set_value(entity, True)
-        data = str(doc)
+        data = str(doc).encode('utf-8')
         request = http.ClientRequest(
             str(entity.get_location()), 'PUT', entity_body=data)
         request.set_content_type(
@@ -620,7 +568,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
             self.update_bindings(entity)
             return
         else:
-            self.RaiseError(request)
+            self.raise_error(request)
 
     def __delitem__(self, key):
         entity = self.new_entity()
@@ -631,7 +579,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
             # success, nothing to read back
             return
         else:
-            self.RaiseError(request)
+            self.raise_error(request)
 
 
 class NavigationCollection(ClientCollection, core.NavigationCollection):
@@ -642,16 +590,9 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 'OData Client NavigationCollection ignored baseURI argument')
         nav_path = uri.escape_data(name.encode('utf-8'))
         location = str(from_entity.get_location())
-        super(
-            NavigationCollection,
-            self).__init__(
-            from_entity=from_entity,
-            name=name,
-            baseURI=uri.URI.from_octets(
-                location +
-                "/" +
-                nav_path),
-            **kwargs)
+        super(NavigationCollection, self).__init__(
+            from_entity=from_entity, name=name,
+            base_uri=uri.URI.from_octets(location + "/" + nav_path), **kwargs)
         self.isCollection = self.from_entity[name].isCollection
         self.linksURI = uri.URI.from_octets(location + "/$links/" + nav_path)
 
@@ -671,10 +612,10 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
         if self.from_end.associationEnd.multiplicity == edm.Multiplicity.One:
             # we're in trouble, entity can't exist without linking to us
             # so we try a deep link
-            backLink = self.entity_set.linkEnds[self.from_end.otherEnd]
-            if backLink:
+            back_link = self.entity_set.linkEnds[self.from_end.otherEnd]
+            if back_link:
                 # there is a navigation property going back
-                entity[backLink].bind_entity(self.from_entity)
+                entity[back_link].bind_entity(self.from_entity)
                 with self.entity_set.open() as baseCollection:
                     baseCollection.insert_entity(entity)
                 return
@@ -694,7 +635,8 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 # weeds.  But attempting to insert Invoice without the
                 # link seems fruitless
                 raise NotImplementedError(
-                    "Can't insert an entity into a 1-(0..)1 relationship without a back-link")
+                    "Can't insert an entity into a 1-(0..)1 relationship "
+                    "without a back-link")
         else:
             with self.entity_set.open() as baseCollection:
                 baseCollection.insert_entity(entity)
@@ -708,17 +650,17 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             return super(NavigationCollection, self).__len__()
         else:
             # This is clumsy as we grab the entity itself
-            entityURL = str(self.base_uri)
+            entity_url = str(self.base_uri)
             sys_query_options = {}
             if self.filter is not None:
                 sys_query_options[
-                    core.SystemQueryOption.filter] = unicode(self.filter)
+                    core.SystemQueryOption.filter] = to_text(self.filter)
             if sys_query_options:
-                entityURL = uri.URI.from_octets(
-                    entityURL +
+                entity_url = uri.URI.from_octets(
+                    entity_url +
                     "?" +
                     core.ODataURI.format_sys_query_options(sys_query_options))
-            request = http.ClientRequest(str(entityURL))
+            request = http.ClientRequest(str(entity_url))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)
             if request.status == 404:
@@ -727,7 +669,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             elif request.status != 200:
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
-            doc = core.Document(baseURI=entityURL)
+            doc = core.Document(base_uri=entity_url)
             doc.read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
@@ -735,20 +677,20 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 doc.root.get_value(entity)
                 return 1
             else:
-                raise core.InvalidEntryDocument(str(entityURL))
+                raise core.InvalidEntryDocument(str(entity_url))
 
     def entity_generator(self):
         if self.isCollection:
             for entity in super(NavigationCollection, self).entity_generator():
                 yield entity
         else:
-            # The baseURI points to a single entity already, we must not add
+            # The base_uri points to a single entity already, we must not add
             # the key
-            entityURL = str(self.base_uri)
+            entity_url = str(self.base_uri)
             sys_query_options = {}
             if self.filter is not None:
                 sys_query_options[
-                    core.SystemQueryOption.filter] = unicode(self.filter)
+                    core.SystemQueryOption.filter] = to_text(self.filter)
             if self.expand is not None:
                 sys_query_options[
                     core.SystemQueryOption.expand] = core.format_expand(
@@ -758,11 +700,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.select] = core.format_select(
                     self.select)
             if sys_query_options:
-                entityURL = uri.URI.from_octets(
-                    entityURL +
+                entity_url = uri.URI.from_octets(
+                    entity_url +
                     "?" +
                     core.ODataURI.format_sys_query_options(sys_query_options))
-            request = http.ClientRequest(str(entityURL))
+            request = http.ClientRequest(str(entity_url))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)
             if request.status == 404:
@@ -770,7 +712,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             elif request.status != 200:
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
-            doc = core.Document(baseURI=entityURL)
+            doc = core.Document(base_uri=entity_url)
             doc.read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
@@ -778,19 +720,19 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 doc.root.get_value(entity)
                 yield entity
             else:
-                raise core.InvalidEntryDocument(str(entityURL))
+                raise core.InvalidEntryDocument(str(entity_url))
 
     def __getitem__(self, key):
         if self.isCollection:
             return super(NavigationCollection, self).__getitem__(key)
         else:
-            # The baseURI points to a single entity already, we must not add
+            # The base_uri points to a single entity already, we must not add
             # the key
-            entityURL = str(self.base_uri)
+            entity_url = str(self.base_uri)
             sys_query_options = {}
             if self.filter is not None:
                 sys_query_options[
-                    core.SystemQueryOption.filter] = unicode(self.filter)
+                    core.SystemQueryOption.filter] = to_text(self.filter)
             if self.expand is not None:
                 sys_query_options[
                     core.SystemQueryOption.expand] = core.format_expand(
@@ -800,11 +742,10 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                     core.SystemQueryOption.select] = core.format_select(
                     self.select)
             if sys_query_options:
-                entityURL = uri.URI.from_octets(
-                    entityURL +
-                    "?" +
+                entity_url = uri.URI.from_octets(
+                    entity_url + "?" +
                     core.ODataURI.format_sys_query_options(sys_query_options))
-            request = http.ClientRequest(str(entityURL))
+            request = http.ClientRequest(str(entity_url))
             request.set_header('Accept', 'application/atom+xml;type=entry')
             self.client.process_request(request)
             if request.status == 404:
@@ -812,7 +753,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             elif request.status != 200:
                 raise UnexpectedHTTPResponse(
                     "%i %s" % (request.status, request.response.reason))
-            doc = core.Document(baseURI=entityURL)
+            doc = core.Document(base_uri=entity_url)
             doc.read(request.res_body)
             if isinstance(doc.root, atom.Entry):
                 entity = core.Entity(self.entity_set)
@@ -825,10 +766,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             elif isinstance(doc.root, core.Error):
                 raise KeyError(key)
             else:
-                raise core.InvalidEntryDocument(str(entityURL))
+                raise core.InvalidEntryDocument(str(entity_url))
 
     def __setitem__(self, key, entity):
-        if not isinstance(entity, edm.Entity) or entity.entity_set is not self.entity_set:
+        if not isinstance(entity, edm.Entity) or \
+                entity.entity_set is not self.entity_set:
             raise TypeError
         if key != entity.key():
             raise ValueError
@@ -841,23 +783,23 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
                 # this collection is not empty, which will be an error
                 # unless it already contains entity, in which case it's
                 # a no-op
-                existingEntity = self.new_entity()
+                existing_entity = self.new_entity()
                 doc = core.Document()
                 doc.read(request.res_body)
-                existingEntity.exists = True
-                doc.root.get_value(existingEntity)
-                if existingEntity.key() == entity.key():
+                existing_entity.exists = True
+                doc.root.get_value(existing_entity)
+                if existing_entity.key() == entity.key():
                     return
                 else:
                     raise edm.NavigationError(
-                        "Navigation property %s already points to an entity (use replace to update it)" %
-                        self.name)
+                        "Navigation property %s already points to an entity "
+                        "(use replace to update it)" % self.name)
             elif request.status != 404:
                 # some type of error
-                self.RaiseError(request)
+                self.raise_error(request)
             doc = core.Document(root=core.URI)
             doc.root.set_value(str(entity.get_location()))
-            data = str(doc)
+            data = str(doc).encode('utf-8')
             request = http.ClientRequest(
                 str(self.linksURI), 'PUT', entity_body=data)
             request.set_content_type(
@@ -866,11 +808,11 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             if request.status == 204:
                 return
             else:
-                self.RaiseError(request)
+                self.raise_error(request)
         else:
             doc = core.Document(root=core.URI)
             doc.root.set_value(str(entity.get_location()))
-            data = str(doc)
+            data = str(doc).encode('utf-8')
             request = http.ClientRequest(
                 str(self.linksURI), 'POST', entity_body=data)
             request.set_content_type(
@@ -879,7 +821,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             if request.status == 204:
                 return
             else:
-                self.RaiseError(request)
+                self.raise_error(request)
 
     def replace(self, entity):
         if not entity.exists:
@@ -888,11 +830,12 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             # inherit the implementation
             super(NavigationCollection, self).replace(entity)
         else:
-            if not isinstance(entity, edm.Entity) or entity.entity_set is not self.entity_set:
+            if not isinstance(entity, edm.Entity) or \
+                    entity.entity_set is not self.entity_set:
                 raise TypeError
             doc = core.Document(root=core.URI)
             doc.root.set_value(str(entity.get_location()))
-            data = str(doc)
+            data = str(doc).encode('utf-8')
             request = http.ClientRequest(
                 str(self.linksURI), 'PUT', entity_body=data)
             request.set_content_type(
@@ -901,7 +844,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             if request.status == 204:
                 return
             else:
-                self.RaiseError(request)
+                self.raise_error(request)
 
     def __delitem__(self, key):
         if self.isCollection:
@@ -918,7 +861,7 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             # success, nothing to read back
             return
         else:
-            self.RaiseError(request)
+            self.raise_error(request)
 
 
 class Client(app.Client):
@@ -928,14 +871,15 @@ class Client(app.Client):
     Can be constructed with an optional URL specifying the service root of an
     OData service.  The URL is passed directly to :py:meth:`LoadService`."""
 
-    def __init__(self, serviceRoot=None, **kwargs):
+    def __init__(self, service_root=None, **kwargs):
         app.Client.__init__(self, **kwargs)
+        service_root = kwargs.get('serviceRoot', service_root)
         #: a :py:class:`pyslet.rfc5023.Service` instance describing this
         #: service
         self.service = None
         # : a :py:class:`pyslet.rfc2396.URI` instance pointing to the
         # : service root
-        self.serviceRoot = None
+        self.service_root = None
         # a path prefix string of the service root
         self.path_prefix = None
         #: a dictionary of feed titles, mapped to
@@ -944,13 +888,14 @@ class Client(app.Client):
         #: a :py:class:`metadata.Edmx` instance containing the model for
         #: the service
         self.model = None
-        if serviceRoot is not None:
-            self.LoadService(serviceRoot)
+        if service_root is not None:
+            self.LoadService(service_root)
 
-    def LoadService(self, serviceRoot, metadata=None):
-        """Configures this client to use the service at *serviceRoot*
+    @old_method('LoadService')
+    def load_service(self, service_root, metadata=None):
+        """Configures this client to use the service at *service_root*
 
-        serviceRoot
+        service_root
             A string or :py:class:`pyslet.rfc2396.URI` instance.  The
             URI may now point to a local file though this must have an
             xml:base attribute to point to the true location of the
@@ -971,16 +916,16 @@ class Client(app.Client):
             to the root element indicating the true location of the
             $metadata file as the client uses this information to match
             feeds with the metadata model."""
-        if isinstance(serviceRoot, uri.URI):
-            self.serviceRoot = serviceRoot
+        if isinstance(service_root, uri.URI):
+            self.service_root = service_root
         else:
-            self.serviceRoot = uri.URI.from_octets(serviceRoot)
-        doc = core.Document(baseURI=self.serviceRoot)
-        if isinstance(self.serviceRoot, uri.FileURL):
+            self.service_root = uri.URI.from_octets(service_root)
+        doc = core.Document(base_uri=self.service_root)
+        if isinstance(self.service_root, uri.FileURL):
             # load the service root from a file instead
             doc.read()
         else:
-            request = http.ClientRequest(str(self.serviceRoot))
+            request = http.ClientRequest(str(self.service_root))
             request.set_header('Accept', 'application/atomsvc+xml')
             self.process_request(request)
             if request.status != 200:
@@ -989,7 +934,7 @@ class Client(app.Client):
             doc.read(request.res_body)
         if isinstance(doc.root, app.Service):
             self.service = doc.root
-            self.serviceRoot = uri.URI.from_octets(doc.root.resolve_base())
+            self.service_root = uri.URI.from_octets(doc.root.resolve_base())
             self.feeds = {}
             self.model = None
             for w in self.service.Workspace:
@@ -998,15 +943,14 @@ class Client(app.Client):
                     if f.Title:
                         self.feeds[f.Title.get_value()] = url
         else:
-            raise InvalidServiceDocument(str(serviceRoot))
-        self.path_prefix = self.serviceRoot.abs_path
-        if self.path_prefix[-1] == u"/":
+            raise core.InvalidServiceDocument(str(service_root))
+        self.path_prefix = self.service_root.abs_path
+        if self.path_prefix[-1] == "/":
             self.path_prefix = self.path_prefix[:-1]
         if metadata is None:
             metadata = uri.URI.from_octets('$metadata').resolve(
-                self.serviceRoot)
-        doc = edmx.Document(baseURI=metadata, reqManager=self)
-        defaultContainer = None
+                self.service_root)
+        doc = edmx.Document(base_uri=metadata, reqManager=self)
         try:
             doc.read()
             if isinstance(doc.root, edmx.Edmx):
@@ -1015,23 +959,23 @@ class Client(app.Client):
                     for container in s.EntityContainer:
                         if container.is_default_entity_container():
                             prefix = ""
-                            defaultContainer = container
                         else:
                             prefix = container.name + "."
                         for es in container.EntitySet:
-                            fTitle = prefix + es.name
-                            if fTitle in self.feeds:
-                                if self.feeds[fTitle] == es.get_location():
-                                    self.feeds[fTitle] = es
+                            ftitle = prefix + es.name
+                            if ftitle in self.feeds:
+                                if self.feeds[ftitle] == es.get_location():
+                                    self.feeds[ftitle] = es
             else:
                 raise DataFormatError(str(metadata))
         except xml.XMLError as e:
             # Failed to read the metadata document, there may not be one of
             # course
             raise DataFormatError(str(e))
-        # Missing feeds are pruned from the list, perhaps the service advertises them
-        # but if we don't have a model of them we can't use of them
-        for f in self.feeds.keys():
+        # Missing feeds are pruned from the list, perhaps the service
+        # advertises them but if we don't have a model of them we can't
+        # use of them
+        for f in list(dict_keys(self.feeds)):
             if isinstance(self.feeds[f], uri.URI):
                 logging.info(
                     "Can't find metadata definition of feed: %s", str(

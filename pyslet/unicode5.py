@@ -45,9 +45,9 @@ MAGIC_TABLE = {
     # UCS-4, unusual octet order (3412)
     b'\xfe\xff\x00\x00': 'utf_32',
     # UTF-16, big-endian
-    b'\xfe\xff\x2a\x2a': 'utf_16_be',
+    b'\xfe\xff\x00\x2a': 'utf_16_be',
     # UTF-16, little-endian
-    b'\xff\xfe\x2a\x2a': 'utf_16_le',
+    b'\xff\xfe\x2a\x00': 'utf_16_le',
     # UCS-4 or other encoding with a big-endian 32-bit code unit
     b'\x00\x00\x00\x2a': 'utf_32_be',
     # UCS-4 or other encoding with a little-endian 32-bit code unit
@@ -78,7 +78,7 @@ def detect_encoding(magic):
     data.
 
     It returns a string suitable for passing to Python's native decode
-    method, e.g., 'utf-8'.  The default is 'utf-8', an encoding which
+    method, e.g., 'utf_8'.  The default is 'utf_8', an encoding which
     will also work if the data is plain ASCII."""
     if magic[0:3] == b'\xef\xbb\xbf':
         # catch this odd one first

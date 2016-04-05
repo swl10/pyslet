@@ -55,8 +55,16 @@ if py2:
         elif isinstance(arg, unicode):
             return arg
         else:
-            raise TypeError("Expected str: %s" % repr(arg))
+            raise TypeError("Expected str or unicode: %s" % repr(arg))
 
+    def force_ascii(arg):
+        if isinstance(arg, unicode):
+            return arg.encode('ascii')
+        elif isinstance(arg, str):
+            return arg
+        else:
+            raise TypeError("Expected str or unicode: %s" % repr(arg))
+        
     to_text = unicode
 
     def is_unicode(arg):
@@ -175,6 +183,14 @@ else:
             raise TypeError("Expected str: %s" % repr(arg))
         return arg
 
+    def force_ascii(arg):
+        if isinstance(arg, bytes):
+            return arg.decode('ascii')
+        elif isinstance(arg, str):
+            return arg
+        else:
+            raise TypeError("Expected str: %s" % repr(arg))
+        
     def to_text(arg):
         if isinstance(arg, str):
             return arg

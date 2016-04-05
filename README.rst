@@ -82,7 +82,7 @@ OData service which can be found at http://odata.pyslet.org/weather
 
 What's next?
 
-*   Python 3 support (40% complete)
+*   Python 3 support (70% complete)
 
 *   MySQL shim for the OData SQL storage model (90% complete and
     functional)

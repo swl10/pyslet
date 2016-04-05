@@ -29,6 +29,7 @@ from ..py2 import (
     byte,
     byte_value,
     dict_items,
+    dict_values,
     is_text,
     join_bytes,
     long2,
@@ -471,7 +472,7 @@ class NameTableMixin(DictionaryLike):
         keys: "My.Scope" and "My.Scope.Name"."""
         for key in self.nameTable:
             yield key
-        for value in self.nameTable.itervalues():
+        for value in dict_values(self.nameTable):
             if isinstance(value, NameTableMixin):
                 for key in value:
                     yield value.name + "." + key
@@ -480,7 +481,7 @@ class NameTableMixin(DictionaryLike):
         """Returns the number of keys in this scope including all
         compounded keys from nested scopes."""
         result = len(self.nameTable)
-        for value in self.nameTable.itervalues():
+        for value in dict_values(self.nameTable):
             if isinstance(value, NameTableMixin):
                 result = result + len(value)
         return result

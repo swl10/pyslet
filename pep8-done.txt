@@ -24,6 +24,8 @@ pyslet/iso8601.py
 unittests/test_iso8601.py
 pyslet/mysqldbds.py
 unittests/test_mysqldbds.py
+pyslet/odata2/client.py
+unittests/test_odata2_client.py
 pyslet/odata2/core.py
 unittests/test_odata2_core.py
 pyslet/odata2/csdl.py
@@ -34,6 +36,8 @@ pyslet/odata2/memds.py
 unittests/test_odata2_memds.py
 pyslet/odata2/metadata.py
 unittests/test_odata2_metadata.py
+pyslet/odata2/server.py
+unittests/test_odata2_server.py
 pyslet/odata2/sqlds.py
 unittests/test_odata2_sqlds.py
 pyslet/pep8.py

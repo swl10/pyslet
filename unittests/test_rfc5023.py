@@ -335,14 +335,14 @@ class ClientTests(unittest.TestCase):
             isinstance(client, http.Client), 'Client super')
 
     def test_app_get(self):
-        doc = app.Document(baseURI='http://localhost:%i/service' % HTTP_PORT)
+        doc = app.Document(base_uri='http://localhost:%i/service' % HTTP_PORT)
         client = app.Client()
         doc.read(reqManager=client)
         svc = doc.root
         self.assertTrue(isinstance(svc, app.Service), "GET /service")
         for ws in svc.Workspace:
             for c in ws.Collection:
-                feed_doc = app.Document(baseURI=c.get_feed_url())
+                feed_doc = app.Document(base_uri=c.get_feed_url())
                 feed_doc.read(reqManager=client)
                 feed = feed_doc.root
                 self.assertTrue(isinstance(feed, atom.Feed),
@@ -433,7 +433,7 @@ class ServerTests(unittest.TestCase):
         clen = int(request.responseHeaders['CONTENT-LENGTH'])
         cdata = request.wfile.getvalue()
         self.assertTrue(len(cdata) == clen, "Content-Length mismatch")
-        doc = app.Document(baseURI="http://localhost/service")
+        doc = app.Document(base_uri="http://localhost/service")
         doc.read(cdata)
         svc = doc.root
         self.assertTrue(isinstance(svc, app.Service), "Server: GET /service")
@@ -447,7 +447,7 @@ class ServerTests(unittest.TestCase):
         title.set_value(title_text)
         request = MockRequest('/service')
         request.send(s)
-        doc = app.Document(baseURI="http://localhost/service")
+        doc = app.Document(base_uri="http://localhost/service")
         doc.read(request.wfile.getvalue())
         svc = doc.root
         self.assertTrue(len(svc.Workspace) == 1, "Server: one workspace")
@@ -468,7 +468,7 @@ class ServerTests(unittest.TestCase):
         c2.href = "/etc/c2"
         request = MockRequest('/service')
         request.send(s)
-        doc = app.Document(baseURI="http://localhost/service")
+        doc = app.Document(base_uri="http://localhost/service")
         doc.read(request.wfile.getvalue())
         svc = doc.root
         self.assertTrue(len(svc.Workspace[0].Collection) == 2,

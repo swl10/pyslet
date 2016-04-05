@@ -1870,13 +1870,14 @@ def uri_literal_to_str(value, query=True):
 def parse_dataservice_version(src):
     """Parses DataServiceVersion from a header field value.
 
-    Returns a triple of (integer) major version, (integer) minor version and a
-    user agent string.  See section 2.2.5.3 of the specification."""
+    Returns a triple of (integer) major version, (integer) minor version
+    and a user agent string.  See section 2.2.5.3 of the
+    specification."""
     version_str = None
     ua_str = []
     p = params.ParameterParser(src)
     version_str = p.require_token("data service version")
-    v = version_str.split('.')
+    v = version_str.split(b'.')
     if len(v) == 2 and grammar.is_digits(v[0]) and grammar.is_digits(v[1]):
         major = int(v[0])
         minor = int(v[1])
@@ -1905,7 +1906,7 @@ def parse_max_dataservice_version(src):
     if len(src) > 0:
         p = params.ParameterParser(src[0])
         version_str = p.require_token("data service version")
-        v = version_str.split('.')
+        v = version_str.split(b'.')
         if len(v) == 2 and grammar.is_digits(v[0]) and grammar.is_digits(v[1]):
             major = int(v[0])
             minor = int(v[1])
@@ -2594,20 +2595,16 @@ class Entity(edm.Entity):
             self.entity_set.entityType.get_fqname())
         etag = self.etag()
         if etag:
-            s = "" if self.etag_is_strong() else "W/"
             yield ',"etag":%s' % json.dumps(
-                s + grammar.quote_string(
-                    ','.join(ODataURI.format_literal(x) for x in etag)))
+                Entity.format_etag(etag, self.etag_is_strong()))
         if media_link_resource:
             yield ',"media_src":%s' % json.dumps(location + "/$value")
             yield ',"content_type":%s' % json.dumps(
                 str(self.get_content_type()))
             yield ',"edit_media":%s' % json.dumps(location + "/$value")
             if etag:
-                s = "" if self.etag_is_strong() else "W/"
-                yield ',"media_etag":%s' % json.dumps(
-                    s + grammar.quote_string(
-                        ','.join(ODataURI.format_literal(x) for x in etag)))
+                yield ',"media_etag":%s' % \
+                    json.dumps(Entity.format_etag(etag, self.etag_is_strong()))
         yield '}'
         for k, v in self.data_items():
             # watch out for unselected properties
@@ -2695,6 +2692,13 @@ class Entity(edm.Entity):
         """Returns a JSON-serialised link to this entity"""
         return '{"uri":%s}' % json.dumps(str(self.get_location()))
 
+    @staticmethod
+    def format_etag(etag, strong):
+        s = "" if strong else "W/"
+        return s + grammar.quote_string(
+            b','.join(ODataURI.format_literal(x).encode('ascii')
+                      for x in etag)).decode('ascii')
+
 
 def complex_property_to_json_v2(complex_value):
     """Return a version 2 JSON complex entity."""
@@ -2779,7 +2783,7 @@ def simple_value_to_json_str(v):
         return 'null'
     elif isinstance(v, edm.BinaryValue):
         # unusual representation as we use base64 encoding
-        return json.dumps(base64.b64encode(v.value))
+        return json.dumps(base64.b64encode(v.value).decode('ascii'))
     elif isinstance(v, (edm.BooleanValue, edm.ByteValue, edm.Int16Value,
                         edm.Int32Value, edm.SByteValue)):
         # naked representation
@@ -3795,12 +3799,10 @@ class Entry(atom.Entry):
                 link.href = location + "/$value"
                 link.rel = "edit-media"
                 if self.etag:
-                    s = "" if entity.etag_is_strong() else "W/"
                     link.set_attribute(
                         (ODATA_METADATA_NAMESPACE, 'etag'),
-                        s + grammar.quote_string(
-                            ','.join(ODataURI.format_literal(x)
-                                     for x in self.etag)))
+                        Entity.format_etag(self.etag,
+                                           entity.etag_is_strong()))
             for nav_property, navValue in entity.navigation_items():
                 link = self.add_child(self.LinkClass)
                 link.href = location + '/' + nav_property

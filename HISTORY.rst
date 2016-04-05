@@ -54,11 +54,17 @@ initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
 
-Build 20160330:
+Build 20160405:
 
 #38 Python 3 compatibility work (ongoing)
 
-OData v2 memds/sqlds and blockstore modules: tests passing in Python 3.
+OData v2 memds/sqlds/client/server and blockstore modules: tests passing
+in Python 3.
+
+Untracked changes:
+
+Fixed a bug in the detect_encoding function in unicode5 module (most
+likely benign).
 
 
 Build 20160327:

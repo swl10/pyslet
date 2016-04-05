@@ -11,7 +11,6 @@ xml:base attribute [W3C.REC-xmlbase-20010627]
 xml:lang attribute [W3C.REC-xml-20040204], Section 2.12
 """
 
-import string
 import sys
 import io
 import traceback
@@ -277,9 +276,9 @@ class Client(http.Client):
     def queue_request(self, request, timeout=60):
         # if there is no Accept header, add one
         if not request.has_header('Accept'):
-            request.set_header('Accept', string.join(
-                (atom.ATOM_MIMETYPE, ATOMSVC_MIMETYPE, ATOMCAT_MIMETYPE),
-                ','), True)
+            request.set_header('Accept', ','.join(
+                (atom.ATOM_MIMETYPE, ATOMSVC_MIMETYPE, ATOMCAT_MIMETYPE)),
+                True)
         super(Client, self).queue_request(request, timeout)
 
 
@@ -290,14 +289,15 @@ class Server(pep8.PEP8Compatibility):
         service_root = kwargs.get('serviceRoot', service_root)
         if not isinstance(service_root, uri.URI):
             #: the canonical URL of the service root
-            self.serviceRoot = uri.URI.from_octets(service_root).canonicalize()
+            self.service_root = \
+                uri.URI.from_octets(service_root).canonicalize()
         else:
-            self.serviceRoot = service_root.canonicalize()
+            self.service_root = service_root.canonicalize()
         #: the :py:class:`Service` instance that describes this service.
-        self.serviceDoc = Document(root=Service, baseURI=self.serviceRoot)
+        self.serviceDoc = Document(root=Service, base_uri=self.service_root)
         self.service = self.serviceDoc.root
         # make the base explicit in the document
-        self.service.set_base(str(self.serviceRoot))
+        self.service.set_base(str(self.service_root))
         #: set this to True to expose python tracebacks in 500
         #: responses, defaults to False
         self.debugMode = False
@@ -308,7 +308,7 @@ class Server(pep8.PEP8Compatibility):
         We add an additional optional parameter *response_headers*"""
         response_headers = []
         if environ['SCRIPT_NAME'] + environ['PATH_INFO'] == \
-                self.serviceRoot.abs_path:
+                self.service_root.abs_path:
             data = to_text(self.serviceDoc).encode('utf-8')
             response_headers.append(("Content-Type", ATOMSVC_MIMETYPE))
             response_headers.append(("Content-Length", str(len(data))))
@@ -320,7 +320,7 @@ class Server(pep8.PEP8Compatibility):
     def handle_missing(self, environ, start_response):
         response_headers = []
         data = "This server supports the Atom Publishing Protocol\r\n"\
-            "For service information see: %s" % str(self.serviceRoot)
+            "For service information see: %s" % str(self.service_root)
         response_headers.append(("Content-Length", str(len(data))))
         response_headers.append(("Content-Type", 'text/plain'))
         start_response("404 Not found", response_headers)

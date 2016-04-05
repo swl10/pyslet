@@ -60,7 +60,7 @@ class EDMXTests(unittest.TestCase):
                 continue
             logging.debug("testing valid Edmx file %s", fName)
             f = uri.URI.from_path(os.path.join(dpath, fName))
-            doc = edmx.Document(baseURI=f)
+            doc = edmx.Document(base_uri=f)
             try:
                 doc.read()
                 doc.validate()
@@ -75,7 +75,7 @@ class EDMXTests(unittest.TestCase):
                 continue
             logging.debug("testing invalid Edmx file %s", fName)
             f = uri.URI.from_path(os.path.join(dpath, fName))
-            doc = edmx.Document(baseURI=f)
+            doc = edmx.Document(base_uri=f)
             try:
                 doc.read()
                 doc.validate()

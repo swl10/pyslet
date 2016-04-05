@@ -3421,12 +3421,13 @@ class XMLEntity(MigratedClass):
                 else:
                     self.mimetype = mtype.type.lower() + '/' + \
                         mtype.subtype.lower()
-                    resp_encoding = mtype.parameters.get('charset', None)
-                    if resp_encoding is None and mtype.type.lower() == 'text':
-                        # Text types default to iso-8859-1
-                        resp_encoding = ('text-default', "iso-8859-1")
-                    if resp_encoding is not None:
-                        self.encoding = resp_encoding[1].lower()
+                    try:
+                        self.encoding = \
+                            mtype['charset'].decode('latin-1').lower()
+                    except KeyError:
+                        if mtype.type.lower() == 'text':
+                            # Text types default to iso-8859-1
+                            self.encoding = "iso-8859-1"
                 # print "...reading %s stream with
                 # charset=%s"%(self.mimetype,self.encoding)
                 self.data_source = io.BytesIO(req.res_body)
@@ -3463,12 +3464,12 @@ class XMLEntity(MigratedClass):
             raise NotImplementedError
         else:
             self.mimetype = mtype.type.lower() + '/' + mtype.subtype.lower()
-            resp_encoding = mtype.parameters.get('charset', None)
-            if resp_encoding is None and mtype.type.lower() == 'text':
-                # Text types default to iso-8859-1
-                resp_encoding = ('text-default', "iso-8859-1")
-            if resp_encoding is not None:
-                self.encoding = resp_encoding[1].lower()
+            try:
+                self.encoding = mtype['charset'].decode('latin-1').lower()
+            except KeyError:
+                if mtype.type.lower() == 'text':
+                    # Text types default to iso-8859-1
+                    self.encoding = "iso-8859-1"
         # print "...reading %s stream with
         # charset=%s"%(self.mimetype,self.encoding)
         self.data_source = io.BytesIO(src.request.res_body)

@@ -61,25 +61,27 @@ pip or setup.py (yet), if you use the source distribution you can
 successfully import the following modules in Python 3 (in addition to
 the compatibility modules described elsewhere on this page)::
 
-    pyslet.http.grammar
-    pyslet.http.params
+    pyslet.blockstore
+    pyslet.html401
+    pyslet.http.*
     pyslet.info
     pyslet.iso8601
+    pyslet.odata2.*
     pyslet.rfc2396
+    pyslet.rfc4287
+    pyslet.rfc5023
+    pyslet.streams    
     pyslet.unicode5
     pyslet.urn
     pyslet.vfs
-    pyslet.xml.xsdatatypes
-    pyslet.xml.namespace
-    pyslet.xml.parser
-    pyslet.xml.structures
+    pyslet.xml.*
 
 The unittest script (and the tox configuration) has been modified to
 enable Python3 compatibility to be checked with::
 
     tox -e py35
     
-shoud now succeed if you have Python 3.5 and tox installed on your
+which shoud now succeed if you have Python 3.5 and tox installed on your
 system.
 
 

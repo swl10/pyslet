@@ -58,9 +58,12 @@ class Python2Tests(unittest.TestCase):
             self.assertFalse(isinstance(py2.force_text(data), type("")))
         else:
             self.assertTrue(isinstance(py2.force_text(data), type("")))
-        self.assertTrue(isinstance(py2.force_text(data), type(u"")))
         self.assertTrue(data == py2.force_text(udata))
         self.assertTrue(isinstance(py2.force_text(udata), type(u"")))
+        if sys.version_info[0] < 3:
+            self.assertFalse(isinstance(py2.force_text(udata), type("")))
+        else:
+            self.assertTrue(isinstance(py2.force_text(udata), type("")))
         if sys.version_info[0] < 3:
             # force_text will not throw an error in python 2
             pass
@@ -75,6 +78,34 @@ class Python2Tests(unittest.TestCase):
         try:
             py2.force_text(xdata)
             self.fail("force_text(object)")
+        except TypeError:
+            pass
+        # force ascii forces strings to be ascii text
+        self.assertTrue(data == py2.force_ascii(data))
+        if sys.version_info[0] < 3:
+            self.assertFalse(isinstance(py2.force_ascii(data), type(u"")))
+        else:
+            self.assertTrue(isinstance(py2.force_ascii(data), type(u"")))
+        self.assertTrue(isinstance(py2.force_ascii(data), type("")))
+        self.assertTrue(data == py2.force_ascii(udata))
+        if sys.version_info[0] < 3:
+            self.assertFalse(isinstance(py2.force_ascii(udata), type(u"")))
+        else:
+            self.assertTrue(isinstance(py2.force_ascii(udata), type(u"")))
+        self.assertTrue(isinstance(py2.force_ascii(udata), type("")))
+        if sys.version_info[0] < 3:
+            self.assertTrue(bdata == py2.force_ascii(bdata))
+            self.assertFalse(isinstance(py2.force_ascii(bdata), type(u"")))
+        else:
+            # can't compare different types in Python 3
+            self.assertFalse(bdata == py2.force_ascii(bdata))
+            self.assertTrue(isinstance(py2.force_ascii(bdata), type(u"")))
+        self.assertTrue(isinstance(py2.force_ascii(bdata), type("")))
+        # this must work in both python 2 and 3 to prevent accidental
+        # conversion to string.
+        try:
+            py2.force_ascii(xdata)
+            self.fail("force_ascii(object)")
         except TypeError:
             pass
         # conversion to text

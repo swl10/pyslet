@@ -98,7 +98,7 @@ class Text(AtomElement):
             self.type = type
         elif type == TextType.xhtml:
             e = xml.XMLEntity(value)
-            doc = html.XHTMLDocument(baseURI=self.resolve_base())
+            doc = html.XHTMLDocument(base_uri=self.resolve_base())
             doc.read_from_entity(e)
             div = list(doc.root.Body.get_children())
             if len(div) == 1 and isinstance(div[0], html.Div):

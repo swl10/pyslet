@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import codecs
 import logging
 import unittest
 
@@ -38,12 +39,23 @@ class EncodingTests(unittest.TestCase):
 
     def test_detection(self):
         test_string = u"Caf\xe9"
-        for codec in ('utf_8', 'utf_32_be', 'utf_32_le', 'utf_16_be',
-                      'utf_16_le'):
+        for codec, bom in (
+                ('utf_8', codecs.BOM_UTF8),
+                ('utf_32_be', codecs.BOM_UTF32_BE),
+                ('utf_32_le', codecs.BOM_UTF32_LE),
+                ('utf_16_be', codecs.BOM_UTF16_BE),
+                ('utf_16_le', codecs.BOM_UTF16_LE)):            
             data = test_string.encode(codec)
             detected = unicode5.detect_encoding(data)
             self.assertTrue(detected == codec,
                             "%s detected as %s" % (codec, detected))
+            # and once with the BOM
+            if codec == 'utf_8':
+                codec = 'utf_8_sig'
+            data = bom + data
+            detected = unicode5.detect_encoding(data)
+            self.assertTrue(detected == codec,
+                            "%s with BOM detected as %s" % (codec, detected))
 
 
 class CharClassTests(unittest.TestCase):

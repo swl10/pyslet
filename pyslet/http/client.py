@@ -1450,8 +1450,8 @@ class Client(PEP8Compatibility, object):
                         wait_time = timeout
             try:
                 logging.debug("thread_task waiting for select: "
-                              "readers=%s, writers=%s, timeout=%f",
-                              repr(readers), repr(writers), timeout)
+                              "readers=%s, writers=%s, timeout=%s",
+                              repr(readers), repr(writers), str(timeout))
                 r, w, e = self.socketSelect(readers, writers, [], wait_time)
             except select.error as err:
                 logging.error("Socket error from select: %s", str(err))

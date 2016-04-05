@@ -355,7 +355,7 @@ class WSGIInputWrapper(io.RawIOBase):
             line.append(b)
             if b == b'\n':
                 break
-        return ''.join(line)
+        return b''.join(line)
 
     def readlines(self, hint=-1):
         """Read and return a list of lines from the stream.
@@ -454,6 +454,8 @@ class Message(PEP8Compatibility, object):
             self.entity_body = io.BytesIO(entity_body)
             self.body_start = 0
             self.body_len = len(entity_body)
+        elif is_text(entity_body):
+            raise ValueError("HTTP Message entity_body must be binary data")
         elif entity_body is None:
             # no entity body
             self.entity_body = None
@@ -1091,6 +1093,7 @@ class Message(PEP8Compatibility, object):
 
     def has_header(self, field_name):
         """True if this message has a header with field_name"""
+        field_name = force_bytes(field_name)
         with self.lock:
             return field_name.lower() in self.headers
 

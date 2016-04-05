@@ -364,7 +364,7 @@ class QTIDocument(xmlns.XMLNSDocument):
         # The document's base is automatically set to the URI of the resource
         # entry point
         resource = self.root.AddToContentPackage(cp, metadata, dName)
-        # Finish by writing out the document to the new baseURI
+        # Finish by writing out the document to the new base_uri
         self.create()
         return resource
 

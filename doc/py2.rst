@@ -184,6 +184,23 @@ Text Functions
     evaluated.  
 
 
+..  function::  force_ascii(arg)
+
+    Returns *arg* as ascii text, converting it if necessary.  The result
+    is an object of type str, in both python 2 and python 3.  The
+    difference is that in Python 2 unicode strings are accepted and
+    forced to type str by *encoding* with the 'ascii' codec whereas in
+    Python 3 bytes instances are accepted and forced to type str by
+    *decoding* with the 'ascii' codec. 
+
+    This function is not needed very often but in some cases Python
+    interfaces required type str in Python 2 when the intention was to
+    accept ASCII text rather than arbitrary bytes.  When migrated to
+    Python 3 these interfaces can be problematic as inputs may be
+    generated as ASCII bytes rather than strings in Python 3, e.g., the
+    output of base64 encoding.
+
+
 ..	autoclass:: UnicodeMixin
 	:members:
 	:show-inheritance:

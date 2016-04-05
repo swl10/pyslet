@@ -581,10 +581,10 @@ class DocumentTests(unittest.TestCase):
         """Test the use of a file path on construction"""
         fpath = os.path.abspath('fpath.xml')
         furl = str(uri.URI.from_path(fpath))
-        d = structures.Document(baseURI=furl)
+        d = structures.Document(base_uri=furl)
         self.assertTrue(d.get_base() == furl, "Base not set in constructor")
         self.assertTrue(d.root is None, 'root on construction')
-        d = structures.Document(baseURI='fpath.xml', root=structures.Element)
+        d = structures.Document(base_uri='fpath.xml', root=structures.Element)
         self.assertTrue(
             d.get_base() == furl,
             "Base not made absolute from relative URL:\n\t%s\n\t%s" %
@@ -598,7 +598,7 @@ class DocumentTests(unittest.TestCase):
     def test_read_file(self):
         """Test the reading of the Document from the file system"""
         os.chdir(TEST_DATA_DIR)
-        d = structures.Document(baseURI='readFile.xml')
+        d = structures.Document(base_uri='readFile.xml')
         d.read()
         root = d.root
         self.assertTrue(isinstance(root, structures.Element))
@@ -608,7 +608,7 @@ class DocumentTests(unittest.TestCase):
     def test_read_string(self):
         """Test the reading of the Document from a supplied stream"""
         os.chdir(TEST_DATA_DIR)
-        d = structures.Document(baseURI='readFile.xml')
+        d = structures.Document(base_uri='readFile.xml')
         f = open('readFile.xml', 'rb')
         d.read(src=f)
         f.close()
@@ -619,13 +619,13 @@ class DocumentTests(unittest.TestCase):
 
     def test_string(self):
         os.chdir(TEST_DATA_DIR)
-        d = structures.Document(baseURI='readFile.xml')
+        d = structures.Document(base_uri='readFile.xml')
         d.read()
         f = open('readFile.xml', 'rb')
         fdata = f.read()
         f.close()
         self.assertTrue(bytes(d) == fdata, "XML output: %s" % bytes(d))
-        d = structures.Document(baseURI='ascii.xml')
+        d = structures.Document(base_uri='ascii.xml')
         d.read()
         f = open('ascii.xml', 'rb')
         fdata = f.read()
@@ -648,7 +648,7 @@ class DocumentTests(unittest.TestCase):
         href_path = href.abs_path
         href = str(href)
         alt_ref = 'file:///hello/link.xml'
-        d = structures.Document(baseURI='base.xml')
+        d = structures.Document(base_uri='base.xml')
         self.assertTrue(d.get_base() == furl,
                         "Base not resolved relative to w.d. by constructor")
         d.read()
