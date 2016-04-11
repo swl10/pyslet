@@ -132,6 +132,8 @@ case.
 
 ..	autofunction::	is_authority_reserved
 
+..	autofunction::	is_path_segment_reserved
+
 ..	autofunction::	is_query_reserved
 
 

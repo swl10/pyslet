@@ -64,7 +64,7 @@ if py2:
             return arg
         else:
             raise TypeError("Expected str or unicode: %s" % repr(arg))
-        
+
     to_text = unicode
 
     def is_unicode(arg):
@@ -190,7 +190,7 @@ else:
             return arg
         else:
             raise TypeError("Expected str: %s" % repr(arg))
-        
+
     def to_text(arg):
         if isinstance(arg, str):
             return arg

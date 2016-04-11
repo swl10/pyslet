@@ -2055,7 +2055,7 @@ SupportedSystemQueryOptions = {
              SystemQueryOption.filter)),
     # URI17: http://host/service.svc/Documents(1)/$value: media resource
     17: set((SystemQueryOption.format,))
-    }
+}
 """A mapping from URI format number to a set of supported system query
 options.
 
@@ -2900,7 +2900,7 @@ class EntityCollection(edm.EntityCollection):
             if self.orderby is not None:
                 sys_query_options[
                     SystemQueryOption.orderby] = \
-                        CommonExpression.orderby_to_str(self.orderby)
+                    CommonExpression.orderby_to_str(self.orderby)
             sys_query_options[SystemQueryOption.skiptoken] = to_text(token)
             return uri.URI.from_octets(
                 str(base_url) +

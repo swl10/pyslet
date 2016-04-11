@@ -44,7 +44,7 @@ class EncodingTests(unittest.TestCase):
                 ('utf_32_be', codecs.BOM_UTF32_BE),
                 ('utf_32_le', codecs.BOM_UTF32_LE),
                 ('utf_16_be', codecs.BOM_UTF16_BE),
-                ('utf_16_le', codecs.BOM_UTF16_LE)):            
+                ('utf_16_le', codecs.BOM_UTF16_LE)):
             data = test_string.encode(codec)
             detected = unicode5.detect_encoding(data)
             self.assertTrue(detected == codec,

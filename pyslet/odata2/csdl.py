@@ -1634,7 +1634,7 @@ class DoubleValue(FloatValue):
             if ndigits > 17:
                 raise ValueError("Too many digits for double: %s" % dstr)
             if (num.edigits == '' or (num.edigits and (len(num.edigits) > 3 or
-                                      not num.ldigits))):
+                                                       not num.ldigits))):
                 # empty exponent not allowed
                 # long exponent not allowed
                 # exponent requires digits to left of point
@@ -1700,7 +1700,7 @@ class SingleValue(FloatValue):
             if ndigits > 9:
                 raise ValueError("Too many digits for single: %s" % dstr)
             if (num.edigits == '' or (num.edigits and (len(num.edigits) > 2 or
-                                      not num.ldigits))):
+                                                       not num.ldigits))):
                 # empty exponent not allowed
                 # long exponent not allowed
                 # exponent requires digits to left of point
@@ -2134,10 +2134,10 @@ class DeferredValue(MigratedClass):
         list that has been obtained previously without having to consult
         the data source again."""
         self.set_expansion(ExpandedEntityCollection(
-                          from_entity=self.from_entity,
-                          name=self.name,
-                          entity_set=self.target(),
-                          entity_list=values))
+            from_entity=self.from_entity,
+            name=self.name,
+            entity_set=self.target(),
+            entity_list=values))
 
     @old_method('SetExpansion')
     def set_expansion(self, expanded):

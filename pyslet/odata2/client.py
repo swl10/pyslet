@@ -199,7 +199,7 @@ class ClientCollection(core.EntityCollection):
         if self.orderby is not None:
             sys_query_options[
                 core.SystemQueryOption.orderby] = \
-                    core.CommonExpression.OrderByToString(self.orderby)
+                core.CommonExpression.OrderByToString(self.orderby)
         if sys_query_options:
             feed_url = uri.URI.from_octets(
                 str(feed_url) + "?" +
@@ -257,7 +257,7 @@ class ClientCollection(core.EntityCollection):
                 core.format_select(self.select)
         if self.orderby is not None:
             sys_query_options[core.SystemQueryOption.orderby] = \
-                    core.CommonExpression.OrderByToString(self.orderby)
+                core.CommonExpression.OrderByToString(self.orderby)
         if self.top is not None:
             sys_query_options[core.SystemQueryOption.top] = to_text(self.top)
         if self.skip is not None:
@@ -314,7 +314,7 @@ class ClientCollection(core.EntityCollection):
             entity_url = str(self.base_uri)
         else:
             entity_url = (str(self.base_uri) + core.ODataURI.format_key_dict(
-                            self.entity_set.get_key_dict(key)))
+                self.entity_set.get_key_dict(key)))
         if self.expand is not None:
             sys_query_options[core.SystemQueryOption.expand] = \
                 core.format_expand(self.expand)
