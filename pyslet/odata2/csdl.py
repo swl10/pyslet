@@ -3610,7 +3610,7 @@ class Documentation(CSDLElement):
         if self.Summary:
             yield self.Summary
         if self.LongDescription:
-            yield self.LondDescription
+            yield self.LongDescription
 
 
 class Summary(CSDLElement):
