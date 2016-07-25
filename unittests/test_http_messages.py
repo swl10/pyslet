@@ -2,12 +2,14 @@
 
 import io
 import logging
+import random
 import unittest
 
 import pyslet.http.grammar as grammar
 import pyslet.http.params as params
 
 from pyslet.py2 import is_string
+from pyslet.py26 import RawIOBase
 
 from pyslet.http.messages import *       # noqa
 
@@ -15,6 +17,7 @@ from pyslet.http.messages import *       # noqa
 def suite():
     return unittest.TestSuite((
         unittest.makeSuite(MessageTests, 'test'),
+        unittest.makeSuite(RecvWrapperTests, 'test'),
         unittest.makeSuite(ChunkedTests, 'test'),
         unittest.makeSuite(WSGITests, 'test'),
         unittest.makeSuite(HeaderTests, 'test'),
@@ -439,6 +442,322 @@ Content-range: bytes 7000-7999/8000
         response.start_sending()
         self.assertTrue(response.get_transfer_encoding() is None)
         self.assertTrue("close" in response.get_connection())
+
+
+class MockBlockingByteReader(RawIOBase):
+
+    def __init__(self, src, block_after=set()):
+        RawIOBase.__init__(self)
+        self.src = src
+        self.block_after = block_after
+        self.buffer = bytearray(io.DEFAULT_BUFFER_SIZE)
+        self.bpos = 0
+        self.blen = 0
+        self.src_eof = False
+
+    def close(self):
+        super(MockBlockingByteReader, self).close()
+        self.src.close()
+
+    def readable(self):
+        return True
+
+    def readinto(self, b):
+        if self.closed:
+            raise IOError(errno.EBADF, os.strerror(errno.EBADF),
+                          "stream is closed")
+        nbytes = len(b)
+        if self.blen > self.bpos:
+            # buffered data to read
+            if random.random() < 0.5:
+                # blocked half of the time
+                return None
+            # copy data from our buffer to b
+            i = 0
+            while i < nbytes and self.bpos < self.blen:
+                if i and random.random() < 0.9:
+                    # arbitrary break in data
+                    # don't return 0 as that means EOF
+                    break
+                b[i] = self.buffer[self.bpos]
+                self.bpos += 1
+                if b[i] in self.block_after:
+                    # we'll break here
+                    return i + 1
+                i += 1
+            return i
+        if self.src_eof:
+            return 0
+        # our buffer is empty, fill it
+        self.bpos = self.blen = 0
+        nread = self.src.readinto(self.buffer)
+        if nread is None:
+            # the src is actually blocked too!
+            return None
+        elif nread == 0:
+            # end of file
+            self.src_eof = True
+            return 0
+        else:
+            # we have read some data, return None to force a
+            # second call
+            self.blen = nread
+            return None
+
+    def writable(self):
+        return False
+
+    def write(self, b):
+        raise IOError(errno.EPERM, os.strerror(errno.EPERM),
+                      "stream not writable")
+
+
+class RecvWrapperTests(unittest.TestCase):
+
+    GET_EXAMPLE = (
+        b"GET / HTTP/1.1",
+        b"Host: www.pyslet.org",
+        b"User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:45.0) "
+        b"Gecko/20100101 Firefox/45.0",
+        b"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,"
+        b"*/*;q=0.8",
+        b"Accept-Language: en-US,en;q=0.5",
+        b"Accept-Encoding: gzip, deflate",
+        b"DNT: 1",
+        b"Connection: keep-alive",
+        b"",
+        b"")
+
+    RESPONSE_EXAMPLE = (
+        b"HTTP/1.1 301 Moved Permanently",
+        b"Date: Thu, 21 Apr 2016 08:48:53 GMT",
+        b"Server: Apache/2.2.31 (Amazon)",
+        b"Location: https://www.pyslet.org/",
+        b"Content-Length: 311",
+        b"Connection: close",
+        b"Content-Type: text/html; charset=iso-8859-1",
+        b"",
+        b"<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n"
+        b"<html><head>\n"
+        b"<title>301 Moved Permanently</title>\n"
+        b"</head><body>\n"
+        b"<h1>Moved Permanently</h1>\n"
+        b"<p>The document has moved <a "
+        b"href=\"https://www.pyslet.org/\">here</a>.</p>\n"
+        b"<hr>\n"
+        b"<address>Apache/2.2.31 (Amazon) Server at www.pyslet.org Port "
+        b"80</address>\n"
+        b"</body></html>\n")
+
+    def test_constructor(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        # pass in a srouce stream and a class to receive
+        rstream = RecvWrapper(src, Request)
+        self.assertTrue(isinstance(rstream.message, Request))
+        try:
+            rstream.fileno()
+            self.fail("RecvWrapper.fileno")
+        except IOError:
+            pass
+        # flush does nothing but is callable
+        rstream.flush()
+        self.assertFalse(rstream.isatty())
+        self.assertTrue(rstream.readable())
+        rstream.close()
+
+    def test_close(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        rstream = RecvWrapper(src, Request)
+        self.assertFalse(rstream.closed)
+        rstream.close()
+        self.assertTrue(rstream.closed)
+        try:
+            rstream.read(1)
+            self.fail("RecvWrapper.read after close")
+        except IOError:
+            pass
+
+    def test_readline(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        rstream = RecvWrapper(src, Request)
+        # blocking empty stream
+        self.assertTrue(rstream.readline() == b"")
+        rstream.close()
+        src = io.BytesIO(grammar.CRLF.join(self.RESPONSE_EXAMPLE))
+        rstream = RecvWrapper(src, Response)
+        # blocking non-empty stream
+        self.assertTrue(
+            rstream.readline() ==
+            b'<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">\n')
+        # blocking non-empty stream with limit bytes
+        self.assertTrue(rstream.readline(6) == b'<html>')
+        rstream.close()
+
+    def test_readlines(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        rstream = RecvWrapper(src, Request)
+        # blocking empty stream
+        lines = rstream.readlines()
+        # returns a list of lines
+        self.assertTrue(isinstance(lines, list))
+        # should be empty
+        self.assertTrue(len(lines) == 0)
+        rstream.close()
+        src = io.BytesIO(grammar.CRLF.join(self.RESPONSE_EXAMPLE))
+        rstream = RecvWrapper(src, Response)
+        # read 10 bytes (ish)
+        lines = rstream.readlines(10)
+        self.assertTrue(len(lines) == 1)
+        self.assertTrue(
+            lines[0] ==
+            b'<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">\n')
+        # read the rest, no trailing empty line!
+        lines = rstream.readlines()
+        self.assertTrue(len(lines) == 8)
+        self.assertTrue(lines[7] == b"</body></html>\n")
+        rstream.close()
+
+    def test_read(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        rstream = RecvWrapper(src, Request)
+        # blocking empty stream
+        self.assertTrue(rstream.read(1) == b"")
+        rstream.close()
+        src = io.BytesIO(grammar.CRLF.join(self.RESPONSE_EXAMPLE))
+        rstream = RecvWrapper(src, Response)
+        # blocking non-empty stream
+        c = rstream.read(1)
+        self.assertTrue(c == b"<")
+        line = []
+        while c != b"\n":
+            line.append(c)
+            c = rstream.read(1)
+            # won't return None
+            self.assertTrue(len(c) == 1)
+        self.assertTrue(b"".join(line) ==
+                        b'<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">')
+        data = rstream.read()
+        self.assertTrue(data.endswith(b"</html>\n"))
+        self.assertTrue(rstream.read(1) == b"")
+        rstream.close()
+
+    def test_read_nonblocking(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        # simulate breaks in the data after LF
+        src = MockBlockingByteReader(src, block_after=((10,)))
+        rstream = RecvWrapper(src, Request)
+        # non-blocking empty stream
+        while True:
+            c = rstream.read(1)
+            if c == b"":
+                break
+            self.assertTrue(c is None,
+                            "empty stream non-blocking: %s" % repr(c))
+        rstream.close()
+        src = io.BytesIO(grammar.CRLF.join(self.RESPONSE_EXAMPLE))
+        src = MockBlockingByteReader(src, block_after=((10,)))
+        rstream = RecvWrapper(src, Response)
+        # non-blocking non-empty stream
+        line = []
+        blocks = 0
+        while True:
+            c = rstream.read(1)
+            if c:
+                if c == b"\n":
+                    break
+                else:
+                    line.append(c)
+                    continue
+            self.assertTrue(c is None,
+                            "empty stream non-blocking: %s" % repr(c))
+            blocks += 1
+        # our mock blocking stream always returns None at least once
+        self.assertTrue(blocks > 1, "non-blocking stream failed to stall")
+        self.assertTrue(b"".join(line) ==
+                        b'<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">')
+        # readall behaviour is undefined, don't test it
+        rstream.close()
+
+    def test_seek(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        rstream = RecvWrapper(src, Request)
+        self.assertFalse(rstream.seekable())
+        try:
+            rstream.seek(0)
+            self.fail("RecvWrapper.seek")
+        except IOError:
+            pass
+        try:
+            rstream.tell()
+            self.fail("RecvWrapper.tell")
+        except IOError:
+            pass
+        try:
+            rstream.truncate(0)
+            self.fail("RecvWrapper.truncate")
+        except IOError:
+            pass
+        rstream.close()
+
+    def test_write(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        rstream = RecvWrapper(src, Request)
+        self.assertFalse(rstream.writable())
+        try:
+            rstream.write(b"Hello")
+            self.fail("RecvWrapper.write")
+        except IOError:
+            pass
+        rstream.close()
+
+    def test_message_header(self):
+        src = io.BytesIO(grammar.CRLF.join(self.GET_EXAMPLE))
+        rstream = RecvWrapper(src, Request)
+        # initially the message object exists but has no headers
+        self.assertTrue(rstream.message.get_host() is None)
+        message = rstream.read_message_header()
+        # just returns the message
+        self.assertTrue(rstream.message is message)
+        # but now with headers!
+        self.assertTrue(message.get_host() == b"www.pyslet.org")
+        # check the last header
+        self.assertTrue("keep-alive" in message.get_connection())
+        # subsequent calls just return the message again
+        message = rstream.read_message_header()
+        self.assertTrue(rstream.message is message)
+        # the content of the stream is unaltered
+        self.assertTrue(rstream.read(1) == b"")
+        rstream.close()
+        # non-blocking test with response
+        src = io.BytesIO(grammar.CRLF.join(self.RESPONSE_EXAMPLE))
+        src = MockBlockingByteReader(src, block_after=((10,)))
+        rstream = RecvWrapper(src, Response)
+        blocks = 0
+        while True:
+            message = rstream.read_message_header()
+            if message is None:
+                blocks += 1
+                continue
+            self.assertTrue(message is rstream.message)
+            break
+        self.assertTrue(blocks > 1, "non-blocking stream failed to stall")
+        mt = message.get_content_type()
+        self.assertTrue(mt.type == "text")
+        self.assertTrue(mt['charset'] == b"iso-8859-1")
+        line = []
+        while True:
+            c = rstream.read(1)
+            if c:
+                if c == b"\n":
+                    break
+                else:
+                    line.append(c)
+                    continue
+            self.assertTrue(c is None,
+                            "empty stream non-blocking: %s" % repr(c))
+        self.assertTrue(b"".join(line) ==
+                        b'<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">')
+        rstream.close()
 
 
 class HeaderTests(unittest.TestCase):

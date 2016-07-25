@@ -12,13 +12,13 @@ from .. import rfc2396 as uri
 from ..pep8 import PEP8Compatibility
 from ..py2 import force_bytes, is_string, dict_keys
 from ..py26 import *    # noqa
-from ..streams import BufferedStreamWrapper, io_blocked
+from ..streams import BufferedStreamWrapper, io_blocked, Pipe
 
 from . import grammar, params, auth, cookie
 from .grammar import SEMICOLON, COMMA, SOLIDUS, EQUALS_SIGN
 
 
-class GzipEncoder(io.RawIOBase):
+class GzipEncoder(RawIOBase):
 
     """Wrapper to provide Gzip encoding of streams
 
@@ -67,7 +67,7 @@ class GzipEncoder(io.RawIOBase):
                 return 0
 
 
-class GzipDecoder(io.RawIOBase):
+class GzipDecoder(RawIOBase):
 
     """Wrapper to provide Gzip decoding of streams
 
@@ -140,7 +140,7 @@ class GzipDecoder(io.RawIOBase):
         return wbytes
 
 
-class ChunkedReader(io.RawIOBase):
+class ChunkedReader(RawIOBase):
 
     def __init__(self, src):
         self.src = src
@@ -1533,6 +1533,187 @@ class Message(PEP8Compatibility, object):
         self.set_header("Host", server)
 
 
+class RecvWrapperBase(RawIOBase):
+
+    def __init__(self, src):
+        io.RawIOBase.__init__(self)
+        self.src = src
+        self.buffer = bytearray()
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def write(self, b):
+        raise IOError(errno.EPERM, os.strerror(errno.EPERM),
+                      "stream not writable")
+
+    def fill_buffer(self, nbytes=io.DEFAULT_BUFFER_SIZE):
+        """Fills the buffer with bytes from the source
+
+        nbytes
+            The number of bytes to read.  The method won't necessarily
+            read nbytes of data but it won't read more than nbytes.
+
+        Returns False if we're blocked on read, True if we successfully
+        read at least *some* bytes.  The bytes read are added to the
+        existing :attr:`buffer`.
+
+        If we encounter an EOF condition on the input stream then we
+        raise an exception."""
+        data = self.src.read(nbytes)
+        if data is None:
+            return False
+        elif data:
+            self.buffer.extend(data)
+            return True
+        else:
+            # EOF condition
+            raise ProtocolError("unexpected end of message")
+
+
+class RecvWrapper(RecvWrapperBase):
+    """A stream wrapper for HTTP Messages
+
+    src
+        The source stream from which the HTTP message will be read, must
+        be an object supporting the RawIOBase interface.
+
+    message_class
+        A subclass of :class:`Message` that will be read from the source
+        stream.  An instance is created on construction and used to set
+        :attr:`message`.
+
+    The RecvWrapper instance itself behaves like a stream allowing you
+    to read the body of the message.  The headers are automatically read
+    into the :attr:`message` object.
+
+    An internal buffer is maintained which may cause the source stream
+    to be read past the end of the actual message.  Although HTTP
+    messages may be self-delimitting the cost of reading a byte at a
+    time is too high to be practicable."""
+
+    def __init__(self, src, message_class):
+        RecvWrapperBase.__init__(self, src)
+        self.p = Pipe(rblocking=False, wblocking=False)
+        self.message = message_class(entity_body=self.p)
+        self._got_headers = False
+        self.message.start_receiving()
+        self.buffer = bytearray()
+
+    def close(self):
+        super(RecvWrapper, self).close()
+        self.p.close()
+
+    def _read_task_done(self):
+        # True if there is nothing more to do reading this message
+        # False if we should be called again
+        # None if we are blocked on reading from source
+        mode = self.message.recv_mode()
+        if mode is None:
+            # we're done, pipe empty and message complete
+            return True
+        elif mode == Message.RECV_HEADERS:
+            pos = self.buffer.find(b"\r\n\r\n")
+            if pos < 0:
+                if self.buffer.startswith(b"\r\n"):
+                    # catch a degenerate case, no headers
+                    pos = 0
+            if pos < 0:
+                # fill the buffer and loop
+                if not self.fill_buffer():
+                    # blocked on our read
+                    return None
+            else:
+                headers = []
+                base = 0
+                while base <= pos:
+                    i = self.buffer.find(b"\r\n", base)
+                    headers.append(bytes(self.buffer[base:i + 2]))
+                    base = i + 2
+                headers.append(b"\r\n")
+                self.message.recv(headers)
+                self.buffer = self.buffer[pos + 4:]
+        elif mode == Message.RECV_LINE:
+            pos = self.buffer.find(b"\r\n")
+            if pos < 0:
+                # fill the buffer and loop
+                if not self.fill_buffer():
+                    return None
+            else:
+                self.message.recv(bytes(self.buffer[:pos + 2]))
+                del self.buffer[:pos + 2]
+        elif mode == Message.RECV_ALL:
+            if self.buffer:
+                self.message.recv(bytes(self.buffer))
+                self.buffer = bytearray()
+            else:
+                try:
+                    if not self.fill_buffer():
+                        return None
+                except ProtocolError:
+                    # end of message is just that
+                    return True
+        elif mode == 0:
+            # just yield time, the Pipe is full and blocking
+            self.message.recv(None)
+        elif mode > 0:
+            if len(self.buffer) >= mode:
+                # send the requested bytes
+                self.message.recv(bytes(self.buffer[:mode]))
+                del self.buffer[:mode]
+            elif self.buffer:
+                # send the buffer
+                self.message.recv(bytes(self.buffer))
+                del self.buffer[:]
+            else:
+                # fill the buffer with mode bytes
+                if not self.fill_buffer(mode):
+                    return None
+        else:
+            raise RuntimeError("Unexpected message mode")
+        return False
+
+    def read_message_header(self):
+        """Read the message headers
+
+        Returns the :class:`~pyslet.http.Message` object after all the
+        headers have been set from the source stream.  If the source
+        stream is blocked on reading and is in non-blocking mode then
+        None may be returned.
+
+        Subsequent calls just return the previously parsed message
+        object which is also available in the :attr:`message`
+        attribute."""
+        while not self._got_headers:
+            if self.p.canread():
+                break
+            done = self._read_task_done()
+            if done is True:
+                # empty body, message complete
+                break
+            elif done is None:
+                return None
+        self._got_headers = True
+        return self.message
+
+    def readinto(self, b):
+        if self.closed:
+            raise IOError(errno.EBADF, os.strerror(errno.EBADF),
+                          "stream is closed")
+        while True:
+            if self.p.canread():
+                return self.p.readinto(b)
+            done = self._read_task_done()
+            if done is True:
+                # message complete
+                return 0
+            elif done is None:
+                return None
+
+
 class Request(Message):
 
     # a mapping from upper case method name to True/False with True
@@ -1819,10 +2000,13 @@ class Response(Message):
         505: "HTTP Version not supported"
     }
 
-    def __init__(self, request, **kwargs):
+    def __init__(self, request=None, **kwargs):
         super(Response, self).__init__(**kwargs)
-        self.request = request
-        request.response = self
+        if request is None:
+            self.request = Request()
+        else:
+            self.request = request
+        self.request.response = self
         self.status = None
         self.reason = None
 
