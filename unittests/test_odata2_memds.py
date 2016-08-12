@@ -77,6 +77,10 @@ class RegressionTests(DataServiceRegressionTests):
         self.container = memds.InMemoryEntityContainer(
             self.ds['RegressionModel.RegressionContainer'])
 
+    def test_changesets(self):
+        # temporary while we build out this feature
+        self.runtest_changeset()
+
     def test_all_tests(self):
         self.run_combined()
 

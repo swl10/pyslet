@@ -161,8 +161,7 @@ class ClientCollection(core.EntityCollection):
             else:
                 self.raise_error(request)
 
-    def __len__(self):
-        # use $count
+    def len_request(self):
         feed_url = self.base_uri
         sys_query_options = {}
         if self.filter is not None:
@@ -177,12 +176,20 @@ class ClientCollection(core.EntityCollection):
             feed_url = uri.URI.from_octets(str(feed_url) + "/$count")
         request = http.ClientRequest(str(feed_url))
         request.set_header('Accept', 'text/plain')
-        self.client.process_request(request)
+        return request
+
+    def len_response(self, request):
         if request.status == 200:
             return int(request.res_body)
         else:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
+
+    def __len__(self):
+        # use $count
+        request = self.len_request()
+        self.client.process_request(request)
+        return self.len_response(request)
 
     def entity_generator(self):
         feed_url = self.base_uri
@@ -305,7 +312,7 @@ class ClientCollection(core.EntityCollection):
         else:
             raise core.InvalidFeedDocument(str(feed_url))
 
-    def __getitem__(self, key):
+    def key_request(self, key):
         sys_query_options = {}
         if self.filter is not None:
             sys_query_options[core.SystemQueryOption.filter] = "%s and %s" % (
@@ -331,13 +338,15 @@ class ClientCollection(core.EntityCollection):
             request.set_header('Accept', 'application/atom+xml')
         else:
             request.set_header('Accept', 'application/atom+xml;type=entry')
-        self.client.process_request(request)
+        return request
+
+    def key_response(self, request, key):
         if request.status == 404:
             raise KeyError(key)
         elif request.status != 200:
             raise UnexpectedHTTPResponse(
                 "%i %s" % (request.status, request.response.reason))
-        doc = core.Document(base_uri=entity_url)
+        doc = core.Document(base_uri=request.url)
         doc.read(request.res_body)
         if isinstance(doc.root, atom.Entry):
             entity = core.Entity(self.entity_set)
@@ -356,11 +365,16 @@ class ClientCollection(core.EntityCollection):
                 return entity
             else:
                 raise UnexpectedHTTPResponse("%i entities returned from %s" %
-                                             nresults, entity_url)
+                                             nresults, str(request.url))
         elif isinstance(doc.root, core.Error):
             raise KeyError(key)
         else:
-            raise core.InvalidEntryDocument(str(entity_url))
+            raise core.InvalidEntryDocument(str(request.url))
+
+    def __getitem__(self, key):
+        request = self.key_request(key)
+        self.client.process_request(request)
+        return self.key_response(request, key)
 
     def new_stream(self, src, sinfo=None, key=None):
         """Creates a media resource"""
@@ -864,12 +878,64 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             self.raise_error(request)
 
 
+class Batch(object):
+
+    """A batch of requests
+
+    Behaves like a list with the items being the objects returned by
+    each command (possibly including exception objects).  Prior to
+    running the batch all items are None."""
+
+    def __init__(self, client):
+        self.client = client
+        self.items = []
+        self.results = []
+
+    LENGTH = 1
+    ENTITY = 2
+    COLLECTION = 3
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, key):
+        return self.results[key]
+
+    def __iter__(self):
+        return iter(self.results)
+
+    def append_len(self, collection):
+        """Appends a $count query for collection"""
+        self.items.append(
+            (collection, collection.len_request(), self.LENGTH, None))
+        self.results.append(None)
+
+    def append_entity(self, collection, key):
+        """Appends a request for a specific entity"""
+        self.items.append(
+            (collection, collection.key_request(key), self.ENTITY, key))
+        self.results.append(None)
+
+    def run(self):
+        i = 0
+        for collection, request, rtype, param in self.items:
+            self.client.process_request(request)
+            try:
+                if rtype == self.LENGTH:
+                    self.results[i] = collection.len_response(request)
+                elif rtype == self.ENTITY:
+                    self.results[i] = collection.key_response(request, param)
+            except Exception as e:
+                self.results[i] = e
+            i += 1
+
+
 class Client(app.Client):
 
     """An OData client.
 
     Can be constructed with an optional URL specifying the service root of an
-    OData service.  The URL is passed directly to :py:meth:`LoadService`."""
+    OData service.  The URL is passed directly to :py:meth:`load_service`."""
 
     def __init__(self, service_root=None, **kwargs):
         app.Client.__init__(self, **kwargs)
@@ -889,7 +955,7 @@ class Client(app.Client):
         #: the service
         self.model = None
         if service_root is not None:
-            self.LoadService(service_root)
+            self.load_service(service_root)
 
     @old_method('LoadService')
     def load_service(self, service_root, metadata=None):
@@ -1005,3 +1071,6 @@ class Client(app.Client):
         request.set_header(
             'MaxDataServiceVersion', '2.0; pyslet %s' % info.version)
         super(Client, self).queue_request(request, timeout)
+
+    def new_batch(self):
+        return Batch(self)

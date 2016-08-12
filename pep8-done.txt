@@ -14,6 +14,8 @@ pyslet/http/grammar.py
 unittests/test_http_grammar.py
 pyslet/http/messages.py
 unittests/test_http_messages.py
+pyslet/http/multipart.py
+unittests/test_http_multipart.py
 pyslet/http/params.py
 unittests/test_http_params.py
 pyslet/http/server.py

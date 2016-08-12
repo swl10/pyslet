@@ -23,6 +23,8 @@ import test_http_grammar
 all_tests.addTest(test_http_grammar.suite())
 import test_http_messages
 all_tests.addTest(test_http_messages.suite())
+import test_http_multipart
+all_tests.addTest(test_http_multipart.suite())
 import test_http_params
 all_tests.addTest(test_http_params.suite())
 import test_http_server

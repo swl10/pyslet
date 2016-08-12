@@ -7,6 +7,12 @@
                 <EntitySet Name="AutoKeysInt32" EntityType="RegressionModel.AutoKeyInt32"/>
                 <EntitySet Name="AutoKeysInt64" EntityType="RegressionModel.AutoKeyInt64"/>
                 <EntitySet Name="AutoKeysString" EntityType="RegressionModel.AutoKeyString"/>
+                <EntitySet Name="ChangesetA" EntityType="RegressionModel.EntityA"/>
+                <EntitySet Name="ChangesetB" EntityType="RegressionModel.EntityB"/>
+                <AssociationSet Name="A_B" Association="RegressionModel.A_B">
+                    <End Role="A" EntitySet="ChangesetA"/>
+                    <End Role="B" EntitySet="ChangesetB"/>
+                </AssociationSet>
                 <EntitySet Name="AllTypes" EntityType="RegressionModel.AllTypes"/>
                 <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
                 <EntitySet Name="OnlyKeys" EntityType="RegressionModel.OnlyKey"/>
@@ -145,6 +151,28 @@
                 <Property Name="K" Type="Edm.String" Nullable="false" MaxLength="10"/>
                 <Property Name="Data" Type="Edm.String" Nullable="true" MaxLength="32" FixedLength="false"/>
             </EntityType>
+            <EntityType Name="EntityA">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" MaxLength="32" FixedLength="false"/>
+                <NavigationProperty Name="B" FromRole="A" ToRole="B"
+                    Relationship="RegressionModel.A_B"/>
+            </EntityType>
+            <EntityType Name="EntityB">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" MaxLength="32" FixedLength="false"/>
+                <NavigationProperty Name="A" FromRole="B" ToRole="A"
+                    Relationship="RegressionModel.A_B"/>
+            </EntityType>
+            <Association Name="A_B">
+                <End Role="A" Type="RegressionModel.EntityA" Multiplicity="1"/>
+                <End Role="B" Type="RegressionModel.EntityB" Multiplicity="0..1"/>
+            </Association>
             <EntityType Name="AllTypes">
                 <Key>
                     <PropertyRef Name="ID"/>

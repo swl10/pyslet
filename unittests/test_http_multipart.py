@@ -10,6 +10,7 @@ from pyslet.http import multipart
 from pyslet.http.params import MediaType, APPLICATION_OCTETSTREAM
 from pyslet.py2 import (
     byte,
+    is_text,
     range3,
     ul)
 
@@ -20,7 +21,8 @@ def suite():
     return unittest.TestSuite((
         unittest.makeSuite(SyntaxTests, 'test'),
         unittest.makeSuite(MessagePartTests, 'test'),
-        unittest.makeSuite(MultipartRecvWrapperTests, 'test')
+        unittest.makeSuite(MultipartRecvWrapperTests, 'test'),
+        unittest.makeSuite(MultipartSendWrapperTests, 'test')
     ))
 
 
@@ -102,7 +104,8 @@ class SyntaxTests(unittest.TestCase):
         self.assertTrue(p.require_localpart() == "WWW.pyslet.org")
         self.assertTrue(p.is_special(byte(".")))
         # and finally check the full addr-spec
-        p = multipart.RFC822Parser(' "www Pysle\\t" . Org @ [10.0.3.19]. pyslet.Org<')
+        p = multipart.RFC822Parser(
+            ' "www Pysle\\t" . Org @ [10.0.3.19]. pyslet.Org<')
         # domains are uninterpreted in addr-spec
         self.assertTrue(p.require_addr_spec() ==
                         '"www Pyslet".Org@[10.0.3.19].pyslet.Org')
@@ -161,8 +164,7 @@ class MessagePartTests(unittest.TestCase):
             part.set_content_transfer_encoding(token)
             self.assertTrue(part.get_header('Content-Transfer-Encoding') ==
                             token.encode('ascii'))
-            self.assertTrue(isinstance(part.get_content_transfer_encoding(),
-                                       str))
+            self.assertTrue(is_text(part.get_content_transfer_encoding()))
             self.assertTrue(part.get_content_transfer_encoding() ==
                             token.lower())
         # default is 7bit
@@ -194,7 +196,7 @@ class MessagePartTests(unittest.TestCase):
         part.set_content_id(" content @ pyslet.org ")
         self.assertTrue(part.get_header('Content-ID') ==
                         b"<content@pyslet.org>")
-        self.assertTrue(isinstance(part.get_content_id(), str))
+        self.assertTrue(is_text(part.get_content_id()))
         self.assertTrue(part.get_content_id() == "content@pyslet.org")
         try:
             part.set_content_id("content:1@pyslet.org")
@@ -542,7 +544,7 @@ class MultipartRecvWrapperTests(unittest.TestCase):
         self.assertTrue(mtype.subtype == "plain")
         self.assertTrue(mtype['charset'] == b"us-ascii")
         try:
-            part3 = mstream.next_part()
+            mstream.next_part()
             self.fail("Expected StopIteration for epilogue")
         except StopIteration:
             pass
@@ -566,7 +568,6 @@ class MultipartRecvWrapperTests(unittest.TestCase):
         self.assertTrue(parts == 2)
         if not blocks:
             logging.warning("next_part expected at least one None")
-
 
     def test_read_parts(self):
         src = io.BytesIO(grammar.CRLF.join(self.SIMPLE))
@@ -622,7 +623,7 @@ class MultipartRecvWrapperTests(unittest.TestCase):
         src = io.BytesIO(grammar.CRLF.join(self.EMPTY))
         mstream = multipart.MultipartRecvWrapper(src, self.SIMPLE_TYPE)
         try:
-            part = mstream.next_part()
+            mstream.next_part()
             self.fail("no boundary")
         except multipart.MultipartError:
             pass
@@ -630,7 +631,7 @@ class MultipartRecvWrapperTests(unittest.TestCase):
         src = io.BytesIO(grammar.CRLF.join(self.EMPTY[:-3]))
         mstream = multipart.MultipartRecvWrapper(src, self.SIMPLE_TYPE)
         try:
-            part = mstream.next_part()
+            mstream.next_part()
             self.fail("no boundary")
         except multipart.MultipartError:
             pass
@@ -669,7 +670,7 @@ class MultipartRecvWrapperTests(unittest.TestCase):
         b"",
         b"This is the epilogue.  It is also to be ignored.")
 
-    def test_header_defaults(self):
+    def test_misc_headers(self):
         src = io.BytesIO(grammar.CRLF.join(self.MISC_HEADERS))
         mstream = multipart.MultipartRecvWrapper(src, self.SIMPLE_TYPE)
         parts = [part for part in mstream.read_parts()]
@@ -695,7 +696,7 @@ class MultipartRecvWrapperTests(unittest.TestCase):
         b"",
         b"This is the epilogue.  It is also to be ignored.")
 
-    def test_header_defaults(self):
+    def test_nested(self):
         src = io.BytesIO(grammar.CRLF.join(self.NESTED))
         mstream = multipart.MultipartRecvWrapper(src, self.SIMPLE_TYPE)
         for part in mstream.read_parts():
@@ -726,6 +727,298 @@ class MultipartRecvWrapperTests(unittest.TestCase):
                 pass
         # but not error from the outer multipart parser
 
+    NO_PREAMBLE_OR_EPILOGUE = (
+        b"--simple boundary",
+        b"",
+        b"This is plain US-ASCII text.",
+        b"",
+        b"--simple boundary--")
+
+    def test_no_preamble_or_epilogue(self):
+        src = io.BytesIO(grammar.CRLF.join(self.NO_PREAMBLE_OR_EPILOGUE))
+        mstream = multipart.MultipartRecvWrapper(src, self.SIMPLE_TYPE)
+        parts = [p for p in mstream.read_parts()]
+        self.assertTrue(len(parts) == 1)
+
+
+class MultipartSendWrapperTests(unittest.TestCase):
+
+    def test_constructor(self):
+        part = multipart.MessagePart()
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        # pass in an iterable of MessageParts and required mime type
+        mstream = multipart.MultipartSendWrapper(mtype, [part])
+        try:
+            mstream.fileno()
+            self.fail("MultipartSendWrapper.fileno")
+        except IOError:
+            pass
+        # flush does nothing but is callable
+        mstream.flush()
+        self.assertFalse(mstream.isatty())
+        self.assertTrue(mstream.readable())
+        mstream.close()
+        # can add an optional preamble, epilogue and boundary
+        mstream = multipart.MultipartSendWrapper(
+            mtype, [part], preamble=b"Hello", epilogue=b"Goodbye")
+
+    def test_close(self):
+        part = multipart.MessagePart()
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        # pass in an iterable of MessageParts
+        mstream = multipart.MultipartSendWrapper(mtype, [part])
+        self.assertFalse(mstream.closed)
+        mstream.close()
+        self.assertTrue(mstream.closed)
+        try:
+            mstream.read(1)
+            self.fail("MultipartSendWrapper.read after close")
+        except IOError:
+            pass
+
+    def test_readline(self):
+        part = multipart.MessagePart(entity_body=b"How are you?")
+        part.set_content_type("text/plain")
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        mstream = multipart.MultipartSendWrapper(mtype, [part])
+        # preamble is empty, straight into the boundary
+        self.assertTrue(
+            mstream.readline() ==
+            b"--gc0p4Jq0M2Yt08j34c0p\r\n")
+        self.assertTrue(
+            mstream.readline() ==
+            b"Content-Type: text/plain\r\n")
+        # blank line
+        self.assertTrue(mstream.readline() == b"\r\n")
+        # body
+        self.assertTrue(mstream.readline() == b"How are you?\r\n")
+        # terminating boundary has NO CRLF
+        self.assertTrue(
+            mstream.readline() ==
+            b"--gc0p4Jq0M2Yt08j34c0p--")
+
+    def test_readlines(self):
+        # Now try with preamble and epilogue (no CRLF)
+        part = multipart.MessagePart(entity_body=b"How are you?")
+        part.set_content_type("text/plain")
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        mstream = multipart.MultipartSendWrapper(
+            mtype, [part], preamble=b"Just wanted to ask\r\n...",
+            epilogue=b"Fine\r\nthanks!")
+        lines = mstream.readlines()
+        matches = [
+            b"Just wanted to ask\r\n",
+            b"...\r\n",
+            b"--gc0p4Jq0M2Yt08j34c0p\r\n",
+            b"Content-Type: text/plain\r\n",
+            b"\r\n",
+            b"How are you?\r\n",
+            b"--gc0p4Jq0M2Yt08j34c0p--\r\n",
+            b"Fine\r\n",
+            b"thanks!"]
+        self.assertTrue(len(lines) == len(matches))
+        for line, match in zip(lines, matches):
+            self.assertTrue(line == match, "Failed to match: %s" % match)
+        mstream.close()
+
+    def test_readlines_crlf(self):
+        # Now repeat the exercise with maximal CRLF
+        part = multipart.MessagePart(entity_body=b"\r\nHow are you?\r\n")
+        part.set_content_type("text/plain")
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        mstream = multipart.MultipartSendWrapper(
+            mtype, [part], preamble=b"\r\nJust wanted to ask\r\n",
+            epilogue=b"\r\nFine thanks!\r\n")
+        lines = mstream.readlines()
+        matches = [
+            b"\r\n",
+            b"Just wanted to ask\r\n",
+            b"\r\n",
+            b"--gc0p4Jq0M2Yt08j34c0p\r\n",
+            b"Content-Type: text/plain\r\n",
+            b"\r\n",
+            b"\r\n",
+            b"How are you?\r\n",
+            b"\r\n",
+            b"--gc0p4Jq0M2Yt08j34c0p--\r\n",
+            b"\r\n",
+            b"Fine thanks!\r\n"]
+        self.assertTrue(len(lines) == len(matches), lines)
+        for line, match in zip(lines, matches):
+            self.assertTrue(line == match, "Failed to match: %s" % match)
+        mstream.close()
+
+    def test_read(self):
+        part = multipart.MessagePart(entity_body=b"How are you?")
+        part.set_content_type("text/plain")
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        mstream = multipart.MultipartSendWrapper(
+            mtype, [part], preamble=b"Just wanted to ask\r\n...",
+            epilogue=b"Fine\r\nthanks!")
+        # blocking stream
+        c = mstream.read(1)
+        self.assertTrue(c == b"J")
+        line = []
+        while c != b"\n":
+            line.append(c)
+            c = mstream.read(1)
+            # won't return None
+            self.assertTrue(len(c) == 1)
+        self.assertTrue(
+            b"".join(line) ==
+            b'Just wanted to ask\r')
+        data = mstream.read()
+        self.assertTrue(data.endswith(b"Fine\r\nthanks!"), data)
+        self.assertTrue(mstream.read(1) == b"")
+        mstream.close()
+
+    def test_read_nonblocking(self):
+        src = io.BytesIO(b"How are you?\n" * 10)
+        src = MockBlockingByteReader(src, block_after=((10,)))
+        part = multipart.MessagePart(entity_body=src)
+        part.set_content_type("text/plain")
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        mstream = multipart.MultipartSendWrapper(mtype, [part])
+        # non-blocking non-empty stream
+        lines = []
+        line = []
+        blocks = 0
+        while True:
+            c = mstream.read(1)
+            if c:
+                if c == b"\n":
+                    # end of line
+                    lines.append(b"".join(line))
+                    line = []
+                else:
+                    line.append(c)
+            elif c is None:
+                blocks += 1
+            else:
+                break
+        # our mock blocking stream always returns None at least once
+        self.assertTrue(blocks > 1, "non-blocking stream failed to stall")
+        boundary = lines.index(b"\r")
+        self.assertTrue(boundary > 0, lines)
+        for line in lines[boundary + 1:boundary + 11]:
+            self.assertTrue(line == b"How are you?")
+        mstream.close()
+
+    def test_seek(self):
+        part = multipart.MessagePart(entity_body=b"How are you?")
+        part.set_content_type("text/plain")
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        mstream = multipart.MultipartSendWrapper(mtype, [part])
+        self.assertFalse(mstream.seekable())
+        try:
+            mstream.seek(0)
+            self.fail("MultipartSendWrapper.seek")
+        except IOError:
+            pass
+        try:
+            mstream.tell()
+            self.fail("MultipartSendWrapper.tell")
+        except IOError:
+            pass
+        try:
+            mstream.truncate(0)
+            self.fail("MultipartSendWrapper.truncate")
+        except IOError:
+            pass
+        mstream.close()
+
+    def test_write(self):
+        part = multipart.MessagePart(entity_body=b"How are you?")
+        part.set_content_type("text/plain")
+        mtype = MediaType.from_str(
+            "multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p")
+        mstream = multipart.MultipartSendWrapper(mtype, [part])
+        self.assertFalse(mstream.writable())
+        try:
+            mstream.write(b"Hello")
+            self.fail("MultipartSendWrapper.write")
+        except IOError:
+            pass
+        mstream.close()
+
+    def test_multiple(self):
+        part1 = multipart.MessagePart(
+            entity_body=b"plain text version\r\n")
+        part1.set_content_type("text/plain; charset=us-ascii")
+        part2 = multipart.MessagePart(
+            entity_body=b"RFC 1896 text/enriched version\r\n")
+        part2.set_content_type("text/enriched")
+        part3 = multipart.MessagePart(
+            entity_body=b"fanciest version\r\n")
+        part3.set_content_type("application/x-whatever")
+        mtype = MediaType.from_str(
+            "multipart/alternative; boundary=boundary42")
+        mstream = multipart.MultipartSendWrapper(mtype, [part1, part2, part3])
+        self.assertTrue(
+            mstream.read() == b"--boundary42\r\n"
+            b"Content-Type: text/plain; charset=us-ascii\r\n"
+            b"\r\n"
+            b"plain text version\r\n"
+            b"\r\n"
+            b"--boundary42\r\n"
+            b"Content-Type: text/enriched\r\n"
+            b"\r\n"
+            b"RFC 1896 text/enriched version\r\n"
+            b"\r\n"
+            b"--boundary42\r\n"
+            b"Content-Type: application/x-whatever\r\n"
+            b"\r\n"
+            b"fanciest version\r\n"
+            b"\r\n"
+            b"--boundary42--")
+
+    def test_nested(self):
+        part_a = multipart.MessagePart(entity_body=b"Introduction")
+        part_a.set_content_type("text/plain")
+        part1 = multipart.MessagePart(
+            entity_body=b"plain text version\r\n")
+        part1.set_content_type("text/plain; charset=us-ascii")
+        part2 = multipart.MessagePart(
+            entity_body=b"RFC 1896 text/enriched version\r\n")
+        part2.set_content_type("text/enriched")
+        mtype = MediaType.from_str(
+            'multipart/alternative; boundary="---- next message ----"')
+        mstream = multipart.MultipartSendWrapper(mtype, [part1, part2])
+        part_b = multipart.MessagePart(entity_body=mstream)
+        part_b.set_content_type(mtype)
+        mtype = MediaType.from_str(
+            'multipart/mixed; boundary="---- main boundary ----"')
+        mstream = multipart.MultipartSendWrapper(mtype, [part_a, part_b])
+        result = mstream.read()
+        self.assertTrue(
+            result == b"------ main boundary ----\r\n"
+            b'Content-Type: text/plain\r\n'
+            b"\r\n"
+            b"Introduction\r\n"
+            b"------ main boundary ----\r\n"
+            b"Content-Type: multipart/alternative; "
+            b'boundary="---- next message ----"\r\n'
+            b"\r\n"
+            b"------ next message ----\r\n"
+            b"Content-Type: text/plain; charset=us-ascii\r\n"
+            b"\r\n"
+            b"plain text version\r\n"
+            b"\r\n"
+            b"------ next message ----\r\n"
+            b"Content-Type: text/enriched\r\n"
+            b"\r\n"
+            b"RFC 1896 text/enriched version\r\n"
+            b"\r\n"
+            b"------ next message ------\r\n"
+            b"------ main boundary ------", repr(result))
 
 # no encoding other than "7bit", "8bit", or "binary" is permitted for
 # entities of type "multipart"

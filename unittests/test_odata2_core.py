@@ -17,6 +17,7 @@ import pyslet.odata2.metadata as edmx
 
 from pyslet.vfs import OSFilePath as FilePath
 from pyslet.py2 import (
+    is_text,
     is_unicode,
     range3,
     to_text,
@@ -1983,6 +1984,96 @@ class DataServiceRegressionTests(unittest.TestCase):
                 except KeyError:
                     self.fail("insert_entity returned a NULL key (%s)" %
                               keytype)
+
+    def runtest_changeset(self):
+        container = self.ds['RegressionModel.RegressionContainer']
+        # start by creating a changeset which we do on the container
+        changes = container.new_changeset()
+        self.assertTrue(isinstance(changes, edm.Changeset))
+        es_a = container['ChangesetA']
+        es_b = container['ChangesetB']
+        with es_a.open() as coll_a:
+            a1 = coll_a.new_entity()
+            self.assertTrue(a1.exists is False)
+            self.assertTrue(a1.alias is None)
+            a1['K'].set_from_value(1)
+            a1['Data'].set_from_value('hello')
+            changes.insert_entity(coll_a, a1)
+            # the entity still doesn't exist
+            self.assertTrue(a1.exists is False)
+            # but it now has an alias
+            alias1 = a1.alias
+            self.assertTrue(is_text(alias1))
+            # the alias is a key into the changeset returning the entity
+            self.assertTrue(changes[alias1] is a1)
+            # you can't insert the same entity twice
+            try:
+                changes.insert_entity(coll_a, a1)
+                self.fail("double insert in Changeset")
+            except edm.EntityExists:
+                # I know it doesn't, but it does for the purposes of
+                # this changeset
+                pass
+            changes.commit()
+            self.assertTrue(a1.exists)
+            # cleans up the alias in the entity but not in the changeset
+            self.assertTrue(a1.alias is None)
+            self.assertTrue(changes[alias1] is a1)
+            # once a changeset has been committed it can't be modified
+            a2 = coll_a.new_entity()
+            a2['K'].set_from_value(2)
+            a2['Data'].set_from_value('hello')
+            try:
+                changes.insert_entity(coll_a, a2)
+                self.fail("insert_entity after commit in Changeset")
+            except edm.ChangesetCommitted:
+                pass
+            with es_b.open() as coll_b:
+                changes = container.new_changeset()
+                changes.insert_entity(coll_a, a2)
+                alias2 = a2.alias
+                b1 = coll_b.new_entity()
+                b1['K'].set_from_value(1)
+                b1['Data'].set_from_value('rollback')
+                changes.insert_entity(coll_b, b1)
+                # insert of b1 should fail due to missing A link, rollback!
+                try:
+                    changes.commit()
+                    self.fail("Expected rollback")
+                except edm.ConstraintError:
+                    pass
+                self.assertFalse(a2.exists)
+                self.assertTrue(a2.alias is None)
+                # a failed changeset is 'done' but still has refs
+                self.assertTrue(changes[alias2] is a2)
+                self.assertFalse(b1.exists)
+                self.assertTrue(b1.alias is None)
+                # correct the problem
+                b1['A'].bind_entity(a2)
+                # but you can't just call commit again!
+                try:
+                    changes.commit()
+                    self.fail("commit after commit in Changeset")
+                except edm.ChangesetCommitted:
+                    pass
+                changes = container.new_changeset()
+                changes.insert_entity(coll_a, a2)
+                alias2 = a2.alias
+                b1['Data'].set_from_value('transaction')
+                changes.insert_entity(coll_b, b1)
+                aliasb1 = b1.alias
+                changes.commit()
+                self.assertTrue(a2.exists)
+                self.assertTrue(b1.exists)
+                self.assertTrue(a2.alias is None)
+                self.assertTrue(b1.alias is None)
+                self.assertTrue(changes[alias2] is a2)
+                self.assertTrue(changes[aliasb1] is b1)
+                # and the final test, that we are actually linked!
+                check_a2 = coll_a[2]
+                with check_a2['B'].open() as coll_ab:
+                    check_b1 = coll_ab[1]
+                    self.assertTrue(check_b1['Data'].value == "transaction")
 
     def runtest_all_types(self):
         all_types = self.ds['RegressionModel.RegressionContainer.AllTypes']

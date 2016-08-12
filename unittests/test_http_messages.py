@@ -18,6 +18,7 @@ def suite():
     return unittest.TestSuite((
         unittest.makeSuite(MessageTests, 'test'),
         unittest.makeSuite(RecvWrapperTests, 'test'),
+        unittest.makeSuite(SendWrapperTests, 'test'),
         unittest.makeSuite(ChunkedTests, 'test'),
         unittest.makeSuite(WSGITests, 'test'),
         unittest.makeSuite(HeaderTests, 'test'),
@@ -757,6 +758,192 @@ class RecvWrapperTests(unittest.TestCase):
                             "empty stream non-blocking: %s" % repr(c))
         self.assertTrue(b"".join(line) ==
                         b'<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">')
+        rstream.close()
+
+
+class SendWrapperTests(unittest.TestCase):
+
+    def test_constructor(self):
+        request = Request(entity_body=io.BytesIO(b"How long?"))
+        request.set_method("POST")
+        request.set_request_uri("/script.cgi")
+        request.set_content_type("text/plain")
+        rstream = SendWrapper(request)
+        self.assertTrue(rstream.message is request)
+        try:
+            rstream.fileno()
+            self.fail("SendWrapper.fileno")
+        except IOError:
+            pass
+        # flush does nothing but is callable
+        rstream.flush()
+        self.assertFalse(rstream.isatty())
+        self.assertTrue(rstream.readable())
+        rstream.close()
+
+    def test_close(self):
+        request = Request()
+        request.set_method("GET")
+        request.set_request_uri("/script.cgi")
+        request.set_content_type("text/plain")
+        rstream = SendWrapper(request)
+        self.assertFalse(rstream.closed)
+        rstream.close()
+        self.assertTrue(rstream.closed)
+        try:
+            rstream.read(1)
+            self.fail("SendWrapper.read after close")
+        except IOError:
+            pass
+
+    def test_readline(self):
+        request = Request()
+        request.set_method("GET")
+        request.set_request_uri("/index.html")
+        rstream = SendWrapper(request)
+        # blocking empty message body
+        self.assertTrue(rstream.readline() == b"GET /index.html HTTP/1.1\r\n")
+        self.assertTrue(rstream.readline() == b"\r\n")
+        self.assertTrue(rstream.readline() == b"")
+        rstream.close()
+        request = Request(entity_body=io.BytesIO(b"How long?"))
+        request.set_method("POST")
+        request.set_request_uri("/script.cgi")
+        rstream = SendWrapper(request, params.HTTP_1p0)
+        # blocking non-empty message body
+        self.assertTrue(rstream.readline() == b"POST /script.cgi HTTP/1.1\r\n")
+        self.assertTrue(rstream.readline() == b"Connection: close\r\n")
+        self.assertTrue(rstream.readline() == b"Content-Length: 9\r\n")
+        self.assertTrue(rstream.readline() == b"\r\n")
+        # blocking non-empty stream with limit bytes
+        self.assertTrue(rstream.readline(6) == b"How lo")
+        rstream.close()
+
+    def test_readlines(self):
+        request = Request()
+        request.set_method("GET")
+        request.set_request_uri("/index.html")
+        rstream = SendWrapper(request)
+        # blocking empty message body
+        lines = rstream.readlines()
+        # returns a list of lines
+        self.assertTrue(isinstance(lines, list))
+        # should be empty
+        self.assertTrue(len(lines) == 2)
+        rstream.close()
+        request = Request(entity_body=io.BytesIO(b"How long?"))
+        request.set_method("POST")
+        request.set_request_uri("/script.cgi")
+        rstream = SendWrapper(request, params.HTTP_1p0)
+        # blocking non-empty message body
+        # read 10 bytes (ish)
+        lines = rstream.readlines(10)
+        self.assertTrue(len(lines) == 1)
+        self.assertTrue(
+            lines[0] ==
+            b'POST /script.cgi HTTP/1.1\r\n')
+        # read the rest, no trailing empty line!
+        lines = rstream.readlines()
+        self.assertTrue(len(lines) == 4)
+        self.assertTrue(lines[3] == b"How long?")
+        rstream.close()
+
+    def test_read(self):
+        request = Request()
+        request.set_method("GET")
+        request.set_request_uri("/index.html")
+        rstream = SendWrapper(request)
+        # blocking empty message body
+        self.assertTrue(rstream.readline() == b"GET /index.html HTTP/1.1\r\n")
+        self.assertTrue(rstream.readline() == b"\r\n")
+        self.assertTrue(rstream.read(1) == b"")
+        rstream.close()
+        request = Request(entity_body=io.BytesIO(b"How long?"))
+        request.set_method("POST")
+        request.set_request_uri("/script.cgi")
+        rstream = SendWrapper(request, params.HTTP_1p0)
+        # blocking non-empty message body
+        c = rstream.read(1)
+        self.assertTrue(c == b"P")
+        line = []
+        while c != b"\n":
+            line.append(c)
+            c = rstream.read(1)
+            # won't return None
+            self.assertTrue(len(c) == 1)
+        self.assertTrue(b"".join(line) ==
+                        b'POST /script.cgi HTTP/1.1\r')
+        data = rstream.read()
+        self.assertTrue(data.endswith(b"How long?"))
+        self.assertTrue(rstream.read(1) == b"")
+        rstream.close()
+
+    def test_read_nonblocking(self):
+        src = io.BytesIO(b"How long?\n" * 10)
+        src = MockBlockingByteReader(src, block_after=((10,)))
+        response = Response(entity_body=src)
+        response.set_status(200)
+        rstream = SendWrapper(response, params.HTTP_1p0)
+        # non-blocking non-empty message body
+        lines = []
+        line = []
+        blocks = 0
+        while True:
+            c = rstream.read(1)
+            if c:
+                if c == b"\n":
+                    # end of line
+                    lines.append(b"".join(line))
+                    line = []
+                else:
+                    line.append(c)
+            elif c is None:
+                blocks += 1
+            else:
+                break
+        # our mock blocking stream always returns None at least once
+        self.assertTrue(blocks > 1, "non-blocking stream failed to stall")
+        boundary = lines.index(b"\r")
+        self.assertTrue(boundary > 0)
+        for line in lines[boundary + 1:]:
+            self.assertTrue(line == b"How long?")
+        # readall behaviour is undefined, don't test it
+        rstream.close()
+
+    def test_seek(self):
+        request = Request(entity_body=io.BytesIO(b"How long?"))
+        request.set_method("POST")
+        request.set_request_uri("/script.cgi")
+        rstream = SendWrapper(request, params.HTTP_1p0)
+        self.assertFalse(rstream.seekable())
+        try:
+            rstream.seek(0)
+            self.fail("RecvWrapper.seek")
+        except IOError:
+            pass
+        try:
+            rstream.tell()
+            self.fail("RecvWrapper.tell")
+        except IOError:
+            pass
+        try:
+            rstream.truncate(0)
+            self.fail("RecvWrapper.truncate")
+        except IOError:
+            pass
+        rstream.close()
+
+    def test_write(self):
+        request = Request(entity_body=io.BytesIO(b"How long?"))
+        request.set_method("POST")
+        request.set_request_uri("/script.cgi")
+        rstream = SendWrapper(request, params.HTTP_1p0)
+        self.assertFalse(rstream.writable())
+        try:
+            rstream.write(b"Hello")
+            self.fail("RecvWrapper.write")
+        except IOError:
+            pass
         rstream.close()
 
 

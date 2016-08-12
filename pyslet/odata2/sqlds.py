@@ -26,6 +26,7 @@ from ..py2 import (
     is_text,
     range3,
     to_text)
+from ..py26 import py26
 from ..vfs import OSFilePath
 
 from . import core
@@ -409,6 +410,17 @@ class SQLCollectionBase(core.EntityCollection):
         if self.connection is not None:
             self.container.release_connection(self.connection)
             self.connection = None
+
+    def insert_entity(self, entity):
+        """Inserts *entity* into the collection.
+
+        We override this method, rerouting it to a SQL-specific
+        implementation that takes an additional transaction argument."""
+        transaction = SQLTransaction(self.container, self.connection)
+        self.insert_entity_transaction(entity, transaction=transaction)
+
+    def insert_entity_transaction(self, entity, transaction):
+        raise NotImplementedError
 
     def __len__(self):
         if self._sqlLen is None:
@@ -1931,12 +1943,9 @@ class SQLEntityCollection(SQLCollectionBase):
     constructing and executing queries to implement the core methods
     from :py:class:`pyslet.odata2.csdl.EntityCollection`."""
 
-    def insert_entity(self, entity):
-        """Inserts *entity* into the collection.
-
-        We override this method, rerouting it to a SQL-specific
-        implementation that takes additional arguments."""
-        self.insert_entity_sql(entity)
+    def insert_entity_transaction(self, entity, transaction):
+        """Inserts *entity* into the collection in a transaction"""
+        self.insert_entity_sql(entity, transaction=transaction)
 
     def new_stream(self, src, sinfo=None, key=None):
         e = self.new_entity()
@@ -2014,12 +2023,8 @@ class SQLEntityCollection(SQLCollectionBase):
             transaction.close()
         return e
 
-    def insert_entity_sql(
-            self,
-            entity,
-            from_end=None,
-            fk_values=None,
-            transaction=None):
+    def insert_entity_sql(self, entity, from_end=None, fk_values=None,
+                          transaction=None):
         """Inserts *entity* into the collection.
 
         This method is not designed to be overridden by other
@@ -2264,9 +2269,7 @@ class SQLEntityCollection(SQLCollectionBase):
             # moment.
             raise edm.ConstraintError(
                 "insert_entity failed for %s : %s" %
-                (str(
-                    entity.get_location()),
-                    str(e)))
+                (str(entity.get_location()), str(e)))
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -2563,13 +2566,8 @@ class SQLEntityCollection(SQLCollectionBase):
         finally:
             transaction.close()
 
-    def update_link(
-            self,
-            entity,
-            link_end,
-            target_entity,
-            no_replace=False,
-            transaction=None):
+    def update_link(self, entity, link_end, target_entity, no_replace=False,
+                    transaction=None):
         """Updates a link when this table contains the foreign key
 
         entity
@@ -3185,8 +3183,8 @@ class SQLForeignKeyCollection(SQLNavigationCollection):
         else:
             return ''
 
-    def insert_entity(self, entity):
-        transaction = SQLTransaction(self.container, self.connection)
+    def insert_entity_transaction(self, entity, transaction):
+        """Inserts *entity* into the collection in a transaction"""
         try:
             # Because of the nature of the relationships we are used
             # for, *entity* can be inserted into the base collection
@@ -3299,8 +3297,7 @@ class SQLReverseKeyCollection(SQLNavigationCollection):
         else:
             return ''
 
-    def insert_entity(self, entity):
-        transaction = SQLTransaction(self.container, self.connection)
+    def insert_entity_transaction(self, entity, transaction):
         fk_values = []
         for k, v in dict_items(self.from_entity.key_dict()):
             fk_values.append(
@@ -3595,9 +3592,8 @@ class SQLAssociationCollection(SQLNavigationCollection):
             self.where_skiptoken_clause(where, params)
         return ' WHERE ' + ' AND '.join(where)
 
-    def insert_entity(self, entity):
-        """Rerouted to a SQL-specific implementation"""
-        self.insert_entity_sql(entity, transaction=None)
+    def insert_entity_transaction(self, entity, transaction):
+        self.insert_entity_sql(entity, transaction)
 
     def insert_entity_sql(self, entity, transaction=None):
         """Inserts *entity* into the base collection and creates the link.
@@ -3967,6 +3963,42 @@ class SQLConnection(object):
         self.dbc = None
 
 
+class SQLChangeset(edm.Changeset):
+
+    def __init__(self, sql_container, **kws):
+        if py26:
+            raise NotImplementedError
+        super(SQLChangeset, self).__init__(**kws)
+        self.sql_container = sql_container
+        self.transaction = None
+
+    def commit(self):
+        if self.done:
+            raise edm.ChangesetCommitted
+        rollback = False
+        connection = self.sql_container.acquire_connection(SQL_TIMEOUT)
+        if connection is None:
+            raise DatabaseBusy(
+                "Failed to acquire connection after %is" % SQL_TIMEOUT)
+        self.transaction = SQLTransaction(self.sql_container, connection)
+        try:
+            self.done = True
+            self.transaction.begin()
+            self.do_commit()
+            self.transaction.commit()
+        except Exception as e:
+            rollback = True
+            self.transaction.rollback(e)
+        finally:
+            self.transaction.close()
+            if connection is not None:
+                self.sql_container.release_connection(connection)
+            self.remove_aliases(rollback)
+
+    def do_insert_entity(self, collection, entity):
+        collection.insert_entity_transaction(entity, self.transaction)
+
+
 class SQLEntityContainer(object):
 
     """Object used to represent an Entity Container (aka Database).
@@ -4041,6 +4073,7 @@ class SQLEntityContainer(object):
                 "Unabsorbed kwargs in SQLEntityContainer constructor")
         self.container = container
         #: the :py:class:`~pyslet.odata2.csdl.EntityContainer`
+        self.container.bind_changeset(SQLChangeset, sql_container=self)
         self.streamstore = streamstore
         #: the optional :py:class:`~pyslet.blockstore.StreamStore`
         self.dbapi = dbapi

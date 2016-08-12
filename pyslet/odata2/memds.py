@@ -39,6 +39,8 @@ class InMemoryEntityStore(object):
         self.entity_set = entity_set    #: the entity set we're bound to
         self.data = {}                  #: simple dictionary of the values
         self.streams = {}               #: simple dictionary of streams
+        self._rb_data = {}
+        self._rb_streams = {}
         self.associations = {}
         # a mapping of association set names to
         # :py:class:`InMemoryAssociation` instances *from* this entity
@@ -82,6 +84,7 @@ class InMemoryEntityStore(object):
         with self.container.lock:
             if key in self.data:
                 raise edm.ConstraintError("Duplicate key: %s", str(key))
+            self._set_rbinfo(key)
             self.data[key] = tuple(value)
             # At this point the entity exists
             e.exists = True
@@ -166,10 +169,13 @@ class InMemoryEntityStore(object):
                     elif isinstance(p, edm.SimpleValue):
                         value[i] = p.value
                 i = i + 1
+            self._set_rbinfo(key)
             self.data[key] = tuple(value)
 
     def update_entity_stream(self, key, stream, sinfo):
         with self.container.lock:
+            if self.container.in_transaction:
+                self._rb_streams[key] = self.streams.get(key, None)
             self.streams[key] = (stream, sinfo)
 
     def get_tuple_from_complex(self, complex_value):
@@ -218,6 +224,7 @@ class InMemoryEntityStore(object):
                 aindex.delete_hook(key)
             for aindex in dict_values(self.reverseAssociations):
                 aindex.rdelete_hook(key)
+            self._set_rbinfo(key)
             del self.data[key]
             if key in self.streams:
                 del self.streams[key]
@@ -228,6 +235,37 @@ class InMemoryEntityStore(object):
         Not thread-safe, should only be called if you have the container
         lock."""
         return key in self.data
+
+    def _set_rbinfo(self, key):
+        if self.container.in_transaction:
+            if key not in self._rb_data:
+                self._rb_data[key] = self.data.get(key, None)
+            if key not in self._rb_streams:
+                self._rb_streams[key] = self.streams.get(key, None)
+
+    def commit(self):
+        """Commits transactional changes
+
+        Not thread-safe, must only be called if you have acquired the
+        container lock."""
+        self._rb_data = {}
+        self._rb_streams = {}
+
+    def rollback(self):
+        """Rolls back changes since last commit
+
+        Not thread-safe, must only be called if you have acquired the
+        container lock."""
+        for key, value in dict_items(self._rb_data):
+            if value is None:
+                self.data.pop(key, None)
+            else:
+                self.data[key] = value
+        for key, value in dict_items(self._rb_streams):
+            if value is None:
+                self.streams.pop(key, None)
+            else:
+                self.streams[key] = value
 
 
 class InMemoryAssociationIndex(object):
@@ -259,6 +297,8 @@ class InMemoryAssociationIndex(object):
         self.index = {}
         #: the reverse index mapping target keys on to sets of source keys
         self.reverseIndex = {}
+        self._rb_index = {}
+        self._rb_reverse = {}
         self.from_store = from_store
         from_store.add_association(self, reverse=False)
         self.to_store = to_store
@@ -297,6 +337,7 @@ class InMemoryAssociationIndex(object):
     def add_link(self, from_key, to_key):
         """Adds a link from *from_key* to *to_key*"""
         with self.container.lock:
+            self._set_rbinfo(from_key, to_key)
             self.index.setdefault(from_key, set()).add(to_key)
             self.reverseIndex.setdefault(to_key, set()).add(from_key)
 
@@ -313,6 +354,7 @@ class InMemoryAssociationIndex(object):
     def remove_link(self, from_key, to_key):
         """Removes a link from *from_key* to *to_key*"""
         with self.container.lock:
+            self._set_rbinfo(from_key, to_key)
             self.index.get(from_key, set()).discard(to_key)
             self.reverseIndex.get(to_key, set()).discard(from_key)
 
@@ -324,7 +366,9 @@ class InMemoryAssociationIndex(object):
                 from_keys = self.reverseIndex[to_key]
                 from_keys.remove(from_key)
                 if len(from_keys) == 0:
+                    self._set_rbinfo(None, to_key)
                     del self.reverseIndex[to_key]
+            self._set_rbinfo(from_key, None)
             del self.index[from_key]
         except KeyError:
             pass
@@ -337,10 +381,49 @@ class InMemoryAssociationIndex(object):
                 to_keys = self.index[from_key]
                 to_keys.remove(to_key)
                 if len(to_keys) == 0:
+                    self._set_rbinfo(from_key, None)
                     del self.index[from_key]
+            self._set_rbinfo(None, to_key)
             del self.reverseIndex[to_key]
         except KeyError:
             pass
+
+    def _set_rbinfo(self, from_key, to_key):
+        if self.container.in_transaction:
+            if from_key is not None and from_key not in self._rb_index:
+                old_value = self.index.get(from_key, None)
+                if old_value is not None:
+                    old_value = old_value.copy()
+                self._rb_index[from_key] = old_value
+            if to_key is not None and to_key not in self._rb_index:
+                old_value = self.reverseIndex.get(to_key, None)
+                if old_value is not None:
+                    old_value = old_value.copy()
+                self._rb_reverse[to_key] = old_value
+
+    def commit(self):
+        """Commits transactional changes
+
+        Not thread-safe, must only be called if you have acquired the
+        container lock."""
+        self._rb_index = {}
+        self._rb_reverse = {}
+
+    def rollback(self):
+        """Rolls back changes since last commit
+
+        Not thread-safe, must only be called if you have acquired the
+        container lock."""
+        for key, value in dict_items(self._rb_index):
+            if value is None:
+                self.index.pop(key, None)
+            else:
+                self.index[key] = value
+        for key, value in dict_items(self._rb_reverse):
+            if value is None:
+                self.reverseIndex.pop(key, None)
+            else:
+                self.reverseIndex[key] = value
 
 
 # class WEntityStream(StringIO):
@@ -748,11 +831,38 @@ class NavigationCollection(odata.NavigationCollection):
                         self.aindex.remove_link(self.key, oldKey)
 
 
+class InMemoryChangeset(edm.Changeset):
+
+    def __init__(self, mem_container, **kws):
+        super(InMemoryChangeset, self).__init__(**kws)
+        self.mem_container = mem_container
+
+    def commit(self):
+        if self.done:
+            raise edm.ChangesetCommitted
+        rollback = False
+        with self.mem_container.lock:
+            try:
+                self.done = True
+                self.mem_container.begin_transaction()
+                self.do_commit()
+                self.mem_container.commit_transaction()
+            except Exception:
+                rollback = True
+                raise
+            finally:
+                # it is safe and simpler to call rollback after commit
+                self.mem_container.rollback()
+                self.remove_aliases(rollback)
+
+
 class InMemoryEntityContainer(object):
 
     def __init__(self, container_def):
         #: the :py:class:`csdl.EntityContainer` that defines this container
         self.container_def = container_def
+        self.container_def.bind_changeset(InMemoryChangeset,
+                                          mem_container=self)
         """a lock that must be acquired before modifying any entity or
         association in this container"""
         self.lock = threading.RLock()
@@ -762,6 +872,8 @@ class InMemoryEntityContainer(object):
         """a mapping from association set name to
         :py:class:`InMemoryAssociationIndex` instances"""
         self.associationStorage = {}
+        #: flag indicating whether or not we're in a transaction
+        self.in_transaction = False
         # for each entity set in this container, bind some storage
         for es in self.container_def.EntitySet:
             self.entityStorage[es.name] = InMemoryEntityStore(self, es)
@@ -795,3 +907,26 @@ class InMemoryEntityContainer(object):
                         from_storage,
                         to_storage,
                         np.name)
+
+    def begin_transaction(self):
+        if self.in_transaction:
+            raise RuntimeError("InMemoryEntityContainer begin in transaction")
+        self.in_transaction = True
+
+    def commit_transaction(self):
+        if self.in_transaction:
+            for estore in dict_values(self.entityStorage):
+                estore.commit()
+            for astore in dict_values(self.associationStorage):
+                astore.commit()
+            self.in_transaction = False
+        else:
+            raise RuntimeError("InMemoryEntityContainer bad commit")
+
+    def rollback(self):
+        if self.in_transaction:
+            for estore in dict_values(self.entityStorage):
+                estore.rollback()
+            for astore in dict_values(self.associationStorage):
+                astore.rollback()
+            self.in_transaction = False

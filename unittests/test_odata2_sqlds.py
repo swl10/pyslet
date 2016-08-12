@@ -892,6 +892,13 @@ class RegressionTests(DataServiceRegressionTests):
         self.d.rmtree(True)
         DataServiceRegressionTests.tearDown(self)
 
+    def test_changesets(self):
+        # temporary while we build out this feature
+        try:
+            self.runtest_changeset()
+        except NotImplementedError:
+            logging.warning("Changesets not supported, tests skipped")
+
     def test_all_tests(self):
         self.run_combined()
 

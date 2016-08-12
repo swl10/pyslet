@@ -9,6 +9,7 @@ from ..py2 import (
     is_byte,
     is_unicode,
     join_bytes)
+from ..py26 import RawIOBase
 from .. import unicode5
 
 from . import grammar
@@ -16,14 +17,17 @@ from .messages import (
     Message,
     ProtocolError,
     RecvWrapper,
-    RecvWrapperBase)
+    RecvWrapperBase,
+    SendWrapper)
 from .params import MediaType, APPLICATION_OCTETSTREAM
+
 
 class MultipartError(ProtocolError):
     pass
 
 
 SPECIALS = set('()<>@,;:\\".[]'.encode('ascii'))
+
 
 def is_special(b):
     """Returns True if a byte is an RFC822 special"""
@@ -148,7 +152,6 @@ class RFC822OctetParser(grammar.OctetParser):
             return join_bytes(dtext)
         else:
             return None
-
 
 
 class RFC822Parser(unicode5.ParserMixin):
@@ -346,7 +349,8 @@ class RFC822Parser(unicode5.ParserMixin):
 
     def is_quoted_string(self):
         """Returns True if the current token is a quoted string."""
-        return isinstance(self.the_token, bytes) and self.the_token[0] == grammar.DQUOTE
+        return isinstance(self.the_token, bytes) and \
+            self.the_token[0] == grammar.DQUOTE
 
     def parse_quoted_string(self):
         """Parses a quoted string from the list of tokens.
@@ -359,7 +363,8 @@ class RFC822Parser(unicode5.ParserMixin):
 
     def is_domain_literal(self):
         """Returns True if the current token is a domain literal."""
-        return isinstance(self.the_token, bytes) and self.the_token[0] == grammar.LEFT_SQUARE_BRACKET
+        return isinstance(self.the_token, bytes) and \
+            self.the_token[0] == grammar.LEFT_SQUARE_BRACKET
 
     def parse_domain_literal(self):
         """Parses a domain literal from the list of tokens.
@@ -434,7 +439,8 @@ class RFC822Parser(unicode5.ParserMixin):
                     parts.append(self.parse_atom().decode('ascii'))
                 elif self.is_quoted_string():
                     q = self.parse_quoted_string()
-                    parts.append(grammar.quote_string(q, False).decode('ascii'))
+                    parts.append(
+                        grammar.quote_string(q, False).decode('ascii'))
                 else:
                     self.parser_error("word")
             except grammar.BadSyntax:
@@ -497,6 +503,44 @@ class MessagePart(Message):
         """A MIME message part has no start line"""
         return b""
 
+    def send_transferlength(self):
+        """A MIME message does not need a content length
+
+        By overriding this method we also suppress any transfer
+        encoding.  Note that content-transfer encoding is managed by the
+        calling application, i.e., the entity body must already have
+        been transformed to match the value of the header."""
+        self.transferchunked = False
+        self.transferbody = self.entity_body
+        if self.transferbody is None:
+            self.transferlength = 0
+        else:
+            self.transferlength = None
+
+    def send_header(self):
+        """Returns a data string ready to send to the server
+
+        Overridden to impose constrains on the headers that are
+        returned as per...
+
+             Any field not beginning with "content-" can have no defined
+             meaning and may be ignored."""
+        buffer = []
+        # Calculate the length of the message body for transfer
+        self.send_transferlength()
+        hlist = self.get_headerlist()
+        for hKey in hlist:
+            if not hKey.startswith(b"content-") and \
+                    not hKey.startswith(b"x-"):
+                # allow "X-" for custom headers
+                continue
+            h = self.headers[hKey]
+            hname = h[0]
+            for hvalue in h[1:]:
+                buffer.append(b"%s: %s\r\n" % (hname, hvalue))
+        buffer.append(b"\r\n")
+        return b''.join(buffer)
+
     def start_receiving(self):
         """A MIME message part has no start line so advance the mode."""
         super(MessagePart, self).start_receiving()
@@ -527,6 +571,11 @@ class MessagePart(Message):
         self.set_header('Content-Transfer-Encoding', token)
 
     def get_content_transfer_encoding(self):
+        """Returns any content transfer encoding header
+
+        The result is a character string or None if the header does not
+        contain a valid token.  If the header is missing then the
+        default value '7bit' is returned."""
         token = self.get_header('Content-Transfer-Encoding')
         if token is not None:
             try:
@@ -617,6 +666,11 @@ class MultipartRecvWrapper(RecvWrapperBase):
         self.mtype = mtype
         self.boundary_str = get_boundary_delimiter(mtype).encode('ascii')
         self.boundary_len = len(self.boundary_str)
+        # start bmatch as if we already matched CRLF, this catches the
+        # case where the preamble is empty and the body starts with the
+        # dash-boundary
+        self.bmatch = [2, 0]
+        self.bmatch_pos = 0
         self.bmax = 0
         self._boundary_detected = False
         self.epilogue = False
@@ -628,37 +682,23 @@ class MultipartRecvWrapper(RecvWrapperBase):
     def writable(self):
         return False
 
-    def fill_buffer(self, nbytes=io.DEFAULT_BUFFER_SIZE):
-        """Overridden to include boundary search.
-
-        Returns True if the useable buffer was extended, as indicated by
-        :attr:`bmax`.  It may read more than nbytes in order to detect
-        the terminating boundary."""
-        while True:
-            if not super(MultipartRecvWrapper, self).fill_buffer(
-                    max(io.DEFAULT_BUFFER_SIZE, nbytes + self.boundary_len)):
-                return False
-            # buffer has been extended by at least 1 byte!
-            old_max = self.bmax
-            pos = self.buffer.find(self.boundary_str)
-            if pos < 0:
-                # boundary not found (yet)
-                self.bmax = max(0, len(self.buffer) - self.boundary_len + 1)
-            else:
-                # boundary found at pos
-                self.bmax = pos
+    def _detect_boundary(self):
+        blen = len(self.buffer)
+        while self.bmatch_pos < blen and not self._boundary_detected:
+            b = byte(self.buffer[self.bmatch_pos])
+            new_bmatch = [0]
+            for mpos in self.bmatch:
+                if b == self.boundary_str[mpos]:
+                    mpos += 1
+                    new_bmatch.append(mpos)
+            self.bmatch_pos += 1
+            max_match = max(new_bmatch)
+            self.bmax = max(0, self.bmatch_pos - max_match)
+            if max_match >= self.boundary_len:
+                # we have a complete match
+                new_bmatch = [0]
                 self._boundary_detected = True
-            if self.bmax > old_max:
-                # we got at least one byte of extra data, return True
-                return True
-            elif self.bmax:
-                # bmax non-zero and didn't move, must be boundary
-                # detected.
-                raise ProtocolError("unexpected end of message part")
-            # otherwise, buffer was extended but not enough to contain
-            # the boundary.  We don't fiddle around with partial matches
-            # just go around again until we run out of data and raise an
-            # exception or get blocked.
+            self.bmatch = new_bmatch
 
     def readinto(self, b):
         """Read up to len(b) bytes into bytearray b and return the
@@ -682,8 +722,11 @@ class MultipartRecvWrapper(RecvWrapperBase):
                 return 0
             # otherwise we're waiting on a boundary
             try:
-                if not self.fill_buffer():
-                    return None
+                while not self.bmax and not self._boundary_detected:
+                    # go around until we inch forward or hit EOF
+                    if not self.fill_buffer():
+                        return None
+                    self._detect_boundary()
             except ProtocolError:
                 # unexpected EOF, there should be a terminating boundary
                 # without one we can't be sure we got all the data so we
@@ -695,6 +738,9 @@ class MultipartRecvWrapper(RecvWrapperBase):
                 # caller probably won't call us again and be none the
                 # wiser.
                 self.bmax = len(self.buffer)
+                # remove any partial match
+                self.bmatch = [0]
+                self.bmatch_pos = self.bmax
                 if not self.bmax:
                     # buffer empty, no more data, no boundary
                     raise MultipartError("expected multipart boundary")
@@ -703,14 +749,13 @@ class MultipartRecvWrapper(RecvWrapperBase):
         if self.bmax >= nbytes:
             # send all requested bytes
             b[:] = self.buffer[:nbytes]
-            del self.buffer[:nbytes]
-            self.bmax = self.bmax - nbytes
         else:
             # send bmax bytes
             b[:self.bmax] = self.buffer[:self.bmax]
-            del self.buffer[:self.bmax]
             nbytes = self.bmax
-            self.bmax = 0
+        del self.buffer[:nbytes]
+        self.bmax = self.bmax - nbytes
+        self.bmatch_pos = self.bmatch_pos - nbytes
         return nbytes
 
     def read_boundary(self):
@@ -733,16 +778,10 @@ class MultipartRecvWrapper(RecvWrapperBase):
                     break
                 else:
                     raise MultipartError("expected multipart boundary")
-            if self.bmax > 0:
-                # discard the data
-                del self.buffer[:self.bmax]
-                self.bmax = 0
-            if not self.buffer.startswith(self.boundary_str):
-                # we've been terminated by an EOF condition, not a boundary
-                # for email this might be OK but not in HTTP
-                raise MultipartError("missing multipart boundary")
-            # discard the boundary delimiter
-            del self.buffer[:self.boundary_len]
+            # so we must have _boundary_detected, EOF and bmax = 0
+            # discard the matched boundary delimiter
+            del self.buffer[:self.bmatch_pos]
+            self.bmatch_pos = 0
             # signal to read (and ourselves) that we are reading the
             # rest of the boundary line at the moment
             self.bmax = -1
@@ -752,12 +791,12 @@ class MultipartRecvWrapper(RecvWrapperBase):
             if pos < 0:
                 # fill the buffer, ignoring the boundary and loop
                 try:
-                    if not super(MultipartRecvWrapper, self).fill_buffer():
+                    if self.fill_buffer():
                         return None
                     continue
                 except ProtocolError:
-                    # raised if come to the end of the stream
-                    # OK if this is the last boundary
+                    # raised if come to the end of the source stream
+                    # OK assuming this is the last boundary (check later)
                     break
             else:
                 break
@@ -773,7 +812,7 @@ class MultipartRecvWrapper(RecvWrapperBase):
             self.epilogue = True
             # check and discard the transport padding
             for c in self.buffer[2:tp_end]:
-                if c not in b" \t":
+                if byte(c) not in b" \t":
                     raise MultipartError(
                         "multipart boundary found in message part")
             # the CRLF is not part of the epilogue
@@ -788,18 +827,15 @@ class MultipartRecvWrapper(RecvWrapperBase):
             raise MultipartError("expected next part in multipart message")
         else:
             for c in self.buffer[:pos]:
-                if c not in b" \t":
+                if byte(c) not in b" \t":
                     raise MultipartError(
                         "multipart boundary found in message part")
             del self.buffer[:pos + 2]
             self.bmax = 0
             # new part, we may already have the boundary in the buffer
-            pos = self.buffer.find(self.boundary_str)
-            if pos >= 0:
-                self.bmax = pos
-                self._boundary_detected = True
-            else:
-                self.bmax = max(0, len(self.buffer) - self.boundary_len + 1)
+            self.bmatch_pos = 0
+            self.bmatch = [0]
+            self._detect_boundary()
         return not self.epilogue
 
     def next_part(self):
@@ -863,3 +899,77 @@ class MultipartRecvWrapper(RecvWrapperBase):
                 yield part
             except StopIteration:
                 return
+
+
+class MultipartSendWrapper(RawIOBase):
+
+    def __init__(self, mtype, parts, preamble=None, epilogue=None):
+        self.mtype = mtype
+        self.delimiter = get_boundary_delimiter(mtype).encode('ascii')
+        self.parts = iter(parts)
+        if preamble is None:
+            # start with an empty buffer
+            self.buffer = b""
+        else:
+            self.buffer = preamble + b"\r\n"
+        self.bpos = 0
+        self.epilogue = epilogue
+        self.part = SendWrapper(next(self.parts))
+        # now add the dash-boundary + CRLF
+        self.buffer += self.delimiter[2:] + b"\r\n"
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def write(self, b):
+        raise IOError(errno.EPERM, os.strerror(errno.EPERM),
+                      "stream not writable")
+
+    def readinto(self, b):
+        if self.closed:
+            raise IOError(errno.EBADF, os.strerror(errno.EBADF),
+                          "stream is closed")
+        while True:
+            if self.buffer is None:
+                # end of file condition
+                return 0
+            nbytes = len(b)
+            bbytes = len(self.buffer) - self.bpos
+            if bbytes <= 0:
+                # attempt to refill the buffer
+                if self.part is None:
+                    # EOF condition
+                    self.buffer = None
+                    return 0
+                new_buffer = self.part.read(io.DEFAULT_BUFFER_SIZE)
+                if new_buffer is None:
+                    # read blocked
+                    return None
+                elif not new_buffer:
+                    try:
+                        self.part = SendWrapper(next(self.parts))
+                        # add the boundary to the buffer + CRLF
+                        new_buffer = self.delimiter + b"\r\n"
+                    except StopIteration:
+                        # no more parts
+                        self.part = None
+                        # add the close-delimiter and epilogue
+                        new_buffer = self.delimiter + b"--"
+                        if self.epilogue is not None:
+                            new_buffer += b"\r\n" + self.epilogue
+                bbytes = len(new_buffer)
+                self.buffer = new_buffer
+                self.bpos = 0
+            if bbytes > 0:
+                # return the remains of the buffer
+                if nbytes > bbytes:
+                    nbytes = bbytes
+                b[:nbytes] = self.buffer[self.bpos:self.bpos + nbytes]
+                self.bpos += nbytes
+                return nbytes
+            else:
+                # buffer was not refilled but not EOF
+                return None

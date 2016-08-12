@@ -171,8 +171,8 @@ class ConstraintError(EDMError):
 
 class ConcurrencyError(ConstraintError):
 
-    """Raised when attempting to perform an update on an entity and a violation
-    of a concurrency control constraint is encountered."""
+    """Raised when attempting to perform an update on an entity and a
+    violation of a concurrency control constraint is encountered."""
     pass
 
 
@@ -185,6 +185,13 @@ class NavigationError(ConstraintError):
     pass
 
 NavigationConstraintError = NavigationError
+
+
+class ChangesetCommitted(EDMError):
+
+    """Raised when a Changeset's :meth:`~Changeset.commit` method is
+    called for a Changeset that has already been committed."""
+    pass
 
 
 class DictionaryLike(object):
@@ -2323,6 +2330,8 @@ class Entity(SortableMixin, TypeInstance):
         TypeInstance.__init__(self, entity_set.entityType)
         #: whether or not the instance exists in the entity set
         self.exists = False
+        #: the alias for this entity
+        self.alias = None
         #: the set of selected property names or None if all properties
         #: are selected
         self.selected = None
@@ -3555,6 +3564,147 @@ class FunctionCollection(object):
             "Unbound FunctionCollection: %s" % self.function.name)
 
 
+class Changeset(DictionaryLike):
+
+    """Abstract base class for changesets
+
+    container
+        The :py:class:`EntityContainer` associated with this changeset.
+
+    kws
+        Any additional keyword arguments passed to the container's
+        :meth:`EntityContainer.bind_changeset` method.
+
+    Changesets are unordered groups of operations that modify the data
+    in an :py:class:`EntityContainer`.  The operations are actually
+    carried out by calling :meth:`commit` which ensures that the
+    operations are completed as a single transaction, in other words, a
+    failure of any individual operation causes all completed operations
+    to be rolled back.
+
+    The unordered nature of these operations may at first seem
+    counterintuitive but is inherited from the OData standard itself.
+    The order of the operations may actually be constrained by dependent
+    references.  See :meth:`insert_entity` for more information."""
+
+    INSERT = 1
+
+    def __init__(self, container, **kws):
+        self.container = container
+        self.operations = {}
+        self._next_id = 1
+        self.done = False
+        self.inserted_entities = []
+
+    def insert_entity(self, collection, entity):
+        """Add an insert operation to this changeset
+
+        Each operation is allocated an ID.  When an insert operation is
+        added to the changeset the ID of the operation is recorded in
+        the entity itself. The entity will not exist until a successful
+        commit operation has been performed but it may be the subject of
+        other operations added to the changeset, for example, it may be
+        linked to another via a navigation property or even be updated.
+        These operations can, paradoxically, be added to the changeset
+        in any order but when the changeset is comitted the IDs are
+        resolved to ensure that entities are inserted before they are
+        linked or updated."""
+        if self.done:
+            raise ChangesetCommitted
+        if entity.alias is not None:
+            raise EntityExists
+        alias = str(self._next_id)
+        self.operations[alias] = [self.INSERT, collection, entity, False]
+        entity.alias = alias
+        self._next_id += 1
+
+    def __getitem__(self, key):
+        op, collection, entity, done = self.operations[key]
+        if op == self.INSERT:
+            return entity
+        else:
+            raise KeyError
+
+    def do_commit(self):
+        self.inserted_entities = self.collect_inserted_entities()
+        # go through each operation and do it
+        for operation in list(dict_values(self.operations)):
+            op, collection, entity, done = operation
+            if done:
+                continue
+            operation[3] = True
+            self.do_operation(op, collection, entity)
+
+    def do_operation(self, op, collection, entity):
+        """Executes a stored operation within a changeset"""
+        if op == self.INSERT:
+            # We iterate through any bindings to check for aliases so
+            # that any constraints on operation order are honoured"""
+            for k, dv in entity.navigation_items():
+                for bound_entity in dv.bindings:
+                    if not isinstance(bound_entity, Entity):
+                        # assume that any key identifies an entity that
+                        # exists outside this changeset
+                        continue
+                    if bound_entity.alias:
+                        # we need to insert this one first
+                        operation = self.operations[bound_entity.alias]
+                        if not operation[3]:
+                            operation[3] = True
+                            self.do_operation(*operation[:3])
+            self.do_insert_entity(collection, entity)
+
+    def _collect_inserted_entity(self, entity, collection):
+        """Adds entity to dictionary of entities
+
+        entity
+            An entity due to be inserted
+
+        collection
+            A dictionary containing mappings from id(entity)
+            to entity.
+
+        Navigation links are checked for deep inserts and these are
+        added recursively."""
+        eid = id(entity)
+        if eid in collection:
+            return
+        collection[eid] = entity
+        for k, dv in entity.navigation_items():
+            for bound_entity in dv.bindings:
+                if not isinstance(bound_entity, Entity):
+                    continue
+                if not bound_entity.exists:
+                    self._collect_inserted_entity(bound_entity, collection)
+
+    def collect_inserted_entities(self):
+        entities = {}
+        for operation in list(dict_values(self.operations)):
+            op, collection, entity, done = operation
+            if op == self.INSERT:
+                self._collect_inserted_entity(entity, entities)
+        return list(dict_values(entities))
+
+    def remove_aliases(self, rollback_entities=False):
+        """remove all alias labels on entities
+
+        Entities can still be looked up here but they are now free to be
+        used in another transaction."""
+        for operation in dict_values(self.operations):
+            op, collection, entity, done = operation
+            if op == self.INSERT:
+                entity.alias = None
+        if rollback_entities:
+            for entity in self.inserted_entities:
+                entity.exists = False
+
+    def do_insert_entity(self, collection, entity):
+        collection.insert_entity(entity)
+
+    def commit(self):
+        raise NotImplementedError
+
+
 class CSDLElement(xmlns.XMLNSElement):
 
     """All elements in the metadata model inherit from this class."""
@@ -4362,6 +4512,7 @@ class EntityContainer(NameTableMixin, CSDLElement):
         NameTableMixin.__init__(self)
         #: the declared name of the container
         self.name = "Default"
+        self.changeset_binding = None
         #: the optional :py:class:`Documentation`
         self.Documentation = None
         self.FunctionImport = []
@@ -4403,6 +4554,30 @@ class EntityContainer(NameTableMixin, CSDLElement):
             if child.entityType is entity_type:
                 result.append(child)
         return result
+
+    def bind_changeset(self, binding, **kws):
+        """Binds this entity container to a Changeset class
+
+        binding
+            Must be a class (or other callable) that returns a
+            :py:class:`Changeset` instance, there is no default
+            binding.
+
+        kws
+            A python dict of additional named arguments to pass to the
+            binding callable."""
+        self.changeset_binding = binding, kws
+
+    def new_changeset(self):
+        """Creates a new changeset
+
+        Returns an :py:class:`Changeset` instance suitable for executing
+        changesets in the container."""
+        if self.changeset_binding is None:
+            raise NotImplementedError
+        else:
+            cls, kws = self.changeset_binding
+            return cls(container=self, **kws)
 
     def add_auto_aset(self, association_set):
         self._AssociationSet.append(association_set)

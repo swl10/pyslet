@@ -1575,7 +1575,7 @@ class RecvWrapperBase(RawIOBase):
 
 
 class RecvWrapper(RecvWrapperBase):
-    """A stream wrapper for HTTP Messages
+    """A stream wrapper for reading HTTP Messages
 
     src
         The source stream from which the HTTP message will be read, must
@@ -1711,6 +1711,80 @@ class RecvWrapper(RecvWrapperBase):
                 # message complete
                 return 0
             elif done is None:
+                return None
+
+
+class SendWrapper(RawIOBase):
+
+    """A stream wrapper for sending HTTP Messages
+
+    message
+        An instance of :class:`Message` that will be serialised.
+        The sending process starts immediately with a call to
+        the message's :meth:`Message.start_sending` method.
+
+    protocol
+        An optional argument used to determine the protocol used in
+        start_sending, defaults to HTTP/1.1.
+
+    The SendWrapper instance itself behaves like a stream allowing you
+    to read the serialised version of the message including the headers
+    and any applicable start line (e.g., the status line in an HTTP
+    response).
+
+    If the message has a body that is itself read from a stream then
+    that stream will be read as needed with limited buffering."""
+
+    def __init__(self, message, protocol=params.HTTP_1p1):
+        io.RawIOBase.__init__(self)
+        self.message = message
+        self.message.start_sending(protocol)
+        self.buffer = self.message.send_start() + self.message.send_header()
+        self.bpos = 0
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def write(self, b):
+        raise IOError(errno.EPERM, os.strerror(errno.EPERM),
+                      "stream not writable")
+
+    def readinto(self, b):
+        if self.closed:
+            raise IOError(errno.EBADF, os.strerror(errno.EBADF),
+                          "stream is closed")
+        while True:
+            if self.buffer is None:
+                # end of file condition
+                return 0
+            nbytes = len(b)
+            bbytes = len(self.buffer) - self.bpos
+            if bbytes <= 0:
+                # attempt to refill the buffer
+                new_buffer = self.message.send_body()
+                if new_buffer is None:
+                    # read blocked
+                    return None
+                elif not new_buffer:
+                    # EOF
+                    self.buffer = None
+                    return 0
+                else:
+                    bbytes = len(new_buffer)
+                    self.buffer = new_buffer
+                    self.bpos = 0
+            if bbytes > 0:
+                # return the remains of the buffer
+                if nbytes > bbytes:
+                    nbytes = bbytes
+                b[:nbytes] = self.buffer[self.bpos:self.bpos + nbytes]
+                self.bpos += nbytes
+                return nbytes
+            else:
+                # buffer was not refilled but not EOF
                 return None
 
 

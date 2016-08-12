@@ -20,9 +20,6 @@ from pyslet.odata2.server import Server
 from test_odata2_core import DataServiceRegressionTests
 
 
-HTTP_PORT = random.randint(1111, 9999)
-
-
 def suite(prefix='test'):
     loader = unittest.TestLoader()
     loader.testMethodPrefix = prefix
@@ -181,44 +178,89 @@ class LoggingHandler(WSGIRequestHandler):
     def log_message(self, format, *args):
         logging.info(format, *args)
 
-regressionServerApp = None
-regressionTestsDone = False
-
-
-def run_regression_server():
-    server = make_server(
-        '', HTTP_PORT, regressionServerApp, handler_class=LoggingHandler)
-    server.timeout = 10
-    logging.info("Serving HTTP on port %i... (timeout %s)", HTTP_PORT,
-                 repr(server.timeout))
-    while not regressionTestsDone:
-        server.handle_request()
-
 
 class RegressionTests(DataServiceRegressionTests):
 
     def setUp(self):     # noqa
-        global regressionServerApp
         DataServiceRegressionTests.setUp(self)
         self.container = InMemoryEntityContainer(
             self.ds['RegressionModel.RegressionContainer'])
-        regressionServerApp = Server("http://localhost:%i/" % HTTP_PORT)
-        regressionServerApp.SetModel(self.ds.get_document())
-        t = threading.Thread(target=run_regression_server)
+        self.port = random.randint(1111, 9999)
+        self.server = Server("http://localhost:%i/" % self.port)
+        self.server.set_model(self.ds.get_document())
+        self.server_done = False
+        t = threading.Thread(target=self.run_regression_server)
         t.setDaemon(True)
         t.start()
         logging.info("OData Client/Server combined tests starting HTTP "
-                     "server on localhost, port %i" % HTTP_PORT)
+                     "server on localhost, port %i" % self.port)
         # yield time to allow the server to start up
         time.sleep(2)
         self.svcDS = self.ds
-        self.client = client.Client("http://localhost:%i/" % HTTP_PORT)
+        self.client = client.Client("http://localhost:%i/" % self.port)
         self.ds = self.client.model.DataServices
 
     def tearDown(self):     # noqa
-        global regressionTestsDone
         DataServiceRegressionTests.tearDown(self)
-        regressionTestsDone = True
+        self.server_done = True
+
+    def run_regression_server(self):
+        server = make_server(
+            '', self.port, self.server, handler_class=LoggingHandler)
+        server.timeout = 10
+        logging.info("Serving HTTP on port %i... (timeout %s)", self.port,
+                     repr(server.timeout))
+        while not self.server_done:
+            server.handle_request()
+
+    def test_batch(self):
+        # reuse the changeset entity sets
+        container = self.ds['RegressionModel.RegressionContainer']
+        es_a = container['ChangesetA']
+        # start by creating a batch which we do on the client
+        batch = self.client.new_batch()
+        self.assertTrue(isinstance(batch, client.Batch))
+        with es_a.open() as coll_a:
+            a100 = coll_a.new_entity()
+            a100['K'].set_from_value(100)
+            a100['Data'].set_from_value('hello')
+            coll_a.insert_entity(a100)
+            a101 = coll_a.new_entity()
+            a101['K'].set_from_value(101)
+            a101['Data'].set_from_value('goodbye')
+            coll_a.insert_entity(a101)
+            # record the current length for later
+            base_len1 = len(coll_a)
+            batch.append_len(coll_a)
+            batch.append_entity(coll_a, 101)
+            # now filter the collection
+            filter = core.CommonExpression.from_str("Data eq 'hello'")
+            coll_a.set_filter(filter)
+            base_len2 = len(coll_a)
+            batch.append_len(coll_a)
+            batch.append_entity(coll_a, 101)
+            batch.append_entity(coll_a, 100)
+            # the batch is like a read-only list
+            self.assertTrue(len(batch) == 5)
+            for i in range(5):
+                # all items are None prior to execution
+                self.assertTrue(batch[i] is None)
+            # execute the batch
+            batch.run()
+            # same length
+            self.assertTrue(len(batch) == 5)
+            # items are now either the result of an exception...
+            self.assertTrue(batch[0] == base_len1)
+            result = batch[1]
+            self.assertTrue(isinstance(result, edm.Entity))
+            self.assertTrue(result['K'].value == 101)
+            # with the filter, just 1 entity
+            self.assertTrue(batch[2] == base_len2)
+            result = batch[3]
+            self.assertTrue(isinstance(result, KeyError))
+            result = batch[4]
+            self.assertTrue(isinstance(result, edm.Entity))
+            self.assertTrue(result['K'].value == 100)
 
     def test_all_tests(self):
         self.run_combined()
@@ -226,5 +268,5 @@ class RegressionTests(DataServiceRegressionTests):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO, format="[%(thread)d] %(levelname)s %(message)s")
+        level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()
