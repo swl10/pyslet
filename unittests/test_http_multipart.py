@@ -62,6 +62,50 @@ class SyntaxTests(unittest.TestCase):
         except multipart.MultipartError:
             pass
 
+    def test_make_delimiter(self):
+        # function to make a delimiter
+        been_there = set()
+        for i in range3(100):
+            # try it 100 times, should be different each time
+            boundary = multipart.make_boundary_delimiter()
+            self.assertFalse(boundary in been_there)
+            # check the syntax
+            self.assertTrue(multipart.is_valid_boundary(boundary))
+            # check length, need at least 20 characters in length
+            # representing 120 bits of information
+            self.assertTrue(len(boundary) >= 20)
+            been_there.add(boundary)
+            # now do one with a prefix
+            boundary = multipart.make_boundary_delimiter(b"-- boundary ")
+            self.assertTrue(multipart.is_valid_boundary(boundary))
+            self.assertTrue(len(boundary) >= 32)
+            been_there.add(boundary)
+        # now do an illegal one
+        try:
+            boundary = multipart.make_boundary_delimiter(b" boundary ")
+            self.fail("boundary starts with space")
+        except ValueError:
+            pass
+        try:
+            boundary = multipart.make_boundary_delimiter(b"-- {boundary} ")
+            self.fail("boundary contains illegal character")
+        except ValueError:
+            pass
+
+    def test_boundary_syntax(self):
+        """Tests for basic boundary classes."""
+        # bcharsnospace :=  DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" /
+        #                   "," / "-" / "." / "/" / ":" / "=" / "?"
+        extras = b"'()+_,-./:=?"
+        for i in range3(0, 256):
+            b = byte(i)
+            self.assertTrue(multipart.is_bcharnospace(b) ==
+                            (b in extras or grammar.is_digit(b) or
+                             grammar.is_alpha(b)))
+            self.assertTrue(multipart.is_bchars(b) ==
+                            (b in extras or grammar.is_digit(b) or
+                             grammar.is_alpha(b) or b == grammar.SP))
+
     def test_specials(self):
         """Tests for basic byte classes."""
         # specials = "(" / ")" / "<" / ">" / "@" / "," / ";" / ":" /

@@ -1,14 +1,18 @@
 #! /usr/bin/env python
 
+
+import base64
 import errno
 import io
 import os
+import random
 
 from ..py2 import (
     byte,
     is_byte,
     is_unicode,
-    join_bytes)
+    join_bytes,
+    range3)
 from ..py26 import RawIOBase
 from .. import unicode5
 
@@ -469,6 +473,50 @@ class RFC822Parser(unicode5.ParserMixin):
         msg_id = self.require_addr_spec()
         self.require_special(grammar.GREATERTHAN_SIGN)
         return msg_id
+
+
+_BCHARNOSP_SPECIALS = set("'()+_,-./:=?".encode('ascii'))
+
+
+def is_bcharnospace(b):
+    """Returns True if a byte satisfies product bcharnospace"""
+    return grammar.is_digit(b) or grammar.is_alpha(b) or \
+        b in _BCHARNOSP_SPECIALS
+
+
+_BCHAR_SPECIALS = set("'()+_,-./:=? ".encode('ascii'))
+
+
+def is_bchars(b):
+    """Returns True if a byte satisfies product bchars"""
+    return grammar.is_digit(b) or grammar.is_alpha(b) or b in _BCHAR_SPECIALS
+
+
+def make_boundary_delimiter(prefix=b""):
+    """Returns a boundary delimiter selected randomly
+
+    The result is a binary string."""
+    if prefix:
+        if not is_valid_boundary(prefix):
+            raise ValueError("bad prefix")
+    s = []
+    for i in range3(30):
+        s.append(byte(random.randint(0, 255)))
+    return prefix + base64.b64encode(join_bytes(s))
+
+
+def is_valid_boundary(boundary):
+    """Checks the syntax of boundary
+
+    The input parameter is a character string."""
+    if len(boundary) > 70 or len(boundary) < 1:
+        return False
+    if not is_bcharnospace(boundary[0]):
+        return False
+    for b in boundary[1:]:
+        if not is_bchars(b):
+            return False
+    return True
 
 
 def get_boundary_delimiter(mtype):

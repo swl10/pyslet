@@ -445,11 +445,13 @@ class Message(PEP8Compatibility, object):
 
     def __init__(self, entity_body=None, protocol=params.HTTP_1p1,
                  send_stream=None, recv_stream=None):
-        #: the lock used to protect multi-threaded access
         PEP8Compatibility.__init__(self)
+        #: the lock used to protect multi-threaded access
         self.lock = threading.RLock()
         self.protocol = protocol
         self.headers = {}
+        #: boolean indicating that all headers have been received
+        self.got_headers = False
         if isinstance(entity_body, bytes):
             self.entity_body = io.BytesIO(entity_body)
             self.body_start = 0
@@ -686,6 +688,7 @@ class Message(PEP8Compatibility, object):
     BLOCKED_MODE = 5
     CHUNK_END_MODE = 6
     CHUNK_TRAILER_MODE = 7
+    FLUSH_MODE = 8
 
     def start_receiving(self):
         """Starts receiving this message
@@ -696,6 +699,7 @@ class Message(PEP8Compatibility, object):
             self.transfermode = self.START_MODE
             self.protcolVersion = None
             self.headers = {}
+            self.got_headers = False
             self._curr_header = None
             if self.body_started:
                 if self.body_start is not None:
@@ -750,7 +754,7 @@ class Message(PEP8Compatibility, object):
             string of up to but not exceeding *integer* number of bytes
 
         0
-            we are currently write-blocked but still need more data, the
+            we are currently write-blocked but may need more data, the
             next call to recv must pass None to give the message time to
             write out existing buffered data.
 
@@ -769,7 +773,7 @@ class Message(PEP8Compatibility, object):
                     return self.transferlength - self.transferPos
                 else:
                     return self.RECV_ALL
-            elif self.transfermode == self.BLOCKED_MODE:
+            elif self.transfermode in (self.BLOCKED_MODE, self.FLUSH_MODE):
                 return 0
             elif self.transfermode in (self.HEADER_MODE,
                                        self.CHUNK_TRAILER_MODE):
@@ -866,9 +870,13 @@ class Message(PEP8Compatibility, object):
                         self.recv_buffer = data
                     self._recv_buffered()
                 else:
-                    self.transfer_mode = None
+                    # we only receive empty string when receive mode is
+                    # ALL (transferLength None) indicating EOF on source
+                    self._flush_buffered()
             elif self.transfermode == self.BLOCKED_MODE:
                 self._recv_buffered()
+            elif self.transfermode == self.FLUSH_MODE:
+                self._flush_buffered()
             elif self.transfermode == self.CHUNK_END_MODE:
                 # must be a naked CRLF
                 if data != grammar.CRLF:
@@ -877,21 +885,15 @@ class Message(PEP8Compatibility, object):
             elif self.transfermode == self.CHUNK_TRAILER_MODE:
                 for line in data:
                     self._recv_header(line)
-                try:
-                    self.transferbody.flush()
-                    self.transfermode = None
-                except IOError as e:
-                    if io_blocked(e):
-                        self.transfermode = self.BLOCKED_MODE
-                    else:
-                        raise
+                self._flush_buffered()
             else:
                 raise HTTPException(
                     "recv_line when in unknown mode: %i" % self.transfermode)
             if self.transfermode is None:
                 logging.debug("Message complete")
-                if self.transferbody:
-                    self.transferbody.flush()
+                # flushing now taken care of elsewhere
+                # if self.transferbody:
+                #    self.transferbody.flush()
                 self.handle_message()
 
     def recv_start(self, start_line):
@@ -959,18 +961,21 @@ class Message(PEP8Compatibility, object):
             self.transfermode = self.DATA_MODE
         elif self.transferPos >= self.transferlength:
             # not chunked, defined message body length
-            # we need a flushing mode here
-            try:
-                self.transferbody.flush()
-                self.transfermode = None
-            except IOError as e:
-                if io_blocked(e):
-                    self.transfermode = self.BLOCKED_MODE
-                else:
-                    raise
+            # we flush before saying we're done
+            self._flush_buffered()
         else:
             # not chunked, still reading
             self.transfermode = self.DATA_MODE
+
+    def _flush_buffered(self):
+        try:
+            self.transferbody.flush()
+            self.transfermode = None
+        except IOError as e:
+            if io_blocked(e):
+                self.transfermode = self.FLUSH_MODE
+            else:
+                raise
 
     def handle_headers(self):
         """Hook for processing the message headers
@@ -979,7 +984,10 @@ class Message(PEP8Compatibility, object):
         before the message body (if any) is received.  Derived classes
         should always call this implementation first (using super) to
         ensure basic validation is performed on the message before the
-        body is received."""
+        body is received.
+
+        The default implementation sets :attr:`got_headers` to True."""
+        self.got_headers = True
         content_type = self.get_content_type()
         if content_type is not None and content_type.type == "multipart":
             # there must be boundary parameter

@@ -20,8 +20,7 @@ from pyslet import iso8601 as iso
 from pyslet import rfc2396 as uri
 from pyslet import rfc4287 as atom
 from pyslet import rfc5023 as app
-from pyslet.http import messages
-from pyslet.http import params
+from pyslet.http import messages, multipart, params
 from pyslet.odata2 import core
 from pyslet.odata2 import csdl as edm
 from pyslet.odata2 import memds
@@ -36,6 +35,7 @@ from pyslet.py2 import (
     u8,
     ul)
 from pyslet.vfs import OSFilePath as FilePath
+from pyslet.xml import structures as xml
 from pyslet.xml import xsdatatypes as xsi
 
 from test_http_server import MockTime
@@ -2632,14 +2632,19 @@ class SampleServerTests(unittest.TestCase):
 
         ...If a data service does not implement support for a Batch
         Request, it must return a 4xx response code in the response to
-        any Batch Request sent to it."""
+        any Batch Request sent to it.
+
+        If a data service receives a Batch request with a valid set of
+        HTTP request headers, it MUST respond with a 202 Accepted HTTP
+        response code"""
         request = MockRequest("/service.svc/$batch")
         request.send(self.svc)
-        self.assertTrue(request.responseCode == 404)
+        # GET request returns METHOD not allowed error
+        self.assertTrue(request.responseCode == 405)
         base_uri = "/service.svc/$batch?"
         request = MockRequest(base_uri)
         request.send(self.svc)
-        self.assertTrue(request.responseCode == 404)
+        self.assertTrue(request.responseCode == 405)
         for x in ["$expand=Orders",
                   "$filter=substringof(CompanyName,%20'bikes')",
                   "$format=xml",
@@ -2652,6 +2657,25 @@ class SampleServerTests(unittest.TestCase):
             request = MockRequest(base_uri + x)
             request.send(self.svc)
             self.assertTrue(request.responseCode == 400, "URI9 with %s" % x)
+        # now move on to more successful patterns
+        request = MockRequest("/service.svc/$batch", "POST")
+        data = b"\r\n".join((
+            b"--boundary",
+            b"Content-Type: application/http",
+            b"Content-Transfer-Encoding: binary",
+            b"",
+            b"GET /service.svc/Customers('ALFKI') HTTP/1.1",
+            b"Host: localhost",
+            b"",
+            b"",
+            b"--boundary--"))
+        request.set_header('Content-Type',
+                           'multipart/mixed; boundary=boundary')
+        request.set_header('Content-Length', str(len(data)))
+        request.rfile.write(data)
+        request.send(self.svc)
+        logging.debug(request.wfile.getvalue())
+        self.assertTrue(request.responseCode == 202, str(request.responseCode))
 
     def test_uri10(self):
         """URI10 = scheme serviceRoot "/" serviceOperation-et
@@ -4813,12 +4837,67 @@ class SampleServerTests(unittest.TestCase):
         request = MockRequest(
             "/service.svc/Customers('ALFKI')/CompanyName", "DELETE")
         request.send(self.svc)
-        self.assertTrue(request.responseCode == 400)
+        self.assertTrue(request.responseCode == 405)
         with customers.open() as collection:
             customer = collection['ALFKI']
             self.assertTrue(customer['CompanyName'].value == "Example Inc")
 
+    def test_batch(self):
+        request = MockRequest("/service.svc/$batch", "POST")
+        data = b"\r\n".join((
+            b"--boundary",
+            b"Content-Type: application/http",
+            b"Content-Transfer-Encoding: binary",
+            b"",
+            b"GET /service.svc/Customers('ALFKI') HTTP/1.1",
+            b"Host: localhost",
+            b"",
+            b"",
+            b"--boundary--"))
+        request.set_header('Content-Type',
+                           'multipart/mixed; boundary=boundary')
+        request.set_header('Content-Length', str(len(data)))
+        request.rfile.write(data)
+        request.send(self.svc)
+        self.assertTrue(request.responseCode == 202)
+        self.assertTrue(
+            request.responseHeaders['DATASERVICEVERSION'].startswith("2.0;"),
+            "DataServiceVersion 2.0 expected")
+        # All responses to Batch request MUST use the multipart/mixed
+        # media type
+        self.assertTrue(
+            request.responseHeaders['CONTENT-TYPE'].startswith(
+                "multipart/mixed; "), "multipart/mixed expected")
+        request.wfile.seek(0)
+        rstream = multipart.MultipartRecvWrapper(
+            request.wfile,
+            params.MediaType.from_str(request.responseHeaders['CONTENT-TYPE']))
+        parts = []
+        for part in rstream.read_parts():
+            parts.append((part.read_message_header(), part.read()))
+        self.assertTrue(len(parts) == 1,
+                        "Expected single part in batch resposne")
+        message, data = parts[0]
+        self.assertTrue(message.get_content_type() == "application/http")
+        self.assertTrue(message.get_content_transfer_encoding() == "binary")
+        # we now need to parse the response to find the result
+        src = io.BytesIO(data)
+        rstream = messages.RecvWrapper(src, messages.Response)
+        response = rstream.read_message_header()
+        self.assertTrue(response.status == 200)
+        self.assertTrue(response.get_content_type() == "application/atom+xml")
+        # Customer does have a version field for optimistic concurrency control
+        self.assertTrue(response.get_header("ETAG") is not None)
+        doc = core.Document()
+        # suppress auto-detection of encodings (requires seek)
+        doc.read_from_entity(xml.XMLEntity(rstream, encoding='utf-8'))
+        self.assertTrue(isinstance(doc.root, core.Entry),
+                        "Expected a single Entry, found %s" %
+                        doc.root.__class__.__name__)
+        self.assertTrue(doc.root['CustomerID'] == 'ALFKI', "Bad CustomerID")
+        rstream.close()
+
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     unittest.main()

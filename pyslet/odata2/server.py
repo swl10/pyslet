@@ -16,9 +16,11 @@ from .. import info
 from .. import rfc2396 as uri
 from .. import rfc4287 as atom
 from .. import rfc5023 as app
-from ..http import grammar
-from ..http import messages
-from ..http import params
+from ..http import (
+    grammar,
+    messages,
+    multipart,
+    params)
 from ..pep8 import old_method
 from ..py2 import (
     byte_value,
@@ -46,6 +48,93 @@ class WSGIWrapper(object):
         """Traps start_response and adds the additional headers."""
         response_headers = response_headers + self.response_headers
         return self.start_response(status, response_headers, exc_info)
+
+
+class BatchRequest(messages.Request):
+
+    """Used to manage the recursive submission of batch requests"""
+
+    def __init__(self, **kwargs):
+        super(BatchRequest, self).__init__(**kwargs)
+        self.server = None
+
+    def call_server(self, server, request_environ, input):
+        self.server = server
+        url = uri.URI.from_octets(self.request_uri)
+        try:
+            path_info = uri.unescape_data(url.abs_path).decode('utf-8')
+        except UnicodeDecodeError:
+            # ok, not UTF-8 then, try iso-8859-1
+            path_info = uri.unescape_data(url.abs_path).decode('iso-8859-1')
+        environ = {}
+        for item in (
+                'SERVER_NAME',
+                'SERVER_PORT',
+                'SERVER_PROTOCOL',
+                'REMOTE_ADDR',
+                'wsgi.version',
+                'wsgi.url_scheme',
+                'wsgi.errors',
+                'wsgi.multithread',
+                'wsgi.multiprocess',
+                'wsgi.run_once'):
+            environ[item] = request_environ.get(item, None)
+        environ['REQUEST_METHOD'] = self.method
+        environ['SCRIPT_NAME'] = ''
+        environ['PATH_INFO'] = path_info
+        environ['QUERY_STRING'] = url.query
+        environ['wsgi.input'] = input
+        content_type = self.get_header('Content-Type')
+        if content_type is not None:
+            environ['CONTENT_TYPE'] = content_type
+        content_length = self.get_header('Content-Length')
+        if content_length is not None:
+            environ['CONTENT_LENGTH'] = content_length
+        for hname in self.get_headerlist():
+            hvalue = self.get_header(hname)
+            hname = hname.replace(b"-", b"_").decode('iso-8859-1')
+            environ['HTTP_' + hname.upper()] = hvalue.decode('iso-8859-1')
+        response = BatchResponse(request=self)
+        data = server(environ, response.start_response)
+        started = False
+        for item in data:
+            if not isinstance(item, bytes):
+                logging.error("WSGI application yielded non bytes: %s",
+                              repr(item))
+            if not started:
+                # don't send the headers until the first bit of data
+                # has been yielded
+                response.start_sending()
+                started = True
+                yield response.send_start()
+                yield response.send_header()
+            yield item
+
+
+class BatchResponse(messages.Response):
+
+    def start_response(self, status, response_headers, exc_info=None):
+        with self.lock:
+            pstatus = params.ParameterParser(status, ignore_sp=False)
+            if pstatus.is_integer():
+                self.status = pstatus.parse_integer()
+            else:
+                self.status = 0
+            pstatus.parse_sp()
+            self.reason = pstatus.parse_remainder().decode('iso-8859-1')
+            for name, value in response_headers:
+                self.set_header(name, value)
+        return self.legacy_response
+
+    def legacy_response(self, body_data):
+        # we don't need this as we don't do legacy data ourselves
+        raise NotImplementedError
+
+    def send_transferlength(self):
+        """We don't send any body - taken care of by generator"""
+        self.transferchunked = False
+        self.transferlength = 0
+        self.transferbody = None
 
 
 class Server(app.Server):
@@ -344,7 +433,7 @@ class Server(app.Server):
         except core.InvalidMethod as e:
             return self.odata_error(
                 core.ODataURI('error'), environ, start_response, "Bad Request",
-                "Method not allowed: %s" % to_text(e), 400)
+                "Method not allowed: %s" % to_text(e), 405)
         except ValueError as e:
             traceback.print_exception(*sys.exc_info())
             # This is a bad request
@@ -550,9 +639,11 @@ class Server(app.Server):
                 return self.return_metadata(
                     request, environ, start_response, response_headers)
             elif request.path_option == core.PathOption.batch:
-                return self.odata_error(
-                    request, environ, start_response, "Bad Request",
-                    "Batch requests not supported", 404)
+                if method == "POST":
+                    return self.return_batch(
+                        request, environ, start_response, response_headers)
+                else:
+                    raise core.InvalidMethod("%s not supported here" % method)
             elif request.path_option == core.PathOption.count:
                 if isinstance(resource, edm.Entity):
                     return self.return_count(
@@ -874,6 +965,59 @@ class Server(app.Server):
             return self.odata_error(
                 request, environ, start_response, "NotImplementedError",
                 str(e), 405)
+
+    def return_batch(self, request, environ, start_response, response_headers):
+        request_type = params.MediaType.from_str(environ["CONTENT_TYPE"])
+        input = messages.WSGIInputWrapper(environ)
+        try:
+            req_stream = multipart.MultipartRecvWrapper(input, request_type)
+            boundary = multipart.make_boundary_delimiter(
+                b"-- batch boundary --")
+            response_type = params.MediaType(
+                "multipart", "mixed",
+                parameters={"boundary":
+                            ("boundary", boundary)})
+        except (multipart.MultipartError, ValueError) as e:
+            return self.odata_error(
+                request, environ, start_response, "Bad Request", str(e), 400)
+        response_headers.append(("Content-Type", str(response_type)))
+        # unknown content length
+        start_response("%i %s" % (202, "Accepted"), response_headers)
+        # now to support streaming
+        return self.generate_batch(environ, req_stream, boundary)
+
+    def generate_batch(self, environ, req_stream, boundary):
+        try:
+            for part in req_stream.read_parts():
+                # we need a response
+                yield b"\r\n--" + boundary + b"\r\n"
+                message = part.read_message_header()
+                mtype = message.get_content_type()
+                if mtype == "application/http":
+                    # parse a request from this part
+                    req_wrapper = messages.RecvWrapper(part, BatchRequest)
+                    request = req_wrapper.read_message_header()
+                    # req_wrapper is now the input stream for this request
+                    yield b"Content-Type: application/http\r\n"\
+                        b"Content-Transfer-Encoding: binary\r\n\r\n"
+                    # recursive call to yield the response
+                    for data in request.call_server(self, environ,
+                                                    req_wrapper):
+                        yield data
+                # could be a changeset in future
+                else:
+                    # unrecognized part - generate an error
+                    yield b"Content-Type: application/http\r\n"\
+                        b"Content-Transfer-Encoding: binary\r\n"\
+                        b"\r\n"\
+                        b"HTTP/1.1 400 Bad Request\r\n"\
+                        b"Content-Type: text/plain\r\n"\
+                        b"Content-Length: 0\r\n"\
+                        b"\r\n"
+        except multipart.MultipartError as e:
+            # we've already started streaming - we're done
+            logging.error(str(e))
+        yield b"\r\n--" + boundary + b"--\r\n"
 
     def expand_resource(self, resource, sys_query_options):
         try:

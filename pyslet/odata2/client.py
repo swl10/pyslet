@@ -4,6 +4,7 @@ by Microsoft."""
 
 import io
 import logging
+import threading
 
 from . import core
 from . import csdl as edm
@@ -15,11 +16,13 @@ from .. import rfc5023 as app
 from ..http import client as http
 from ..http import params
 from ..http import messages
+from ..http import multipart
 from ..pep8 import old_method
 from ..py2 import (
     dict_items,
     dict_keys,
     to_text)
+from ..streams import Pipe
 from ..xml import structures as xml
 
 
@@ -178,18 +181,18 @@ class ClientCollection(core.EntityCollection):
         request.set_header('Accept', 'text/plain')
         return request
 
-    def len_response(self, request):
-        if request.status == 200:
-            return int(request.res_body)
+    def len_response(self, response, res_body):
+        if response.status == 200:
+            return int(res_body)
         else:
             raise UnexpectedHTTPResponse(
-                "%i %s" % (request.status, request.response.reason))
+                "%i %s" % (response.status, response.reason))
 
     def __len__(self):
         # use $count
         request = self.len_request()
         self.client.process_request(request)
-        return self.len_response(request)
+        return self.len_response(request.response, request.res_body)
 
     def entity_generator(self):
         feed_url = self.base_uri
@@ -340,14 +343,14 @@ class ClientCollection(core.EntityCollection):
             request.set_header('Accept', 'application/atom+xml;type=entry')
         return request
 
-    def key_response(self, request, key):
-        if request.status == 404:
+    def key_response(self, response, res_body, base, key):
+        if response.status == 404:
             raise KeyError(key)
-        elif request.status != 200:
+        elif response.status != 200:
             raise UnexpectedHTTPResponse(
-                "%i %s" % (request.status, request.response.reason))
-        doc = core.Document(base_uri=request.url)
-        doc.read(request.res_body)
+                "%i %s" % (response.status, response.reason))
+        doc = core.Document(base_uri=base)
+        doc.read(res_body)
         if isinstance(doc.root, atom.Entry):
             entity = core.Entity(self.entity_set)
             entity.exists = True
@@ -365,16 +368,17 @@ class ClientCollection(core.EntityCollection):
                 return entity
             else:
                 raise UnexpectedHTTPResponse("%i entities returned from %s" %
-                                             nresults, str(request.url))
+                                             nresults, str(base))
         elif isinstance(doc.root, core.Error):
             raise KeyError(key)
         else:
-            raise core.InvalidEntryDocument(str(request.url))
+            raise core.InvalidEntryDocument(str(base))
 
     def __getitem__(self, key):
         request = self.key_request(key)
         self.client.process_request(request)
-        return self.key_response(request, key)
+        return self.key_response(
+            request.response, request.res_body, request.url, key)
 
     def new_stream(self, src, sinfo=None, key=None):
         """Creates a media resource"""
@@ -890,6 +894,8 @@ class Batch(object):
         self.client = client
         self.items = []
         self.results = []
+        self.res_stream = None
+        self.res_error = None
 
     LENGTH = 1
     ENTITY = 2
@@ -917,17 +923,88 @@ class Batch(object):
         self.results.append(None)
 
     def run(self):
-        i = 0
+        batch_uri = uri.URI.from_octets("$batch").resolve(
+            self.client.service_root)
+        boundary = multipart.make_boundary_delimiter(b"-- batch boundary --")
+        mtype = params.MediaType(
+            "multipart", "mixed",
+            parameters={"boundary": ("boundary", boundary)})
+        req_stream = multipart.MultipartSendWrapper(
+            mtype, self.generate_request_parts())
+        res_body = Pipe(wblocking=False, rblocking=True,
+                        name="Batch.run.res_body")
+        request = http.ClientRequest(batch_uri, 'POST', entity_body=req_stream,
+                                     res_body=res_body)
+        request.set_content_type(mtype)
+        self.client.queue_request(request)
+        res_thread = None
+        while self.client.thread_task(timeout=600):
+            if self.res_stream is None:
+                response = request.response
+                if response is None:
+                    continue
+                if response.status == 202:
+                    if response.got_headers:
+                        # we're streaming
+                        mtype = response.get_content_type()
+                        self.res_stream = multipart.MultipartRecvWrapper(
+                            res_body, mtype)
+                        res_thread = threading.Thread(
+                            target=self.handle_response_parts)
+                        res_thread.start()
+                elif response.status is not None:
+                    # we need to stream and discard the error response
+                    res_body.set_readblocking(False)
+                    res_body.read(io.DEFAULT_BUFFER_SIZE)
+            elif self.res_error is not None:
+                # we need to stream and discard any badly formed message
+                res_body.set_readblocking(False)
+                res_body.read(io.DEFAULT_BUFFER_SIZE)
+        # processing complete
+        if res_thread is not None:
+            res_thread.join()
+        res_body.close()
+
+    def generate_request_parts(self):
         for collection, request, rtype, param in self.items:
-            self.client.process_request(request)
-            try:
-                if rtype == self.LENGTH:
-                    self.results[i] = collection.len_response(request)
-                elif rtype == self.ENTITY:
-                    self.results[i] = collection.key_response(request, param)
-            except Exception as e:
-                self.results[i] = e
-            i += 1
+            # fake being queued to associate with the manager
+            request.set_client(self.client)
+            part = multipart.MessagePart(
+                entity_body=messages.SendWrapper(
+                    request, protocol=params.HTTP_1p0))
+            part.set_content_type("application/http")
+            part.set_content_transfer_encoding("binary")
+            yield part
+
+    def handle_response_parts(self):
+        # thread that starts once we are streaming a response
+        i = 0
+        try:
+            for part in self.res_stream.read_parts():
+                collection, request, rtype, param = self.items[i]
+                message = part.read_message_header()
+                mtype = message.get_content_type()
+                if mtype == "application/http":
+                    # parse a response from this part
+                    res_wrapper = messages.RecvWrapper(part, messages.Response)
+                    response = res_wrapper.read_message_header()
+                    res_body = res_wrapper.read()
+                else:
+                    response = None
+                    res_body = None
+                try:
+                    if rtype == self.LENGTH:
+                        self.results[i] = collection.len_response(
+                            response, res_body)
+                    elif rtype == self.ENTITY:
+                        self.results[i] = collection.key_response(
+                            response, res_body, request.url, param)
+                except Exception as e:
+                    self.results[i] = e
+                i += 1
+        except Exception as e:
+            logging.error(str(e))
+            self.res_error = e
 
 
 class Client(app.Client):
