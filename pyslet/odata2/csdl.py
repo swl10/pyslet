@@ -1314,6 +1314,15 @@ class DateTimeValue(SimpleValue):
         elif isinstance(new_value, (int, long2, float, decimal.Decimal)) and \
                 new_value >= 0:
             self.value = iso8601.TimePoint.from_unix_time(float(new_value))
+        elif isinstance(new_value, datetime.date):
+            self.value = iso8601.TimePoint(
+                date=iso8601.Date(
+                    century=new_value.year //
+                    100,
+                    year=new_value.year %
+                    100,
+                    month=new_value.month,
+                    day=new_value.day))
         elif isinstance(new_value, datetime.datetime):
             self.value = iso8601.TimePoint(
                 date=iso8601.Date(
