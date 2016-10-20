@@ -262,6 +262,13 @@ class RegressionTests(DataServiceRegressionTests):
             self.assertTrue(isinstance(result, edm.Entity))
             self.assertTrue(result['K'].value == 100)
 
+    def test_changesets(self):
+        # temporary while we build out this feature
+        try:
+            self.runtest_changeset()
+        except NotImplementedError:
+            logging.warning("Changesets not supported, tests skipped")
+
     def test_all_tests(self):
         self.run_combined()
 

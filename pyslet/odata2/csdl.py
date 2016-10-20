@@ -3588,6 +3588,9 @@ class Changeset(DictionaryLike):
     references.  See :meth:`insert_entity` for more information."""
 
     INSERT = 1
+    UPDATE = 2
+    DELETE = 3
+    REPLACE = 4
 
     def __init__(self, container, **kws):
         self.container = container
@@ -3616,6 +3619,50 @@ class Changeset(DictionaryLike):
         alias = str(self._next_id)
         self.operations[alias] = [self.INSERT, collection, entity, False]
         entity.alias = alias
+        self._next_id += 1
+
+    def update_entity(self, entity):
+        """Add an update operation to this changeset"""
+        if self.done:
+            raise ChangesetCommitted
+        if entity.alias is not None:
+            raise EntityExists
+        alias = str(self._next_id)
+        self.operations[alias] = [self.UPDATE, None, entity, False]
+        entity.alias = alias
+        self._next_id += 1
+
+    def delete_entity(self, entity):
+        """Adds a delete operation to this changeset"""
+        if self.done:
+            raise ChangesetCommitted
+        if entity.alias is not None:
+            raise EntityExists
+        alias = str(self._next_id)
+        self.operations[alias] = [self.DELETE, None, entity, False]
+        entity.alias = alias
+        self._next_id += 1
+
+    def delete_link(self, collection, entity):
+        """Add a delete link operation to this changeset
+
+        The collection must be a navigation collection representing
+        a navigation property."""
+        if self.done:
+            raise ChangesetCommitted
+        alias = str(self._next_id)
+        self.operations[alias] = [self.DELETE, collection, entity, False]
+        self._next_id += 1
+
+    def replace_entity(self, collection, entity):
+        """Add a replace operation to this changeset
+
+        The collection must be a navigation collection representing
+        a navigation property with single cardinality."""
+        if self.done:
+            raise ChangesetCommitted
+        alias = str(self._next_id)
+        self.operations[alias] = [self.REPLACE, collection, entity, False]
         self._next_id += 1
 
     def __getitem__(self, key):
@@ -3697,6 +3744,13 @@ class Changeset(DictionaryLike):
         if rollback_entities:
             for entity in self.inserted_entities:
                 entity.exists = False
+
+    def close_collections(self):
+        for operation in list(dict_values(self.operations)):
+            op, collection, entity, done = operation
+            if collection is not None:
+                collection.close()
+        self.done = True
 
     def do_insert_entity(self, collection, entity):
         collection.insert_entity(entity)

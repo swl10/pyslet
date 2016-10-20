@@ -52,6 +52,46 @@ class DataFormatError(ClientException):
     pass
 
 
+def parse_error(response, res_body):
+    """Given a :py:class:`pyslet.http.messages.Response` object
+    containing an unexpected status, parses an error from the
+    response body and returns an exception accordingly."""
+    if response.status == 404:
+        # translates in to a key error
+        etype = KeyError
+    elif response.status == 405:
+        # indicates the URL doesn't support the operation, for example
+        # an attempt to POST to a navigation property that the server
+        # doesn't support perhaps
+        etype = NotImplementedError
+    elif response.status == 401:
+        etype = AuthorizationRequired
+    elif response.status >= 400 and response.status < 500:
+        etype = edm.ConstraintError
+    else:
+        etype = UnexpectedHTTPResponse
+    debug_msg = None
+    if res_body:
+        doc = core.Document()
+        doc.read(src=res_body)
+        if isinstance(doc.root, core.Error):
+            error_msg = "%s: %s" % (
+                doc.root.Code.get_value(), doc.root.Message.get_value())
+            if doc.root.InnerError is not None:
+                debug_msg = doc.root.InnerError.get_value()
+        else:
+            error_msg = response.reason
+    else:
+        error_msg = response.reason
+    if etype == KeyError:
+        logging.info("404: %s", error_msg)
+    else:
+        logging.info("%i: %s", response.status, error_msg)
+        if debug_msg:
+            logging.debug(debug_msg)
+    return etype(error_msg)
+
+
 class ClientCollection(core.EntityCollection):
 
     def __init__(self, client, base_uri=None, **kwargs):
@@ -91,45 +131,40 @@ class ClientCollection(core.EntityCollection):
                     # not being expanded
                     pass
 
+    def response_error(self, response, res_body):
+        """Given a :py:class:`pyslet.http.messages.Response` object
+        containing an unexpected status, parses an error from the
+        response body and raises an exception accordingly."""
+        raise parse_error(response, res_body)
+
     @old_method('RaiseError')
     def raise_error(self, request):
-        """Given a :py:class:`pyslet.http.messages.Message` object
+        """Given a :py:class:`pyslet.http.messages.Request` object
         containing an unexpected status in the response, parses an error
         response and raises an error accordingly."""
-        if request.status == 404:
-            # translates in to a key error
-            etype = KeyError
-        elif request.status == 405:
-            # indicates the URL doesn't support the operation, for example
-            # an attempt to POST to a navigation property that the server
-            # doesn't support perhaps
-            etype = NotImplementedError
-        elif request.status == 401:
-            etype = AuthorizationRequired
-        elif request.status >= 400 and request.status < 500:
-            etype = edm.ConstraintError
-        else:
-            etype = UnexpectedHTTPResponse
-        debug_msg = None
-        if request.res_body:
+        return self.response_error(request.response, request.res_body)
+
+    def insert_request(self, entity):
+        doc = core.Document(root=core.Entry(None, entity))
+        data = str(doc).encode('utf-8')
+        request = http.ClientRequest(
+            str(self.base_uri), 'POST', entity_body=data)
+        request.set_content_type(
+            params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
+        return request
+
+    def insert_response(self, entity, response, res_body):
+        if response.status == 201:
+            # success, read the entity back from the response
             doc = core.Document()
-            doc.read(src=request.res_body)
-            if isinstance(doc.root, core.Error):
-                error_msg = "%s: %s" % (
-                    doc.root.Code.get_value(), doc.root.Message.get_value())
-                if doc.root.InnerError is not None:
-                    debug_msg = doc.root.InnerError.get_value()
-            else:
-                error_msg = request.response.reason
+            doc.read(res_body)
+            entity.exists = True
+            doc.root.get_value(entity)
+            # so which bindings got handled?  Assume all of them
+            for k, dv in entity.navigation_items():
+                dv.bindings = []
         else:
-            error_msg = request.response.reason
-        if etype == KeyError:
-            logging.info("404: %s", error_msg)
-        else:
-            logging.info("%i: %s", request.status, error_msg)
-            if debug_msg:
-                logging.debug(debug_msg)
-        raise etype(error_msg)
+            self.response_error(response, res_body)
 
     def insert_entity(self, entity):
         if entity.exists:
@@ -145,24 +180,9 @@ class ClientCollection(core.EntityCollection):
             entity.exists = True
             self.update_entity(entity)
         else:
-            doc = core.Document(root=core.Entry(None, entity))
-            data = str(doc).encode('utf-8')
-            request = http.ClientRequest(
-                str(self.base_uri), 'POST', entity_body=data)
-            request.set_content_type(
-                params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
+            request = self.insert_request(entity)
             self.client.process_request(request)
-            if request.status == 201:
-                # success, read the entity back from the response
-                doc = core.Document()
-                doc.read(request.res_body)
-                entity.exists = True
-                doc.root.get_value(entity)
-                # so which bindings got handled?  Assume all of them
-                for k, dv in entity.navigation_items():
-                    dv.bindings = []
-            else:
-                self.raise_error(request)
+            self.insert_response(entity, request.response, request.res_body)
 
     def len_request(self):
         feed_url = self.base_uri
@@ -900,6 +920,7 @@ class Batch(object):
     LENGTH = 1
     ENTITY = 2
     COLLECTION = 3
+    CHANGESET = 4
 
     def __len__(self):
         return len(self.items)
@@ -920,6 +941,12 @@ class Batch(object):
         """Appends a request for a specific entity"""
         self.items.append(
             (collection, collection.key_request(key), self.ENTITY, key))
+        self.results.append(None)
+
+    def append_changeset(self, changeset):
+        """Appends a complete changeset"""
+        self.items.append(
+            (None, None, self.CHANGESET, changeset))
         self.results.append(None)
 
     def run(self):
@@ -968,12 +995,17 @@ class Batch(object):
     def generate_request_parts(self):
         for collection, request, rtype, param in self.items:
             # fake being queued to associate with the manager
-            request.set_client(self.client)
-            part = multipart.MessagePart(
-                entity_body=messages.SendWrapper(
-                    request, protocol=params.HTTP_1p0))
-            part.set_content_type("application/http")
-            part.set_content_transfer_encoding("binary")
+            if request is not None:
+                request.set_client(self.client)
+                part = multipart.MessagePart(
+                    entity_body=messages.SendWrapper(
+                        request, protocol=params.HTTP_1p0))
+                part.set_content_type("application/http")
+                part.set_content_transfer_encoding("binary")
+            elif isinstance(param, edm.Changeset):
+                part = param.request_part()
+            else:
+                raise ClientException("bad batch")
             yield part
 
     def handle_response_parts(self):
@@ -990,8 +1022,8 @@ class Batch(object):
                     response = res_wrapper.read_message_header()
                     res_body = res_wrapper.read()
                 else:
-                    response = None
-                    res_body = None
+                    response = message
+                    res_body = part.read()
                 try:
                     if rtype == self.LENGTH:
                         self.results[i] = collection.len_response(
@@ -999,12 +1031,102 @@ class Batch(object):
                     elif rtype == self.ENTITY:
                         self.results[i] = collection.key_response(
                             response, res_body, request.url, param)
+                    elif rtype == self.CHANGESET:
+                        self.results[i] = param.handle_response(
+                            response, res_body)
                 except Exception as e:
                     self.results[i] = e
                 i += 1
         except Exception as e:
             logging.error(str(e))
             self.res_error = e
+
+
+class ClientChangeset(edm.Changeset):
+
+    def __init__(self, client, **kws):
+        super(ClientChangeset, self).__init__(**kws)
+        self.client = client
+        self.parts = []
+
+    def request_part(self):
+        """Returns a message part containing the batch"""
+        boundary = multipart.make_boundary_delimiter(
+            b"-- changeset boundary --")
+        mtype = params.MediaType(
+            "multipart", "mixed",
+            parameters={"boundary": ("boundary", boundary)})
+        # we can't stream the parts of a changeset because they are
+        # unordered - i.e., we may get a response to the last change
+        # first and vice versa.  do_commit therefore just builds a list
+        # of parts (in a sensible order as it happens).
+        self.do_commit()
+        cs_stream = multipart.MultipartSendWrapper(mtype, self.parts)
+        part = multipart.MessagePart(entity_body=cs_stream)
+        part.set_content_type(mtype)
+        part.set_content_transfer_encoding("binary")
+        return part
+
+    def handle_response(self, response, res_body):
+        mtype = response.get_content_type()
+        res_body = io.BytesIO(res_body)
+        self.done = True
+        if mtype.type.lower() != "multipart":
+            # this is an error response for the whole changeset
+            self.remove_aliases()
+            return parse_error(response, res_body)
+        res_stream = multipart.MultipartRecvWrapper(res_body, mtype)
+        for res_part in res_stream.read_parts():
+            res_message = res_part.read_message_header()
+            res_type = res_message.get_content_type()
+            if res_type != "application/http":
+                # ignore this part
+                continue
+            inner_part = messages.RecvWrapper(res_part, messages.Response)
+            inner_response = inner_part.read_message_header()
+            inner_body = inner_part.read()
+            cid = res_message.get_content_id()
+            if cid is not None:
+                at_pos = cid.find('@')
+                if at_pos > 0:
+                    cid = cid[:at_pos]
+                else:
+                    cid = None
+            if inner_response.status == 201 and cid is not None:
+                # created!
+                entity = self[cid]
+                # update this entity from the response
+                doc = core.Document()
+                doc.read(inner_body)
+                entity.exists = True
+                doc.root.get_value(entity)
+                # so which bindings got handled?  Assume all of them
+                for k, dv in entity.navigation_items():
+                    dv.bindings = []
+        self.remove_aliases()
+        return None
+
+    def commit(self):
+        if self.done:
+            raise edm.ChangesetCommitted
+        batch = self.client.new_batch()
+        batch.append_changeset(self)
+        batch.run()     # calls request_part and handle_response
+        result = batch[0]
+        if result is not None:
+            raise result
+
+    def do_insert_entity(self, collection, entity):
+        cid = "%s@id%X.changeset" % (entity.alias, id(self))
+        request = collection.insert_request(entity)
+        request.set_client(self.client)
+        part = multipart.MessagePart(
+            entity_body=messages.SendWrapper(
+                request, protocol=params.HTTP_1p0))
+        part.set_content_type("application/http")
+        part.set_content_transfer_encoding("binary")
+        part.set_content_id(cid)
+        self.parts.append(part)
 
 
 class Client(app.Client):
@@ -1100,6 +1222,7 @@ class Client(app.Client):
                 self.model = doc.root
                 for s in self.model.DataServices.Schema:
                     for container in s.EntityContainer:
+                        container.bind_changeset(ClientChangeset, client=self)
                         if container.is_default_entity_container():
                             prefix = ""
                         else:

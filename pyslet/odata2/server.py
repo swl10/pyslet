@@ -58,7 +58,7 @@ class BatchRequest(messages.Request):
         super(BatchRequest, self).__init__(**kwargs)
         self.server = None
 
-    def call_server(self, server, request_environ, input):
+    def call_server(self, server, request_environ, input, changeset=None):
         self.server = server
         url = uri.URI.from_octets(self.request_uri)
         try:
@@ -84,6 +84,7 @@ class BatchRequest(messages.Request):
         environ['PATH_INFO'] = path_info
         environ['QUERY_STRING'] = url.query
         environ['wsgi.input'] = input
+        environ['odata.changeset'] = changeset
         content_type = self.get_header('Content-Type')
         if content_type is not None:
             environ['CONTENT_TYPE'] = content_type
@@ -477,31 +478,53 @@ class Server(app.Server):
         start_response("%i %s" % (code, sub_code), response_headers)
         return [data]
 
-    def get_resource_from_uri(self, href):
-        """Returns the resource object represented by *href*
+    def url_resolver(self, environ):
+        """Returns a callable for resolving URI to entities."""
 
-        href
-            A :py:class:`pyslet.rfc2396.URI` instance
+        changeset = environ.get('odata.changeset', None)
 
-        The URI must not use path, or system query options but must
-        identify an enity set, entity, complex or simple value."""
-        if not href.is_absolute():
-            # resolve relative to the service root
-            href = href.resolve(self.service_root)
-        # check the canonical roots
-        if not self.service_root.get_canonical_root().match(
-                href.get_canonical_root()):
-            # This isn't even for us
-            return None
-        request = core.ODataURI(href, self.path_prefix)
-        return self.get_resource(request)[0]
+        def get_resource_from_uri(href):
+            """Returns the resource object represented by *href*
 
-    def get_resource(self, odata_uri):
+            href
+                A :py:class:`pyslet.rfc2396.URI` instance
+
+            The URI must not use path, or system query options but must
+            identify an enity set, entity, complex or simple value.  By
+            defining this function within a closure we are able to take
+            into consideration the environ of the call, including any
+            changeset in effect for resolving entities referenced by
+            content-id."""
+            logging.debug("get_resource_from_uri: %s", href)
+            if not href.is_absolute():
+                # resolve relative to the service root
+                href = href.resolve(self.service_root)
+            # check the canonical roots
+            if not self.service_root.get_canonical_root().match(
+                    href.get_canonical_root()):
+                # This isn't even for us
+                return None
+            request = core.ODataURI(href, self.path_prefix)
+            return self.get_resource(request, changeset)[0]
+
+        return get_resource_from_uri
+
+    def get_resource(self, odata_uri, changeset):
         resource = self.model
         no_nav_path = (resource is None)
         parent_entity = None
         for segment in odata_uri.nav_path:
             name, keyPredicate = segment
+            if name.startswith('$'):
+                # this is an alias, look it up in the changeset
+                # only allowed in first segment anyway
+                try:
+                    resource = changeset[name[1:]]
+                    continue
+                except KeyError:
+                    raise core.MissingURISegment(
+                        "%s%s" %
+                        (name, core.ODataURI.format_key_dict(keyPredicate)))
             if no_nav_path:
                 raise core.BadURISegment(name)
             if isinstance(resource, edmx.Edmx):
@@ -633,18 +656,32 @@ class Server(app.Server):
             An :py:class:`core.ODataURI` instance with a non-empty
             resource_path."""
         method = environ["REQUEST_METHOD"].upper()
+        changeset = environ.get('odata.changeset', None)
+        if changeset is not None and \
+                method not in ['PUT', 'POST', 'PATCH', 'DELETE']:
+            return self.odata_error(
+                request, environ, start_response, "Method Not Allowed",
+                "%s not allowed in changeset" % method, 403)
         try:
-            resource, parent_entity = self.get_resource(request)
+            resource, parent_entity = self.get_resource(request, changeset)
             if request.path_option == core.PathOption.metadata:
                 return self.return_metadata(
                     request, environ, start_response, response_headers)
             elif request.path_option == core.PathOption.batch:
                 if method == "POST":
-                    return self.return_batch(
-                        request, environ, start_response, response_headers)
+                    if changeset is not None:
+                        # batch not allowed in changeset
+                        raise core.InvalidMethod(
+                            "$batch not allowed in changeset")
+                    else:
+                        return self.return_batch(
+                            request, environ, start_response, response_headers)
                 else:
                     raise core.InvalidMethod("%s not supported here" % method)
             elif request.path_option == core.PathOption.count:
+                if method != 'GET':
+                    raise core.InvalidMethod(
+                        "%s not allowed on $count" % method)
                 if isinstance(resource, edm.Entity):
                     return self.return_count(
                         1, request, environ, start_response, response_headers)
@@ -705,8 +742,13 @@ class Server(app.Server):
                         resource = parent_entity[
                             request.links_property].open()
                     if isinstance(resource, edm.EntityCollection):
+                        target_entity = self.read_entity_from_link(environ)
+                        if changeset is not None:
+                            # leave resource (collection) open
+                            changeset.insert_entity(resource, target_entity)
+                            return self.return_accepted(
+                                start_response, response_headers)
                         with resource as collection:
-                            target_entity = self.read_entity_from_link(environ)
                             collection[target_entity.key()] = target_entity
                         return self.return_empty(
                             start_response, response_headers)
@@ -721,10 +763,16 @@ class Server(app.Server):
                         raise core.BadURISegment(
                             "%s: can't update a link with multiplicity *" %
                             request.links_property)
+                    target_entity = self.read_entity_from_link(environ)
+                    if changeset is not None:
+                        collection = parent_entity[
+                            request.links_property].open()
+                        changeset.replace_entity(collection, target_entity)
+                        return self.return_accepted(
+                            start_response, response_headers)
                     with parent_entity[
                             request.links_property].open() as \
                             collection:
-                        target_entity = self.read_entity_from_link(environ)
                         collection.replace(target_entity)
                     return self.return_empty(start_response, response_headers)
                 elif method == "DELETE":
@@ -736,6 +784,12 @@ class Server(app.Server):
                         raise core.MissingURISegment(
                             "%s, no entity is related" %
                             request.links_property)
+                    if changeset is not None:
+                        collection = parent_entity[
+                            request.links_property].open()
+                        changeset.delete_link(collection, resource.key())
+                        return self.return_accepted(
+                            start_response, response_headers)
                     with parent_entity[
                             request.links_property].open() as \
                             collection:
@@ -763,6 +817,18 @@ class Server(app.Server):
                 elif method == "PUT":
                     if request.path_option == core.PathOption.value:
                         if resource.type_def.has_stream():
+                            if changeset is not None:
+                                # we don't allow media stream updates in
+                                # changesets because, if we did, we'd
+                                # have to cache the entire stream
+                                # somewhere while we finished processing
+                                # the rest of the changeset (as order
+                                # cannot be determined at this stage).
+                                # Whether or not your underlying
+                                # container implementation supports
+                                # transactional media streams is a
+                                # secondary consideration.
+                                raise NotImplementedError
                             sinfo = core.StreamInfo()
                             if "CONTENT_TYPE" in environ:
                                 sinfo.type = params.MediaType.from_str(
@@ -785,6 +851,14 @@ class Server(app.Server):
                     else:
                         # update the entity from the request
                         self.read_entity(resource, environ)
+                        if changeset is not None:
+                            changeset.update_entity(resource)
+                            # set a header to indicate that an etag will
+                            # need to be set in the changeset response
+                            response_headers.append(
+                                ('X-OData-ETag', resource.alias))
+                            return self.return_accepted(
+                                start_response, response_headers)
                         resource.commit()
                         # now we've updated the entity it is safe to calculate
                         # the ETag
@@ -795,6 +869,10 @@ class Server(app.Server):
                     if request.path_option == core.PathOption.value:
                         raise core.BadURISegment(
                             "$value cannot be used with DELETE")
+                    if changeset is not None:
+                        changeset.delete_entity(resource)
+                        return self.return_accepted(
+                            start_response, response_headers)
                     resource.delete()
                     return self.return_empty(start_response, response_headers)
                 else:
@@ -826,6 +904,9 @@ class Server(app.Server):
                         response_headers)
                 elif (method == "POST" and
                         resource.is_medialink_collection()):
+                    if changeset is not None:
+                        # see comment above on PUT /$value.
+                        raise NotImplementedError
                     # POST of a media resource
                     sinfo = core.StreamInfo()
                     if "CONTENT_TYPE" in environ:
@@ -872,6 +953,22 @@ class Server(app.Server):
                     entity = resource.new_entity()
                     # read the entity from the request
                     self.read_entity(entity, environ)
+                    if changeset is not None:
+                        changeset.insert_entity(resource, entity)
+                        response_type = self.content_negotiation(
+                            request, environ, self.EntryTypes)
+                        if response_type is None:
+                            return self.odata_error(
+                                request, environ, start_response,
+                                "Not Acceptable",
+                                'xml, json or plain text formats supported',
+                                406)
+                        response_headers.append(
+                            ('X-OData-Entity', entity.alias))
+                        response_headers.append(
+                            ('X-OData-Type', str(response_type)))
+                        return self.return_accepted(
+                                start_response, response_headers)
                     resource.insert_entity(entity)
                     response_headers.append(
                         ('Location', str(entity.get_location())))
@@ -903,6 +1000,12 @@ class Server(app.Server):
                                 "%s (NULL)" % resource.p_def.name)
                     else:
                         self.read_value(resource, environ)
+                    if changeset is not None:
+                        changeset.update_entity(parent_entity)
+                        response_headers.append(
+                            ('X-OData-ETag', resource.alias))
+                        return self.return_accepted(
+                                start_response, response_headers)
                     parent_entity.commit()
                     self.set_etag(parent_entity, response_headers)
                     return self.return_empty(start_response, response_headers)
@@ -916,6 +1019,12 @@ class Server(app.Server):
                             "DELETE failed, %s property is not nullable" %
                             resource.p_def.name)
                     resource.value = None
+                    if changeset is not None:
+                        changeset.update_entity(parent_entity)
+                        response_headers.append(
+                            ('X-OData-ETag', resource.alias))
+                        return self.return_accepted(
+                                start_response, response_headers)
                     parent_entity.commit()
                     return self.return_empty(start_response, response_headers)
                 else:
@@ -966,6 +1075,13 @@ class Server(app.Server):
                 request, environ, start_response, "NotImplementedError",
                 str(e), 405)
 
+    def return_accepted(self, start_response, response_headers, status=202,
+                        status_msg="Accepted"):
+        """Returns a response indicating the changeset was updated"""
+        response_headers.append(("Content-Length", "0"))
+        start_response("%i %s" % (status, status_msg), response_headers)
+        return []
+
     def return_batch(self, request, environ, start_response, response_headers):
         request_type = params.MediaType.from_str(environ["CONTENT_TYPE"])
         input = messages.WSGIInputWrapper(environ)
@@ -1004,18 +1120,155 @@ class Server(app.Server):
                     for data in request.call_server(self, environ,
                                                     req_wrapper):
                         yield data
-                # could be a changeset in future
                 else:
-                    # unrecognized part - generate an error
-                    yield b"Content-Type: application/http\r\n"\
-                        b"Content-Transfer-Encoding: binary\r\n"\
-                        b"\r\n"\
-                        b"HTTP/1.1 400 Bad Request\r\n"\
-                        b"Content-Type: text/plain\r\n"\
-                        b"Content-Length: 0\r\n"\
-                        b"\r\n"
-        except multipart.MultipartError as e:
-            # we've already started streaming - we're done
+                    container = self.model.DataServices.defaultContainer
+                    changeset = container.new_changeset()
+                    cs_boundary = multipart.make_boundary_delimiter(
+                        b"-- changeset boundary --")
+                    cs_response_type = params.MediaType(
+                        "multipart", "mixed",
+                        parameters={"boundary": ("boundary", cs_boundary)})
+                    cs_response = []
+                    cs_response.append(b"Content-Type: %s\r\n" %
+                                       str(cs_response_type).encode('ascii'))
+                    cs_response.append(
+                        b"Content-Transfer-Encoding: binary\r\n\r\n")
+                    try:
+                        cs_stream = multipart.MultipartRecvWrapper(part, mtype)
+                        cs_response_parts = []
+                        cs_response_error = []
+                        for cs_part in cs_stream.read_parts():
+                            cs_message = cs_part.read_message_header()
+                            cs_type = cs_message.get_content_type()
+                            if cs_type != "application/http":
+                                # ignore this part
+                                continue
+                            cs_req_wrapper = messages.RecvWrapper(
+                                cs_part, BatchRequest)
+                            cs_request = cs_req_wrapper.read_message_header()
+                            cs_content_id = cs_message.get_header('Content-ID')
+                            if cs_content_id is None:
+                                # perhaps it's buried in the
+                                # encapsulated request?
+                                cs_content_id = cs_request.get_header(
+                                    'Content-ID')
+                            # changeset responses are either errors or
+                            # empty
+                            error_data = []
+                            for data in cs_request.call_server(
+                                    self, environ, cs_req_wrapper, changeset):
+                                error_data.append(data)
+                            cs_response_parts.append(
+                                (cs_content_id,
+                                 cs_request.response.get_header(
+                                    'X-OData-Entity'),
+                                 cs_request.response.get_header(
+                                    'X-OData-Type'),
+                                 cs_request.response.get_header(
+                                    'X-OData-ETag')))
+                            if cs_request.response.status != 202:
+                                # our entire changeset generated an
+                                # error, report the first one only
+                                if not cs_response_error:
+                                    cs_response_error = error_data
+                        if cs_response_error:
+                            yield b"Content-Type: application/http\r\n"\
+                                b"Content-Transfer-Encoding: binary\r\n"\
+                                b"\r\n"
+                            for item in self.cs_response_error:
+                                yield item
+                        else:
+                            # commit the changeset
+                            changeset.commit()
+                            for cid, entity_alias, rtype, etag_alias in \
+                                    cs_response_parts:
+                                cs_response.append(
+                                    b"\r\n--" + cs_boundary + b"\r\n"
+                                    b"Content-Type: application/http\r\n"
+                                    b"Content-Transfer-Encoding: binary\r\n"
+                                    b"Content-ID: %s\r\n\r\n" % cid)
+                                if entity_alias:
+                                    # construct an entity response
+                                    entity = changeset[to_text(entity_alias)]
+                                    if rtype == b"application/json":
+                                        data = str(
+                                            '{"d":%s}' % ''.join(
+                                                entity.
+                                                generate_entity_type_in_json()
+                                                ))
+                                    else:
+                                        doc = core.Document(root=core.Entry)
+                                        e = doc.root
+                                        e.set_base(str(self.service_root))
+                                        e.set_value(entity)
+                                        data = str(doc)
+                                    data = data.encode('utf-8')
+                                    cs_response.append(
+                                        b"HTTP/1.1 201 Created\r\n"
+                                        b"Content-Type: %s\r\n"
+                                        b"Content-Length: %i\r\n"
+                                        % (rtype, len(data)))
+                                    etag = entity.etag()
+                                    if etag is not None:
+                                        etag = entity.format_etag(
+                                            etag, entity.etag_is_strong())
+                                        cs_response.append(
+                                            b"ETag: %s\r\n" % etag)
+                                    cs_response.append(b"\r\n")
+                                    cs_response.append(data)
+                                elif etag_alias:
+                                    entity = changeset[to_text(etag_alias)]
+                                    cs_response.append(
+                                        b"HTTP/1.1 204 No Content\r\n"
+                                        b"Content-Length: 0\r\n")
+                                    etag = entity.etag()
+                                    if etag is not None:
+                                        etag = entity.format_etag(
+                                            etag, entity.etag_is_strong())
+                                        cs_response.append(
+                                            b"ETag: %s\r\n" % etag)
+                                    cs_response.append(b"\r\n")
+                                else:
+                                    cs_response.append(
+                                        b"HTTP/1.1 204 No Content\r\n"
+                                        b"Content-Length: 0\r\n"
+                                        b"\r\n")
+                            cs_response.append(
+                                b"\r\n--" + cs_boundary + b"--\r\n")
+                            for item in cs_response:
+                                yield item
+                    except edm.ConstraintError as e:
+                        # commit failed
+                        err = core.Error(None)
+                        err.add_child(core.Code).set_value("ConstraintError")
+                        err.add_child(core.Message).set_value(str(e))
+                        msg = str(err).encode('utf-8')
+                        yield b"Content-Type: application/http\r\n"\
+                            b"Content-Transfer-Encoding: binary\r\n"\
+                            b"\r\n"\
+                            b"HTTP/1.1 403 ConstraintError\r\n"\
+                            b"Content-Type: application/xml\r\n"\
+                            b"Content-Length: %i\r\n"\
+                            b"\r\n" % len(msg)
+                        if msg:
+                            yield msg
+                    except messages.ProtocolError as e:
+                        # unrecognized part perhaps? - generate an error
+                        yield b"Content-Type: application/http\r\n"\
+                            b"Content-Transfer-Encoding: binary\r\n"\
+                            b"\r\n"\
+                            b"HTTP/1.1 400 Bad Request\r\n"\
+                            b"Content-Type: text/plain\r\n"\
+                            b"Content-Length: 0\r\n"\
+                            b"\r\n"
+                    finally:
+                        changeset.close_collections()
+        except Exception as e:
+            # we've already started streaming - add a plain text part
+            # containing the error and finish
+            yield b"\r\n--" + boundary + b"\r\n"
+            yield b"Content-Type: text/plain\r\n\r\n"
+            yield str(e).encode('ascii')
             logging.error(str(e))
         yield b"\r\n--" + boundary + b"--\r\n"
 
@@ -1089,8 +1342,8 @@ class Server(app.Server):
         input = self.read_xml_or_json(environ)
         if isinstance(input, core.Document):
             if isinstance(input.root, core.URI):
-                return self.get_resource_from_uri(
-                    uri.URI.from_octets(input.root.get_value()))
+                resolver = self.url_resolver(environ)
+                return resolver(uri.URI.from_octets(input.root.get_value()))
             else:
                 raise core.InvalidData(
                     "Unable to parse link from request body (found <%s>)" %
@@ -1098,8 +1351,8 @@ class Server(app.Server):
         else:
             # must be a json object
             try:
-                return self.get_resource_from_uri(
-                    uri.URI.from_octets(input['uri']))
+                resolver = self.url_resolver(environ)
+                return resolver(uri.URI.from_octets(input['uri']))
             except KeyError:
                 raise core.InvalidData(
                     "Unable to parse link from JSON request body (found %s )" %
@@ -1215,14 +1468,14 @@ class Server(app.Server):
         if isinstance(input, core.Document):
             if isinstance(input.root, core.Entry):
                 # we have an entry, which is a relief!
-                input.root.get_value(entity, self.get_resource_from_uri, True)
+                input.root.get_value(entity, self.url_resolver(environ), True)
             else:
                 raise core.InvalidData(
                     "Unable to parse atom Entry from request "
                     "body (found <%s>)" % input.root.xmlname)
         else:
             # must be a json object
-            entity.set_from_json_object(input, self.get_resource_from_uri,
+            entity.set_from_json_object(input, self.url_resolver(environ),
                                         True)
 
     def return_entity(self, entity, request, environ, start_response,

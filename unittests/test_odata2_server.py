@@ -1884,8 +1884,9 @@ class SampleServerTests(unittest.TestCase):
         entry = core.Entry(None, customer)
         new_customer = core.Entity(customers)
         new_customer.exists = False
+        get_resource_from_uri = self.svc.url_resolver({})
         entry.get_value(new_customer,
-                        lambda x: self.svc.get_resource_from_uri(x))
+                        lambda x: get_resource_from_uri(x))
         # now we need to check the bindings, which is a little hard to do
         # without looking inside the box
         self.assertTrue(len(new_customer['Orders'].bindings) == 3,

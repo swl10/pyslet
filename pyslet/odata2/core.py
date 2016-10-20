@@ -2188,6 +2188,12 @@ class ODataURI(PEP8Compatibility):
                 elif segment.startswith("$"):
                     try:
                         path_option = PathOption.from_str_lower(segment[1:])
+                    except ValueError:
+                        if not len(self.nav_path):
+                            # This is an entity alias
+                            self.nav_path.append(self.split_segment(segment))
+                            continue
+                        raise
                     except KeyError:
                         raise InvalidPathOption(segment)
                     if self.path_option is not None:
@@ -2445,8 +2451,13 @@ class Entity(edm.Entity):
     """We override Entity in order to provide OData serialisation."""
 
     def get_location(self):
-        return uri.URI.from_octets(str(self.entity_set.get_location()) +
-                                   ODataURI.format_entity_key(self))
+        if self.alias is None:
+            return uri.URI.from_octets(str(self.entity_set.get_location()) +
+                                       ODataURI.format_entity_key(self))
+        else:
+            # return a relative URI in this case as alias replaces root
+            return "$%s" % uri.escape_data(
+                self.alias, reserved_test=uri.is_path_segment_reserved)
 
     def get_content_type(self):
         with self.entity_set.open() as collection:
@@ -2646,9 +2657,10 @@ class Entity(edm.Entity):
                 target_set = dv.target()
                 binding = dv.bindings[-1]
                 if isinstance(binding, Entity):
-                    if binding.exists:
-                        href = str(target_set.get_location()) + \
-                            ODataURI.format_entity_key(binding)
+                    if binding.exists or binding.alias:
+                        href = str(binding.get_location())
+                        # href = str(target_set.get_location()) + \
+                        #     ODataURI.format_entity_key(binding)
                     else:
                         # we can't create new entities on update
                         continue
@@ -2671,9 +2683,10 @@ class Entity(edm.Entity):
                     else:
                         sep = True
                     if isinstance(binding, Entity):
-                        if binding.exists:
-                            href = str(target_set.get_location()) + \
-                                ODataURI.format_entity_key(binding)
+                        if binding.exists or binding.alias:
+                            href = str(binding.get_location())
+                            # href = str(target_set.get_location()) + \
+                            #    ODataURI.format_entity_key(binding)
                         else:
                             # we need to yield the entire entity instead
                             for s in binding.generate_entity_type_in_json():
@@ -3831,9 +3844,10 @@ class Entry(atom.Entry):
                 target_set = dv.target()
                 binding = dv.bindings[-1]
                 if isinstance(binding, Entity):
-                    if binding.exists:
-                        href = str(target_set.get_location()) + \
-                            ODataURI.format_entity_key(binding)
+                    if binding.exists or binding.alias:
+                        href = str(binding.get_location())
+                        # href = str(target_set.get_location()) + \
+                        #    ODataURI.format_entity_key(binding)
                     else:
                         # we can't create new entities on update
                         continue
@@ -3854,9 +3868,10 @@ class Entry(atom.Entry):
                 feed = []
                 for binding in dv.bindings:
                     if isinstance(binding, Entity):
-                        if binding.exists:
-                            href = str(target_set.get_location()) + \
-                                ODataURI.format_entity_key(binding)
+                        if binding.exists or binding.alias:
+                            href = str(binding.get_location())
+                            # href = str(target_set.get_location()) + \
+                            #    ODataURI.format_entity_key(binding)
                         else:
                             feed.append(binding)
                             href = None

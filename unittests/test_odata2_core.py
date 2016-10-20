@@ -1937,6 +1937,37 @@ class ODataURITests(unittest.TestCase):
         except odata.InvalidSystemQueryOption:
             pass
 
+    def test_alias(self):
+        """Syntax::
+
+        "$<Content-ID value of previous request> [ navPath ] [ count ]
+
+        Must tolerate a service root"""
+        ds_uri = odata.ODataURI("/x.svc/$customer1", '/x.svc')
+        self.assertTrue(ds_uri.path_prefix == '/x.svc', "svc path prefix")
+        self.assertTrue(ds_uri.resource_path == '/$customer1', "resource path")
+        ds_uri = odata.ODataURI('$customer1', '')
+        self.assertTrue(ds_uri.path_prefix == '', "svc path prefix")
+        self.assertTrue(ds_uri.resource_path == '/$customer1', "resource path")
+        self.assertTrue(len(ds_uri.nav_path) == 1, "nav_path: %s" %
+                        repr(ds_uri.nav_path))
+        self.assertTrue(is_unicode(ds_uri.nav_path[0][0]), "alias type")
+        self.assertTrue(
+            ds_uri.nav_path[0][0] == '$customer1', "alias: $customer1")
+        self.assertTrue(
+            ds_uri.nav_path[0][1] is None, "alias no key-predicate")
+        ds_uri = odata.ODataURI('$customer1/Property')
+        self.assertTrue(ds_uri.path_prefix == '', "svc path prefix")
+        self.assertTrue(ds_uri.resource_path == '/$customer1/Property',
+                        "resource path")
+        self.assertTrue(len(ds_uri.nav_path) == 2, "nav_path: %s" %
+                        repr(ds_uri.nav_path))
+        self.assertTrue(is_unicode(ds_uri.nav_path[1][0]), "property type")
+        self.assertTrue(
+            ds_uri.nav_path[1][0] == 'Property', "property name")
+        self.assertTrue(
+            ds_uri.nav_path[1][1] is None, "property has no key-predicate")
+
 
 class StreamInfoTests(unittest.TestCase):
 
