@@ -346,14 +346,18 @@ class Server(app.Server):
                 core.ODataURI('error'), environ, start_response, "Bad Request",
                 "Method not allowed: %s" % to_text(e), 400)
         except ValueError as e:
-            traceback.print_exception(*sys.exc_info())
+            logging.error(
+                "Error in OData call: %s",
+                "".join(traceback.format_exception(*sys.exc_info())))
             # This is a bad request
             return self.odata_error(
                 core.ODataURI('error'), environ, start_response, "ValueError",
                 to_text(e))
         except:
             einfo = sys.exc_info()
-            traceback.print_exception(*einfo)
+            logging.error(
+                "UnexpectedError in OData call: %s",
+                "".join(traceback.format_exception(*sys.exc_info())))
             # return self.HandleError(core.ODataURI('error'),
             #   environ,start_response)
             return self.odata_error(
