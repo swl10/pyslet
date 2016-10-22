@@ -118,7 +118,9 @@ class MockODataServer:
             handler.end_headers()
         except:
             handler.send_response(500)
-            traceback.print_exception(*sys.exc_info())
+            logging.error(
+                "UnexpectedError in MockODataServer: %s",
+                "".join(traceback.format_exception(*sys.exc_info())))
             handler.send_header("Content-Length", "0")
             handler.end_headers()
 
@@ -132,7 +134,9 @@ class MockODataServer:
             handler.end_headers()
         except:
             handler.send_response(500)
-            traceback.print_exception(*sys.exc_info())
+            logging.error(
+                "UnexpectedError in MockODataServer: %s",
+                "".join(traceback.format_exception(*sys.exc_info())))
             handler.send_header("Content-Length", "0")
             handler.end_headers()
 
