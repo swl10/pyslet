@@ -2120,7 +2120,7 @@ class TimePoint(PEP8Compatibility, UnicodeMixin, SortableMixin):
     TimePoints are constructed from a date and a time (which may or
     may not have a time zone), for example::
 
-        TimePoint(date=Date(year=1969,month=7,day=20),
+        TimePoint(date=Date(century=19,year=69,month=7,day=20),
                   time=Time(hour=20,minute=17,second=40,zdirection=0))
 
     If the date is missing then the date origin is used, Date() or
