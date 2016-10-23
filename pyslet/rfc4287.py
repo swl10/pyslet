@@ -215,7 +215,7 @@ class Date(AtomElement):
             self.date = value
             super(Date, self).set_value(value.get_calendar_string())
         else:
-            super(Date, self).set_value(self, value)
+            super(Date, self).set_value(value)
             self.content_changed()
 
     def content_changed(self):
