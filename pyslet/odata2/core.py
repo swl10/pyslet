@@ -2779,6 +2779,13 @@ def simple_property_to_json_str(simple_value):
 
 
 def simple_value_to_json_str(v):
+    """Formats a simple value for JSON.
+
+    The value is converted into a serialised value (a text string) ready
+    for encoding to bytes and output in a JSON stream.  It is not
+    intended to be further encoded by the json module, this differs from
+    the :func:`simple_value_from_json` function which is called after
+    the json module has parsed it from the original stream."""
     if not v:
         return 'null'
     elif isinstance(v, edm.BinaryValue):
@@ -2793,7 +2800,7 @@ def simple_value_to_json_str(v):
         # offset
         ticks = (v.value.date.get_absolute_day() - BASE_DAY) * \
             TICKS_PER_DAY + int(v.value.time.get_total_seconds() * 1000)
-        return json.dumps("/Date(%i)/" % ticks)
+        return '"\\/Date(%i)\\/"' % ticks
     elif isinstance(v, (edm.DecimalValue, edm.DoubleValue, edm.GuidValue,
                         edm.Int64Value, edm.SingleValue, edm.StringValue,
                         edm.TimeValue)):
@@ -2804,14 +2811,50 @@ def simple_value_to_json_str(v):
         # offset
         ticks = (v.value.date.get_absolute_day() - BASE_DAY) * \
             TICKS_PER_DAY + int(v.value.time.get_total_seconds() * 1000)
-        dir, offset = v.get_zone()
+        dir, offset = v.value.get_zone()
         if dir > 0:
             s = "+"
         else:
             s = "-"
-        return json.dumps("/Date(%i%s%04i)/" % (ticks, s, offset))
+        return '"\\/Date(%i%s%04i)\\/"' % (ticks, s, offset)
     else:
         raise ValueError("SimpleValue: %s" % repr(v))
+
+
+def parse_asp_dot_net_date(src):
+    """Parses a date string in ASP.Net AJAX format.
+
+    We assume that the string has already be deserialised by json.loads
+    so it does not have enclosing quotes or redundant backslash
+    characters.
+
+    Returns an :class:`~pyslet.iso8601.TimePoint` instance with a
+    timezone.  If the src value has no offset the resulting TimePoint is
+    in UTC."""
+    if not (src.startswith("/Date(") and src.endswith(")/")):
+        raise ValueError
+    ticks = src[6:-2]
+    if '+' in ticks:
+        # split by +
+        ticks = ticks.split('+')
+        zdir = 1
+    elif '-' in ticks:
+        # split by -
+        ticks = ticks.split('-')
+        zdir = -1
+    else:
+        zdir = 0
+    if zdir:
+        if len(ticks) != 2:
+            raise ValueError
+        zoffset = int(ticks[1])
+    else:
+        zoffset = 0
+    t, overflow = iso.Time().offset(
+        seconds=int(ticks[0]) / 1000.0)
+    t = t.with_zone(zdir, zoffset // 60, zoffset % 60)
+    d = iso.Date(absolute_day=BASE_DAY + overflow)
+    return iso.TimePoint(date=d, time=t)
 
 
 def simple_value_from_json(v, json_value):
@@ -2826,46 +2869,47 @@ def simple_value_from_json(v, json_value):
                         edm.Int32Value, edm.SByteValue)):
         v.set_from_value(json_value)
     elif isinstance(v, edm.DateTimeValue):
-        if json_value.startswith("/Date(") and json_value.endswith(")/"):
-            ticks = int(json_value[6:-2])
-            t, overflow = iso.Time().offset(seconds=ticks / 1000.0)
-            d = iso.Date(absolute_day=BASE_DAY + overflow)
-            v.set_from_value(iso.TimePoint(date=d, time=t))
+        if json_value.startswith("/Date("):
+            try:
+                v.set_from_value(
+                    parse_asp_dot_net_date(json_value).shift_zone(0))
+            except ValueError:
+                raise ValueError(
+                    "Bad value for DateTime: %s" % json_value)
         else:
-            raise ValueError("Illegal value for DateTime: %s" % json_value)
+            try:
+                d = iso.TimePoint.from_str(json_value)
+                zdir, zoffset = d.get_zone()
+                if zdir is not None:
+                    # shift to UTC and strip zone
+                    d = d.shift_zone(0).with_zone(None)
+                v.set_from_value(d)
+            except ValueError:
+                raise ValueError(
+                    "Unrecognized value for DateTime: %s" % json_value)
     elif isinstance(v, (edm.DecimalValue, edm.DoubleValue, edm.GuidValue,
                         edm.Int64Value, edm.SingleValue, edm.StringValue,
                         edm.TimeValue)):
         # just use the literal form as a json string
         v.set_from_literal(json_value)
     elif isinstance(v, (edm.DateTimeOffsetValue)):
-        if json_value.startswith("/Date(") and json_value.endswith(")/"):
-            ticks = int(json_value[6:-2])
-            if '+' in ticks:
-                # split by +
-                ticks = ticks.split('+')
-                zdir = 1
-            elif '-' in ticks:
-                # split by -
-                ticks = ticks.split('-')
-                zdir = -1
-            else:
-                zdir = 0
-            if zdir:
-                if len(ticks) != 2:
-                    raise ValueError(
-                        "Illegal value for DateTimeOffset: %s" % json_value)
-                zoffset = int(ticks[1])
-            else:
-                zoffset = 0
-            t, overflow = iso.Time().offset(
-                seconds=int(ticks[0]) / 1000.0).with_zone(zdir, zoffset // 60,
-                                                          zoffset % 60)
-            d = iso.Date(absolute_day=BASE_DAY + overflow)
-            v.set_from_value(iso.TimePoint(date=d, time=t))
+        if json_value.startswith("/Date("):
+            try:
+                v.set_from_value(parse_asp_dot_net_date(json_value))
+            except ValueError:
+                raise ValueError(
+                    "Bad value for DateTimeOffset: %s" % json_value)
         else:
-            raise ValueError(
-                "Illegal value for DateTimeOffset: %s" % json_value)
+            try:
+                d = iso.TimePoint.from_str(json_value)
+                zdir, zoffset = d.get_zone()
+                if zdir is None:
+                    # assume UTC
+                    d = d.with_zone(0)
+                v.set_from_value(d)
+            except ValueError:
+                raise ValueError(
+                    "Unrecognized value for DateTimeOffset: %s" % json_value)
     else:
         raise ValueError("Expected SimpleValue: %s" % repr(v))
 
