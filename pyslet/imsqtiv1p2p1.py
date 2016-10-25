@@ -24,7 +24,7 @@ from pyslet.qtiv1.assessment import *
 from pyslet.qtiv1.objectbank import *
 from pyslet.qtiv1.sao import *
 from pyslet.qtiv1.outcomes import *
-#from pyslet.qtiv1.main import *
+# from pyslet.qtiv1.main import *
 
 # IMSQTI_NAMESPACE="http://www.imsglobal.org/xsd/ims_qtiasiv1p2"
 QTI_SOURCE = 'QTIv1'
@@ -35,7 +35,8 @@ class QuesTestInterop(QTICommentContainer):
     """The <questestinterop> element is the outermost container for the QTI
     contents i.e. the container of the Assessment(s), Section(s) and Item(s)::
 
-    <!ELEMENT questestinterop (qticomment? , (objectbank | assessment | (section | item)+))>"""
+    <!ELEMENT questestinterop (qticomment? , (objectbank | assessment |
+    (section | item)+))>"""
 
     XMLNAME = 'questestinterop'
 
@@ -99,9 +100,10 @@ class QTIDocument(xml.Document):
 
     def __init__(self, **args):
         """We turn off the parsing of external general entities to prevent a
-        missing DTD causing the parse to fail.  This is a significant limitation
-        as it is possible that some sophisticated users have used general
-        entities to augment the specification or to define boiler-plate code. 
+        missing DTD causing the parse to fail.  This is a significant
+        limitation as it is possible that some sophisticated users have used
+        general entities to augment the specification or to define boiler-plate
+        code.
         If this causes problems then you can turn the setting back on again for
         specific instances of the parser that will be used with that type of
         data."""
@@ -110,7 +112,8 @@ class QTIDocument(xml.Document):
         self.matThings = {}
 
     def XMLParser(self, entity):
-        """Adds some options to the basic XMLParser to improve QTI compatibility."""
+        """Adds some options to the basic XMLParser to improve QTI
+        compatibility."""
         p = xmlparser.XMLParser(entity)
         p.unicodeCompatibility = True
         return p
@@ -120,10 +123,11 @@ class QTIDocument(xml.Document):
     def get_element_class(self, name):
         """Returns the class to use to represent an element with the given name.
 
-        This method is used by the XML parser.  The class object is looked up in
-        the classMap, if no specialized class is found then the general
+        This method is used by the XML parser.  The class object is looked up
+        in the classMap, if no specialized class is found then the general
         :py:class:`pyslet.xml.structures.Element` class is returned."""
-        return QTIDocument.classMap.get(name, QTIDocument.classMap.get(None, xml.Element))
+        return QTIDocument.classMap.get(
+            name, QTIDocument.classMap.get(None, xml.Element))
 
     def RegisterMatThing(self, matThing):
         """Registers a MatThing instance in the dictionary of matThings."""
@@ -131,7 +135,8 @@ class QTIDocument(xml.Document):
             self.matThings[matThing.label] = matThing
 
     def UnregisterMatThing(self, mathThing):
-        if matThing.label is not None and matThing is self.matThings.get(matThing.label, None):
+        if (matThing.label is not None and
+           matThing is self.matThings.get(matThing.label, None)):
             del self.matThings[matThing.label]
 
     def FindMatThing(self, linkRefID):
@@ -148,12 +153,14 @@ class QTIDocument(xml.Document):
         return matThing
 
     def RegisterMaterial(self, material):
-        """Registers a Material instance in the dictionary of labelled material objects."""
+        """Registers a Material instance in the dictionary of labelled material
+        objects."""
         if material.label is not None:
             self.material[material.label] = material
 
     def UnregisterMaterial(self, material):
-        if material.label is not None and material is self.material.get(material.label, None):
+        if (material.label is not None and
+           material is self.material.get(material.label, None)):
             del self.material[material.label]
 
     def FindMaterial(self, linkRefID):
@@ -181,7 +188,8 @@ class QTIDocument(xml.Document):
 
         The function returns a list of 4-tuples, one for each object migrated.
 
-        Each tuple comprises ( <QTI v2 Document>, <LOM Metadata>, <log>, <Resource> )"""
+        Each tuple comprises ( <QTI v2 Document>, <LOM Metadata>, <log>,
+        <Resource> )"""
         if isinstance(self.root, QuesTestInterop):
             logging.debug("Migrating QTI v1 file:\n%s", str(self.root))
             results = self.root.MigrateV2()
@@ -215,7 +223,8 @@ class QTIDocument(xml.Document):
                         description = annotation.add_child(
                             imsmd.Description)
                         description.add_child(
-                            description.LangStringClass).set_value(annotationMsg)
+                            description.LangStringClass).set_value(
+                            annotationMsg)
                     r = doc.AddToContentPackage(cp, metadata, dName)
                     newResults.append((doc, metadata, log, r))
                 cp.manifest.update()
@@ -233,9 +242,12 @@ except LookupError:
     CNBIG5 = None
     try:
         BIG5 = codecs.lookup('big5')
-        CNBIG5 = codecs.CodecInfo(BIG5.encode, BIG5.decode, streamreader=BIG5.streamreader,
-                                  streamwriter=BIG5.streamwriter, incrementalencoder=BIG5.incrementalencoder,
-                                  incrementaldecoder=BIG5.incrementaldecoder, name='cn-big5')
+        CNBIG5 = codecs.CodecInfo(BIG5.encode, BIG5.decode,
+                                  streamreader=BIG5.streamreader,
+                                  streamwriter=BIG5.streamwriter,
+                                  incrementalencoder=BIG5.incrementalencoder,
+                                  incrementaldecoder=BIG5.incrementaldecoder,
+                                  name='cn-big5')
     except LookupError:
         # we'll have to do without cn-big5
         pass
@@ -257,9 +269,10 @@ def QTICodecSearch(name):
 
 def RegisterCodecs():
     """The example files that are distributed with the QTI specification contain
-    a set of Chinese examples encoded using big5.  However, the xml declarations
-    on these files refer to the charset as "CN-BIG5" and this causes errors when
-    parsing them as this is a non-standard way of refering to big5.
+    a set of Chinese examples encoded using big5.  However, the xml
+    declarations on these files refer to the charset as "CN-BIG5" and this
+    causes errors when parsing them as this is a non-standard way of refering
+    to big5.
 
     QTI also requires use of the apple symbol font mapping for interpreting
     symbol-encoded maths text in questions."""
