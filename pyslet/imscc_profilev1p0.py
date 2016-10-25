@@ -67,8 +67,8 @@ class CommonCartridge:
             depList = r.Dependency
             for dep in depList:
                 rDep = self.cp.manifest.get_element_by_id(dep.identifierref)
-                if isinstance(rDep, imscp.Resource) and
-                rDep.type == AssociatedContentType:
+                if (isinstance(rDep, imscp.Resource) and
+                   rDep.type == AssociatedContentType):
                     acr = rDep
                     break
             self.laoTable[r.id] = [head, acr]
