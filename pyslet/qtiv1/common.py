@@ -15,7 +15,8 @@ from types import StringTypes
 
 class QTICommentContainer(core.QTIElement):
 
-    """Basic element to represent all elements that can contain a comment as their first child::
+    """Basic element to represent all elements that can contain a comment
+    as their first child::
 
             <!ELEMENT XXXXXXXXXXXX (qticomment? , ....... )>"""
 
@@ -84,7 +85,8 @@ class ContentMixin:
         return self.InlineChildren()
 
     def InlineChildren(self):
-        """True if all of this element's :py:attr:`contentChildren` can all be inlined."""
+        """True if all of this element's :py:attr:`contentChildren` can all be
+        inlined."""
         for child in self.contentChildren:
             if not child.IsInline():
                 return False
@@ -97,11 +99,11 @@ class ContentMixin:
         content object.  For example, an element may permit arbitrary content
         but a synopsis is required to set a metadata value.
 
-        Our algorithm for determining the language of the text is to first check
-        if the language has been specified for the context.  If it has then that
-        language is used.  Otherwise the first language attribute encountered in
-        the content is used as the language.  If no language is found then None
-        is returned as the second value."""
+        Our algorithm for determining the language of the text is to first
+        check if the language has been specified for the context.  If it has
+        then that language is used.  Otherwise the first language attribute
+        encountered in the content is used as the language.  If no language is
+        found then None is returned as the second value."""
         result = []
         lang = self.get_lang()
         for child in self.contentChildren:
@@ -129,7 +131,8 @@ class ContentMixin:
         permits.  Nested flows are handled by the addition of <br/>."""
         if children is None:
             children = self.contentChildren
-        if childType is html.InlineMixin or (childType is html.FlowMixin and self.InlineChildren()):
+        if childType is html.InlineMixin or (childType is html.FlowMixin and
+                                             self.InlineChildren()):
             # We can only hold inline children, raise an error if find anything
             # else
             brBefore = brAfter = False
@@ -196,8 +199,8 @@ class Material(QTICommentContainer, ContentMixin):
     can be defined - this is used if the primary content cannot be displayed::
 
             <!ELEMENT material (qticomment? , (mattext | matemtext | matimage |
-                    mataudio | matvideo | matapplet | matapplication | matref | matbreak
-                    | mat_extension)+ , altmaterial*)>
+                    mataudio | matvideo | matapplet | matapplication | matref |
+                    matbreak | mat_extension)+ , altmaterial*)>
             <!ATTLIST material
                     label CDATA  #IMPLIED
                     xml:lang CDATA  #IMPLIED >"""
@@ -234,12 +237,13 @@ class AltMaterial(QTICommentContainer, ContentMixin):
 
     """This is the container for alternative content. This content is to be
     displayed if, for whatever reason, the primary content cannot be rendered.
-    Alternative language implementations of the host <material> element are also
-    supported using this structure::
+    Alternative language implementations of the host <material> element are
+    also supported using this structure::
 
             <!ELEMENT altmaterial (qticomment? ,
                     (mattext | matemtext | matimage | mataudio | matvideo |
-                    matapplet | matapplication | matref | matbreak | mat_extension)+)>
+                    matapplet | matapplication | matref | matbreak |
+                    mat_extension)+)>
             <!ATTLIST altmaterial  xml:lang CDATA  #IMPLIED >"""
     XMLNAME = "altmaterial"
     XMLCONTENT = xml.ElementContent

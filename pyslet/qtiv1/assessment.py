@@ -13,9 +13,10 @@ import string
 class Assessment(common.QTICommentContainer):
 
     """The Assessment data structure is used to contain the exchange of test
-    data structures. It will always contain at least one Section and may contain
-    meta-data, objectives, rubric control switches, assessment-level processing,
-    feedback and selection and sequencing information for sections::
+    data structures. It will always contain at least one Section and may
+    contain meta-data, objectives, rubric control switches, assessment-level
+    processing, feedback and selection and sequencing information for
+    sections::
 
             <!ELEMENT assessment (qticomment? ,
                     duration? ,
@@ -33,7 +34,8 @@ class Assessment(common.QTICommentContainer):
                     )>
             <!ATTLIST assessment  ident CDATA  #REQUIRED
                                                        %I_Title;
-                                                       xml:lang CDATA  #IMPLIED >"""
+                                                       xml:lang CDATA
+                                                       #IMPLIED >"""
     XMLNAME = "assessment"
     XMLATTR_ident = 'ident'
     XMLATTR_title = 'title'
@@ -106,9 +108,9 @@ class AssessmentControl(common.QTICommentContainer):
             <!ATTLIST assessmentcontrol
                     hintswitch  (Yes | No )  'Yes'
                     solutionswitch  (Yes | No )  'Yes'
-                    view	(All | Administrator | AdminAuthority | Assessor | Author |
-                                    Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                                    Tutor ) 'All'
+                    view	(All | Administrator | AdminAuthority | Assessor |
+                                   Author | Candidate | InvigilatorProctor |
+                                   Psychometrician | Scorer | Tutor ) 'All'
                     feedbackswitch  (Yes | No )  'Yes' >"""
     XMLNAME = 'assessmentcontrol'
     XMLATTR_hintswitch = ('hintSwitch', core.ParseYesNo, core.FormatYesNo)
@@ -144,9 +146,9 @@ class AssessFeedback(common.QTICommentContainer, common.ContentMixin):
 
             <!ELEMENT assessfeedback (qticomment? , (material+ | flow_mat+))>
             <!ATTLIST assessfeedback
-                    view	(All | Administrator | AdminAuthority | Assessor | Author |
-                                    Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                                    Tutor ) 'All'
+                    view	(All | Administrator | AdminAuthority | Assessor |
+                                   Author | Candidate | InvigilatorProctor |
+                                   Psychometrician | Scorer | Tutor ) 'All'
                     ident CDATA  #REQUIRED
                     title CDATA  #IMPLIED >"""
     XMLNAME = 'assessfeedback'
