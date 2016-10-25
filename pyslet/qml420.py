@@ -2,7 +2,6 @@
 """This module implements the QML specification defined by Questionmark.
 
 References:
-
 """
 
 import pyslet.xml.structures as xml
@@ -465,9 +464,9 @@ class QML(QMLElement):
 
     """QML root element.
 
-    Not defined in the document but used as a wrapper element for QML documents,
-    presumably to enable them to contain multiple QUESTION instances, as per
-    this quote from the specification...
+    Not defined in the document but used as a wrapper element for QML
+    documents, presumably to enable them to contain multiple QUESTION
+    instances, as per this quote from the specification...
 
     QML describes individual questions only. Each question defined in QML is
     independent to any other. [snip]...
@@ -478,18 +477,24 @@ class QML(QMLElement):
 
 class QMLQuestion(QMLElement):
 
-    """QML QUESSTION element which holds all question data.	
+    """QML QUESSTION element which holds all question data.
             <xs:complexType>
                     <xs:sequence minOccurs="0" maxOccurs="unbounded">
-                            <xs:element name="TAG" type="Tag" minOccurs="0" maxOccurs="unbounded"/>
-                            <xs:element name="COMMENT" type="Comment" minOccurs="0" maxOccurs="unbounded"/>
-                            <xs:element name="CONTENT" type="Content" minOccurs="0" maxOccurs="unbounded"/>
-                            <xs:element name="ANSWER" type="Answer" minOccurs="0"/>
-                            <xs:element name="OUTCOME" type="Outcome" minOccurs="0" maxOccurs="unbounded"/>
+                            <xs:element name="TAG" type="Tag" minOccurs="0"
+                            maxOccurs="unbounded"/>
+                            <xs:element name="COMMENT" type="Comment"
+                            minOccurs="0" maxOccurs="unbounded"/>
+                            <xs:element name="CONTENT" type="Content"
+                            minOccurs="0" maxOccurs="unbounded"/>
+                            <xs:element name="ANSWER" type="Answer"
+                            minOccurs="0"/>
+                            <xs:element name="OUTCOME" type="Outcome"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xs:sequence>
                     <xs:attribute name="ID" type="QuestionID" use="optional"/>
                     <xs:attribute name="TOPIC" type="xs:string"/>
-                    <xs:attribute name="DESCRIPTION" type="DescriptionString" use="optional" default="Question Description"/>
+                    <xs:attribute name="DESCRIPTION" type="DescriptionString"
+                    use="optional" default="Question Description"/>
                     <xs:attribute name="TYPE" type="NameString"/>
                     <xs:attribute name="STATUS" type="NameString"/>
                     <xs:attribute name="CEILING" type="Ceiling"/>
@@ -546,7 +551,8 @@ class QMLTag(QMLElement):
     <xs:complexType name="Tag">
             <xs:simpleContent>
                     <xs:extension base="NameString">
-                            <xs:attribute name="NAME" type="NameString" use="required"/>
+                            <xs:attribute name="NAME" type="NameString"
+                            use="required"/>
                     </xs:extension>
             </xs:simpleContent>
     </xs:complexType>"""
@@ -577,10 +583,14 @@ class QMLComment(QMLElement):
     <xs:complexType name="Comment">
             <xs:simpleContent>
                     <xs:extension base="xs:string">
-                            <xs:attribute name="AUTHOR" type="NameString" use="required"/>
-                            <xs:attribute name="NAME" type="NameString" use="required"/>
-                            <xs:attribute name="DATE" type="NameString" use="required"/>
-                            <xs:attribute name="TYPE" type="NameString" use="required"/>
+                            <xs:attribute name="AUTHOR" type="NameString"
+                            use="required"/>
+                            <xs:attribute name="NAME" type="NameString"
+                            use="required"/>
+                            <xs:attribute name="DATE" type="NameString"
+                            use="required"/>
+                            <xs:attribute name="TYPE" type="NameString"
+                            use="required"/>
                     </xs:extension>
             </xs:simpleContent>
     </xs:complexType>
@@ -612,19 +622,32 @@ class QMLContent(QMLAnswerThing):
     <xs:complexType name="Content">
             <xs:simpleContent>
                     <xs:extension base="xs:string">
-                            <xs:attribute name="NAME" type="NameString" use="optional"/>
-                            <xs:attribute name="TYPE" type="NameString" use="optional"/>
-                            <xs:attribute name="STYLE" type="NameString" use="optional"/>
-                            <xs:attribute name="WIDTH" type="PositiveLength" use="optional"/>
-                            <xs:attribute name="HEIGHT" type="PositiveLength" use="optional"/>
-                            <xs:attribute name="HIDDEN" type="TrueFalseEnum" use="optional"/>
-                            <xs:attribute name="AUTOSTART" type="TrueFalseEnum" use="optional"/>
-                            <xs:attribute name="LOOP" type="TrueFalseEnum" use="optional"/>
-                            <xs:attribute name="ALIGN" type="AlignEnum" use="optional"/>
-                            <xs:attribute name="VSPACE" type="Margin" use="optional"/>
-                            <xs:attribute name="HSPACE" type="Margin" use="optional"/>
-                            <xs:attribute name="BORDER" type="Margin" use="optional"/>
-                            <xs:attribute name="ALT" type="AlternativeString" use="optional"/>
+                            <xs:attribute name="NAME" type="NameString"
+                            use="optional"/>
+                            <xs:attribute name="TYPE" type="NameString"
+                            use="optional"/>
+                            <xs:attribute name="STYLE" type="NameString"
+                            use="optional"/>
+                            <xs:attribute name="WIDTH" type="PositiveLength"
+                            use="optional"/>
+                            <xs:attribute name="HEIGHT" type="PositiveLength"
+                            use="optional"/>
+                            <xs:attribute name="HIDDEN" type="TrueFalseEnum"
+                            use="optional"/>
+                            <xs:attribute name="AUTOSTART" type="TrueFalseEnum"
+                            use="optional"/>
+                            <xs:attribute name="LOOP" type="TrueFalseEnum"
+                            use="optional"/>
+                            <xs:attribute name="ALIGN" type="AlignEnum"
+                            use="optional"/>
+                            <xs:attribute name="VSPACE" type="Margin"
+                            use="optional"/>
+                            <xs:attribute name="HSPACE" type="Margin"
+                            use="optional"/>
+                            <xs:attribute name="BORDER" type="Margin"
+                            use="optional"/>
+                            <xs:attribute name="ALT" type="AlternativeString"
+                            use="optional"/>
                     </xs:extension>
             </xs:simpleContent>
     </xs:complexType>
@@ -675,13 +698,17 @@ class QMLAnswer(QMLElement):
             <xs:attribute name="QTYPE" type="NameString" use="required"/>
             <xs:attribute name="SHUFFLE" type="ShuffleEnum" use="optional"/>
             <xs:attribute name="COMMENT" type="YesNoEnum" use="optional"/>
-            <xs:attribute name="COMMENTLABEL" type="MessageString" use="optional"/>
-            <xs:attribute name="COMMENTHEIGHT" type="CommentHeight" use="optional"/>
-            <xs:attribute name="COMMENTWIDTH" type="CommentWidth" use="optional"/>
+            <xs:attribute name="COMMENTLABEL" type="MessageString"
+            use="optional"/>
+            <xs:attribute name="COMMENTHEIGHT" type="CommentHeight"
+            use="optional"/>
+            <xs:attribute name="COMMENTWIDTH" type="CommentWidth"
+            use="optional"/>
             <xs:attribute name="MAXSELECT" type="MaxSelect" use="optional"/>
             <xs:attribute name="SUBTYPE" type="DirectionEnum" use="optional"/>
             <xs:attribute name="EXTENSIONS" type="xs:string" use="optional"/>
-            <xs:attribute name="MAXRESPONSE" type="MaxResponse" use="optional"/>
+            <xs:attribute name="MAXRESPONSE" type="MaxResponse"
+            use="optional"/>
     </xs:complexType>
     """
     XMLNAME = 'ANSWER'
@@ -725,11 +752,13 @@ class QMLChoice(QMLAnswerThing):
 
     <xs:complexType name="Choice">
             <xs:sequence>
-                    <xs:element name="OPTION" type="Option" minOccurs="0" maxOccurs="unbounded"/>
+                    <xs:element name="OPTION" type="Option" minOccurs="0"
+                    maxOccurs="unbounded"/>
                     <xs:element name="CONTENT" type="Content"/>
             </xs:sequence>
             <xs:attribute name="ID" type="NameString" use="optional"/>
-            <xs:attribute name="MAXCHARS" type="PositiveLength" use="optional"/>
+            <xs:attribute name="MAXCHARS" type="PositiveLength"
+            use="optional"/>
             <xs:attribute name="SCROLL" type="DirectionEnum" use="optional"/>
     </xs:complexType>
     """
@@ -760,7 +789,8 @@ class QMLOption(QMLElement):
     <xs:complexType name="Option">
             <xs:simpleContent>
                     <xs:extension base="xs:string">
-                            <xs:attribute name="VISIBLE" type="YesNoEnum" use="optional"/>
+                            <xs:attribute name="VISIBLE" type="YesNoEnum"
+                            use="optional"/>
                     </xs:extension>
             </xs:simpleContent>
     </xs:complexType>
@@ -826,15 +856,16 @@ class QMLDocument(xml.Document):
 
     classMap = {}
     """classMap is a mapping from element names to the class object that will be
-	used to represent them."""
+    used to represent them."""
 
     def get_element_class(self, name):
         """Returns the class to use to represent an element with the given name.
 
-        This method is used by the XML parser.  The class object is looked up in
-        :py:attr:`classMap`, if no specialized class is found then the general
-        :py:class:`pyslet.xml.structures.Element` class is returned."""
-        return QMLDocument.classMap.get(name, QMLDocument.classMap.get(None, xml.Element))
+        This method is used by the XML parser.  The class object is looked up
+        in :py:attr:`classMap`, if no specialized class is found then the
+        general :py:class:`pyslet.xml.structures.Element` class is returned."""
+        return QMLDocument.classMap.get(
+            name, QMLDocument.classMap.get(None, xml.Element))
 
 
 xml.map_class_elements(QMLDocument.classMap, globals())
