@@ -291,7 +291,8 @@ class PositionMixin:
         self.height = None
 
     def GotPosition(self):
-        return self.x0 is not None or self.y0 is not None or self.width is not None or self.height is not None
+        return (self.x0 is not None or self.y0 is not None or
+                self.width is not None or self.height is not None)
 
 
 class MatText(core.QTIElement, PositionMixin, MatThingMixin):
@@ -365,7 +366,8 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
             doc = html.XHTMLDocument(baseURI=uri)
             doc.read_from_entity(e)
             self.matChildren = list(doc.root.Body.get_children())
-            if len(self.matChildren) == 1 and isinstance(self.matChildren[0], html.Div):
+            if (len(self.matChildren) == 1 and
+               isinstance(self.matChildren[0], html.Div)):
                 div = self.matChildren[0]
                 if div.style_class is None:
                     # a single div with no style class is removed...
@@ -380,7 +382,8 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
         elif self.texttype == 'text/html':
             # we are inline if all elements in matChildren are inline
             for child in self.matChildren:
-                if type(child) in StringTypes or isinstance(child, html.InlineMixin):
+                if (type(child) in StringTypes or
+                   isinstance(child, html.InlineMixin)):
                     continue
                 else:
                     return False
@@ -461,12 +464,14 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                     addNode = parent
                 parent.add_data(data)
         elif self.texttype == 'text/html':
-            if childType is html.BlockMixin or (childType is html.FlowMixin and not self.IsInline()):
+            if (childType is html.BlockMixin or
+               (childType is html.FlowMixin and not self.IsInline())):
                 # Block or mixed-up flow, wrap all text and inline elements in
                 # p
                 p = None
                 for child in self.matChildren:
-                    if type(child) in StringTypes or isinstance(child, html.InlineMixin):
+                    if (type(child) in StringTypes or
+                       isinstance(child, html.InlineMixin)):
                         if p is None:
                             p = parent.add_child(
                                 html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
@@ -485,7 +490,8 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                         p = None
                         if self.inlineWrapper:
                             log.append(
-                                'Warning: block level elements in text/html cannot be wrapped with <%s>' %
+                                'Warning: block level elements in text/html'
+                                'cannot be wrapped with <%s>' %
                                 self.inlineWrapper.XMLNAME[1])
                         newChild = child.deepcopy(parent)
                         qtiv2.content.FixHTMLNamespace(newChild)
@@ -600,7 +606,8 @@ class MatImage(core.QTIElement, PositionMixin, MatThingMixin):
         return True
 
     def ExtractText(self):
-        """We cannot extract text from matimage so we return a simple string."""
+        """We cannot extract text from matimage so we return a simple
+        string."""
         return "[image]"
 
     def MigrateV2Content(self, parent, childType, log):
@@ -654,7 +661,8 @@ class MatAudio(core.QTIElement, MatThingMixin):
         return True
 
     def ExtractText(self):
-        """We cannot extract text from mataudio so we return a simple string."""
+        """We cannot extract text from mataudio so we return a simple
+        string."""
         return "[sound]"
 
     def MigrateV2Content(self, parent, childType, log):
@@ -709,7 +717,8 @@ class MatVideo(core.QTIElement, PositionMixin, MatThingMixin):
         return True
 
     def ExtractText(self):
-        """We cannot extract text from matvideo so we return a simple string."""
+        """We cannot extract text from matvideo so we return a simple
+        string."""
         return "[video]"
 
     def MigrateV2Content(self, parent, childType, log):
@@ -730,9 +739,9 @@ class MatVideo(core.QTIElement, PositionMixin, MatThingMixin):
 class MatApplet(core.QTIElement, PositionMixin, MatThingMixin):
 
     """The <matapplet> element is used to contain applet content that is to be
-    displayed to the users. Parameters that are to be passed to the applet being
-    launched should be enclosed in a CDATA block within the content of the
-    <matapplet> element::
+    displayed to the users. Parameters that are to be passed to the applet
+    being launched should be enclosed in a CDATA block within the content of
+    the <matapplet> element::
 
             <!ELEMENT matapplet (#PCDATA)>
             <!ATTLIST matapplet
@@ -763,7 +772,8 @@ class MatApplet(core.QTIElement, PositionMixin, MatThingMixin):
         return True
 
     def ExtractText(self):
-        """We cannot extract text from matapplet so we return a simple string."""
+        """We cannot extract text from matapplet so we return a simple
+        string."""
         return "[applet]"
 
     def MigrateV2Content(self, parent, childType, log):
@@ -804,7 +814,8 @@ class MatApplication(core.QTIElement, MatThingMixin):
         return True
 
     def ExtractText(self):
-        """We cannot extract text from matapplication so we return a simple string."""
+        """We cannot extract text from matapplication so we return a simple
+        string."""
         return "[application]"
 
     def MigrateV2Content(self, parent, childType, log):
@@ -893,10 +904,11 @@ class FlowMatContainer(QTICommentContainer, ContentMixin):
 class FlowMat(FlowMatContainer, FlowMixin):
 
     """This element allows the materials to be displayed to the users to be
-    grouped together using flows. The manner in which these flows are handled is
-    dependent upon the display-engine::
+    grouped together using flows. The manner in which these flows are handled
+    is dependent upon the display-engine::
 
-            <!ELEMENT flow_mat (qticomment? , (flow_mat | material | material_ref)+)>
+            <!ELEMENT flow_mat (qticomment? , (flow_mat | material |
+            material_ref)+)>
             <!ATTLIST flow_mat  class CDATA  'Block' >"""
     XMLNAME = "flow_mat"
     XMLATTR_class = ('flow_class', None, None, list)
@@ -948,8 +960,8 @@ class MetadataContainerMixin:
 
     There is a single dictionary maintained to hold all metadata values, each
     value is a list of tuples of the form (value string, defining element).
-    Values are keyed on the field label or tag name with any leading qmd\_ prefix
-    removed."""
+    Values are keyed on the field label or tag name with any leading qmd\_
+    prefix removed."""
 
     def __init__(self):
         self.metadata = {}
@@ -958,7 +970,7 @@ class MetadataContainerMixin:
         label = label.lower()
         if label[:4] == "qmd_":
             label = label[4:]
-        if not label in self.metadata:
+        if label not in self.metadata:
             self.metadata[label] = []
         self.metadata[label].append((entry, definition))
 
@@ -1070,9 +1082,10 @@ class Objectives(FlowMatContainer):
     make this information available to the Item during the actual test::
 
             <!ELEMENT objectives (qticomment? , (material+ | flow_mat+))>
-            <!ATTLIST objectives  view	(All | Administrator | AdminAuthority | Assessor | Author |
-                                    Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                                    Tutor ) 'All' >"""
+            <!ATTLIST objectives  view	(All | Administrator | AdminAuthority |
+                                    Assessor | Author | Candidate |
+                                    InvigilatorProctor | Psychometrician |
+                                    Scorer | Tutor ) 'All' >"""
     XMLNAME = 'objectives'
     XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
     XMLCONTENT = xml.ElementContent
@@ -1082,7 +1095,8 @@ class Objectives(FlowMatContainer):
         self.view = core.View.DEFAULT
 
     def MigrateV2(self, v2Item, log):
-        """Adds rubric representing these objectives to the given item's body"""
+        """Adds rubric representing these objectives to the given item's
+        body"""
         rubric = v2Item.add_child(
             qtiv2.content.ItemBody).add_child(qtiv2.RubricBlock)
         rubric.set_attribute(
@@ -1111,9 +1125,10 @@ class Rubric(FlowMatContainer):
     contained within the rubric must be displayed to the participant::
 
             <!ELEMENT rubric (qticomment? , (material+ | flow_mat+))>
-            <!ATTLIST rubric  view	(All | Administrator | AdminAuthority | Assessor | Author |
-                                    Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                                    Tutor ) 'All' >"""
+            <!ATTLIST rubric  view	(All | Administrator | AdminAuthority |
+                                    Assessor | Author | Candidate |
+                                    InvigilatorProctor | Psychometrician |
+                                    Scorer | Tutor ) 'All' >"""
     XMLNAME = 'rubric'
     XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
     XMLCONTENT = xml.ElementContent
@@ -1125,7 +1140,8 @@ class Rubric(FlowMatContainer):
     def MigrateV2(self, v2Item, log):
         if self.view == core.View.All:
             log.append(
-                'Warning: rubric with view="All" replaced by <div> with class="rubric"')
+                'Warning: rubric with view="All" replaced by <div> with'
+                ' class="rubric"')
             rubric = v2Item.get_or_add_child(qtiv2.content.ItemBody).add_child(
                 html.Div, (qtiv2.core.IMSQTI_NAMESPACE, 'div'))
             rubric.style_class = ['rubric']
@@ -1149,8 +1165,8 @@ class DecVar(core.QTIElement):
 
             <!ELEMENT decvar (#PCDATA)>
             <!ATTLIST decvar  varname CDATA  'SCORE' ::
-                    vartype		(Integer |  String |  Decimal |  Scientific |  Boolean |
-                            Enumerated | Set )  'Integer'
+                    vartype		(Integer |  String |  Decimal |  Scientific |
+                            Boolean | Enumerated | Set )  'Integer'
                     defaultval 	CDATA  #IMPLIED
                     minvalue   	CDATA  #IMPLIED
                     maxvalue   	CDATA  #IMPLIED
@@ -1182,7 +1198,8 @@ class DecVar(core.QTIElement):
         v2Type = core.MigrateV2VarType(self.varType, log)
         if self.varType == core.VarType.Set:
             log.append(
-                'Warning: treating vartype="Set" as equivalent to "Enumerated"')
+                'Warning: treating vartype="Set" as equivalent to'
+                ' "Enumerated"')
         elif v2Type is None:
             log.append(
                 'Error: bad vartype for decvar "%s"; defaulting to integer' %
@@ -1204,16 +1221,19 @@ class DecVar(core.QTIElement):
             d.normalMaximum = float(self.maxValue)
         if self.members is not None:
             log.append(
-                'Warning: enumerated members no longer supported, ignoring "%s"' %
+                'Warning: enumerated members no longer supported,'
+                ' ignoring "%s"' %
                 self.members)
-        if v2Type in (qtiv2.variables.BaseType.integer, qtiv2.variables.BaseType.float):
+        if v2Type in (qtiv2.variables.BaseType.integer,
+                      qtiv2.variables.BaseType.float):
             # we need to adjust minValue/maxValue later
             if self.cutValue is not None:
                 d.masteryValue = float(self.cutValue)
         v2Item.RegisterDeclaration(d)
 
     def content_changed(self):
-        """The decvar element is supposed to be empty but QTI v1 content is all over the place."""
+        """The decvar element is supposed to be empty but QTI v1 content is all
+        over the place."""
         try:
             value = self.get_value()
             if value is not None:
@@ -1230,8 +1250,9 @@ class InterpretVar(core.QTIElement, ContentMixin):
 
             <!ELEMENT interpretvar (material | material_ref)>
             <!ATTLIST interpretvar
-                    view	(All | Administrator | AdminAuthority | Assessor | Author | Candidate |
-                            InvigilatorProctor | Psychometrician | Scorer | Tutor )  'All'
+                    view	(All | Administrator | AdminAuthority | Assessor |
+                            Author | Candidate | InvigilatorProctor |
+                            Psychometrician | Scorer | Tutor )  'All'
                             varname CDATA  'SCORE' >"""
     XMLNAME = "interpretvar"
     XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str)
@@ -1257,7 +1278,8 @@ class InterpretVar(core.QTIElement, ContentMixin):
         identifier = qtiv2.core.ValidateIdentifier(self.varName)
         if self.view != core.View.All:
             log.append(
-                'Warning: view restriction on outcome interpretation no longer supported (%s)' %
+                'Warning: view restriction on outcome interpretation no longer'
+                ' supported (%s)' %
                 core.View.to_str(
                     self.view))
         d = v2Item.declarations.get(identifier)
@@ -1277,7 +1299,8 @@ class SetVar(core.QTIElement):
 
             <!ELEMENT setvar (#PCDATA)>
             <!ATTLIST setvar  varname CDATA  'SCORE'
-                    action     (Set | Add | Subtract | Multiply | Divide )  'Set' >"""
+                    action     (Set | Add | Subtract | Multiply | Divide )
+                    'Set' >"""
     XMLNAME = "setvar"
     XMLATTR_varname = 'varName'
     XMLATTR_action = (
@@ -1371,9 +1394,10 @@ class ConditionVar(core.QTIElement):
     """The conditional test that is to be applied to the user's response. A wide
     range of separate and combinatorial test can be applied::
 
-            <!ELEMENT conditionvar (not | and | or | unanswered | other | varequal | varlt |
-                    varlte | vargt | vargte | varsubset | varinside | varsubstring | durequal |
-                    durlt | durlte | durgt | durgte | var_extension)+>"""
+            <!ELEMENT conditionvar (not | and | or | unanswered | other |
+                    varequal | varlt | varlte | vargt | vargte | varsubset |
+                    varinside | varsubstring | durequal | durlt | durlte |
+                    durgt | durgte | var_extension)+>"""
     XMLNAME = "conditionvar"
     XMLCONTENT = xml.ElementContent
 
@@ -1399,7 +1423,8 @@ class ConditionVar(core.QTIElement):
 
 class ExtendableExpressionMixin:
 
-    """Abstract mixin class to indicate an expression, including var_extension"""
+    """Abstract mixin class to indicate an expression, including
+    var_extension"""
 
     def MigrateV2Expression(self, parent, log):
         raise QTIUnimplementedError(
@@ -1408,7 +1433,8 @@ class ExtendableExpressionMixin:
 
 class ExpressionMixin(ExtendableExpressionMixin):
 
-    """Abstract mixin class to indicate an expression excluding var_extension"""
+    """Abstract mixin class to indicate an expression excluding
+    var_extension"""
     pass
 
 
@@ -1431,7 +1457,8 @@ class VarThing(core.QTIElement, ExpressionMixin):
 
     def MigrateV2Missing(self, identifier, parent, log):
         log.append(
-            "Warning: test of undeclared response (%s) replaced with Null operator" %
+            "Warning: test of undeclared response (%s)"
+            " replaced with Null operator" %
             identifier)
         parent.add_child(qtiv2.expressions.Null)
 
@@ -1439,10 +1466,12 @@ class VarThing(core.QTIElement, ExpressionMixin):
         if self.index:
             if d.cardinality == qtiv2.variables.Cardinality.multiple:
                 log.append(
-                    "Warning: index ignored for response variable of cardinality multiple")
+                    "Warning: index ignored for response variable of"
+                    " cardinality multiple")
             elif d.cardinality == qtiv2.variables.Cardinality.single:
                 log.append(
-                    "Warning: index ignored for response variable of cardinality single")
+                    "Warning: index ignored for response variable of"
+                    " cardinality single")
             else:
                 parent = parent.add_child(qtiv2.expressions.Index)
                 parent.n = self.index
@@ -1451,7 +1480,9 @@ class VarThing(core.QTIElement, ExpressionMixin):
 
     def MigrateV2Value(self, d, parent, log):
         value = self.get_value().strip()
-        if d.baseType in (qtiv2.variables.BaseType.pair, qtiv2.variables.BaseType.directedPair, qtiv2.variables.BaseType.point):
+        if d.baseType in (qtiv2.variables.BaseType.pair,
+                          qtiv2.variables.BaseType.directedPair,
+                          qtiv2.variables.BaseType.point):
             value = value.replace(',', ' ')
         elif d.baseType == qtiv2.variables.BaseType.identifier:
             value = qtiv2.core.ValidateIdentifier(value)
@@ -1487,10 +1518,12 @@ class VarEqual(VarThing):
             self.MigrateV2Missing(identifier, parent, log)
         elif d.cardinality == qtiv2.variables.Cardinality.single:
             # simple test of equality
-            if d.baseType == qtiv2.variables.BaseType.identifier or d.baseType == qtiv2.variables.BaseType.pair:
+            if (d.baseType == qtiv2.variables.BaseType.identifier or
+               d.baseType == qtiv2.variables.BaseType.pair):
                 if not self.case:
                     log.append(
-                        "Warning: case-insensitive comparison of identifiers not supported in version 2")
+                        "Warning: case-insensitive comparison of identifiers"
+                        " not supported in version 2")
                 expression = parent.add_child(qtiv2.expressions.Match)
             elif d.baseType == qtiv2.variables.BaseType.integer:
                 expression = parent.add_child(qtiv2.expressions.Match)
@@ -1499,7 +1532,8 @@ class VarEqual(VarThing):
                 expression.caseSensitive = self.case
             elif d.baseType == qtiv2.variables.BaseType.float:
                 log.append(
-                    "Warning: equality operator with float values is deprecated")
+                    "Warning: equality operator with float values is"
+                    " deprecated")
                 expression = parent.add_child(qtiv2.expressions.Equal)
             else:
                 raise QTIUnimplementedOperator(
@@ -1510,17 +1544,21 @@ class VarEqual(VarThing):
             self.MigrateV2Value(d, expression, log)
         else:
             # This test simply becomes a member-test operation
-            if d.baseType == qtiv2.variables.BaseType.identifier or qtiv2.variables.BaseType.pair:
+            if (d.baseType == qtiv2.variables.BaseType.identifier or
+               qtiv2.variables.BaseType.pair):
                 if not self.case:
                     log.append(
-                        "Warning: case-insensitive comparison of identifiers not supported in version 2")
+                        "Warning: case-insensitive comparison of identifiers"
+                        " not supported in version 2")
             elif d.baseType == qtiv2.variables.BaseType.string:
                 if not self.case:
                     log.append(
-                        "Warning: member operation cannot be case-insensitive when baseType is string")
+                        "Warning: member operation cannot be case-insensitive"
+                        " when baseType is string")
             elif d.baseType == qtiv2.variables.BaseType.float:
                 log.append(
-                    "Warning: member operation is deprecated when baseType is float")
+                    "Warning: member operation is deprecated when"
+                    " baseType is float")
             else:
                 raise QTIUnimplementedOperator(
                     "varequal(%s)" %
@@ -1547,7 +1585,8 @@ class VarInequality(VarThing):
             self.MigrateV2Missing(identifier, parent, log)
         elif d.cardinality == qtiv2.variables.Cardinality.single:
             # simple inequality
-            if d.baseType == qtiv2.variables.BaseType.integer or d.baseType == qtiv2.variables.BaseType.float:
+            if (d.baseType == qtiv2.variables.BaseType.integer or
+               d.baseType == qtiv2.variables.BaseType.float):
                 expression = parent.add_child(self.MigrateV2Inequality())
             else:
                 raise QTIUnimplementedOperator(
@@ -1636,8 +1675,8 @@ class VarGTE(VarInequality):
 class VarSubset(core.QTIElement, ExpressionMixin):
 
     """The <varsubset> element is the 'member of a list/set' test. The data for
-    the test is contained within the element's PCDATA string. The set is a comma
-    separated list with no enclosing parentheses::
+    the test is contained within the element's PCDATA string. The set is a
+    comma separated list with no enclosing parentheses::
 
             <!ELEMENT varsubset (#PCDATA)>
             <!ATTLIST varsubset
@@ -1775,9 +1814,10 @@ class Not(core.QTIElement, ExpressionMixin):
     """The <not> element inverts the logical test outcome that is required. In
     the case of the <varequal> element produces a 'not equals' test::
 
-            <!ELEMENT not (and | or | not | unanswered | other | varequal | varlt | varlte |
-                    vargt | vargte | varsubset | varinside | varsubstring | durequal | durlt |
-                    durlte | durgt | durgte)>"""
+            <!ELEMENT not (and | or | not | unanswered | other | varequal |
+                    varlt | varlte | vargt | vargte | varsubset | varinside |
+                    varsubstring | durequal | durlt | durlte | durgt |
+                    durgte)>"""
     XMLNAME = "not"
     XMLCONTENT = xml.ElementContent
 
@@ -1805,9 +1845,10 @@ class And(core.QTIElement, ExpressionMixin):
     the two or more enclosed tests. The result 'True' is returned if all of the
     tests return a 'True' value::
 
-            <!ELEMENT and (not | and | or | unanswered | other | varequal | varlt | varlte |
-                    vargt | vargte | varsubset | varinside | varsubstring | durequal | durlt |
-                    durlte | durgt | durgte)+>"""
+            <!ELEMENT and (not | and | or | unanswered | other | varequal |
+                    varlt | varlte | vargt | vargte | varsubset | varinside |
+                    varsubstring | durequal | durlt | durlte | durgt |
+                    durgte)+>"""
     XMLNAME = "and"
     XMLCONTENT = xml.ElementContent
 
@@ -1835,9 +1876,10 @@ class Or(core.QTIElement, ExpressionMixin):
     two or more enclosed tests. The result 'True' is returned if one or more of
     the tests return a 'True' value::
 
-            <!ELEMENT or (not | and | or | unanswered | other | varequal | varlt | varlte |
-                    vargt | vargte | varsubset | varinside | varsubstring | durequal | durlt |
-                    durlte | durgt | durgte)+>"""
+            <!ELEMENT or (not | and | or | unanswered | other | varequal |
+                    varlt | varlte | vargt | vargte | varsubset | varinside |
+                    varsubstring | durequal | durlt | durlte | durgt |
+                    durgte)+>"""
     XMLNAME = "or"
     XMLCONTENT = xml.ElementContent
 
@@ -1881,7 +1923,8 @@ class Other(core.QTIElement, ExpressionMixin):
 
     def MigrateV2Expression(self, parent, log):
         log.append(
-            "Warning: replacing <other/> with the base value true - what did you want me to do??")
+            "Warning: replacing <other/> with the base value true"
+            " - what did you want me to do??")
         bv = parent.add_child(qtiv2.expressions.BaseValue)
         bv.baseType = qtiv2.variables.BaseType.boolean
         bv.set_value('true')
@@ -1890,8 +1933,8 @@ class Other(core.QTIElement, ExpressionMixin):
 class VarExtension(core.QTIElement, ExtendableExpressionMixin):
 
     """This element contains proprietary extensions to be applied to condition
-    tests. This enables vendors to create their own conditional tests to be used
-    on the participant responses::
+    tests. This enables vendors to create their own conditional tests to be
+    used on the participant responses::
 
             <!ELEMENT var_extension ANY>"""
     XMLNAME = "var_extension"
@@ -1911,9 +1954,10 @@ class PresentationMaterial(FlowMatContainer):
     from :py:class:`FlowMatContainer`.  This element is one of the newer
     definitions in QTI v1, after the introduction of <flow>.  It excludes
     <material> because it was assumed there would no legacy content.  Adoption
-    of flow was poor and it was replaced with direct inclusion of the html model
-    in version 2 (where content is either inline or block level and flow is a
-    general term to describe both for contexts where either is allowed)."""
+    of flow was poor and it was replaced with direct inclusion of the html
+    model in version 2 (where content is either inline or block level and flow
+    is a general term to describe both for contexts where either is
+    allowed)."""
     XMLNAME = "presentation_material"
     XMLCONTENT = xml.ElementContent
 
@@ -1926,15 +1970,18 @@ class Reference(QTICommentContainer, ContentMixin):
     referencing the material. There is no implied relationship between any of
     the contained material components::
 
-            <!ELEMENT reference (qticomment? , (material | mattext | matemtext | matimage | mataudio |
-                    matvideo | matapplet | matapplication | matbreak | mat_extension)+)>"""
+            <!ELEMENT reference (qticomment? , (material | mattext |
+                    matemtext | matimage | mataudio | matvideo | matapplet |
+                    matapplication | matbreak | mat_extension)+)>"""
     XMLNAME = "reference"
     XMLCONTENT = xml.ElementContent
 
     def ContentMixin(self, childClass):
-        """We override this method to prevent references from being included."""
-        if issubclass(childClass, (Material, MatText, MatEmText, MatImage, MatAudio,
-                                   MatVideo, MatApplet, MatApplication, MatBreak, MatExtension)):
+        """We override this method to prevent references from being
+        included."""
+        if issubclass(childClass, (Material, MatText, MatEmText, MatImage,
+                                   MatAudio, MatVideo, MatApplet,
+                                   MatApplication, MatBreak, MatExtension)):
             return ContentMixin.ContentMixin(self, childClass)
         else:
             raise TypeError
