@@ -18,7 +18,8 @@ class Interaction(content.BodyElement):
 
             <xsd:attributeGroup name="interaction.AttrGroup">
                     <xsd:attributeGroup ref="bodyElement.AttrGroup"/>
-                    <xsd:attribute name="responseIdentifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="responseIdentifier"
+                    type="identifier.Type" use="required"/>
             </xsd:attributeGroup>"""
     XMLATTR_responseIdentifier = (
         'responseIdentifier', core.ValidateIdentifier, lambda x: x)
@@ -41,7 +42,8 @@ class BlockInteraction(html.BlockMixin, Interaction):
 
             <xsd:group name="blockInteraction.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="prompt" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element ref="prompt" minOccurs="0"
+                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLCONTENT = xml.ElementContent
@@ -62,7 +64,8 @@ class Prompt(content.BodyElement):
 
             <xsd:group name="prompt.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="inlineStatic.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="inlineStatic.ElementGroup"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'prompt')
@@ -92,10 +95,14 @@ class Choice(content.BodyElement):
 
             <xsd:attributeGroup name="choice.AttrGroup">
                     <xsd:attributeGroup ref="bodyElement.AttrGroup"/>
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
-                    <xsd:attribute name="fixed" type="boolean.Type" use="optional"/>
-                    <xsd:attribute name="templateIdentifier" type="identifier.Type" use="optional"/>
-                    <xsd:attribute name="showHide" type="showHide.Type" use="optional"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                    use="required"/>
+                    <xsd:attribute name="fixed" type="boolean.Type"
+                    use="optional"/>
+                    <xsd:attribute name="templateIdentifier"
+                    type="identifier.Type" use="optional"/>
+                    <xsd:attribute name="showHide" type="showHide.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
     XMLATTR_fixed = ('fixed', xsi.boolean_from_str, xsi.boolean_to_str)
@@ -135,20 +142,24 @@ class AssociableChoice(Choice):
 class ChoiceInteraction(BlockInteraction):
 
     """The choice interaction presents a set of choices to the candidate. The
-    candidate's task is to select one or more of the choices, up to a maximum of
-    maxChoices::
+    candidate's task is to select one or more of the choices, up to a maximum
+    of maxChoices::
 
             <xsd:attributeGroup name="choiceInteraction.AttrGroup">
                     <xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
-                    <xsd:attribute name="shuffle" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="maxChoices" type="integer.Type" use="required"/>
-                    <xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="shuffle" type="boolean.Type"
+                    use="required"/>
+                    <xsd:attribute name="maxChoices" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="minChoices" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="choiceInteraction.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="blockInteraction.ContentGroup"/>
-                            <xsd:element ref="simpleChoice" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="simpleChoice" minOccurs="1"
+                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'choiceInteraction')
@@ -166,7 +177,8 @@ class ChoiceInteraction(BlockInteraction):
         self.SimpleChoice = []
 
     def get_children(self):
-        for child in itertools.chain(BlockInteraction.get_children(self), self.SimpleChoice):
+        for child in itertools.chain(BlockInteraction.get_children(self),
+                                     self.SimpleChoice):
             yield child
 
     def render_html(self, parent, profile, itemState):
@@ -183,16 +195,21 @@ class OrderInteraction(BlockInteraction):
 
             <xsd:attributeGroup name="orderInteraction.AttrGroup">
                     <xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
-                    <xsd:attribute name="shuffle" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
-                    <xsd:attribute name="maxChoices" type="integer.Type" use="optional"/>
-                    <xsd:attribute name="orientation" type="orientation.Type" use="optional"/>
+                    <xsd:attribute name="shuffle" type="boolean.Type"
+                    use="required"/>
+                    <xsd:attribute name="minChoices" type="integer.Type"
+                    use="optional"/>
+                    <xsd:attribute name="maxChoices" type="integer.Type"
+                    use="optional"/>
+                    <xsd:attribute name="orientation" type="orientation.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="orderInteraction.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="blockInteraction.ContentGroup"/>
-                            <xsd:element ref="simpleChoice" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="simpleChoice" minOccurs="1"
+                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'orderInteraction')
@@ -234,7 +251,8 @@ class SimpleChoice(content.FlowContainerMixin, Choice):
 
             <xsd:group name="simpleChoice.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="flowStatic.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="flowStatic.ElementGroup"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'simpleChoice')
@@ -290,15 +308,19 @@ class AssociateInteraction(BlockInteraction):
 
             <xsd:attributeGroup name="associateInteraction.AttrGroup">
                     <xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
-                    <xsd:attribute name="shuffle" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="maxAssociations" type="integer.Type" use="required"/>
-                    <xsd:attribute name="minAssociations" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="shuffle" type="boolean.Type"
+                    use="required"/>
+                    <xsd:attribute name="maxAssociations" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="minAssociations" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="associateInteraction.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="blockInteraction.ContentGroup"/>
-                            <xsd:element ref="simpleAssociableChoice" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="simpleAssociableChoice"
+                            minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'associateInteraction')
@@ -336,15 +358,19 @@ class MatchInteraction(BlockInteraction):
 
             <xsd:attributeGroup name="matchInteraction.AttrGroup">
                     <xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
-                    <xsd:attribute name="shuffle" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="maxAssociations" type="integer.Type" use="required"/>
-                    <xsd:attribute name="minAssociations" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="shuffle" type="boolean.Type"
+                    use="required"/>
+                    <xsd:attribute name="maxAssociations" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="minAssociations" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="matchInteraction.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="blockInteraction.ContentGroup"/>
-                            <xsd:element ref="simpleMatchSet" minOccurs="2" maxOccurs="2"/>
+                            <xsd:element ref="simpleMatchSet" minOccurs="2"
+                            maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'matchInteraction')
@@ -381,13 +407,16 @@ class SimpleAssociableChoice(content.FlowContainerMixin, AssociableChoice):
 
             <xsd:attributeGroup name="simpleAssociableChoice.AttrGroup">
                     <xsd:attributeGroup ref="associableChoice.AttrGroup"/>
-                    <xsd:attribute name="matchMax" type="integer.Type" use="required"/>
-                    <xsd:attribute name="matchMin" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="matchMax" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="matchMin" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="simpleAssociableChoice.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="flowStatic.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="flowStatic.ElementGroup"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'simpleAssociableChoice')
@@ -416,7 +445,8 @@ class SimpleMatchSet(core.QTIElement):
 
             <xsd:group name="simpleMatchSet.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="simpleAssociableChoice" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element ref="simpleAssociableChoice"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'simpleMatchSet')
@@ -438,14 +468,17 @@ class GapMatchInteraction(BlockInteraction):
 
             <xsd:attributeGroup name="gapMatchInteraction.AttrGroup">
                     <xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
-                    <xsd:attribute name="shuffle" type="boolean.Type" use="required"/>
+                    <xsd:attribute name="shuffle" type="boolean.Type"
+                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="gapMatchInteraction.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="blockInteraction.ContentGroup"/>
-                            <xsd:group ref="gapChoice.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
-                            <xsd:group ref="blockStatic.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="gapChoice.ElementGroup"
+                            minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="blockStatic.ElementGroup"
+                            minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gapMatchInteraction')
@@ -481,12 +514,14 @@ class GapMatchInteraction(BlockInteraction):
 
 class Gap(html.InlineMixin, AssociableChoice):
 
-    """A gap is an inline element that must only appear within a gapMatchInteraction
+    """A gap is an inline element that must only appear within a
+    gapMatchInteraction
     ::
 
             <xsd:attributeGroup name="gap.AttrGroup">
                     <xsd:attributeGroup ref="associableChoice.AttrGroup"/>
-                    <xsd:attribute name="required" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="required" type="boolean.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gap')
     XMLATTR_required = ('required', xsi.boolean_from_str, xsi.boolean_to_str)
@@ -505,8 +540,10 @@ class GapChoice(AssociableChoice):
 
             <xsd:attributeGroup name="gapChoice.AttrGroup">
                     <xsd:attributeGroup ref="associableChoice.AttrGroup"/>
-                    <xsd:attribute name="matchMax" type="integer.Type" use="required"/>
-                    <xsd:attribute name="matchMin" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="matchMax" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="matchMin" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_matchMax = ('matchMax', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_matchMin = ('matchMin', xsi.integer_from_str, xsi.integer_to_str)
@@ -524,7 +561,8 @@ class GapText(GapChoice):
 
             <xsd:group name="gapText.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="printedVariable" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element ref="printedVariable" minOccurs="0"
+                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gapText')
@@ -546,12 +584,14 @@ class GapImg(GapChoice):
 
             <xsd:attributeGroup name="gapImg.AttrGroup">
                     <xsd:attributeGroup ref="gapChoice.AttrGroup"/>
-                    <xsd:attribute name="objectLabel" type="string.Type" use="optional"/>
+                    <xsd:attribute name="objectLabel" type="string.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="gapImg.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="object" minOccurs="1" maxOccurs="1"/>
+                            <xsd:element ref="object" minOccurs="1"
+                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gapImg')
@@ -575,13 +615,16 @@ class InlineChoiceInteraction(InlineInteraction):
 
             <xsd:attributeGroup name="inlineChoiceInteraction.AttrGroup">
                     <xsd:attributeGroup ref="inlineInteraction.AttrGroup"/>
-                    <xsd:attribute name="shuffle" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="required" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="shuffle" type="boolean.Type"
+                    use="required"/>
+                    <xsd:attribute name="required" type="boolean.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="inlineChoiceInteraction.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="inlineChoice" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="inlineChoice" minOccurs="1"
+                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'inlineChoiceInteraction')
@@ -607,7 +650,8 @@ class InlineChoice(Choice):
 
             <xsd:group name="inlineChoice.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="printedVariable" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element ref="printedVariable" minOccurs="0"
+                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'inlineChoice')
@@ -625,15 +669,20 @@ class InlineChoice(Choice):
 class StringInteractionMixin:
 
     """Abstract mix-in class for interactions based on free-text input.  String
-    interactions can be bound to numeric response variables, instead of strings,
-    if desired::
+    interactions can be bound to numeric response variables, instead of
+    strings, if desired::
 
             <xsd:attributeGroup name="stringInteraction.AttrGroup">
-                    <xsd:attribute name="base" type="integer.Type" use="optional"/>
-                    <xsd:attribute name="stringIdentifier" type="identifier.Type" use="optional"/>
-                    <xsd:attribute name="expectedLength" type="integer.Type" use="optional"/>
-                    <xsd:attribute name="patternMask" type="string.Type" use="optional"/>
-                    <xsd:attribute name="placeholderText" type="string.Type" use="optional"/>
+                    <xsd:attribute name="base" type="integer.Type"
+                    use="optional"/>
+                    <xsd:attribute name="stringIdentifier"
+                    type="identifier.Type" use="optional"/>
+                    <xsd:attribute name="expectedLength" type="integer.Type"
+                    use="optional"/>
+                    <xsd:attribute name="patternMask" type="string.Type"
+                    use="optional"/>
+                    <xsd:attribute name="placeholderText" type="string.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_base = ('base', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_stringIdentifier = (
@@ -702,10 +751,14 @@ class ExtendedTextInteraction(StringInteractionMixin, BlockInteraction):
             <xsd:attributeGroup name="extendedTextInteraction.AttrGroup">
                     <xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
                     <xsd:attributeGroup ref="stringInteraction.AttrGroup"/>
-                    <xsd:attribute name="maxStrings" type="integer.Type" use="optional"/>
-                    <xsd:attribute name="minStrings" type="integer.Type" use="optional"/>
-                    <xsd:attribute name="expectedLines" type="integer.Type" use="optional"/>
-                    <xsd:attribute name="format" type="textFormat.Type" use="optional"/>
+                    <xsd:attribute name="maxStrings" type="integer.Type"
+                    use="optional"/>
+                    <xsd:attribute name="minStrings" type="integer.Type"
+                    use="optional"/>
+                    <xsd:attribute name="expectedLines" type="integer.Type"
+                    use="optional"/>
+                    <xsd:attribute name="format" type="textFormat.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'extendedTextInteraction')
     XMLATTR_maxStrings = (
@@ -734,14 +787,17 @@ class HottextInteraction(BlockInteraction):
 
             <xsd:attributeGroup name="hottextInteraction.AttrGroup">
                     <xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
-                    <xsd:attribute name="maxChoices" type="integer.Type" use="required"/>
-                    <xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="maxChoices" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="minChoices" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="hottextInteraction.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="blockInteraction.ContentGroup"/>
-                            <xsd:group ref="blockStatic.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="blockStatic.ElementGroup"
+                            minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>
     """
@@ -772,7 +828,8 @@ class Hottext(html.FlowMixin, Choice):
 
             <xsd:group name="hottext.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="inlineStatic.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="inlineStatic.ElementGroup"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'hottext')
@@ -793,9 +850,12 @@ class HotspotMixin:
     areas or hotspots::
 
             <xsd:attributeGroup name="hotspot.AttrGroup">
-                    <xsd:attribute name="shape" type="shape.Type" use="required"/>
-                    <xsd:attribute name="coords" type="coords.Type" use="required"/>
-                    <xsd:attribute name="hotspotLabel" type="string256.Type" use="optional"/>
+                    <xsd:attribute name="shape" type="shape.Type"
+                    use="required"/>
+                    <xsd:attribute name="coords" type="coords.Type"
+                    use="required"/>
+                    <xsd:attribute name="hotspotLabel" type="string256.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_shape = (
         'shape', core.Shape.from_str_lower, core.Shape.to_str)
@@ -833,8 +893,10 @@ class AssociableHotspot(HotspotMixin, AssociableChoice):
             <xsd:attributeGroup name="associableHotspot.AttrGroup">
                     <xsd:attributeGroup ref="associableChoice.AttrGroup"/>
                     <xsd:attributeGroup ref="hotspot.AttrGroup"/>
-                    <xsd:attribute name="matchMax" type="integer.Type" use="required"/>
-                    <xsd:attribute name="matchMin" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="matchMax" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="matchMin" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'associableHotspot')
     XMLATTR_matchMax = ('matchMax', xsi.integer_from_str, xsi.integer_to_str)
@@ -856,7 +918,8 @@ class GraphicInteraction(BlockInteraction):
             <xsd:group name="graphicInteraction.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="blockInteraction.ContentGroup"/>
-                            <xsd:element ref="object" minOccurs="1" maxOccurs="1"/>
+                            <xsd:element ref="object" minOccurs="1"
+                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
 
@@ -878,14 +941,17 @@ class HotspotInteraction(GraphicInteraction):
 
             <xsd:attributeGroup name="hotspotInteraction.AttrGroup">
                     <xsd:attributeGroup ref="graphicInteraction.AttrGroup"/>
-                    <xsd:attribute name="maxChoices" type="integer.Type" use="required"/>
-                    <xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="maxChoices" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="minChoices" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="hotspotInteraction.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="graphicInteraction.ContentGroup"/>
-                            <xsd:element ref="hotspotChoice" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="hotspotChoice" minOccurs="1"
+                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'hotspotInteraction')
@@ -913,8 +979,10 @@ class SelectPointInteraction(GraphicInteraction):
 
             <xsd:attributeGroup name="selectPointInteraction.AttrGroup">
                     <xsd:attributeGroup ref="graphicInteraction.AttrGroup"/>
-                    <xsd:attribute name="maxChoices" type="integer.Type" use="required"/>
-                    <xsd:attribute name="minChoices" type="integer.Type" use="optional"/>
+                    <xsd:attribute name="maxChoices" type="integer.Type"
+                    use="required"/>
+                    <xsd:attribute name="minChoices" type="integer.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'selectPointInteraction')
     XMLATTR_maxChoices = (
@@ -937,12 +1005,18 @@ class SliderInteraction(BlockInteraction):
 
             <xsd:attributeGroup name="sliderInteraction.AttrGroup">
                     <xsd:attributeGroup ref="blockInteraction.AttrGroup"/>
-                    <xsd:attribute name="lowerBound" type="float.Type" use="required"/>
-                    <xsd:attribute name="upperBound" type="float.Type" use="required"/>
-                    <xsd:attribute name="step" type="integer.Type" use="optional"/>
-                    <xsd:attribute name="stepLabel" type="boolean.Type" use="optional"/>
-                    <xsd:attribute name="orientation" type="orientation.Type" use="optional"/>
-                    <xsd:attribute name="reverse" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="lowerBound" type="float.Type"
+                    use="required"/>
+                    <xsd:attribute name="upperBound" type="float.Type"
+                    use="required"/>
+                    <xsd:attribute name="step" type="integer.Type"
+                    use="optional"/>
+                    <xsd:attribute name="stepLabel" type="boolean.Type"
+                    use="optional"/>
+                    <xsd:attribute name="orientation" type="orientation.Type"
+                    use="optional"/>
+                    <xsd:attribute name="reverse" type="boolean.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'sliderInteraction')
     XMLATTR_lowerBound = ('lowerBound', xsi.float_from_str, xsi.float_to_str)
