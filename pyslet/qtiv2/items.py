@@ -19,26 +19,49 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
     candidate and information about how to score the item::
 
             <xsd:attributeGroup name="assessmentItem.AttrGroup">
-                    <xsd:attribute name="identifier" type="string.Type" use="required"/>
-                    <xsd:attribute name="title" type="string.Type" use="required"/>
-                    <xsd:attribute name="label" type="string256.Type" use="optional"/>
+                    <xsd:attribute name="identifier" type="string.Type"
+                                    use="required"/>
+                    <xsd:attribute name="title" type="string.Type"
+                                    use="required"/>
+                    <xsd:attribute name="label" type="string256.Type"
+                                    use="optional"/>
                     <xsd:attribute ref="xml:lang"/>
-                    <xsd:attribute name="adaptive" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="timeDependent" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="toolName" type="string256.Type" use="optional"/>
-                    <xsd:attribute name="toolVersion" type="string256.Type" use="optional"/>
+                    <xsd:attribute name="adaptive" type="boolean.Type"
+                                    use="required"/>
+                    <xsd:attribute name="timeDependent" type="boolean.Type"
+                                    use="required"/>
+                    <xsd:attribute name="toolName" type="string256.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="toolVersion" type="string256.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="assessmentItem.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="responseDeclaration" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="outcomeDeclaration" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="templateDeclaration" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="templateProcessing" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="stylesheet" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="itemBody" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="responseProcessing" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="modalFeedback" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element ref="responseDeclaration"
+                                            minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="outcomeDeclaration"
+                                            minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="templateDeclaration"
+                                            minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="templateProcessing"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="stylesheet"
+                                            minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="itemBody"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="responseProcessing"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="modalFeedback"
+                                            minOccurs="0"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentItem')

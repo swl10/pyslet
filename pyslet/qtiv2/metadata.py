@@ -14,15 +14,33 @@ class QTIMetadata(core.QTIElement):
 
             <xsd:group name="qtiMetadata.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="itemTemplate" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="timeDependent" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="composite" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="interactionType" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="feedbackType" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="solutionAvailable" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="toolName" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="toolVersion" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="toolVendor" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element ref="itemTemplate"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="timeDependent"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="composite"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="interactionType"
+                                            minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="feedbackType"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="solutionAvailable"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="toolName"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="toolVersion"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="toolVendor"
+                                            minOccurs="0"
+                                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'qtiMetadata')
