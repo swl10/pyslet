@@ -23,8 +23,8 @@ class Item(
     the QTI specification. Each Item consists of five distinct parts, namely:
     objectives - the materials used to describe the objectives with respect to
     each view; rubric - the materials used to define the context of the
-    Item and available for each view; presentation - the instructions describing
-    the nature of the question to be asked; resprocessing - the
+    Item and available for each view; presentation - the instructions
+    describing the nature of the question to be asked; resprocessing - the
     instructions to be followed when analyzing the responses to create a
     corresponding score and feedback; itemfeedback - the materials to be
     presented as feedback to the entered response::
@@ -129,7 +129,8 @@ class Item(
             item.title = ident
         if self.maxattempts is not None:
             log.append(
-                "Warning: maxattempts can not be controlled at item level, ignored: maxattempts='" +
+                "Warning: maxattempts can not be controlled at item level,"
+                " ignored: maxattempts='" +
                 self.maxattempts +
                 "'")
         if self.label:
@@ -147,10 +148,10 @@ class Item(
                 lomTitle.set_lang(lang)
         if mdTitles:
             if title:
-                # If we already have a title, then we have to add qmd_title as description metadata
-                # you may think qmd_title is a better choice than the title attribute
-                # but qmd_title is an extension so the title attribute takes
-                # precedence
+                # If we already have a title, then we have to add qmd_title as
+                # description metadata you may think qmd_title is a better
+                # choice than the title attribute but qmd_title is an extension
+                # so the title attribute takes precedence
                 i = 0
             else:
                 lomTitle = general.add_child(imsmd.LOMTitle)
@@ -175,7 +176,8 @@ class Item(
                 self.QTIComment.get_value())
         if self.Duration:
             log.append(
-                "Warning: duration is currently outside the scope of version 2: ignored " +
+                "Warning: duration is currently outside the scope of"
+                " version 2: ignored " +
                 self.Duration.get_value())
         if self.ItemMetadata:
             self.ItemMetadata.MigrateV2(doc, lom, log)
@@ -186,7 +188,8 @@ class Item(
                 objective.LRMMigrateObjectives(lom, log)
         if self.ItemControl:
             log.append(
-                "Warning: itemcontrol is currently outside the scope of version 2")
+                "Warning: itemcontrol is currently outside the scope of"
+                " version 2")
         for rubric in self.Rubric:
             rubric.MigrateV2(item, log)
         if self.Presentation:
@@ -194,7 +197,8 @@ class Item(
         if self.ResProcessing:
             if len(self.ResProcessing) > 1:
                 log.append(
-                    "Warning: multiople <resprocessing> not supported, ignoring all but the last")
+                    "Warning: multiople <resprocessing> not supported,"
+                    " ignoring all but the last")
             self.ResProcessing[-1].MigrateV2(item, log)
         for feedback in self.ItemFeedback:
             feedback.MigrateV2(item, log)
@@ -231,8 +235,8 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
             qmd_typeofsolution?
             )>
 
-    This element contains more structure than is in common use, at the moment we
-    represent this structure directly and automaticaly conform output to it,
+    This element contains more structure than is in common use, at the moment
+    we represent this structure directly and automaticaly conform output to it,
     adding extension elements at the end.  In the future we might be more
     generous and allow input *and* output of elements in any sequence and
     provide separate methods for conforming these elements."""
@@ -326,8 +330,8 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
             # IMS Definition says: The options are: "Pre-school", "School" or
             # "HE/FE", # "Vocational" and "Professional Development" so we bind
             # this value to the "Context" in LOM if one of the QTI or LOM
-            # defined terms have been used, otherwise, we bind to Difficulty, as
-            # this seems to be more common usage.
+            # defined terms have been used, otherwise, we bind to Difficulty,
+            # as this seems to be more common usage.
             context, lomFlag = QMDLevelOfDifficulty.LOMContextMap.get(
                 value.lower(), (None, False))
             educational = lom.add_child(imsmd.LOMEducational)
@@ -380,8 +384,8 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
         if contributors:
             if imsmd.vobject is None:
                 log.append(
-                    'Warning: qmd_%s support disabled (vobject not installed)' %
-                    field_name)
+                    'Warning: qmd_%s support disabled'
+                    ' (vobject not installed)' % field_name)
             else:
                 for value, definition in contributors:
                     lifecycle = lom.add_child(imsmd.LOMLifecycle)
@@ -433,7 +437,8 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
                     kwContainer.set_lang(lang)
                 if not warn:
                     log.append(
-                        "Warning: qmd_domain extension field will be added as LOM keyword")
+                        "Warning: qmd_domain extension field will be added"
+                        " as LOM keyword")
                     warn = True
 
     def LRMMigrateKeywords(self, lom, log):
@@ -458,7 +463,8 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
         if organizations:
             if imsmd.vobject is None:
                 log.append(
-                    'Warning: qmd_organization support disabled (vobject not installed)')
+                    'Warning: qmd_organization support disabled'
+                    ' (vobject not installed)')
             else:
                 for value, definition in organizations:
                     lifecycle = lom.add_child(imsmd.LOMLifecycle)
@@ -485,7 +491,8 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
         itemtypes = self.metadata.get('itemtype', ())
         for itemtype, itemtypeDef in itemtypes:
             log.append(
-                "Warning: qmd_itemtype now replaced by qtiMetadata.interactionType in manifest, ignoring %s" %
+                "Warning: qmd_itemtype now replaced by"
+                " qtiMetadata.interactionType in manifest, ignoring %s" %
                 itemtype)
         self.LRMMigrateLevelOfDifficulty(lom, log)
         self.LRMMigrateStatus(lom, log)
@@ -549,8 +556,8 @@ class QMDLevelOfDifficulty(QMDMetadataElement):
         "very difficult": True
     }
     """A mapping from difficulty values to the LOM difficulties.  This value is
-	supposed to be an educational level, e.g., "pre-school" but in practice it
-	is often used for values more akin to the LOM concept of difficulty."""
+    supposed to be an educational level, e.g., "pre-school" but in practice it
+    is often used for values more akin to the LOM concept of difficulty."""
 
     LOMContextMap = {
         # value is outside LOM defined vocab
@@ -562,8 +569,8 @@ class QMDLevelOfDifficulty(QMDMetadataElement):
         "professional development": ("training", True)
     }
     """A mapping from difficulty values to the LOM contexts.  This mapping
-	returns a tuple of the context value and a boolean indicating whether or not
-	this is one from the LOM standard or not."""
+    returns a tuple of the context value and a boolean indicating whether or
+    not this is one from the LOM standard or not."""
 
 
 class QMDMaterial(QMDMetadataElement):
@@ -617,8 +624,8 @@ class QMDStatus(QMDMetadataElement):
         'retired': core.QTI_SOURCE
     }
     """A mapping from status values to a metadata source, one of the following
-	constants: :py:data:`~pyslet.imsmdv1p2p1.LOM_SOURCE`
-	:py:data:`~pyslet.qtiv1.core.QTI_SOURCE`"""
+    constants: :py:data:`~pyslet.imsmdv1p2p1.LOM_SOURCE`
+    :py:data:`~pyslet.qtiv1.core.QTI_SOURCE`"""
 
 
 class QMDTimeDependence(QMDMetadataElement):
@@ -723,8 +730,8 @@ class ItemControl(common.QTICommentContainer):
             hintswitch  (Yes | No )  'Yes'
             solutionswitch  (Yes | No )  'Yes'
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                            Tutor ) 'All' >
+                            Candidate | InvigilatorProctor | Psychometrician |
+                            Scorer | Tutor ) 'All' >
     """
     XMLNAME = 'itemcontrol'
     XMLATTR_feedbackswitch = (
@@ -752,8 +759,8 @@ class ItemRubric(common.Rubric):
     <!ELEMENT itemrubric (material)>
     <!ATTLIST itemrubric
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                            Tutor ) 'All' >
+                            Candidate | InvigilatorProctor | Psychometrician |
+                            Scorer | Tutor ) 'All' >
 
     We are generous with this element, extending the allowable content model
     to make it equivalent to <rubric> which is a superset.  <itemrubric> was
@@ -779,7 +786,8 @@ class FlowContainer(common.QTICommentContainer, common.ContentMixin):
             common.ContentMixin.GetContentChildren(self))
 
     def ContentMixin(self, childClass):
-        if childClass in (common.Material, Flow) or issubclass(childClass, Response):
+        if (childClass in (common.Material, Flow) or
+           issubclass(childClass, Response)):
             return common.ContentMixin.ContentMixin(self, childClass)
         else:
             raise TypeError
@@ -788,10 +796,10 @@ class FlowContainer(common.QTICommentContainer, common.ContentMixin):
 class Presentation(FlowContainer, common.PositionMixin):
 
     """This element contains all of the instructions for the presentation of the
-    question during an evaluation. This information includes the actual material
-    to be presented. The labels for the possible responses are also identified
-    and these are used by the response processing element defined elsewhere in
-    the Item::
+    question during an evaluation. This information includes the actual
+    material to be presented. The labels for the possible responses are also
+    identified and these are used by the response processing element defined
+    elsewhere in the Item::
 
     <!ELEMENT presentation (qticomment? ,
             (flow |
@@ -825,7 +833,8 @@ class Presentation(FlowContainer, common.PositionMixin):
         itemBody = v2Item.get_or_add_child(qtiv2.content.ItemBody)
         if self.GotPosition():
             log.append(
-                "Warning: discarding absolute positioning information on presentation")
+                "Warning: discarding absolute positioning information"
+                " on presentation")
         if self.InlineChildren():
             p = itemBody.add_child(
                 html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
@@ -848,13 +857,15 @@ class Presentation(FlowContainer, common.PositionMixin):
         self.CleanHotspotImages(itemBody)
 
     def CleanHotspotImages(self, itemBody):
-        """Removes spurious img tags which represent images used in hotspotInteractions.
+        """Removes spurious img tags which represent images used in
+        hotspotInteractions.
 
-        Unfortunately we have to do this because images needed in hotspot interactions
-        are often clumsily placed outside the response/render constructs.  Rather than
-        fiddle around at the time we simply migrate the lot, duplicating the images
-        in the hotspotInteractions.  When the itemBody is complete we do a grand tidy
-        up to remove spurious images."""
+        Unfortunately we have to do this because images needed in hotspot
+        interactions are often clumsily placed outside the response/render
+        constructs.  Rather than fiddle around at the time we simply migrate
+        the lot, duplicating the images in the hotspotInteractions.  When the
+        itemBody is complete we do a grand tidy up to remove spurious
+        images."""
         hotspots = list(
             itemBody.find_children_depth_first(
                 (qtiv2.interactions.HotspotInteraction,
@@ -867,10 +878,11 @@ class Presentation(FlowContainer, common.PositionMixin):
                 if img.src and str(img.src) == str(hs.Object.data):
                     parent = img.parent
                     parent.remove_child(img)
-                    if isinstance(parent, html.P) and len(list(parent.get_children())) == 0:
-                        # It is always safe to remove a paragraph left empty by deleting an image
-                        # The chances are the paragraph was created by us to
-                        # house a matimage
+                    if (isinstance(parent, html.P) and
+                       len(list(parent.get_children())) == 0):
+                        # It is always safe to remove a paragraph left empty by
+                        # deleting an image. The chances are the paragraph was
+                        # created by us to house a matimage
                         parent.parent.remove_child(parent)
 
     def IsInline(self):
@@ -958,7 +970,8 @@ class ResponseThing(Response):
     """Abstract class for the main response_* elements::
 
     <!ELEMENT response_* ((material | material_ref)? ,
-            (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
+            (render_choice | render_hotspot | render_slider | render_fib |
+            render_extension) ,
             (material | material_ref)?)>
     <!ATTLIST response_*
             rcardinality	(Single | Multiple | Ordered )  'Single'
@@ -1050,7 +1063,8 @@ class ResponseThing(Response):
 
     def InlineChildren(self):
         return self.inlinePrompt and (
-            self.render is None or self.render.IsInline()) and self.inlineFooter
+            self.render is None or
+            self.render.IsInline()) and self.inlineFooter
 
     def GetBaseType(self, interaction):
         """Returns the base type to use for the given interaction."""
@@ -1069,9 +1083,9 @@ class ResponseThing(Response):
                     html.Div, (qtiv2.core.IMSQTI_NAMESPACE, 'div'))
                 common.ContentMixin.MigrateV2Content(
                     self, div, html.FlowMixin, log, self.prompt)
-                # Now we need to find any images and pass them to render hotspot instead
-                # which we do by reusing the interactionPrompt (currently we only find
-                # the first image).
+                # Now we need to find any images and pass them to render
+                # hotspot instead which we do by reusing the interactionPrompt
+                # (currently we only find the first image).
                 interactionPrompt = list(
                     div.find_children_depth_first(html.Img, False))[0:1]
             else:
@@ -1081,9 +1095,11 @@ class ResponseThing(Response):
             interactionList = self.render.MigrateV2Interaction(
                 parent, childType, interactionPrompt, log)
             item = parent.find_parent(qtiv2.items.AssessmentItem)
-            if len(interactionList) > 1 and self.rCardinality == core.RCardinality.Single:
+            if (len(interactionList) > 1 and
+               self.rCardinality == core.RCardinality.Single):
                 log.append(
-                    "Error: unable to migrate a response with Single cardinality to a single interaction: %s" %
+                    "Error: unable to migrate a response with Single"
+                    " cardinality to a single interaction: %s" %
                     self.ident)
                 interactionList = []
                 responseList = []
@@ -1096,7 +1112,8 @@ class ResponseThing(Response):
                         i = i + 1
                         while True:
                             rIdentifier = "%s_%02i" % (baseIdentifier, i)
-                            if item is None or not item.IsDeclared(rIdentifier):
+                            if (item is None or
+                               not item.IsDeclared(rIdentifier)):
                                 break
                         interaction.responseIdentifier = rIdentifier
                         responseList.append(rIdentifier)
@@ -1139,7 +1156,8 @@ class ResponseLId(ResponseThing):
     way in which the material is to be presented to the participant::
 
     <!ELEMENT response_lid ((material | material_ref)? ,
-            (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
+            (render_choice | render_hotspot | render_slider | render_fib |
+            render_extension) ,
             (material | material_ref)?)>
     <!ATTLIST response_lid
             rcardinality	(Single | Multiple | Ordered )  'Single'
@@ -1160,7 +1178,8 @@ class ResponseXY(ResponseThing):
     way in which the material is to be presented to the participant::
 
     <!ELEMENT response_xy ((material | material_ref)? ,
-            (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
+            (render_choice | render_hotspot | render_slider | render_fib |
+            render_extension) ,
             (material | material_ref)?)>
     <!ATTLIST response_xy
             rcardinality	(Single | Multiple | Ordered )  'Single'
@@ -1185,7 +1204,8 @@ class ResponseStr(ResponseThing):
     to be presented to the participant::
 
     <!ELEMENT response_str ((material | material_ref)? ,
-            (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
+            (render_choice | render_hotspot | render_slider | render_fib |
+            render_extension) ,
             (material | material_ref)?)>
 
     <!ATTLIST response_str
@@ -1207,7 +1227,8 @@ class ResponseNum(ResponseThing):
     presented to the participant::
 
     <!ELEMENT response_num ((material | material_ref)? ,
-            (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
+            (render_choice | render_hotspot | render_slider | render_fib |
+            render_extension) ,
             (material | material_ref)?)>
     <!ATTLIST response_num
             numtype			(Integer | Decimal | Scientific )  'Integer'
@@ -1240,7 +1261,8 @@ class ResponseGrp(core.QTIElement, common.ContentMixin):
     the material is to be presented to the participant::
 
     <!ELEMENT response_grp ((material | material_ref)? ,
-            (render_choice | render_hotspot | render_slider | render_fib | render_extension) ,
+            (render_choice | render_hotspot | render_slider | render_fib |
+            render_extension) ,
             (material | material_ref)?)>
     <!ATTLIST response_grp
             rcardinality	(Single | Multiple | Ordered )  'Single'
@@ -1263,7 +1285,8 @@ class RenderThing(Render):
 
     """Abstract base class for all render_* objects::
 
-    <!ELEMENT render_* ((material | material_ref | response_label | flow_label)* , response_na?)>"""
+    <!ELEMENT render_* ((material | material_ref | response_label |
+    flow_label)* , response_na?)>"""
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -1271,7 +1294,8 @@ class RenderThing(Render):
         self.ResponseNA = None
 
     def ContentMixin(self, childClass):
-        if childClass in (common.Material, common.MaterialRef, ResponseLabel, FlowLabel):
+        if childClass in (common.Material, common.MaterialRef,
+                          ResponseLabel, FlowLabel):
             return common.ContentMixin.ContentMixin(self, childClass)
         else:
             raise TypeError
@@ -1315,7 +1339,8 @@ class RenderChoice(RenderThing):
     responses is determined by the <response_label> elements contained. Both
     flowed and non-flowed formats are supported::
 
-    <!ELEMENT render_choice ((material | material_ref | response_label | flow_label)* , response_na?)>
+    <!ELEMENT render_choice ((material | material_ref | response_label |
+    flow_label)* , response_na?)>
     <!ATTLIST render_choice
             shuffle     (Yes | No )  'No'
             minnumber	CDATA  #IMPLIED
@@ -1342,7 +1367,8 @@ class RenderChoice(RenderThing):
         if isinstance(self.parent, ResponseLId):
             if childType is html.InlineMixin:
                 raise QTIError(
-                    "Unexpected attempt to put block interaction in inline context")
+                    "Unexpected attempt to put block interaction in"
+                    " inline context")
             if self.parent.rCardinality == core.RCardinality.Ordered:
                 raise QTIUnimplementedError("OrderInteraction")
             else:
@@ -1375,7 +1401,8 @@ class RenderHotspot(RenderThing):
     responses is determined by the <response_label> elements contained. Both
     flowed and non-flowed formats are supported::
 
-    <!ELEMENT render_hotspot ((material | material_ref | response_label | flow_label)* , response_na?)>
+    <!ELEMENT render_hotspot ((material | material_ref | response_label |
+    flow_label)* , response_na?)>
     <!ATTLIST render_hotspot
             maxnumber	CDATA  #IMPLIED
             minnumber	CDATA  #IMPLIED
@@ -1416,15 +1443,16 @@ class RenderHotspot(RenderThing):
                 "%s x render_hotspot" % self.parent.__class__.__name__)
         if self.showDraw:
             log.append(
-                'Warning: ignoring showdraw="Yes", what did you really want to happen?')
+                'Warning: ignoring showdraw="Yes", what did you really want'
+                ' to happen?')
         if self.minNumber is not None:
             interaction.minChoices = self.minNumber
         if self.maxNumber is not None:
             interaction.maxChoices = self.maxNumber
         labels = list(self.find_children_depth_first(ResponseLabel, False))
-        # prompt is either a single <img> tag we already migrated or.. a set of inline
-        # objects that are still to be migrated (and which should contain the
-        # hotspot image).
+        # prompt is either a single <img> tag we already migrated or.. a set of
+        # inline objects that are still to be migrated (and which should
+        # contain the hotspot image).
         img = None
         interactionPrompt = None
         hotspotImage = interaction.add_child(
@@ -1459,7 +1487,8 @@ class RenderHotspot(RenderThing):
                 if images and images[0].uri:
                     # Check that this is the right image in case img was
                     # embedded in MatText
-                    if str(images[0].resolve_uri(images[0].uri)) == str(img.resolve_uri(img.src)):
+                    if (str(images[0].resolve_uri(images[0].uri)) ==
+                       str(img.resolve_uri(img.src))):
                         hotspotImage.type = images[0].imageType
             for child in labels:
                 if isinstance(child, ResponseLabel):
@@ -1480,9 +1509,9 @@ class RenderHotspot(RenderThing):
                 # Single image that must have gone AWOL
                 hsi.append((images[0], labels))
             else:
-                # multiple images are scanned for those at fixed positions in the presentation
-                # which are hit by a hotspot (interpreted relative to the
-                # presentation).
+                # multiple images are scanned for those at fixed positions in
+                # the presentation which are hit by a hotspot (interpreted
+                # relative to the presentation).
                 for img in images:
                     hits = []
                     for child in labels:
@@ -1507,7 +1536,9 @@ class RenderHotspot(RenderThing):
                     # interactions
                     if self.maxNumber is not None:
                         log.append(
-                            "Warning: multi-image hotspot maps to multiple interactions, maxChoices can no longer be enforced")
+                            "Warning: multi-image hotspot maps to multiple"
+                            " interactions, maxChoices can no longer be"
+                            " enforced")
                     interaction.minChoices = None
                     for child in hits:
                         child.MigrateV2HotspotChoice(
@@ -1519,7 +1550,8 @@ class RenderHotspot(RenderThing):
                         if self.maxNumber is not None:
                             interaction.maxChoices = self.maxNumber
                         hotspotImage = interaction.add_child(
-                            html.Object, (qtiv2.core.IMSQTI_NAMESPACE, 'object'))
+                            html.Object, (qtiv2.core.IMSQTI_NAMESPACE,
+                                          'object'))
                         hotspotImage.data = img.resolve_uri(img.uri)
                         hotspotImage.type = img.imageType
                         hotspotImage.height = html.LengthType(img.height)
@@ -1544,7 +1576,8 @@ class RenderFIB(RenderThing):
     responses is determined by the <response_label> elements contained. Both
     flowed and non-flowed formats are supported::
 
-    <!ELEMENT render_fib ((material | material_ref | response_label | flow_label)* , response_na?)>
+    <!ELEMENT render_fib ((material | material_ref | response_label |
+    flow_label)* , response_na?)>
     <!ATTLIST render_fib
             encoding	CDATA  'UTF_8'
             fibtype		(String | Integer | Decimal | Scientific )  'String'
@@ -1592,8 +1625,8 @@ class RenderFIB(RenderThing):
         """Indicates whether or not this FIB uses a mixed model or not.
 
         A mixed model means that render_fib is treated as a mixture of
-        interaction and content elements.  In an unmixed model the render_fib is
-        treated as a single block interaction with an optional prompt.
+        interaction and content elements.  In an unmixed model the render_fib
+        is treated as a single block interaction with an optional prompt.
 
         If the render_fib contains content, followed by labels, then we treat
         it as a prompt + fib and return False
@@ -1653,9 +1686,11 @@ class RenderFIB(RenderThing):
             parent.find_children_depth_first(interactionType, False))
         # ignore any pre-existing interactions of this type
         interactionList = interactionList[iCount:]
-        if self.parent.rCardinality == core.RCardinality.Single and len(interactionList) > 1:
+        if (self.parent.rCardinality == core.RCardinality.Single and
+           len(interactionList) > 1):
             log.append(
-                "Warning: single response fib ignoring all but last <response_label>")
+                "Warning: single response fib ignoring all but last"
+                " <response_label>")
             for interaction in interactionList[:-1]:
                 interaction.parent.remove_child(interaction)
             interactionList = interactionList[-1:]
@@ -1677,7 +1712,8 @@ class RenderSlider(RenderThing):
     determined by the <response_label> elements contained. Both flowed and
     non-flowed formats are supported::
 
-    <!ELEMENT render_slider ((material | material_ref | response_label | flow_label)* , response_na?)>
+    <!ELEMENT render_slider ((material | material_ref | response_label |
+    flow_label)* , response_na?)>
     <!ATTLIST render_slider
             orientation		(Horizontal | Vertical )  'Horizontal'
             lowerbound		CDATA  #REQUIRED
@@ -1729,7 +1765,8 @@ class RenderSlider(RenderThing):
         if isinstance(self.parent, ResponseLId):
             if self.parent.rCardinality == core.RCardinality.Single:
                 log.append(
-                    "Warning: choice-slider replaced with choiceInteraction.slider")
+                    "Warning: choice-slider replaced with"
+                    " choiceInteraction.slider")
                 interaction = parent.add_child(
                     qtiv2.interactions.ChoiceInteraction)
                 interaction.style_class = ['slider']
@@ -1737,11 +1774,13 @@ class RenderSlider(RenderThing):
                 interaction.maxChoices = 1
             elif self.parent.rCardinality == core.RCardinality.Ordered:
                 log.append(
-                    "Error: ordered-slider replaced with orderInteraction.slider")
+                    "Error: ordered-slider replaced with"
+                    " orderInteraction.slider")
                 raise QTIUnimplementedError("OrderInteraction")
             else:
                 log.append(
-                    "Error: multiple-slider replaced with choiceInteraction.slider")
+                    "Error: multiple-slider replaced with"
+                    " choiceInteraction.slider")
                 interaction = parent.add_child(
                     qtiv2.interactions.ChoiceInteraction)
                 interaction.style_class = ['slider']
@@ -1781,7 +1820,8 @@ class RenderSlider(RenderThing):
 
     def MigrateV2InteractionDefault(self, declaration, interaction):
         # Most interactions do not need default values.
-        if isinstance(interaction, qtiv2.interactions.SliderInteraction) and self.startVal is not None:
+        if (isinstance(interaction, qtiv2.interactions.SliderInteraction) and
+           self.startVal is not None):
             value = declaration.add_child(
                 qtiv2.variables.DefaultValue).add_child(
                 qtiv2.variables.ValueElement)
@@ -1815,7 +1855,8 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
     response. The label is used in the response processing. Flow and non-flow
     approaches are supported::
 
-    <!ELEMENT response_label (#PCDATA | qticomment | material | material_ref | flow_mat)*>
+    <!ELEMENT response_label (#PCDATA | qticomment | material | material_ref |
+    flow_mat)*>
     <!ATTLIST response_label  rshuffle     (Yes | No )  'Yes'
     rarea			(Ellipse | Rectangle | Bounded )  'Ellipse'
     rrange			(Exact | Range )  'Exact'
@@ -1839,8 +1880,9 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
 
     def ContentMixin(self, childClass):
         """Although we inherit from the ContentMixin class we don't allow it to
-        capture content-children because this element has mixed content - though
-        in practice it really should have either data or element content."""
+        capture content-children because this element has mixed content -
+        though in practice it really should have either data or element
+        content."""
         return None
 
     def IsInline(self):
@@ -1883,7 +1925,8 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
         """Migrate this label into a v2 simpleChoice in interaction."""
         choice = interaction.add_child(qtiv2.interactions.SimpleChoice)
         choice.identifier = qtiv2.core.ValidateIdentifier(self.ident)
-        if isinstance(interaction, qtiv2.interactions.ChoiceInteraction) and interaction.shuffle:
+        if (isinstance(interaction, qtiv2.interactions.ChoiceInteraction) and
+           interaction.shuffle):
             choice.fixed = not self.rShuffle
         data = []
         gotElements = False
@@ -1916,7 +1959,8 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
         """Migrate this label into a v2 hotspotChoice in interaction."""
         if isinstance(interaction, qtiv2.interactions.SelectPointInteraction):
             log.append(
-                "Warning: ignoring response_label in selectPointInteraction (%s)" %
+                "Warning: ignoring response_label in"
+                " selectPointInteraction (%s)" %
                 self.ident)
             return
         choice = interaction.add_child(qtiv2.interactions.HotspotChoice)
@@ -1952,7 +1996,8 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
         bounds = qtiv2.core.CalculateShapeBounds(shape, coords)
         if bounds[0] > matImage.x0 + matImage.width or bounds[2] < matImage.x0:
             return False
-        if bounds[1] > matImage.y0 + matImage.height or bounds[3] < matImage.y0:
+        if (bounds[1] > matImage.y0 + matImage.height or
+           bounds[3] < matImage.y0):
             return False
         return True
 
@@ -2025,11 +2070,12 @@ class ResponseNA(core.QTIElement):
 class ResProcessing(common.QTICommentContainer):
 
     """This is the element within which all of the instructions for the response
-    processing are contained. This includes the scoring variables to contain the
-    associated scores and the set of response condition tests that are to be
-    applied to the received user response::
+    processing are contained. This includes the scoring variables to contain
+    the associated scores and the set of response condition tests that are to
+    be applied to the received user response::
 
-    <!ELEMENT resprocessing (qticomment? , outcomes , (respcondition | itemproc_extension)+)>
+    <!ELEMENT resprocessing (qticomment? , outcomes ,
+    (respcondition | itemproc_extension)+)>
     <!ATTLIST resprocessing  scoremodel CDATA  #IMPLIED >"""
     XMLNAME = 'resprocessing'
     XMLATTR_scoremodel = 'scoreModel'
@@ -2116,10 +2162,12 @@ class RespCondition(common.QTICommentContainer, ConditionMixin):
 
     """This element contains the actual test to be applied to the user responses
     to determine their correctness or otherwise. Each <respcondition> contains
-    an actual test, the assignment of a value to the associate scoring variables
-    and the identification of the feedback to be associated with the test::
+    an actual test, the assignment of a value to the associate scoring
+    variables and the identification of the feedback to be associated with the
+    test::
 
-    <!ELEMENT respcondition (qticomment? , conditionvar , setvar* , displayfeedback* , respcond_extension?)>
+    <!ELEMENT respcondition (qticomment? , conditionvar , setvar* ,
+    displayfeedback* , respcond_extension?)>
     <!ATTLIST respcondition
             continue  (Yes | No )  'No'
             title CDATA  #IMPLIED >"""
@@ -2213,7 +2261,8 @@ class RespCondition(common.QTICommentContainer, ConditionMixin):
 
 class RespCondExtension(core.QTIElement):
 
-    """This element supports proprietary alternatives to the <respcondition> element::
+    """This element supports proprietary alternatives to the <respcondition>
+    element::
 
     <!ELEMENT respcond_extension ANY>"""
     XMLNAME = "respcond_extension"
@@ -2265,8 +2314,8 @@ class ItemFeedback(core.QTIElement, common.ContentMixin):
     <!ELEMENT itemfeedback ((flow_mat | material) | solution | hint)+>
     <!ATTLIST itemfeedback
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                            Tutor ) 'All'
+                            Candidate | InvigilatorProctor | Psychometrician |
+                            Scorer | Tutor ) 'All'
             ident CDATA  #REQUIRED
             title CDATA  #IMPLIED >"""
     XMLNAME = 'itemfeedback'
@@ -2296,7 +2345,7 @@ class ItemFeedback(core.QTIElement, common.ContentMixin):
 
     def MigrateV2(self, v2Item, log):
         feedback = v2Item.add_child(qtiv2.QTIModalFeedback)
-        if not self.view in (core.View.All, core.View.Candidate):
+        if self.view not in (core.View.All, core.View.Candidate):
             log.append("Warning: discarding view on feedback (%s)" %
                        core.View.to_str(self.view))
         identifier = qtiv2.core.ValidateIdentifier(self.ident, 'FEEDBACK_')
@@ -2315,7 +2364,8 @@ class Solution(common.ContentMixin, common.QTICommentContainer):
     of the specification::
 
     <!ELEMENT solution (qticomment? , solutionmaterial+)>
-    <!ATTLIST solution  feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete' >"""
+    <!ATTLIST solution  feedbackstyle  (Complete | Incremental | Multilevel |
+                                        Proprietary )  'Complete' >"""
     XMLNAME = 'solution'
     XMLATTR_feedbackstyle = (
         'feedbackStyle',
@@ -2379,7 +2429,8 @@ class Hint(common.ContentMixin, common.QTICommentContainer):
     specification::
 
     <!ELEMENT hint (qticomment? , hintmaterial+)>
-    <!ATTLIST hint  feedbackstyle  (Complete | Incremental | Multilevel | Proprietary )  'Complete' >"""
+    <!ATTLIST hint  feedbackstyle  (Complete | Incremental | Multilevel |
+                                    Proprietary )  'Complete' >"""
     XMLNAME = 'hint'
     XMLATTR_feedbackstyle = (
         'feedbackStyle',
