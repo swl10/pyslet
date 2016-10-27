@@ -18,7 +18,8 @@ class SelectionOrdering(common.QTICommentContainer):
     and Item objects within the parent object defines the default coverage of
     the ordering with respect to the selected objects::
 
-    <!ELEMENT selection_ordering (qticomment? , sequence_parameter* , selection* , order?)>
+    <!ELEMENT selection_ordering (qticomment? , sequence_parameter* ,
+    selection* , order?)>
     <!ATTLIST selection_ordering  sequence_type CDATA  #IMPLIED >"""
     XMLNAME = "selection_ordering"
     XMLATTR_sequence_type = 'sequenceType'
@@ -61,11 +62,13 @@ class Selection(core.QTIElement):
 
     """The <selection> element is used to express the selection rules that are
     to be applied to the identified objectbank or the set of child objects
-    contained within the parent. The full set of rules must be parsed before the
-    consistent selection can be achieved::
+    contained within the parent. The full set of rules must be parsed before
+    the consistent selection can be achieved::
 
-    <!ELEMENT selection (sourcebank_ref? , selection_number? , selection_metadata? ,
-            (and_selection | or_selection | not_selection | selection_extension)?)>"""
+    <!ELEMENT selection (sourcebank_ref? , selection_number? ,
+            selection_metadata? ,
+            (and_selection | or_selection | not_selection |
+            selection_extension)?)>"""
     XMLNAME = 'selection'
     XMLCONTENT = xml.ElementContent
 
@@ -101,7 +104,8 @@ class SourcebankRef(core.QTIElement):
 class SelectionNumber(core.QTIElement):
 
     """This element defines the partial selection rule i.e. chose 'x' objects
-    from the set of objects contained in the identified object or parent object.
+    from the set of objects contained in the identified object or parent
+    object.
     This data is an integer number in the range 1-4096::
 
     <!ELEMENT selection_number (#PCDATA)>"""
@@ -157,7 +161,8 @@ class OrSelection(SelectionOperator, SelectionChildMixin):
     objects that have particular metadata content or through the parameterized
     extension mechanism::
 
-    <!ELEMENT or_selection (selection_metadata | and_selection | or_selection | not_selection)+>"""
+    <!ELEMENT or_selection (selection_metadata | and_selection | or_selection |
+                            not_selection)+>"""
     XMLNAME = 'or_selection'
     XMLCONTENT = xml.ElementContent
 
@@ -176,7 +181,8 @@ class AndSelection(SelectionOperator, SelectionChildMixin):
     select objects that have particular metadata content or through the
     parameterized extension mechanism::
 
-    <!ELEMENT and_selection (selection_metadata | and_selection | or_selection | not_selection)+>
+    <!ELEMENT and_selection (selection_metadata | and_selection |
+                            or_selection | not_selection)+>
     """
     XMLNAME = 'and_selection'
     XMLCONTENT = xml.ElementContent
@@ -196,7 +202,8 @@ class NotSelection(SelectionOperator, SelectionChildMixin):
     'True'. It is used to select objects that have particular metadata content
     or through the parameterized extension mechanism::
 
-    <!ELEMENT not_selection (selection_metadata | and_selection | or_selection | not_selection)>"""
+    <!ELEMENT not_selection (selection_metadata | and_selection |
+                            or_selection | not_selection)>"""
     XMLNAME = 'not_selection'
     XMLCONTENT = xml.ElementContent
 
