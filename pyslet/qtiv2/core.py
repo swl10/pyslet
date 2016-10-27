@@ -15,7 +15,8 @@ IMSQTI_SCHEMALOCATION = "http://www.imsglobal.org/xsd/imsqti_v2p1.xsd"
 """The location of the QTI 2.1 schema file on the IMS website."""
 
 IMSQTI_ITEM_RESOURCETYPE = "imsqti_item_xmlv2p1"
-"""The resource type to use for the QTI 2.1 items when added to content packages."""
+"""The resource type to use for the QTI 2.1 items when added to content
+packages."""
 
 
 class QTIError(Exception):
@@ -57,8 +58,8 @@ def ValidateIdentifier(value, prefix='_'):
     NCName in XML and forces it to comply by replacing illegal characters with
     '_', except the ':' which is replaced with a hyphen for compatibility with
     previous versions of the QTI migraiton script.  If name starts with a valid
-    name character but not a valid name start character, it is prefixed with '_'
-    too, but the prefix string used can be overridden."""
+    name character but not a valid name start character, it is prefixed with
+    '_' too, but the prefix string used can be overridden."""
     if value:
         goodName = []
         if not xml.is_name_start_char(value[0]):
@@ -182,7 +183,8 @@ def CalculateShapeBounds(shape, coords):
 
 
 def OffsetShape(shape, coords, xOffset, yOffset):
-    """Interprets the shape and coords relative to the given offset and maps them back to the origin.
+    """Interprets the shape and coords relative to the given offset and maps
+    them back to the origin.
 
     In other words, xOffset and yOffset are subtracted from the coordinates."""
     if shape == Shape.circle:
@@ -357,12 +359,15 @@ class QTIDocument(xmlns.XMLNSDocument):
                 (name[0], None), xmlns.XMLNSElement))
 
     def AddToContentPackage(self, cp, metadata, dName=None):
-        """Copies this QTI document into a content package and returns the resource ID used.
+        """Copies this QTI document into a content package and returns the
+        resource ID used.
 
-        An optional directory name can be specified in which to put the resource files."""
-        # We call the element's AddToContentPackage method which returns the new resource
+        An optional directory name can be specified in which to put the
+        resource files."""
+        # We call the element's AddToContentPackage method which returns the
+        # new resource.
         # The document's base is automatically set to the URI of the resource
-        # entry point
+        # entry point.
         resource = self.root.AddToContentPackage(cp, metadata, dName)
         # Finish by writing out the document to the new base_uri
         self.create()

@@ -70,8 +70,8 @@ class Expression(core.QTIElement):
         per this condition in the specification.
 
                 "if a string attribute appears to be a reference to a template
-                variable but there is no variable with the given name it should be
-                treated simply as string value"
+                variable but there is no variable with the given name it should
+                be treated simply as string value"
         """
         ref = core.GetTemplateRef(value)
         if ref:
@@ -95,13 +95,15 @@ class BaseValue(Expression):
     ::
 
             <xsd:attributeGroup name="baseValue.AttrGroup">
-                    <xsd:attribute name="baseType" type="baseType.Type" use="required"/>
+                    <xsd:attribute name="baseType" type="baseType.Type"
+                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:complexType name="baseValue.Type">
                     <xsd:simpleContent>
                             <xsd:extension base="xsd:string">
-                                    <xsd:attributeGroup ref="baseValue.AttrGroup"/>
+                                    <xsd:attributeGroup
+                                    ref="baseValue.AttrGroup"/>
                             </xsd:extension>
                     </xsd:simpleContent>
             </xsd:complexType>"""
@@ -127,8 +129,10 @@ class Variable(Expression):
     variables::
 
             <xsd:attributeGroup name="variable.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
-                    <xsd:attribute name="weightIdentifier" type="identifier.Type" use="optional"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                    use="required"/>
+                    <xsd:attribute name="weightIdentifier"
+                    type="identifier.Type" use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'variable')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
@@ -155,7 +159,8 @@ class Default(Expression):
     the associated defaultValue or NULL if no default value was declared::
 
             <xsd:attributeGroup name="default.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'default')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
@@ -181,7 +186,8 @@ class Correct(Expression):
     declared::
 
             <xsd:attributeGroup name="correct.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'correct')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
@@ -215,7 +221,8 @@ class MapResponse(Expression):
     The result is a single float::
 
             <xsd:attributeGroup name="mapResponse.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapResponse')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
@@ -250,7 +257,8 @@ class MapResponsePoint(Expression):
     base-type point, and transforms it using the associated areaMapping::
 
             <xsd:attributeGroup name="mapResponsePoint.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapResponsePoint')
     XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
@@ -307,9 +315,12 @@ class RandomInteger(Expression):
     min + step * n for some integer n::
 
             <xsd:attributeGroup name="randomInteger.AttrGroup">
-                    <xsd:attribute name="min" type="integerOrTemplateRef.Type" use="required"/>
-                    <xsd:attribute name="max" type="integerOrTemplateRef.Type" use="required"/>
-                    <xsd:attribute name="step" type="integerOrTemplateRef.Type" use="optional"/>
+                    <xsd:attribute name="min" type="integerOrTemplateRef.Type"
+                    use="required"/>
+                    <xsd:attribute name="max" type="integerOrTemplateRef.Type"
+                    use="required"/>
+                    <xsd:attribute name="step" type="integerOrTemplateRef.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'randomInteger')
     XMLATTR_min = 'min'
@@ -343,8 +354,10 @@ class RandomFloat(Expression):
     ::
 
             <xsd:attributeGroup name="randomFloat.AttrGroup">
-                    <xsd:attribute name="min" type="floatOrTemplateRef.Type" use="required"/>
-                    <xsd:attribute name="max" type="floatOrTemplateRef.Type" use="required"/>
+                    <xsd:attribute name="min" type="floatOrTemplateRef.Type"
+                    use="required"/>
+                    <xsd:attribute name="max" type="floatOrTemplateRef.Type"
+                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'randomFloat')
     XMLATTR_min = 'min'
@@ -359,14 +372,15 @@ class RandomFloat(Expression):
     def Evaluate(self, state):
         min = self.FloatOrTemplateRef(state, self.min)
         max = self.FloatOrTemplateRef(state, self.max)
-        # strictly speaking, we can never return max, but due to possible rounding
-        # this point is academic
+        # strictly speaking, we can never return max, but due to possible
+        # rounding this point is academic
         return variables.FloatValue(min + random.random() * (max - min))
 
 
 class NOperator(Expression):
 
-    """An abstract class to help implement operators which take multiple sub-expressions."""
+    """An abstract class to help implement operators which take multiple
+    sub-expressions."""
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -404,7 +418,8 @@ class Multiple(NOperator):
 
             <xsd:group name="multiple.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'multiple')
@@ -451,7 +466,8 @@ class Ordered(NOperator):
 
             <xsd:group name="ordered.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'ordered')
@@ -496,7 +512,8 @@ class ContainerSize(UnaryOperator):
 
             <xsd:group name="containerSize.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'containerSize')
@@ -531,7 +548,8 @@ class IsNull(UnaryOperator):
 
             <xsd:group name="isNull.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'isNull')
@@ -551,12 +569,14 @@ class Index(UnaryOperator):
     ::
 
             <xsd:attributeGroup name="index.AttrGroup">
-                    <xsd:attribute name="n" type="integer.Type" use="required"/>
+                    <xsd:attribute name="n" type="integer.Type"
+                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="index.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'index')
@@ -592,12 +612,14 @@ class FieldValue(UnaryOperator):
     fieldIdentifier::
 
             <xsd:attributeGroup name="fieldValue.AttrGroup">
-                    <xsd:attribute name="fieldIdentifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="fieldIdentifier"
+                    type="identifier.Type" use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="fieldValue.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'fieldValue')
@@ -631,7 +653,8 @@ class Random(UnaryOperator):
 
             <xsd:group name="random.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'random')
@@ -669,7 +692,8 @@ class Member(NOperator):
 
             <xsd:group name="member.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'member')
@@ -697,7 +721,8 @@ class Member(NOperator):
             if containerValue.Cardinality() == variables.Cardinality.ordered:
                 return variables.BooleanValue(
                     singleValue.value in containerValue.value)
-            elif containerValue.Cardinality() == variables.Cardinality.multiple:
+            elif (containerValue.Cardinality() ==
+                  variables.Cardinality.multiple):
                 return variables.BooleanValue(
                     singleValue.value in containerValue.value.keys())
             else:
@@ -719,7 +744,8 @@ class Delete(NOperator):
 
             <xsd:group name="delete.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'delete')
@@ -744,12 +770,15 @@ class Delete(NOperator):
         if singleValue.baseType == variables.BaseType.duration:
             raise core.ProcessingError(
                 "Delete operator must not be used on duration values")
-        if singleValue.Cardinality() not in (variables.Cardinality.single, None):
+        if singleValue.Cardinality() not in (variables.Cardinality.single,
+                                             None):
             raise core.ProcessingError(
                 "Expected single value, found %s" %
                 variables.Cardinality.to_str(
                     singleValue.Cardinality()))
-        if containerValue.Cardinality() not in (variables.Cardinality.ordered, variables.Cardinality.multiple, None):
+        if containerValue.Cardinality() not in (variables.Cardinality.ordered,
+                                                variables.Cardinality.multiple,
+                                                None):
             raise core.ProcessingError(
                 "Expected ordered or multiple value, found %s" %
                 variables.Cardinality.to_str(
@@ -779,7 +808,8 @@ class Contains(NOperator):
 
             <xsd:group name="contains.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'contains')
@@ -808,7 +838,8 @@ class Contains(NOperator):
                 for i in xrange(imax + 1):
                     # try a match starting at i
                     match = True
-                    for iv1, iv2 in zip(v1.value, v2.value[i:i + len(v1.value)]):
+                    for iv1, iv2 in zip(v1.value,
+                                        v2.value[i:i + len(v1.value)]):
                         if iv1 != iv2:
                             match = False
                             break
@@ -835,17 +866,19 @@ class Contains(NOperator):
 class SubString(NOperator):
 
     """The substring operator takes two sub-expressions which must both have an
-    effective base-type of string and single cardinality. The result is a single
-    boolean with a value of true if the first expression is a substring of the
-    second expression and false if it isn't::
+    effective base-type of string and single cardinality. The result is a
+    single boolean with a value of true if the first expression is a substring
+    of the second expression and false if it isn't::
 
             <xsd:attributeGroup name="substring.AttrGroup">
-                    <xsd:attribute name="caseSensitive" type="boolean.Type" use="required"/>
+                    <xsd:attribute name="caseSensitive" type="boolean.Type"
+                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="substring.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'substring')
@@ -885,7 +918,8 @@ class Not(UnaryOperator):
 
             <xsd:group name="not.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'not')
@@ -909,7 +943,8 @@ class And(NOperator):
 
             <xsd:group name="and.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'and')
@@ -926,7 +961,7 @@ class And(NOperator):
             *map(lambda x: x.baseType, values) + [variables.BaseType.boolean])
         result = True
         for v in values:
-            if v.value == False:
+            if v.value is False:
                 return variables.BooleanValue(False)
             elif v.value is None:
                 result = None
@@ -942,7 +977,8 @@ class Or(NOperator):
 
             <xsd:group name="or.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'or')
@@ -974,13 +1010,16 @@ class AnyN(NOperator):
     sub-expressions are true::
 
             <xsd:attributeGroup name="anyN.AttrGroup">
-                    <xsd:attribute name="min" type="integerOrTemplateRef.Type" use="required"/>
-                    <xsd:attribute name="max" type="integerOrTemplateRef.Type" use="required"/>
+                    <xsd:attribute name="min" type="integerOrTemplateRef.Type"
+                    use="required"/>
+                    <xsd:attribute name="max" type="integerOrTemplateRef.Type"
+                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="anyN.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'anyN')
@@ -1032,12 +1071,13 @@ class Match(NOperator):
 
     """The match operator takes two sub-expressions which must both have the
     same base-type and cardinality. The result is a single boolean with a value
-    of true if the two expressions represent the same value and false if they do
-    not::
+    of true if the two expressions represent the same value and false if they
+    do not::
 
             <xsd:group name="match.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'match')
@@ -1061,13 +1101,16 @@ class StringMatch(NOperator):
     true if the two strings match::
 
             <xsd:attributeGroup name="stringMatch.AttrGroup">
-                    <xsd:attribute name="caseSensitive" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="substring" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="caseSensitive" type="boolean.Type"
+                    use="required"/>
+                    <xsd:attribute name="substring" type="boolean.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="stringMatch.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'stringMatch')
@@ -1109,17 +1152,20 @@ class StringMatch(NOperator):
 class PatternMatch(UnaryOperator):
 
     """The patternMatch operator takes a sub-expression which must have single
-    cardinality and a base-type of string. The result is a single boolean with a
-    value of true if the sub-expression matches the regular expression given by
-    pattern and false if it doesn't::
+    cardinality and a base-type of string. The result is a single boolean with
+    a value of true if the sub-expression matches the regular expression given
+    by pattern and false if it doesn't::
 
             <xsd:attributeGroup name="patternMatch.AttrGroup">
-                    <xsd:attribute name="pattern" type="stringOrTemplateRef.Type" use="required"/>
+                    <xsd:attribute name="pattern"
+                    type="stringOrTemplateRef.Type"
+                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="patternMatch.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'patternMatch')
@@ -1150,8 +1196,9 @@ class ToleranceMode(xsi.Enumeration):
 
     """When comparing two floating point numbers for equality it is often
     desirable to have a tolerance to ensure that spurious errors in scoring are
-    not introduced by rounding errors. The tolerance mode determines whether the
-    comparison is done exactly, using an absolute range or a relative range::
+    not introduced by rounding errors. The tolerance mode determines whether
+    the comparison is done exactly, using an absolute range or a relative
+    range::
 
             <xsd:simpleType name="toleranceMode.Type">
                     <xsd:restriction base="xsd:NMTOKEN">
@@ -1188,19 +1235,24 @@ class Equal(NOperator):
     if they are not::
 
             <xsd:attributeGroup name="equal.AttrGroup">
-                    <xsd:attribute name="toleranceMode" type="toleranceMode.Type" use="required"/>
+                    <xsd:attribute name="toleranceMode"
+                                   type="toleranceMode.Type" use="required"/>
                     <xsd:attribute name="tolerance" use="optional">
                             <xsd:simpleType>
-                                    <xsd:list itemType="floatOrTemplateRef.Type"/>
+                                    <xsd:list
+                                    itemType="floatOrTemplateRef.Type"/>
                             </xsd:simpleType>
                     </xsd:attribute>
-                    <xsd:attribute name="includeLowerBound" type="boolean.Type" use="optional"/>
-                    <xsd:attribute name="includeUpperBound" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="includeLowerBound" type="boolean.Type"
+                    use="optional"/>
+                    <xsd:attribute name="includeUpperBound" type="boolean.Type"
+                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="equal.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'equal')
@@ -1269,7 +1321,8 @@ class Equal(NOperator):
 
 class RoundingMode(xsi.Enumeration):
 
-    """Numbers are rounded to a given number of significantFigures or decimalPlaces::
+    """Numbers are rounded to a given number of significantFigures or
+    decimalPlaces::
 
             <xsd:simpleType name="roundingMode.Type">
                     <xsd:restriction base="xsd:NMTOKEN">
@@ -1304,13 +1357,17 @@ class EqualRounded(NOperator):
     after rounding and false if they are not::
 
             <xsd:attributeGroup name="equalRounded.AttrGroup">
-                    <xsd:attribute name="roundingMode" type="roundingMode.Type" use="required"/>
-                    <xsd:attribute name="figures" type="integerOrTemplateRef.Type" use="required"/>
+                    <xsd:attribute name="roundingMode" type="roundingMode.Type"
+                    use="required"/>
+                    <xsd:attribute name="figures"
+                                   type="integerOrTemplateRef.Type"
+                                   use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="equalRounded.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                       minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'equalRounded')
@@ -1370,13 +1427,16 @@ class Inside(UnaryOperator, core.ShapeElementMixin):
     inside the area::
 
             <xsd:attributeGroup name="inside.AttrGroup">
-                    <xsd:attribute name="shape" type="shape.Type" use="required"/>
-                    <xsd:attribute name="coords" type="coords.Type" use="required"/>
+                    <xsd:attribute name="shape" type="shape.Type"
+                    use="required"/>
+                    <xsd:attribute name="coords" type="coords.Type"
+                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="inside.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'inside')
@@ -1397,7 +1457,8 @@ class Inside(UnaryOperator, core.ShapeElementMixin):
                         None))
             else:
                 return variables.BooleanValue()
-        elif value.Cardinality() in (variables.Cardinality.ordered, variables.Cardinality.multiple):
+        elif value.Cardinality() in (variables.Cardinality.ordered,
+                                     variables.Cardinality.multiple):
             if value:
                 if value.Cardinality() == variables.Cardinality.multiple:
                     vList = value.value.keys()
@@ -1424,7 +1485,8 @@ class LT(NOperator):
 
             <xsd:group name="lt.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'lt')
@@ -1451,12 +1513,13 @@ class GT(NOperator):
 
     """The gt operator takes two sub-expressions which must both have single
     cardinality and have a numerical base-type. The result is a single boolean
-    with a value of true if the first expression is numerically greater than the
-    second and false if it is less than or equal to the second::
+    with a value of true if the first expression is numerically greater than
+    the second and false if it is less than or equal to the second::
 
             <xsd:group name="gt.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gt')
@@ -1488,7 +1551,8 @@ class LTE(NOperator):
 
             <xsd:group name="lte.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'lte')
@@ -1520,7 +1584,8 @@ class GTE(NOperator):
 
             <xsd:group name="durationGTE.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gte')
@@ -1552,7 +1617,8 @@ class DurationLT(NOperator):
 
             <xsd:group name="durationLT.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'durationLT')
@@ -1586,7 +1652,8 @@ class DurationGTE(NOperator):
 
             <xsd:group name="durationGTE.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'durationGTE')
@@ -1619,7 +1686,8 @@ class Sum(NOperator):
 
             <xsd:group name="sum.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'sum')
@@ -1663,7 +1731,8 @@ class Product(NOperator):
 
             <xsd:group name="product.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'product')
@@ -1707,7 +1776,8 @@ class Subtract(NOperator):
 
             <xsd:group name="subtract.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'subtract')
@@ -1748,7 +1818,8 @@ class Divide(NOperator):
 
             <xsd:group name="divide.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'divide')
@@ -1769,9 +1840,9 @@ class Divide(NOperator):
                 return variables.FloatValue(v1v / v2v)
             except ZeroDivisionError:
                 # if [the second value] is zero or the resulting value is
-                # outside the value set defined by float (not including positive
-                # and negative infinity) then the operator should result in
-                # NULL
+                # outside the value set defined by float (not including
+                # positive and negative infinity) then the operator should
+                # result in NULL
                 return variables.FloatValue()
         else:
             return variables.FloatValue()
@@ -1785,7 +1856,8 @@ class Power(NOperator):
 
             <xsd:group name="power.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'power')
@@ -1818,11 +1890,13 @@ class IntegerDivide(NOperator):
     """The integer divide operator takes 2 sub-expressions which both have
     single cardinality and base-type integer. The result is the single integer
     that corresponds to the first expression (x) divided by the second
-    expression (y) rounded down to the greatest integer (i) such that i<=(x/y)::
+    expression (y) rounded down to the greatest integer (i) such that
+    i<=(x/y)::
 
             <xsd:group name="integerDivide.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'integerDivide')
@@ -1857,7 +1931,8 @@ class IntegerModulus(NOperator):
 
             <xsd:group name="integerModulus.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="2" maxOccurs="2"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="2" maxOccurs="2"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'integerModulus')
@@ -1890,7 +1965,8 @@ class Truncate(UnaryOperator):
 
             <xsd:group name="truncate.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'truncate')
@@ -1915,7 +1991,8 @@ class Round(UnaryOperator):
 
             <xsd:group name="round.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'round')
@@ -1939,7 +2016,8 @@ class IntegerToFloat(UnaryOperator):
 
             <xsd:group name="integerToFloat.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'integerToFloat')
@@ -1961,14 +2039,17 @@ class CustomOperator(NOperator):
     operations not currently supported by this specification::
 
             <xsd:attributeGroup name="customOperator.AttrGroup">
-                    <xsd:attribute name="class" type="identifier.Type" use="optional"/>
-                    <xsd:attribute name="definition" type="uri.Type" use="optional"/>
+                    <xsd:attribute name="class" type="identifier.Type"
+                    use="optional"/>
+                    <xsd:attribute name="definition" type="uri.Type"
+                    use="optional"/>
                     <xsd:anyAttribute namespace="##other"/>
             </xsd:attributeGroup>
 
             <xsd:group name="customOperator.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                            minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'customOperator')
@@ -1983,4 +2064,6 @@ class CustomOperator(NOperator):
     def Evaluate(self, state):
         raise core.ProcessingError(
             "customOperator.%s not supported" %
-            (self.customClass if self.customClass is not None else "<unknown>"))
+            (self.customClass
+                if self.customClass is not None
+                else "<unknown>"))
