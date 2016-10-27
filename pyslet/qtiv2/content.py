@@ -16,14 +16,16 @@ class BodyElement(core.QTIElement):
     elements of the content model::
 
             <xsd:attributeGroup name="bodyElement.AttrGroup">
-                    <xsd:attribute name="id" type="identifier.Type" use="optional"/>
+                    <xsd:attribute name="id" type="identifier.Type"
+                    use="optional"/>
                     <xsd:attribute name="class" use="optional">
                             <xsd:simpleType>
                                     <xsd:list itemType="styleclass.Type"/>
                             </xsd:simpleType>
                     </xsd:attribute>
                     <xsd:attribute ref="xml:lang"/>
-                    <xsd:attribute name="label" type="string256.Type" use="optional"/>
+                    <xsd:attribute name="label" type="string256.Type"
+                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_id = ('id', core.ValidateIdentifier, lambda x: x)
     XMLATTR_class = ('style_class', None, None, list)
@@ -45,7 +47,8 @@ class BodyElement(core.QTIElement):
         raise NotImplementedError(self.__class__.__name__ + ".render_html")
 
     def RenderHTMLChildren(self, parent, profile, itemState):
-        """Renders this element's children to an external document represented by the *parent* node"""
+        """Renders this element's children to an external document represented
+        by the *parent* node"""
         for child in self.get_children():
             if type(child) in StringTypes:
                 parent.add_data(child)
@@ -155,7 +158,8 @@ class ItemBody(BodyElement):
 
             <xsd:group name="itemBody.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="block.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="block.ElementGroup" minOccurs="0"
+                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'itemBody')
@@ -173,8 +177,8 @@ class ItemBody(BodyElement):
 
     def render_html(self, parent, profile, itemState):
         """Overrides :py:meth:`BodyElement.render_html`, the result is always a
-        Div with class set to "itemBody".  Unlike other such method *parent* may
-        by None, in which case a new parentless Div is created."""
+        Div with class set to "itemBody".  Unlike other such method *parent*
+        may by None, in which case a new parentless Div is created."""
         if parent:
             htmlDiv = parent.add_child(html.Div)
         else:
