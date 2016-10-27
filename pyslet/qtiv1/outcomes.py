@@ -21,12 +21,13 @@ class OutcomesProcessing(common.QTICommentContainer):
     should be run and the outcomes from all of them together should be reported
     as the outcomes of the enclosing Section or Assessment. The outcome
     variables defined by each <outcomes_processing> element should be unique
-    across all outcomes_processing elements defined by a section. In particular,
-    it is an error for multiple <outcomes_processing> elements to set the same
-    outcome variable and the results will be undefined::
+    across all outcomes_processing elements defined by a section. In
+    particular, it is an error for multiple <outcomes_processing> elements to
+    set the same outcome variable and the results will be undefined::
 
-    <!ELEMENT outcomes_processing (qticomment? , outcomes , objects_condition* ,
-            processing_parameter* , map_output* , outcomes_feedback_test*)>
+    <!ELEMENT outcomes_processing (qticomment? , outcomes ,
+            objects_condition* , processing_parameter* , map_output* ,
+            outcomes_feedback_test*)>
     <!ATTLIST outcomes_processing  scoremodel CDATA  #IMPLIED >"""
     XMLNAME = "outcomes_processing"
     XMLATTR_scoremodel = 'scoreModel'
@@ -56,9 +57,9 @@ class OutcomesProcessing(common.QTICommentContainer):
 class ProcessingParameter(core.QTIElement):
 
     """This element contains the value of a particular parameter that is to be
-    used by the corresponding scoring algorithm. Each parameter has a particular
-    meaning to each scoring algorithm i.e. there is no established vocabulary
-    for these parameters::
+    used by the corresponding scoring algorithm. Each parameter has a
+    particular meaning to each scoring algorithm i.e. there is no established
+    vocabulary for these parameters::
 
     <!ELEMENT processing_parameter (#PCDATA)>
     <!ATTLIST processing_parameter  pname CDATA  #REQUIRED >"""
@@ -75,11 +76,12 @@ class MapOutput(core.QTIElement):
 
     """This element is used to re-map the named variable to another named
     variable (given in the body of the element). The target variable name must
-    have been declared using <decvar> in the <outcomes> element of the enclosing
-    <outcomes_processing> element. When a variable is remapped, all of its
-    derived variables are to be remapped as well. Thus if remapping 'SCORE' to
-    'myScore', 'SCORE.min', 'SCORE.max' and 'SCORE.normalized' would be remapped
-    to 'myScore.min', 'myScore.max' and 'myScore.normalized' respectively.
+    have been declared using <decvar> in the <outcomes> element of the
+    enclosing <outcomes_processing> element. When a variable is remapped, all
+    of its derived variables are to be remapped as well. Thus if remapping
+    'SCORE' to 'myScore', 'SCORE.min', 'SCORE.max' and 'SCORE.normalized'
+    would be remapped to 'myScore.min', 'myScore.max' and 'myScore.normalized'
+    respectively.
     Data-type = string (1-256 chars)::
 
     <!ELEMENT map_output (#PCDATA)>
@@ -99,10 +101,11 @@ class ObjectsCondition(common.QTICommentContainer):
     and Sections) selected by the selection algorithm that are to be used in
     this score. This allows for the construction of subscores. If no
     <outcomes_metadata> element is present within the <objects_conditions>
-    element to select a subset of objects, then the <objects_conditions> applies
-    to all objects selected by the selection algorithm. If multiple
+    element to select a subset of objects, then the <objects_conditions>
+    applies to all objects selected by the selection algorithm. If multiple
     <objects_conditions> are given within a single <outcomes_processing>
-    element, then the algorithm is applied to the union of all objects selected.
+    element, then the algorithm is applied to the union of all objects
+    selected.
     The <objects_parameter>, <map_input> and <objectscond_extension> elements
     within the <objects_condition> element apply only to those objects selected
     in the condition. If an object is selected by more than one
@@ -140,8 +143,9 @@ class ObjectsParameter(core.QTIElement):
     """This element contains the value of a particular parameter that is to be
     used by the corresponding scoring algorithm variable selection. Each
     parameter has a particular meaning to each scoring algorithm i.e. there is
-    no established vocabulary for these parameters. These parameters are applied
-    only to the objects selected by the enclosing <outcomes_condition> element.
+    no established vocabulary for these parameters. These parameters are
+    applied only to the objects selected by the enclosing <outcomes_condition>
+    element.
     If multiple <outomes_condition> select the same object, the parameters are
     taken from the first <outcomes_condition> that selects the element::
 
@@ -225,9 +229,9 @@ class OutcomesOperator(core.QTIElement):
 class OutcomesMetadata(OutcomesOperator):
 
     """This element defines the rule that is applied to the IMS QTI-specific
-    and/or IMS Meta-data fields of the object to decide if the object scoring is
-    to be aggregated. The content contains the value of the meta-data field that
-    is being tested for within the rule. Data-type = String (1-64 chars)::
+    and/or IMS Meta-data fields of the object to decide if the object scoring
+    is to be aggregated. The content contains the value of the meta-data field
+    that is being tested for within the rule. Data-type = String (1-64 chars)::
 
     <!ELEMENT outcomes_metadata (#PCDATA)>
     <!ATTLIST outcomes_metadata
@@ -254,7 +258,8 @@ class AndObjects(OutcomesOperator):
     object is selected for aggregation if all of the contained rules are
     'True'::
 
-    <!ELEMENT and_objects (outcomes_metadata | and_objects | or_objects | not_objects)+>"""
+    <!ELEMENT and_objects (outcomes_metadata | and_objects | or_objects |
+    not_objects)+>"""
     XMLNAME = 'and_objects'
     XMLCONTENT = xml.ElementContent
 
@@ -269,11 +274,12 @@ class AndObjects(OutcomesOperator):
 class OrObjects(OutcomesOperator):
 
     """The <or_objects> element supports the construction of complex score
-    condition rules to be built based upon the logical 'OR' operator. The object
-    is selected for aggregation if at least one of the contained rules is
-    'True'::
+    condition rules to be built based upon the logical 'OR' operator. The
+    object is selected for aggregation if at least one of the contained rules
+    is 'True'::
 
-    <!ELEMENT or_objects (outcomes_metadata | and_objects | or_objects | not_objects)+>"""
+    <!ELEMENT or_objects (outcomes_metadata | and_objects | or_objects |
+    not_objects)+>"""
     XMLNAME = 'or_objects'
     XMLCONTENT = xml.ElementContent
 
@@ -291,7 +297,8 @@ class NotObjects(OutcomesOperator):
     be built based upon the logical 'NOT' operator. The object is selected for
     aggregation if the contained rule(s) is 'False'::
 
-    <!ELEMENT not_objects (outcomes_metadata | and_objects | or_objects | not_objects)>
+    <!ELEMENT not_objects (outcomes_metadata | and_objects | or_objects |
+    not_objects)>
     """
     XMLNAME = 'not_objects'
     XMLCONTENT = xml.ElementContent
@@ -336,7 +343,8 @@ class OutcomesTest(core.QTIElement):
 class VariableTest(OutcomesTest):
 
     """The conditional test that is to be applied to the aggregated score
-    variables. A wide range of separate and combinatorial tests can be applied::
+    variables. A wide range of separate and combinatorial tests can be
+    applied::
 
     <!ELEMENT variable_test (#PCDATA)>
     <!ATTLIST variable_test
