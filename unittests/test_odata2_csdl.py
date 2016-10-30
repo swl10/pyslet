@@ -1,14 +1,16 @@
 #! /usr/bin/env python
 
-import unittest
+import datetime
 import decimal
+import unittest
 
-import pyslet.xml.structures as xml
 
+from pyslet import iso8601 as iso
 from pyslet.py2 import (
     long2,
     uempty)
 from pyslet.odata2 import csdl as edm
+from pyslet.xml import structures as xml
 
 
 def suite():
@@ -435,6 +437,45 @@ class ValueTests(unittest.TestCase):
         v.set_from_value(-1)
         v2.set_random_value(v)
         self.assertTrue(v2.value <= 0)
+
+    def test_datetime_value(self):
+        """Test the DateTimeValue class."""
+        v = edm.EDMValue.from_type(edm.SimpleType.DateTime)
+        # check __nonzero__
+        self.assertFalse(v)
+        # check is_null
+        self.assertTrue(v.is_null())
+        # set from None
+        v.set_from_value(None)
+        self.assertFalse(v)
+        self.assertTrue(v.is_null())
+        # set from timepoint
+        d = iso.TimePoint(date=iso.Date(century=19, year=69, month=7, day=20),
+                          time=iso.Time(hour=20, minute=17, second=40))
+        v.set_from_value(d)
+        # check __nonzero__
+        self.assertTrue(v)
+        # check is_null
+        self.assertFalse(v.is_null())
+        self.assertTrue(isinstance(v.value, iso.TimePoint))
+        self.assertTrue(v.value == d)
+        # from a numeric time
+        dunix = iso.TimePoint(
+            date=iso.Date(century=20, year=16, month=10, day=23),
+            time=iso.Time(hour=16, minute=14, second=40))
+        v.set_from_value(dunix.with_zone(0).get_unixtime())
+        self.assertTrue(isinstance(v.value, iso.TimePoint))
+        self.assertTrue(v.value == dunix)
+        # from a python datetime
+        v.set_from_value(datetime.datetime(1969, 7, 20, 20, 17, 40))
+        self.assertTrue(isinstance(v.value, iso.TimePoint))
+        self.assertTrue(v.value == d)
+        # from a python date
+        v.set_from_value(datetime.date(1969, 7, 20))
+        self.assertTrue(isinstance(v.value, iso.TimePoint))
+        d0 = iso.TimePoint(date=iso.Date(century=19, year=69, month=7, day=20),
+                           time=iso.Time(hour=0, minute=0, second=0))
+        self.assertTrue(v.value == d0)
 
     def test_string_value(self):
         """Test the StringValue class."""

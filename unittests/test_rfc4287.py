@@ -263,6 +263,12 @@ class AtomDateTests(unittest.TestCase):
                         "Attributes present on construction")
         self.assertTrue(isinstance(date.get_value(), iso8601.TimePoint),
                         "Value not a TimePoint")
+        date.set_value("2016-10-22T19:10:00Z")
+        date2 = date.get_value()
+        self.assertTrue(isinstance(date2, iso8601.TimePoint),
+                        "Value not a TimePoint")
+        self.assertTrue(
+            date2 == iso8601.TimePoint.from_str("2016-10-22T19:10:00Z"))
 
 
 class FeedTests(unittest.TestCase):

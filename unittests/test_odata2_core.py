@@ -33,6 +33,7 @@ def suite(prefix='test'):
         loader.loadTestsFromTestCase(CommonExpressionTests),
         loader.loadTestsFromTestCase(ParamsExpressionTests),
         loader.loadTestsFromTestCase(ODataURITests),
+        loader.loadTestsFromTestCase(JSONTests),
         loader.loadTestsFromTestCase(StreamInfoTests)
     ))
 
@@ -1967,6 +1968,107 @@ class ODataURITests(unittest.TestCase):
             ds_uri.nav_path[1][0] == 'Property', "property name")
         self.assertTrue(
             ds_uri.nav_path[1][1] is None, "property has no key-predicate")
+
+
+class JSONTests(unittest.TestCase):
+
+    def test_datetime_to_json(self):
+        v = edm.EDMValue.from_type(edm.SimpleType.DateTime)
+        j = odata.simple_value_to_json_str(v)
+        self.assertTrue(j == "null")
+        d = iso.TimePoint(
+            date=iso.Date(century=19, year=70, month=1, day=1),
+            time=iso.Time(hour=0, minute=0, second=0))
+        v.set_from_value(d)
+        j = odata.simple_value_to_json_str(v)
+        self.assertTrue(j == '"\\/Date(0)\\/"', j)
+        d = iso.TimePoint(
+            date=iso.Date(century=19, year=70, month=1, day=1),
+            time=iso.Time(hour=6, minute=0, second=0))
+        v.set_from_value(d)
+        j = odata.simple_value_to_json_str(v)
+        self.assertTrue(j == '"\\/Date(21600000)\\/"', j)
+
+    def test_datetime_from_json(self):
+        d = iso.TimePoint(
+            date=iso.Date(century=19, year=70, month=1, day=1),
+            time=iso.Time(hour=0, minute=0, second=0))
+        v = edm.EDMValue.from_type(edm.SimpleType.DateTime)
+        odata.simple_value_from_json(v, None)
+        self.assertFalse(v)
+        # json.loads will have removed the redundant back-slash
+        odata.simple_value_from_json(v, "/Date(0)/")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d)
+        # A timezone offset is valid for DateTime but we are going to
+        # strip the zone, should we convert to UTC before doing so?  Yes
+        # because the person who sent us this value is going to get
+        # something back without an offset when we serialise and, if
+        # they follow the standard, they'll assume it's UTZ and can
+        # reapply their desired offset.
+        odata.simple_value_from_json(v, "/Date(21600000+0360)/")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d)
+        # It also appears that sometimes we'll get ISO dates and
+        # need to handle them in the same way.
+        odata.simple_value_from_json(v, "1970-01-01T00:00:00")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d)
+        odata.simple_value_from_json(v, "1970-01-01T00:00:00Z")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d)
+        odata.simple_value_from_json(v, "1970-01-01T06:00:00+06:00")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d)
+
+    def test_datetimeoffset_to_json(self):
+        v = edm.EDMValue.from_type(edm.SimpleType.DateTimeOffset)
+        j = odata.simple_value_to_json_str(v)
+        self.assertTrue(j == "null")
+        d = iso.TimePoint(
+            date=iso.Date(century=19, year=70, month=1, day=1),
+            time=iso.Time(hour=0, minute=0, second=0, zdirection=-1, zhour=5))
+        v.set_from_value(d)
+        j = odata.simple_value_to_json_str(v)
+        self.assertTrue(j == '"\\/Date(0-0300)\\/"', j)
+        d = iso.TimePoint(
+            date=iso.Date(century=19, year=70, month=1, day=1),
+            time=iso.Time(hour=6, minute=0, second=0, zdirection=1, zhour=5))
+        v.set_from_value(d)
+        j = odata.simple_value_to_json_str(v)
+        self.assertTrue(j == '"\\/Date(21600000+0300)\\/"', j)
+
+    def test_datetimeoffset_from_json(self):
+        d0 = iso.TimePoint(
+            date=iso.Date(century=19, year=70, month=1, day=1),
+            time=iso.Time(hour=0, minute=0, second=0, zdirection=0))
+        d = iso.TimePoint(
+            date=iso.Date(century=19, year=70, month=1, day=1),
+            time=iso.Time(hour=0, minute=0, second=0, zdirection=-1, zhour=5))
+        v = edm.EDMValue.from_type(edm.SimpleType.DateTimeOffset)
+        odata.simple_value_from_json(v, None)
+        self.assertFalse(v)
+        # json.loads will have removed the redundant back-slash
+        odata.simple_value_from_json(v, "/Date(0)/")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d0, "extended to UTC")
+        self.assertTrue(v.value.get_zone()[0] == 0, "extended to UTC")
+        odata.simple_value_from_json(v, "/Date(0-0300)/")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d)
+        self.assertTrue(v.value.get_zone() == (-1, 300), "zone preserved")
+        # It also appears that sometimes we'll get ISO dates and
+        # need to handle them in the same way.
+        odata.simple_value_from_json(v, "1970-01-01T00:00:00")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d0)
+        odata.simple_value_from_json(v, "1970-01-01T00:00:00Z")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d0)
+        odata.simple_value_from_json(v, "1970-01-01T00:00:00-05:00")
+        self.assertTrue(v)
+        self.assertTrue(v.value == d)
+        self.assertTrue(v.value.get_zone() == (-1, 300), "zone preserved")
 
 
 class StreamInfoTests(unittest.TestCase):

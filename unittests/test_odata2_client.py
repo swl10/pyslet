@@ -16,6 +16,7 @@ from pyslet.odata2 import csdl as edm
 from pyslet.odata2 import client
 from pyslet.odata2.memds import InMemoryEntityContainer
 from pyslet.odata2.server import Server
+from pyslet.py26 import py26
 
 from test_odata2_core import DataServiceRegressionTests
 
@@ -276,4 +277,7 @@ class RegressionTests(DataServiceRegressionTests):
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
-    unittest.main()
+    if py26:
+        unittest.TextTestRunner().run(suite('tes'))
+    else:
+        unittest.main()

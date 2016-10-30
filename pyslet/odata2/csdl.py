@@ -1277,8 +1277,10 @@ class DateTimeValue(SimpleValue):
             yyyy-mm-ddThh:mm[:ss[.fffffff]]
 
     DateTime values can be set from an instance of
-    :py:class:`iso8601.TimePoint` or type int, (Python 2: long,) float
-    or Decimal.
+    :py:class:`iso8601.TimePoint` or type int, (Python 2: long,) float,
+    Decimal or the standard Python date.datetime and date.date
+    instances. In the case of date.date, the new value represents
+    midnight at the beginning of the specified day.
 
     Any zone specifier is ignored.  There is *no* conversion to UTC, the
     value simply becomes a local time in an unspecified zone.  This is a
@@ -1320,14 +1322,13 @@ class DateTimeValue(SimpleValue):
             self.value = new_value.with_zone(zdirection=None)
         elif isinstance(new_value, (int, long2, float, decimal.Decimal)) and \
                 new_value >= 0:
-            self.value = iso8601.TimePoint.from_unix_time(float(new_value))
+            self.value = iso8601.TimePoint.from_unix_time(
+                float(new_value)).with_zone(None)
         elif isinstance(new_value, datetime.datetime):
             self.value = iso8601.TimePoint(
                 date=iso8601.Date(
-                    century=new_value.year //
-                    100,
-                    year=new_value.year %
-                    100,
+                    century=new_value.year // 100,
+                    year=new_value.year % 100,
                     month=new_value.month,
                     day=new_value.day),
                 time=iso8601.Time(
@@ -1336,6 +1337,13 @@ class DateTimeValue(SimpleValue):
                     second=new_value.second +
                     (new_value.microsecond / 1000000.0),
                     zdirection=None))
+        elif isinstance(new_value, datetime.date):
+            self.value = iso8601.TimePoint(
+                date=iso8601.Date(
+                    century=new_value.year // 100,
+                    year=new_value.year % 100,
+                    month=new_value.month,
+                    day=new_value.day))
         else:
             raise TypeError("Can't set DateTime from %s" % repr(new_value))
 
@@ -3814,7 +3822,7 @@ class Documentation(CSDLElement):
         if self.Summary:
             yield self.Summary
         if self.LongDescription:
-            yield self.LondDescription
+            yield self.LongDescription
 
 
 class Summary(CSDLElement):
