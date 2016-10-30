@@ -622,9 +622,11 @@ class DocumentTests(unittest.TestCase):
         d = structures.Document(base_uri='readFile.xml')
         d.read()
         f = open('readFile.xml', 'rb')
-        fdata = f.read()
+        flines = f.read().splitlines()
         f.close()
-        self.assertTrue(bytes(d) == fdata, "XML output: %s" % bytes(d))
+        # bytes always formats using unix-style newlines
+        dlines = bytes(d).split(b'\n')
+        self.assertTrue(dlines == flines, "XML output: %s" % bytes(d))
         d = structures.Document(base_uri='ascii.xml')
         d.read()
         f = open('ascii.xml', 'rb')

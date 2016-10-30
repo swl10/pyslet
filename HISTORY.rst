@@ -53,6 +53,37 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+Build 20161030:
+
+#49 Fixed OData serialisation of LongDescription element
+
+Typo in pyslet/odata2/csdl.py - thanks to @thomaseitler
+
+#51 Bug fixes and improvements to OData JSON date formats
+
+We now accept ISO string formatted dates for both DateTime and
+DateTimeOffset.  Note that providing a timezone other than Z (+00:00)
+when setting a DateTime will cause the time to be zone-shifted to UTC
+*before* the value is set.  Thanks to @ianwj5int.
+
+#53 Extended OData DateTimeValue to be set from datetime.date
+
+You can now set DateTimeValue using a standard python datetime.date, the
+value is extended to be 00:00:00 on that date.  Thanks to @nmichaud
+
+#54 Fixed Atom Date handling bug
+
+Thanks to @nmichaud
+
+#55 Replaced `print_exception` with proper logging
+
+Thanks to @ianwj5int for reporting.
+
+Untracked changes:
+
+Fixed a bug in the XML tests that shows up on Windows if the xml test
+files are checked out with auto-translation of line ends.
+
 
 Build 20160405:
 
