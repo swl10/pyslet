@@ -13,6 +13,12 @@
                     <End Role="A" EntitySet="ChangesetA"/>
                     <End Role="B" EntitySet="ChangesetB"/>
                 </AssociationSet>
+                <EntitySet Name="ChangesetC" EntityType="RegressionModel.EntityC"/>
+                <EntitySet Name="ChangesetD" EntityType="RegressionModel.EntityD"/>
+                <AssociationSet Name="C_D" Association="RegressionModel.C_D">
+                    <End Role="C" EntitySet="ChangesetC"/>
+                    <End Role="D" EntitySet="ChangesetD"/>
+                </AssociationSet>
                 <EntitySet Name="AllTypes" EntityType="RegressionModel.AllTypes"/>
                 <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
                 <EntitySet Name="OnlyKeys" EntityType="RegressionModel.OnlyKey"/>
@@ -172,6 +178,28 @@
             <Association Name="A_B">
                 <End Role="A" Type="RegressionModel.EntityA" Multiplicity="1"/>
                 <End Role="B" Type="RegressionModel.EntityB" Multiplicity="0..1"/>
+            </Association>
+            <EntityType Name="EntityC">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" MaxLength="32" FixedLength="false"/>
+                <NavigationProperty Name="D" FromRole="C" ToRole="D"
+                    Relationship="RegressionModel.C_D"/>
+            </EntityType>
+            <EntityType Name="EntityD">
+                <Key>
+                    <PropertyRef Name="K"/>
+                </Key>
+                <Property Name="K" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Data" Type="Edm.String" Nullable="true" MaxLength="32" FixedLength="false"/>
+                <NavigationProperty Name="A" FromRole="D" ToRole="C"
+                    Relationship="RegressionModel.C_D"/>
+            </EntityType>
+            <Association Name="C_D">
+                <End Role="C" Type="RegressionModel.EntityA" Multiplicity="0..1"/>
+                <End Role="D" Type="RegressionModel.EntityB" Multiplicity="*"/>
             </Association>
             <EntityType Name="AllTypes">
                 <Key>

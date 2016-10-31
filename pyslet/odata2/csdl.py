@@ -3405,8 +3405,8 @@ class NavigationCollection(EntityCollection):
     On construction:
 
     *   *entity_set* is the entity set containing the target entities,
-            the collection behaves like a subset of this entity set.  It is
-            passed to super
+        the collection behaves like a subset of this entity set.  It is
+        passed to super
 
     Named arguments specific to this class:
 
@@ -3572,6 +3572,16 @@ class FunctionCollection(object):
             "Unbound FunctionCollection: %s" % self.function.name)
 
 
+class ChangesetOperation(object):
+
+    def __init__(self, id, opcode, collection, entity):
+        self.id = id
+        self.opcode = opcode
+        self.collection = collection
+        self.entity = entity
+        self.done = False
+
+
 class Changeset(DictionaryLike):
 
     """Abstract base class for changesets
@@ -3599,6 +3609,7 @@ class Changeset(DictionaryLike):
     UPDATE = 2
     DELETE = 3
     REPLACE = 4
+    LINK = 5
 
     def __init__(self, container, **kws):
         self.container = container
@@ -3622,22 +3633,28 @@ class Changeset(DictionaryLike):
         linked or updated."""
         if self.done:
             raise ChangesetCommitted
-        if entity.alias is not None:
-            raise EntityExists
         alias = str(self._next_id)
-        self.operations[alias] = [self.INSERT, collection, entity, False]
-        entity.alias = alias
+        if entity.alias is not None or entity.exists:
+            if not isinstance(collection, NavigationCollection):
+                raise EntityExists
+            # link entity
+            self.operations[alias] = ChangesetOperation(
+                alias, self.LINK, collection, entity)
+        else:
+            self.operations[alias] = ChangesetOperation(
+                alias, self.INSERT, collection, entity)
+            entity.alias = alias
         self._next_id += 1
 
     def update_entity(self, entity):
         """Add an update operation to this changeset"""
         if self.done:
             raise ChangesetCommitted
-        if entity.alias is not None:
-            raise EntityExists
+        if not entity.exists:
+            raise NonExistentEntity
         alias = str(self._next_id)
-        self.operations[alias] = [self.UPDATE, None, entity, False]
-        entity.alias = alias
+        self.operations[alias] = ChangesetOperation(
+            alias, self.UPDATE, None, entity)
         self._next_id += 1
 
     def delete_entity(self, entity):
@@ -3647,7 +3664,8 @@ class Changeset(DictionaryLike):
         if entity.alias is not None:
             raise EntityExists
         alias = str(self._next_id)
-        self.operations[alias] = [self.DELETE, None, entity, False]
+        self.operations[alias] = ChangesetOperation(
+            alias, self.DELETE, None, entity)
         entity.alias = alias
         self._next_id += 1
 
@@ -3659,7 +3677,8 @@ class Changeset(DictionaryLike):
         if self.done:
             raise ChangesetCommitted
         alias = str(self._next_id)
-        self.operations[alias] = [self.DELETE, collection, entity, False]
+        self.operations[alias] = ChangesetOperation(
+            alias, self.DELETE, collection, entity)
         self._next_id += 1
 
     def replace_entity(self, collection, entity):
@@ -3670,44 +3689,57 @@ class Changeset(DictionaryLike):
         if self.done:
             raise ChangesetCommitted
         alias = str(self._next_id)
-        self.operations[alias] = [self.REPLACE, collection, entity, False]
+        self.operations[alias] = ChangesetOperation(
+            alias, self.REPLACE, collection, entity)
         self._next_id += 1
 
     def __getitem__(self, key):
-        op, collection, entity, done = self.operations[key]
-        if op == self.INSERT:
-            return entity
+        op = self.operations[key]
+        if op.opcode == self.INSERT:
+            return op.entity
         else:
             raise KeyError
 
     def do_commit(self):
         self.inserted_entities = self.collect_inserted_entities()
         # go through each operation and do it
-        for operation in list(dict_values(self.operations)):
-            op, collection, entity, done = operation
-            if done:
+        for op in list(dict_values(self.operations)):
+            if op.done:
                 continue
-            operation[3] = True
-            self.do_operation(op, collection, entity)
+            op.done = True
+            self.do_operation(op)
 
-    def do_operation(self, op, collection, entity):
+    def do_bindings(self, entity):
+        # We iterate through any bindings to check for aliases so
+        # that any constraints on operation order are honoured"""
+        for k, dv in entity.navigation_items():
+            for bound_entity in dv.bindings:
+                if not isinstance(bound_entity, Entity):
+                    # assume that any key identifies an entity that
+                    # exists outside this changeset
+                    continue
+                if bound_entity.alias:
+                    # we need to insert this one first
+                    op = self.operations[bound_entity.alias]
+                    if not op.done:
+                        op.done = True
+                        self.do_operation(op)
+
+    def do_operation(self, op):
         """Executes a stored operation within a changeset"""
-        if op == self.INSERT:
-            # We iterate through any bindings to check for aliases so
-            # that any constraints on operation order are honoured"""
-            for k, dv in entity.navigation_items():
-                for bound_entity in dv.bindings:
-                    if not isinstance(bound_entity, Entity):
-                        # assume that any key identifies an entity that
-                        # exists outside this changeset
-                        continue
-                    if bound_entity.alias:
-                        # we need to insert this one first
-                        operation = self.operations[bound_entity.alias]
-                        if not operation[3]:
-                            operation[3] = True
-                            self.do_operation(*operation[:3])
-            self.do_insert_entity(collection, entity)
+        if op.opcode == self.INSERT:
+            self.do_bindings(op.entity)
+            self.do_insert_entity(op)
+        elif op.opcode == self.UPDATE:
+            self.do_bindings(op.entity)
+            self.do_update_entity(op)
+        elif op.opcode == self.LINK:
+            if op.entity.alias:
+                child_op = self.operations[op.entity.alias]
+                if not child_op.done:
+                    child_op.done = True
+                    self.do_operation(child_op)
+            self.do_link_entity(op)
 
     def _collect_inserted_entity(self, entity, collection):
         """Adds entity to dictionary of entities
@@ -3734,10 +3766,9 @@ class Changeset(DictionaryLike):
 
     def collect_inserted_entities(self):
         entities = {}
-        for operation in list(dict_values(self.operations)):
-            op, collection, entity, done = operation
-            if op == self.INSERT:
-                self._collect_inserted_entity(entity, entities)
+        for op in list(dict_values(self.operations)):
+            if op.opcode == self.INSERT:
+                self._collect_inserted_entity(op.entity, entities)
         return list(dict_values(entities))
 
     def remove_aliases(self, rollback_entities=False):
@@ -3745,23 +3776,27 @@ class Changeset(DictionaryLike):
 
         Entities can still be looked up here but they are now free to be
         used in another transaction."""
-        for operation in dict_values(self.operations):
-            op, collection, entity, done = operation
-            if op == self.INSERT:
-                entity.alias = None
+        for op in dict_values(self.operations):
+            if op.opcode == self.INSERT:
+                op.entity.alias = None
         if rollback_entities:
             for entity in self.inserted_entities:
                 entity.exists = False
 
     def close_collections(self):
-        for operation in list(dict_values(self.operations)):
-            op, collection, entity, done = operation
-            if collection is not None:
-                collection.close()
+        for op in list(dict_values(self.operations)):
+            if op.collection is not None:
+                op.collection.close()
         self.done = True
 
-    def do_insert_entity(self, collection, entity):
-        collection.insert_entity(entity)
+    def do_insert_entity(self, op):
+        op.collection.insert_entity(op.entity)
+
+    def do_update_entity(self, op):
+        op.entity.commit()
+
+    def do_link_entity(self, op):
+        op.collection[op.entity.key()] = op.entity
 
     def commit(self):
         raise NotImplementedError

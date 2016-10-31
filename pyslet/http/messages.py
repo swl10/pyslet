@@ -1583,6 +1583,7 @@ class RecvWrapperBase(RawIOBase):
 
 
 class RecvWrapper(RecvWrapperBase):
+
     """A stream wrapper for reading HTTP Messages
 
     src

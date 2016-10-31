@@ -2346,6 +2346,14 @@ class SQLEntityCollection(SQLCollectionBase):
         raise NotImplementedError("Automatic keys not supported")
 
     def update_entity(self, entity):
+        """Updates *entity* into the collection.
+
+        We override this method, rerouting it to a SQL-specific
+        implementation that takes an additional transaction argument."""
+        transaction = SQLTransaction(self.container, self.connection)
+        self.update_entity_transaction(entity, transaction=transaction)
+
+    def update_entity_transaction(self, entity, transaction):
         """Updates *entity*
 
         This method follows a very similar pattern to :py:meth:`InsertMethod`,
@@ -2379,7 +2387,6 @@ class SQLEntityCollection(SQLCollectionBase):
             fk_values = []
         fk_values = []
         fk_mapping = self.container.fk_table[self.entity_set.name]
-        transaction = SQLTransaction(self.container, self.connection)
         try:
             transaction.begin()
             nav_done = set()
@@ -3020,6 +3027,10 @@ class SQLNavigationCollection(SQLCollectionBase, core.NavigationCollection):
         super(SQLNavigationCollection, self).__init__(**kwargs)
 
     def __setitem__(self, key, entity):
+        self.check_link(key, entity)
+        self.insert_link(entity)
+
+    def check_link(self, key, entity):
         # sanity check entity to check it can be inserted here
         if (not isinstance(entity, edm.Entity) or
                 entity.entity_set is not self.entity_set):
@@ -3030,14 +3041,13 @@ class SQLNavigationCollection(SQLCollectionBase, core.NavigationCollection):
             raise edm.NonExistentEntity(
                 "Attempt to link to a non-existent entity: " +
                 str(entity.get_location()))
-        self.insert_link(entity)
 
     def insert_link(self, entity, transaction=None):
         """Inserts a link to *entity* into this collection.
 
         transaction
-                An optional transaction.  If present, the connection is left
-                uncommitted."""
+            An optional transaction.  If present, the connection is left
+            uncommitted."""
         raise NotImplementedError
 
     def replace(self, entity):
@@ -3995,8 +4005,16 @@ class SQLChangeset(edm.Changeset):
                 self.sql_container.release_connection(connection)
             self.remove_aliases(rollback)
 
-    def do_insert_entity(self, collection, entity):
-        collection.insert_entity_transaction(entity, self.transaction)
+    def do_insert_entity(self, op):
+        op.collection.insert_entity_transaction(op.entity, self.transaction)
+
+    def do_update_entity(self, op):
+        with op.entity.entity_set.open() as collection:
+            collection.update_entity_transaction(op.entity, self.transaction)
+
+    def do_link_entity(self, op):
+        op.collection.check_link(op.entity.key(), op.entity)
+        op.collection.insert_link(op.entity, self.transaction)
 
 
 class SQLEntityContainer(object):

@@ -153,19 +153,6 @@ class ClientCollection(core.EntityCollection):
             params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
         return request
 
-    def insert_response(self, entity, response, res_body):
-        if response.status == 201:
-            # success, read the entity back from the response
-            doc = core.Document()
-            doc.read(res_body)
-            entity.exists = True
-            doc.root.get_value(entity)
-            # so which bindings got handled?  Assume all of them
-            for k, dv in entity.navigation_items():
-                dv.bindings = []
-        else:
-            self.response_error(response, res_body)
-
     def insert_entity(self, entity):
         if entity.exists:
             raise edm.EntityExists(str(entity.get_location()))
@@ -182,7 +169,17 @@ class ClientCollection(core.EntityCollection):
         else:
             request = self.insert_request(entity)
             self.client.process_request(request)
-            self.insert_response(entity, request.response, request.res_body)
+            if request.response.status == 201:
+                # success, read the entity back from the response
+                doc = core.Document()
+                doc.read(request.res_body)
+                entity.exists = True
+                doc.root.get_value(entity)
+                # so which bindings got handled?  Assume all of them
+                for k, dv in entity.navigation_items():
+                    dv.bindings = []
+            else:
+                self.response_error(request.response, request.res_body)
 
     def len_request(self):
         feed_url = self.base_uri
@@ -580,9 +577,7 @@ class EntityCollection(ClientCollection, core.EntityCollection):
     """An entity collection that provides access to entities stored
     remotely and accessed through *client*."""
 
-    def update_entity(self, entity):
-        if not entity.exists:
-            raise edm.NonExistentEntity(str(entity.get_location()))
+    def update_request(self, entity):
         doc = core.Document(root=core.Entry)
         doc.root.set_value(entity, True)
         data = str(doc).encode('utf-8')
@@ -590,6 +585,12 @@ class EntityCollection(ClientCollection, core.EntityCollection):
             str(entity.get_location()), 'PUT', entity_body=data)
         request.set_content_type(
             params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
+        return request
+
+    def update_entity(self, entity):
+        if not entity.exists:
+            raise edm.NonExistentEntity(str(entity.get_location()))
+        request = self.update_request(entity)
         self.client.process_request(request)
         if request.status == 204:
             # success, nothing to read back but we're not done
@@ -806,6 +807,16 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             else:
                 raise core.InvalidEntryDocument(str(entity_url))
 
+    def link_request(self, entity, method='POST'):
+        doc = core.Document(root=core.URI)
+        doc.root.set_value(str(entity.get_location()))
+        data = str(doc).encode('utf-8')
+        request = http.ClientRequest(
+            str(self.linksURI), 'POST', entity_body=data)
+        request.set_content_type(
+            params.MediaType.from_str('application/xml'))
+        return request
+
     def __setitem__(self, key, entity):
         if not isinstance(entity, edm.Entity) or \
                 entity.entity_set is not self.entity_set:
@@ -835,26 +846,14 @@ class NavigationCollection(ClientCollection, core.NavigationCollection):
             elif request.status != 404:
                 # some type of error
                 self.raise_error(request)
-            doc = core.Document(root=core.URI)
-            doc.root.set_value(str(entity.get_location()))
-            data = str(doc).encode('utf-8')
-            request = http.ClientRequest(
-                str(self.linksURI), 'PUT', entity_body=data)
-            request.set_content_type(
-                params.MediaType.from_str('application/xml'))
+            request = self.link_request(entity, 'PUT')
             self.client.process_request(request)
             if request.status == 204:
                 return
             else:
                 self.raise_error(request)
         else:
-            doc = core.Document(root=core.URI)
-            doc.root.set_value(str(entity.get_location()))
-            data = str(doc).encode('utf-8')
-            request = http.ClientRequest(
-                str(self.linksURI), 'POST', entity_body=data)
-            request.set_content_type(
-                params.MediaType.from_str('application/xml'))
+            request = self.link_request(entity)
             self.client.process_request(request)
             if request.status == 204:
                 return
@@ -1085,13 +1084,7 @@ class ClientChangeset(edm.Changeset):
             inner_part = messages.RecvWrapper(res_part, messages.Response)
             inner_response = inner_part.read_message_header()
             inner_body = inner_part.read()
-            cid = res_message.get_content_id()
-            if cid is not None:
-                at_pos = cid.find('@')
-                if at_pos > 0:
-                    cid = cid[:at_pos]
-                else:
-                    cid = None
+            cid = res_message.get_header("Content-ID").decode('ascii')
             if inner_response.status == 201 and cid is not None:
                 # created!
                 entity = self[cid]
@@ -1116,17 +1109,46 @@ class ClientChangeset(edm.Changeset):
         if result is not None:
             raise result
 
-    def do_insert_entity(self, collection, entity):
-        cid = "%s@id%X.changeset" % (entity.alias, id(self))
-        request = collection.insert_request(entity)
+    def do_insert_entity(self, op):
+        # cid = "%s@id%X.changeset" % (entity.alias, id(self))
+        cid = op.entity.alias
+        request = op.collection.insert_request(op.entity)
         request.set_client(self.client)
         part = multipart.MessagePart(
             entity_body=messages.SendWrapper(
                 request, protocol=params.HTTP_1p0))
         part.set_content_type("application/http")
         part.set_content_transfer_encoding("binary")
-        part.set_content_id(cid)
+        part.set_header("Content-ID", cid)
         self.parts.append(part)
+
+    def do_update_entity(self, op):
+        cid = op.id
+        with op.entity.entity_set.open() as collection:
+            request = collection.update_request(op.entity)
+        request.set_client(self.client)
+        part = multipart.MessagePart(
+            entity_body=messages.SendWrapper(
+                request, protocol=params.HTTP_1p0))
+        part.set_content_type("application/http")
+        part.set_content_transfer_encoding("binary")
+        part.set_header("Content-ID", cid)
+        self.parts.append(part)
+
+    def do_link_entity(self, op):
+        cid = op.id
+        if op.collection.isCollection:
+            request = op.collection.link_request(op.entity)
+            request.set_client(self.client)
+            part = multipart.MessagePart(
+                entity_body=messages.SendWrapper(
+                    request, protocol=params.HTTP_1p0))
+            part.set_content_type("application/http")
+            part.set_content_transfer_encoding("binary")
+            part.set_header("Content-ID", cid)
+            self.parts.append(part)
+        else:
+            NotImplementedError("Change not supported in non-collection.")
 
 
 class Client(app.Client):

@@ -2207,6 +2207,29 @@ class DataServiceRegressionTests(unittest.TestCase):
                 with check_a2['B'].open() as coll_ab:
                     check_b1 = coll_ab[1]
                     self.assertTrue(check_b1['Data'].value == "transaction")
+        es_c = container['ChangesetC']
+        es_d = container['ChangesetD']
+        with es_c.open() as coll_c:
+            changes = container.new_changeset()
+            c1 = coll_c.new_entity()
+            c1['K'].set_from_value(1)
+            c1['Data'].set_from_value('hello')
+            coll_c.insert_entity(c1)
+            with es_d.open() as coll_d:
+                d1 = coll_d.new_entity()
+                d1['K'].set_from_value(1)
+                d1['Data'].set_from_value('test')
+                changes.insert_entity(coll_d, d1)
+                c1['Data'].set_from_value('bye')
+                changes.update_entity(c1)
+                with c1['D'].open() as coll_cd:
+                    changes.insert_entity(coll_cd, d1)
+                    changes.commit()
+                    self.assertTrue(c1.exists)
+                    self.assertTrue(d1.exists)
+                    self.assertTrue(len(coll_cd) == 1)
+                c1_copy = coll_c[1]
+                self.assertTrue(c1_copy['Data'].value == 'bye')
 
     def runtest_all_types(self):
         all_types = self.ds['RegressionModel.RegressionContainer.AllTypes']

@@ -972,7 +972,7 @@ class Server(app.Server):
                         response_headers.append(
                             ('X-OData-Type', str(response_type)))
                         return self.return_accepted(
-                                start_response, response_headers)
+                            start_response, response_headers)
                     resource.insert_entity(entity)
                     response_headers.append(
                         ('Location', str(entity.get_location())))
@@ -1009,7 +1009,7 @@ class Server(app.Server):
                         response_headers.append(
                             ('X-OData-ETag', resource.alias))
                         return self.return_accepted(
-                                start_response, response_headers)
+                            start_response, response_headers)
                     parent_entity.commit()
                     self.set_etag(parent_entity, response_headers)
                     return self.return_empty(start_response, response_headers)
@@ -1028,7 +1028,7 @@ class Server(app.Server):
                         response_headers.append(
                             ('X-OData-ETag', resource.alias))
                         return self.return_accepted(
-                                start_response, response_headers)
+                            start_response, response_headers)
                     parent_entity.commit()
                     return self.return_empty(start_response, response_headers)
                 else:
@@ -1165,11 +1165,11 @@ class Server(app.Server):
                             cs_response_parts.append(
                                 (cs_content_id,
                                  cs_request.response.get_header(
-                                    'X-OData-Entity'),
+                                     'X-OData-Entity'),
                                  cs_request.response.get_header(
-                                    'X-OData-Type'),
+                                     'X-OData-Type'),
                                  cs_request.response.get_header(
-                                    'X-OData-ETag')))
+                                     'X-OData-ETag')))
                             if cs_request.response.status != 202:
                                 # our entire changeset generated an
                                 # error, report the first one only
@@ -1179,7 +1179,7 @@ class Server(app.Server):
                             yield b"Content-Type: application/http\r\n"\
                                 b"Content-Transfer-Encoding: binary\r\n"\
                                 b"\r\n"
-                            for item in self.cs_response_error:
+                            for item in cs_response_error:
                                 yield item
                         else:
                             # commit the changeset
@@ -1199,7 +1199,7 @@ class Server(app.Server):
                                             '{"d":%s}' % ''.join(
                                                 entity.
                                                 generate_entity_type_in_json()
-                                                ))
+                                            ))
                                     else:
                                         doc = core.Document(root=core.Entry)
                                         e = doc.root
@@ -1270,10 +1270,13 @@ class Server(app.Server):
         except Exception as e:
             # we've already started streaming - add a plain text part
             # containing the error and finish
+            logging.error(
+                "Error in OData batch request: %s",
+                "".join(traceback.format_exception(*sys.exc_info())))
             yield b"\r\n--" + boundary + b"\r\n"
             yield b"Content-Type: text/plain\r\n\r\n"
             yield str(e).encode('ascii')
-            logging.error(str(e))
+            # logging.error(str(e))
         yield b"\r\n--" + boundary + b"--\r\n"
 
     def expand_resource(self, resource, sys_query_options):
