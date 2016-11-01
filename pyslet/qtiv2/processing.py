@@ -17,13 +17,16 @@ class ResponseProcessing(core.QTIElement):
     outcomes based on the candidate's responses::
 
             <xsd:attributeGroup name="responseProcessing.AttrGroup">
-                    <xsd:attribute name="template" type="uri.Type" use="optional"/>
-                    <xsd:attribute name="templateLocation" type="uri.Type" use="optional"/>
+                    <xsd:attribute name="template" type="uri.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="templateLocation" type="uri.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="responseProcessing.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="responseRule.ElementGroup"
+                                        minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseProcessing')
@@ -75,9 +78,12 @@ class ResponseCondition(ResponseRule):
 
             <xsd:group name="responseCondition.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="responseIf" minOccurs="1" maxOccurs="1"/>
-                            <xsd:element ref="responseElseIf" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="responseElse" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element ref="responseIf" minOccurs="1"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="responseElseIf" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="responseElse" minOccurs="0"
+                                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseCondition')
@@ -116,8 +122,10 @@ class ResponseIf(core.QTIElement):
 
             <xsd:group name="responseIf.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
-                            <xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="responseRule.ElementGroup"
+                                        minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseIf')
@@ -159,7 +167,8 @@ class ResponseElse(core.QTIElement):
 
             <xsd:group name="responseElse.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="responseRule.ElementGroup"
+                                        minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseElse')
@@ -185,8 +194,10 @@ class ResponseElseIf(ResponseIf):
 
             <xsd:group name="responseElseIf.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
-                            <xsd:group ref="responseRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="responseRule.ElementGroup"
+                                        minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseElseIf')
@@ -198,12 +209,14 @@ class SetOutcomeValue(ResponseRule):
     value obtained from the associated expression::
 
             <xsd:attributeGroup name="setOutcomeValue.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="setOutcomeValue.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'setOutcomeValue')
@@ -258,7 +271,8 @@ class TemplateProcessing(core.QTIElement):
 
             <xsd:group name="templateProcessing.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="templateRule.ElementGroup" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:group ref="templateRule.ElementGroup"
+                                        minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>
 
@@ -310,9 +324,12 @@ class TemplateCondition(TemplateRule):
 
             <xsd:group name="templateCondition.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="templateIf" minOccurs="1" maxOccurs="1"/>
-                            <xsd:element ref="templateElseIf" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="templateElse" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element ref="templateIf" minOccurs="1"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="templateElseIf" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="templateElse" minOccurs="0"
+                                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateCondition')
@@ -351,8 +368,10 @@ class TemplateIf(core.QTIElement):
 
             <xsd:group name="templateIf.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
-                            <xsd:group ref="templateRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="templateRule.ElementGroup"
+                                        minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateIf')
@@ -394,7 +413,8 @@ class TemplateElse(core.QTIElement):
 
             <xsd:group name="templateElse.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="templateRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="templateRule.ElementGroup"
+                                        minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateElse')
@@ -420,8 +440,10 @@ class TemplateElseIf(TemplateIf):
 
             <xsd:group name="templateElseIf.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
-                            <xsd:group ref="templateRule.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="templateRule.ElementGroup"
+                                        minOccurs="0" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateElseIf')
@@ -433,12 +455,14 @@ class SetTemplateValue(TemplateRule):
     value obtained from the associated expression::
 
             <xsd:attributeGroup name="setTemplateValue.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="setTemplateValue.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'setTemplateValue')
@@ -468,16 +492,18 @@ class SetTemplateValue(TemplateRule):
 
 class SetCorrectResponse(TemplateRule):
 
-    """The setCorrectResponse rule sets the correct value of a response variable to the
-    value obtained from the associated expression::
+    """The setCorrectResponse rule sets the correct value of a response
+    variable to the value obtained from the associated expression::
 
             <xsd:attributeGroup name="setCorrectResponse.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="setCorrectResponse.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'setCorrectResponse')
@@ -516,12 +542,14 @@ class SetDefaultValue(TemplateRule):
     variable to the value obtained from the associated expression::
 
             <xsd:attributeGroup name="setDefaultValue.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="setDefaultValue.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'setDefaultValue')
@@ -543,9 +571,11 @@ class SetDefaultValue(TemplateRule):
                 "setDefaultValue with missing expression")
         value = self.Expression.Evaluate(state)
         d = state.GetDeclaration(self.identifier)
-        if isinstance(d, variables.ResponseDeclaration) or isinstance(d, variables.OutcomeDeclaration):
+        if (isinstance(d, variables.ResponseDeclaration) or
+           isinstance(d, variables.OutcomeDeclaration)):
             state[self.identifier + ".DEFAULT"] = value
-        elif state.IsResponse(self.identifier) or state.IsOutcome(self.identifier):
+        elif (state.IsResponse(self.identifier) or
+              state.IsOutcome(self.identifier)):
             raise core.ProcessingError(
                 "Can't set the correct value of a built-in variable %s" %
                 self.identifier)
@@ -602,7 +632,8 @@ class PreCondition(TestPartCondition):
 
             <xsd:group name="preCondition.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'preCondition')
@@ -619,12 +650,14 @@ class BranchRule(TestPartCondition):
     part has been presented to the candidate::
 
             <xsd:attributeGroup name="branchRule.AttrGroup">
-                    <xsd:attribute name="target" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="target" type="identifier.Type"
+                                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="branchRule.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'branchRule')
@@ -642,12 +675,14 @@ class TemplateDefault(core.QTIElement):
     context in which the template is instantiated::
 
             <xsd:attributeGroup name="templateDefault.AttrGroup">
-                    <xsd:attribute name="templateIdentifier" type="identifier.Type" use="required"/>
+                    <xsd:attribute name="templateIdentifier"
+                                    type="identifier.Type" use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="templateDefault.ContentGroup">
                     <xsd:sequence>
-                            <xsd:group ref="expression.ElementGroup" minOccurs="1" maxOccurs="1"/>
+                            <xsd:group ref="expression.ElementGroup"
+                                        minOccurs="1" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateDefault')
@@ -680,8 +715,8 @@ class TemplateDefault(core.QTIElement):
             raise core.ProcessingError(
                 "%s is not a variable" % self.templateIdentifier)
         if isinstance(d, variables.TemplateDeclaration):
-            # we don't actually use the .DEFAULT form for template variables as they have
-            # their values set directly.
+            # we don't actually use the .DEFAULT form for template variables as
+            # they have their values set directly.
             itemState[self.templateIdentifier] = value
         else:
             raise core.ProcessingError(

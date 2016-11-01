@@ -14,7 +14,8 @@ import hashlib
 import types
 import string
 import itertools
-from types import BooleanType, IntType, LongType, FloatType, StringTypes, DictType, TupleType, ListType
+from types import BooleanType, IntType, LongType, FloatType, StringTypes
+from types import DictType, TupleType, ListType
 
 
 class SessionKeyMismatch(core.QTIError):
@@ -31,7 +32,8 @@ class SessionKeyExpired(core.QTIError):
 
 class SessionActionMissing(core.QTIError):
 
-    """Exception raised when an unrecognised action is handled by a test session."""
+    """Exception raised when an unrecognised action is handled by a test
+    session."""
 
 
 class BaseType(xsi.EnumerationNoCase):
@@ -40,9 +42,10 @@ class BaseType(xsi.EnumerationNoCase):
     this specification). Note that several of the baseTypes used to define the
     runtime data model have identical definitions to those of the basic data
     types used to define the values for attributes in the specification itself.
-    The use of an enumeration to define the set of baseTypes used in the runtime
-    model, as opposed to the use of classes with similar names, is designed to
-    help distinguish between these two distinct levels of modelling::
+    The use of an enumeration to define the set of baseTypes used in the
+    runtime model, as opposed to the use of classes with similar names, is
+    designed to help distinguish between these two distinct levels of
+    modelling::
 
             <xsd:simpleType name="baseType.Type">
                     <xsd:restriction base="xsd:NMTOKEN">
@@ -102,9 +105,10 @@ def CheckBaseTypes(*baseType):
 
 
 def CheckNumericalTypes(*baseType):
-    """Checks base types for numerical compatibility.  None is treated as a wild card that
-    matches all base types.  It returns the resulting base type, or None if all
-    are wild cards.  If they don't match then a ProcessingError is raised."""
+    """Checks base types for numerical compatibility.  None is treated as a
+    wild card that matches all base types.  It returns the resulting base type,
+    or None if all are wild cards.  If they don't match then a ProcessingError
+    is raised."""
     bReturn = None
     for b in baseType:
         if b is None:
@@ -124,10 +128,11 @@ def CheckNumericalTypes(*baseType):
 class Cardinality(xsi.Enumeration):
 
     """An expression or itemVariable can either be single-valued or
-    multi-valued. A multi-valued expression (or variable) is called a container.
+    multi-valued. A multi-valued expression (or variable) is called a
+    container.
     A container contains a list of values, this list may be empty in which case
-    it is treated as NULL. All the values in a multiple or ordered container are
-    drawn from the same value set::
+    it is treated as NULL. All the values in a multiple or ordered container
+    are drawn from the same value set::
 
             <xsd:simpleType name="cardinality.Type">
                     <xsd:restriction base="xsd:NMTOKEN">
@@ -179,8 +184,10 @@ class ValueElement(core.QTIElement):
     declarations and result reports::
 
             <xsd:attributeGroup name="value.AttrGroup">
-                    <xsd:attribute name="fieldIdentifier" type="identifier.Type" use="optional"/>
-                    <xsd:attribute name="baseType" type="baseType.Type" use="optional"/>
+                    <xsd:attribute name="fieldIdentifier"
+                                type="identifier.Type" use="optional"/>
+                    <xsd:attribute name="baseType" type="baseType.Type"
+                                use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'value')
     XMLATTR_baseType = (
@@ -225,69 +232,70 @@ class Value(object):
 
     def __init__(self):
         self.baseType = None
-        """One of the :py:class:`BaseType` constants or None if the baseType is unknown.
-		
-		An unknown baseType acts like a wild-card.  It means that the baseType
-		is not determined and could potentially be any of the
-		:py:class:`BaseType` values. This distinction has implications for the
-		way evaluation is done.  A value with a baseType of None will not raise
-		TypeErrors during evaluation if the cardinalities match the context.
-		This allows expressions which contain types bound only at runtime to be
-		evaluated for validity checking."""
+        """One of the :py:class:`BaseType` constants or None if the baseType is
+        unknown.
+
+        An unknown baseType acts like a wild-card.  It means that the baseType
+        is not determined and could potentially be any of the
+        :py:class:`BaseType` values. This distinction has implications for the
+        way evaluation is done.  A value with a baseType of None will not raise
+        TypeErrors during evaluation if the cardinalities match the context.
+        This allows expressions which contain types bound only at runtime to be
+        evaluated for validity checking."""
         self.value = None
         """The value of the variable.  The following representations are used
-		for values of single cardinality:
+        for values of single cardinality:
 
-		NULL value
-			Represented by None
-		
-		boolean
-			One of the built-in Python values True and False
-			
-		directedPair
-			A tuple of strings (<source identifier>, <destination identifier>)
-			
-		duration
-			real number of seconds
-			
-		file
-			a file like object (supporting seek)
-		
-		float
-			real number
-			
-		identifier
-			A text string
-		
-		integer
-			A plain python integer (QTI does not support long integer values)
-			
-		pair
-			A *sorted* tuple of strings (<identifier A>, <identifier B>).  We
-			sort the identifiers in a pair by python's native string sorting to
-			ensure that pair values are comparable.
-			
-		point
-			A tuple of integers (<x-coordinate>, <y-coordinate>)
-		
-		string
-			A python string
-			
-		uri
-			An instance of :py:class:`~pyslet.rfc2396.URI`
-		
-		For containers, we use the following structures:
-		
-		ordered
-			A list of one of the above value types.
-			
-		multiple:
-			A dictionary with keys that are one of the above value types and
-			values that indicate the frequency of that value in the container.
-		
-		record:
-			A dictionary with keys that are the field identifiers and
-			values that Value instances."""
+        NULL value
+            Represented by None
+
+        boolean
+            One of the built-in Python values True and False
+
+        directedPair
+            A tuple of strings (<source identifier>, <destination identifier>)
+
+        duration
+            real number of seconds
+
+        file
+            a file like object (supporting seek)
+
+        float
+            real number
+
+        identifier
+            A text string
+
+        integer
+            A plain python integer (QTI does not support long integer values)
+
+        pair
+            A *sorted* tuple of strings (<identifier A>, <identifier B>).  We
+            sort the identifiers in a pair by python's native string sorting to
+            ensure that pair values are comparable.
+
+        point
+            A tuple of integers (<x-coordinate>, <y-coordinate>)
+
+        string
+            A python string
+
+        uri
+            An instance of :py:class:`~pyslet.rfc2396.URI`
+
+        For containers, we use the following structures:
+
+        ordered
+            A list of one of the above value types.
+
+        multiple:
+            A dictionary with keys that are one of the above value types and
+            values that indicate the frequency of that value in the container.
+
+        record:
+            A dictionary with keys that are the field identifiers and
+            values that Value instances."""
 
     def set_value(self, value):
         """Sets the value.
@@ -300,8 +308,8 @@ class Value(object):
                 v.set_value(unicode(v))
 
         Value instances can also be set from values of the appropriate type as
-        described in :py:attr:`value`.  For base types that are represented with
-        tuples we also accept and convert lists.
+        described in :py:attr:`value`.  For base types that are represented
+        with tuples we also accept and convert lists.
 
         Containers values cannot be set from strings."""
         if value is None:
@@ -318,14 +326,16 @@ class Value(object):
                 self.baseType), repr(value)))
 
     def Cardinality(self):
-        """Returns the cardinality of this value.  One of the :py:class:`Cardinality` constants.
+        """Returns the cardinality of this value.  One of the
+        :py:class:`Cardinality` constants.
 
         By default we return None - indicating unknown cardinality.  This can
         only be the case if the value is a NULL."""
         return None
 
     def IsNull(self):
-        """Returns True is this value is NULL, as defined by the QTI specification."""
+        """Returns True is this value is NULL, as defined by the QTI
+        specification."""
         return self.value is None
 
     def __nonzero__(self):
@@ -337,7 +347,8 @@ class Value(object):
                 if flag:
                         print "All non-NULL values are True"
                 if flag.value:
-                        print "Test the value attribute to access the python native value"
+                        print "Test the value attribute to access the python
+                        native value"
 
                 # prints the following...
                 All non-NULL values are True"""
@@ -350,9 +361,9 @@ class Value(object):
         """The python equality test is treated like the match operator in QTI.
 
         We add the test that ensures the other value has matching cardinality
-        and matching baseType.  The test then proceeds to return True if the two
-        python values compare equal and False if they don't.  If either is Null
-        we raise NullResult."""
+        and matching baseType.  The test then proceeds to return True if the
+        two python values compare equal and False if they don't.  If either is
+        Null we raise NullResult."""
         CheckCardinalities(self.Cardinality(), other.Cardinality())
         if CheckBaseTypes(self.baseType, other.baseType) == BaseType.duration:
             raise core.ProcessingError("Can't match duration values")
@@ -362,7 +373,8 @@ class Value(object):
             raise NullResult(BooleanValue())
 
     def __unicode__(self):
-        """Creates a string representation of the object.  The NULL value returns None."""
+        """Creates a string representation of the object.  The NULL value
+        returns None."""
         if self.value is None:
             return u''
         else:
@@ -400,7 +412,8 @@ class SingleValue(Value):
 
     @classmethod
     def NewValue(cls, baseType, value=None):
-        """Creates a new instance of a single value with *baseType* and *value*"""
+        """Creates a new instance of a single value with *baseType* and
+        *value*"""
         if baseType is None:
             return SingleValue()
         elif baseType == BaseType.boolean:
@@ -447,10 +460,11 @@ class BooleanValue(SingleValue):
             return xsi.boolean_to_str(self.value)
 
     def set_value(self, value):
-        """If value is a string it will be decoded according to the rules for representing
-        boolean values.  Booleans and integers can be used directly in the normal python
-        way but other values will raise ValueError.  To take advantage of a non-zero test
-        you must explicitly force it to be a boolean.  For example::
+        """If value is a string it will be decoded according to the rules for
+        representing boolean values.  Booleans and integers can be used
+        directly in the normal python way but other values will raise
+        ValueError.  To take advantage of a non-zero test you must explicitly
+        force it to be a boolean.  For example::
 
                 # x is a value of unknown type with non-zero test implemented
                 v=BooleanValue()
@@ -499,7 +513,8 @@ class DirectedPairValue(SingleValue):
                     raise ValueError("%s expected 2 values: %s" % (
                         BaseType.to_str(self.baseType), repr(value)))
                 for v in value:
-                    if type(v) not in StringTypes or (nameCheck and not xmlns.is_valid_ncname(v)):
+                    if (type(v) not in StringTypes or
+                       (nameCheck and not xmlns.is_valid_ncname(v))):
                         raise ValueError("Illegal identifier %s" % repr(v))
                 self.value = (unicode(value[0]), unicode(value[1]))
             else:
@@ -515,7 +530,8 @@ class FileValue(SingleValue):
         self.baseType = BaseType.file
         self.contentType = params.MediaType.from_str(
             "application/octet-stream")
-        """The content type of the file, a :py:class:`pyslet.http.params.MediaType` instance."""
+        """The content type of the file, a
+        :py:class:`pyslet.http.params.MediaType` instance."""
         self.file_name = "data.bin"
         """The file name to use for the file."""
 
@@ -687,7 +703,8 @@ class PairValue(DirectedPairValue):
             self.set_value(value)
 
     def set_value(self, value, nameCheck=True):
-        """Overrides DirectedPair's implementation to force a predictable ordering on the identifiers."""
+        """Overrides DirectedPair's implementation to force a predictable
+        ordering on the identifiers."""
         super(PairValue, self).set_value(value, nameCheck)
         if self.value and self.value[0] > self.value[1]:
             self.value = (self.value[1], self.value[0])
@@ -794,8 +811,8 @@ class Container(Value):
 
     By default containers are empty (and are treated as NULL values).  You can
     force the type of an empty container by passing a baseType constant to the
-    constructor.  This will cause the container to generate TypeError if used in
-    a context where the specified baseType is not allowed."""
+    constructor.  This will cause the container to generate TypeError if used
+    in a context where the specified baseType is not allowed."""
 
     def __init__(self, baseType=None):
         super(Container, self).__init__()
@@ -848,8 +865,8 @@ class OrderedContainer(Container):
         items may be None indicating a NULL value in the list.  In accordance
         with the specification's multiple operator NULL values are ignored.
 
-        If the input list of values empty, or contains only NULL values then the
-        resulting container is empty.
+        If the input list of values empty, or contains only NULL values then
+        the resulting container is empty.
 
         If *baseType* is None the base type specified when the container was
         constructed is assumed."""
@@ -867,7 +884,8 @@ class OrderedContainer(Container):
                 if self.baseType is None:
                     # wild-card lists only work if they're empty!
                     raise ValueError(
-                        "Can't create non-empty ordered container without a base type")
+                        "Can't create non-empty ordered container without a"
+                        " base type")
                 vAdd = SingleValue.NewValue(self.baseType, v)
                 self.value.append(vAdd.value)
             if not self.value:
@@ -894,8 +912,8 @@ class MultipleContainer(Container):
         items may be None indicating a NULL value in the list.  In accordance
         with the specification's multiple operator NULL values are ignored.
 
-        If the input list of values is empty, or contains only NULL values then the
-        resulting container is empty.
+        If the input list of values is empty, or contains only NULL values then
+        the resulting container is empty.
 
         If *baseType* is None the base type specified when the container was
         constructed is assumed."""
@@ -912,7 +930,8 @@ class MultipleContainer(Container):
                 if self.baseType is None:
                     # wild-card lists only work if they're empty!
                     raise ValueError(
-                        "Can't create non-empty multiple container without a base type")
+                        "Can't create non-empty multiple container without a"
+                        " base type")
                 vAdd = SingleValue.NewValue(self.baseType, v)
                 self.value[vAdd.value] = self.value.get(vAdd.value, 0) + 1
             if not self.value:
@@ -1040,14 +1059,18 @@ class VariableDeclaration(core.QTIElement):
     the runtime type of the variable's value::
 
             <xsd:attributeGroup name="variableDeclaration.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
-                    <xsd:attribute name="cardinality" type="cardinality.Type" use="required"/>
-                    <xsd:attribute name="baseType" type="baseType.Type" use="optional"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                                    use="required"/>
+                    <xsd:attribute name="cardinality" type="cardinality.Type"
+                                    use="required"/>
+                    <xsd:attribute name="baseType" type="baseType.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="variableDeclaration.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="defaultValue" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element ref="defaultValue" minOccurs="0"
+                                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLATTR_baseType = (
@@ -1095,7 +1118,8 @@ class VariableDeclaration(core.QTIElement):
                 else:
                     # handle multiple and ordered processing
                     value.set_value(
-                        map(lambda v: v.get_value(), definedValue.ValueElement))
+                        map(lambda v: v.get_value(),
+                            definedValue.ValueElement))
         else:
             # generate NULL values with the correct cardinality and base type
             if self.cardinality == Cardinality.single:
@@ -1117,12 +1141,14 @@ class DefinedValue(core.QTIElement):
     :py:class:`DefaultValue` and :py:class:`CorrectResponse` ::
 
             <xsd:attributeGroup name="defaultValue.AttrGroup">
-                    <xsd:attribute name="interpretation" type="string.Type" use="optional"/>
+                    <xsd:attribute name="interpretation" type="string.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="defaultValue.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="value" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="value" minOccurs="1"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLATTR_interpretation = 'interpretation'
@@ -1153,14 +1179,18 @@ class Mapping(core.QTIElement):
     baseType (except file and duration) to a single float::
 
             <xsd:attributeGroup name="mapping.AttrGroup">
-                    <xsd:attribute name="lowerBound" type="float.Type" use="optional"/>
-                    <xsd:attribute name="upperBound" type="float.Type" use="optional"/>
-                    <xsd:attribute name="defaultValue" type="float.Type" use="required"/>
+                    <xsd:attribute name="lowerBound" type="float.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="upperBound" type="float.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="defaultValue" type="float.Type"
+                                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="mapping.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="mapEntry" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="mapEntry" minOccurs="1"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapping')
@@ -1230,9 +1260,9 @@ class Mapping(core.QTIElement):
                 been_there[v] = True
             result = result + self.map.get(v, self.defaultValue)
         if nullFlag:
-            # We save the NULL return up to the end to ensure that we generate errors
-            # in the case where a container contains mixed or mismatching
-            # values.
+            # We save the NULL return up to the end to ensure that we generate
+            # errors in the case where a container contains mixed or
+            # mismatching values.
             return dstValue
         else:
             if self.lowerBound is not None and result < self.lowerBound:
@@ -1249,8 +1279,10 @@ class MapEntry(core.QTIElement):
     ::
 
             <xsd:attributeGroup name="mapEntry.AttrGroup">
-                    <xsd:attribute name="mapKey" type="valueType.Type" use="required"/>
-                    <xsd:attribute name="mappedValue" type="float.Type" use="required"/>
+                    <xsd:attribute name="mapKey" type="valueType.Type"
+                                    use="required"/>
+                    <xsd:attribute name="mappedValue" type="float.Type"
+                                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'mapEntry')
     XMLATTR_mapKey = 'mapKey'
@@ -1271,9 +1303,12 @@ class ResponseDeclaration(VariableDeclaration):
             <xsd:group name="responseDeclaration.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="variableDeclaration.ContentGroup"/>
-                            <xsd:element ref="correctResponse" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="mapping" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="areaMapping" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element ref="correctResponse" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="mapping" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="areaMapping" minOccurs="0"
+                                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'responseDeclaration')
@@ -1308,8 +1343,8 @@ class ResponseDeclaration(VariableDeclaration):
         In HTML, shapes (including those used in the AreaMapping) can use
         relative coordinates. To interpret relative coordinates we need to know
         the size of the stage used to interpret the point values.  For a
-        response variable that is typically the size of the image or object used
-        in the interaction.
+        response variable that is typically the size of the image or object
+        used in the interaction.
 
         This method searches for the interaction associated with the response
         and obtains the width and height of the corresponding object.
@@ -1332,14 +1367,18 @@ class AreaMapping(core.QTIElement):
     values to a target set of float values::
 
             <xsd:attributeGroup name="areaMapping.AttrGroup">
-                    <xsd:attribute name="lowerBound" type="float.Type" use="optional"/>
-                    <xsd:attribute name="upperBound" type="float.Type" use="optional"/>
-                    <xsd:attribute name="defaultValue" type="float.Type" use="required"/>
+                    <xsd:attribute name="lowerBound" type="float.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="upperBound" type="float.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="defaultValue" type="float.Type"
+                                    use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="areaMapping.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="areaMapEntry" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="areaMapEntry" minOccurs="1"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'areaMapping')
@@ -1360,14 +1399,17 @@ class AreaMapping(core.QTIElement):
         return iter(self.AreaMapEntry)
 
     def MapValue(self, value, width, height):
-        """Maps an instance of :py:class:`Value` with point base type to an
-        instance of :py:class:`Value` with base type float.
+        """Maps a point onto a float.
+        
+        Returns an instance of :py:class:`Value` with base type float.
 
         *	value is a :py:class:`Value` of base type point
 
-        *	width is the integer width of the object on which the area is defined
+        *   width is the integer width of the object on which the area
+            is defined
 
-        *	height is the integer height of the object on which the area is defined
+        *   height is the integer height of the object on which the
+            area is defined
 
         The width and height of the object are required because HTML allows
         relative values to be used when defining areas."""
@@ -1406,9 +1448,9 @@ class AreaMapping(core.QTIElement):
                 # This point is not in any of the areas
                 result = result + self.defaultValue
         if nullFlag:
-            # We save the NULL return up to the end to ensure that we generate errors
-            # in the case where a container contains mixed or mismatching
-            # values.
+            # We save the NULL return up to the end to ensure that we generate
+            # errors in the case where a container contains mixed or
+            # mismatching values.
             return dstValue
         else:
             if self.lowerBound is not None and result < self.lowerBound:
@@ -1425,9 +1467,12 @@ class AreaMapEntry(core.QTIElement, core.ShapeElementMixin):
     which maps an area of the coordinate space onto a single float::
 
             <xsd:attributeGroup name="areaMapEntry.AttrGroup">
-                    <xsd:attribute name="shape" type="shape.Type" use="required"/>
-                    <xsd:attribute name="coords" type="coords.Type" use="required"/>
-                    <xsd:attribute name="mappedValue" type="float.Type" use="required"/>
+                    <xsd:attribute name="shape" type="shape.Type"
+                                    use="required"/>
+                    <xsd:attribute name="coords" type="coords.Type"
+                                    use="required"/>
+                    <xsd:attribute name="mappedValue" type="float.Type"
+                                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'areaMapEntry')
     XMLATTR_mappedValue = ('mappedValue', xsi.float_from_str, xsi.float_to_str)
@@ -1451,17 +1496,23 @@ class OutcomeDeclaration(VariableDeclaration):
                                     <xsd:list itemType="view.Type"/>
                             </xsd:simpleType>
                     </xsd:attribute>
-                    <xsd:attribute name="interpretation" type="string.Type" use="optional"/>
-                    <xsd:attribute name="longInterpretation" type="uri.Type" use="optional"/>
-                    <xsd:attribute name="normalMaximum" type="float.Type" use="optional"/>
-                    <xsd:attribute name="normalMinimum" type="float.Type" use="optional"/>
-                    <xsd:attribute name="masteryValue" type="float.Type" use="optional"/>
+                    <xsd:attribute name="interpretation" type="string.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="longInterpretation" type="uri.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="normalMaximum" type="float.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="normalMinimum" type="float.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="masteryValue" type="float.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="outcomeDeclaration.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="variableDeclaration.ContentGroup"/>
-                            <xsd:group ref="lookupTable.ElementGroup" minOccurs="0" maxOccurs="1"/>
+                            <xsd:group ref="lookupTable.ElementGroup"
+                                        minOccurs="0" maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'outcomeDeclaration')
@@ -1505,7 +1556,8 @@ class LookupTable(core.QTIElement):
     declared value set::
 
             <xsd:attributeGroup name="lookupTable.AttrGroup">
-                    <xsd:attribute name="defaultValue" type="valueType.Type" use="optional"/>
+                    <xsd:attribute name="defaultValue" type="valueType.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLATTR_defaultValue = 'defaultValue'
     XMLATTR_interpretation = 'interpretation'
@@ -1521,7 +1573,8 @@ class LookupTable(core.QTIElement):
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
-        # : a string from which the default is parsed when its base type is known
+        # : a string from which the default is parsed when its base type is
+        # known
         self.defaultValue = None
         self.baseType = BaseType.string
         #: a :py:class:`Value` instance representing the default
@@ -1542,7 +1595,8 @@ class MatchTable(LookupTable):
 
             <xsd:group name="matchTable.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="matchTableEntry" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="matchTableEntry" minOccurs="1"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'matchTable')
@@ -1591,13 +1645,16 @@ class MatchTableEntry(core.QTIElement):
             The source integer that must be matched exactly.
 
     targetValue
-            The target value that is used to set the outcome when a match is found
+            The target value that is used to set the outcome when a match is
+            found
 
     ::
 
             <xsd:attributeGroup name="matchTableEntry.AttrGroup">
-                    <xsd:attribute name="sourceValue" type="integer.Type" use="required"/>
-                    <xsd:attribute name="targetValue" type="valueType.Type" use="required"/>
+                    <xsd:attribute name="sourceValue" type="integer.Type"
+                                    use="required"/>
+                    <xsd:attribute name="targetValue" type="valueType.Type"
+                                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'matchTableEntry')
     XMLATTR_sourceValue = (
@@ -1619,7 +1676,8 @@ class InterpolationTable(LookupTable):
 
             <xsd:group name="interpolationTable.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="interpolationTableEntry" minOccurs="1" maxOccurs="unbounded"/>
+                            <xsd:element ref="interpolationTableEntry"
+                                        minOccurs="1" maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'interpolationTable')
@@ -1675,19 +1733,23 @@ class InterpolationTableEntry(core.QTIElement):
             The lower bound for the source value to match this entry.
 
     includeBoundary
-            Determines if an exact match of sourceValue matches this entry. If true,
-            the default, then an exact match of the value is considered a match of
-            this entry.
+            Determines if an exact match of sourceValue matches this entry. If
+            true, the default, then an exact match of the value is considered a
+            match of this entry.
 
     targetValue
-            The target value that is used to set the outcome when a match is found
+            The target value that is used to set the outcome when a match is
+            found
 
     ::
 
             <xsd:attributeGroup name="interpolationTableEntry.AttrGroup">
-                    <xsd:attribute name="sourceValue" type="float.Type" use="required"/>
-                    <xsd:attribute name="includeBoundary" type="boolean.Type" use="optional"/>
-                    <xsd:attribute name="targetValue" type="valueType.Type" use="required"/>
+                    <xsd:attribute name="sourceValue" type="float.Type"
+                                    use="required"/>
+                    <xsd:attribute name="includeBoundary" type="boolean.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="targetValue" type="valueType.Type"
+                                    use="required"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'interpolationTableEntry')
     XMLATTR_sourceValue = ('sourceValue', xsi.float_from_str, xsi.float_to_str)
@@ -1711,8 +1773,10 @@ class TemplateDeclaration(VariableDeclaration):
 
             <xsd:attributeGroup name="templateDeclaration.AttrGroup">
                     <xsd:attributeGroup ref="variableDeclaration.AttrGroup"/>
-                    <xsd:attribute name="paramVariable" type="boolean.Type" use="optional"/>
-                    <xsd:attribute name="mathVariable" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="paramVariable" type="boolean.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="mathVariable" type="boolean.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'templateDeclaration')
     XMLATTR_paramVariable = (
@@ -1787,11 +1851,13 @@ class SessionState(object):
                 r1=state['RESPONSE']
                 state['RESPONSE']=IdentifierValue('Bye')
                 r2=state['RESPONSE']
-                r1==r2		# WARNING: r1 has been updated so still evaluates to True!"""
+                r1==r2		# WARNING: r1 has been updated so still evaluates to
+                                        True!"""
         if not isinstance(value, Value):
             raise TypeError
         v = self[varName]
-        if value.Cardinality() is not None and value.Cardinality() != v.Cardinality():
+        if (value.Cardinality() is not None and
+           value.Cardinality() != v.Cardinality()):
             raise ValueError(
                 "Expected %s value, found %s" %
                 (Cardinality.to_str(
@@ -1864,26 +1930,27 @@ class ItemSessionState(SessionState):
         you must call SelectClone before beginning the candidate's session with
         :py:meth:`BeginSession`.
 
-        The main purpose of this method is to run the template processing rules.
-        These rules update the values of the template variables and may also
-        alter correct responses and default outcome (or response) values."""
+        The main purpose of this method is to run the template processing
+        rules. These rules update the values of the template variables and may
+        also alter correct responses and default outcome (or response)
+        values."""
         if self.item.TemplateProcessing:
             self.item.TemplateProcessing.Run(self)
 
     def BeginSession(self):
         """Called at the start of an item session. According to the specification:
 
-                "The session starts when the associated item first becomes eligible
-                for delivery to the candidate"
+                "The session starts when the associated item first becomes
+                eligible for delivery to the candidate"
 
         The main purpose of this method is to set the outcome values to their
         defaults."""
         # sets the default values of all outcome variables
         self.map['completionStatus'].value = u'not_attempted'
         self.SetOutcomeDefaults()
-        # The spec says that numAttempts is a response that has value 0 initially.
-        # That suggests that it behaves more like an outcome in this respect so we
-        # initialise the value here.
+        # The spec says that numAttempts is a response that has value 0
+        # initially. That suggests that it behaves more like an outcome in this
+        # respect so we initialise the value here.
         self.map['numAttempts'].value = 0
         # similar consideration applies to the built-in duration
         self.map['duration'].value = 0.0
@@ -1914,8 +1981,8 @@ class ItemSessionState(SessionState):
     def SubmitSession(self, params, htmlParent=None):
         """Called when we wish to submit values (i.e., end an attempt)."""
         self._SaveParameters(params)
-        # Now we go through all response variables and update their value from the
-        # saved value, removing the saved values as we go.
+        # Now we go through all response variables and update their value from
+        # the saved value, removing the saved values as we go.
         for rd in self.item.ResponseDeclaration:
             sName = rd.identifier + ".SAVED"
             if sName in self.map:
@@ -1963,13 +2030,15 @@ class ItemSessionState(SessionState):
                 else:
                     v.set_value(sValue)
             elif rd.cardinality == Cardinality.ordered:
-                # there are two ways of setting these values, either RESPONSE.rank=VALUE
-                # or RESPONSE.VALUE=rank.  The latter representation is only valid for
-                # identifiers, to ensure we don't mix them up with ranks.
+                # there are two ways of setting these values, either
+                # RESPONSE.rank=VALUE or RESPONSE.VALUE=rank.  The latter
+                # representation is only valid for identifiers, to ensure we
+                # don't mix them up with ranks.
                 if len(rName) != 2:
                     continue
                 try:
-                    if rd.baseType == BaseType.Identifier and core.ValidateIdentifier(rName[1]):
+                    if (rd.baseType == BaseType.Identifier and
+                       core.ValidateIdentifier(rName[1])):
                         if type(sValue) in StringTypes:
                             v.set_value(sValue)
                         else:
@@ -2005,7 +2074,8 @@ class ItemSessionState(SessionState):
                 v.set_value(sValue)
 
     def EndAttempt(self):
-        """Called at the end of an attempt.  Invokes response processing if present."""
+        """Called at the end of an attempt.  Invokes response processing if
+        present."""
         if not self.item.adaptive:
             # For a Non-adaptive Item the values of the outcome variables are
             # reset to their default values (or NULL if no default is given)
@@ -2023,7 +2093,8 @@ class ItemSessionState(SessionState):
     def IsResponse(self, varName):
         """Return True if *varName* is the name of a response variable.
 
-        We add handling of the built-in response variables numAttempts and duration."""
+        We add handling of the built-in response variables numAttempts and
+        duration."""
         d = self.GetDeclaration(varName)
         if d is None:
             return varName in ('numAttempts', 'duration')
@@ -2078,7 +2149,8 @@ class TestSessionState(SessionState):
         super(TestSessionState, self).__init__()
         # : the :py:class:`tests.TestForm` used to initialise this session
         self.form = form
-        #: the :py:class:`tests.AssessmentTest` that this session is an instance of
+        #: the :py:class:`tests.AssessmentTest` that this session is an
+        # instance of
         self.test = form.test
         self.namespace = len(form) * [None]
         self.namespace[0] = {}
@@ -2113,22 +2185,22 @@ class TestSessionState(SessionState):
             self.salt = string.join(self.salt, '')
         self.key = ''
         """A key representing this session in its current state, this key is
-		initialised to a random value and changes as each event is received.
-		The key must be supplied when triggering subsequent events.  The key is
-		designed to be unguessable and unique so a caller presenting the correct
-		key when triggering an event can be securely assumed to be the owner of
-		the existing session."""
+        initialised to a random value and changes as each event is received.
+        The key must be supplied when triggering subsequent events.  The key is
+        designed to be unguessable and unique so a caller presenting the
+        correct key when triggering an event can be securely assumed to be the
+        owner of the existing session."""
         self.prevKey = ''
         """The key representing the previous state.  This can be used to follow
-		session state transitions back through a chain of states back to the
-		beginning of the session (i.e., for auditing)."""
+        session state transitions back through a chain of states back to the
+        beginning of the session (i.e., for auditing)."""
         self.keyMap = {}
         """A mapping of keys previously used by this session.  A caller
-		presenting an expired key when triggering an event generates a
-		:py:class:`SessionKeyExpired` exception. This condition might indicate
-		that a session response was not received (e.g., due to a connection
-		failure) and that the session should be re-started with the previous
-		response."""
+        presenting an expired key when triggering an event generates a
+        :py:class:`SessionKeyExpired` exception. This condition might indicate
+        that a session response was not received (e.g., due to a connection
+        failure) and that the session should be re-started with the previous
+        response."""
         self.EventUpdate(self.key)
         self.cQuestion = 0
 
@@ -2190,12 +2262,14 @@ class TestSessionState(SessionState):
                 if target == id:
                     return qPos
                 qPos = qPos + 1
-                # handle the other special identifiers which move to the point just
-                # after the end of the part being exited
+                # handle the other special identifiers which move to the point
+                # just after the end of the part being exited
                 if id[0] == u"-":
                     if target == u"EXIT_SECTION":
                         return qPos
-                    elif target == u"EXIT_TESTPART" and isinstance(self.test.GetPart(id[1:]), tests.TestPart):
+                    elif (target == u"EXIT_TESTPART" and
+                          isinstance(self.test.GetPart(id[1:]),
+                                     tests.TestPart)):
                         return qPos
 
     def _NextQuestion(self):
@@ -2226,7 +2300,8 @@ class TestSessionState(SessionState):
                     if isinstance(part, tests.TestPart):
                         # descend in to this testPart
                         iQ = iQ + 1
-                        if part.navigationMode == tests.NavigationMode.nonlinear:
+                        if (part.navigationMode ==
+                           tests.NavigationMode.nonlinear):
                             # evaluate templateDefaults for all items in this
                             # part
                             endId = u"-" + part.identifier
@@ -2237,7 +2312,8 @@ class TestSessionState(SessionState):
                                     break
                                 if id[0] != u"-":
                                     jPart = self.test.GetPart(id)
-                                    if isinstance(jPart, tests.AssessmentItemRef):
+                                    if isinstance(jPart,
+                                                  tests.AssessmentItemRef):
                                         # Now evaluate the template defaults
                                         itemState = self.namespace[jQ]
                                         jPart.SetTemplateDefaults(
@@ -2252,7 +2328,8 @@ class TestSessionState(SessionState):
                     elif isinstance(part, tests.AssessmentItemRef):
                         # we've found the next question
                         testPart = part.find_parent(tests.TestPart)
-                        if testPart.navigationMode == tests.NavigationMode.linear:
+                        if (testPart.navigationMode ==
+                           tests.NavigationMode.linear):
                             itemState = self.namespace[iQ]
                             part.SetTemplateDefaults(itemState, self)
                             itemState.SelectClone()
@@ -2326,8 +2403,9 @@ class TestSessionState(SessionState):
                     itemState.SubmitSession(params)
                 else:
                     # simultaneous submission means we save the current values
-                    # then run through all questions in this part submitting the saved
-                    # values - it still happens at the end of the test part
+                    # then run through all questions in this part submitting
+                    # the saved values - it still happens at the end of the
+                    # test part
                     itemState = self.namespace[self.cQuestion]
                     itemState.SaveSession(params)
                     raise NotImplementedError
@@ -2403,7 +2481,8 @@ class TestSessionState(SessionState):
                     ignore += 1
                 else:
                     part = self.test.GetPart(id)
-                    if isinstance(part, (tests.AssessmentSection, tests.TestPart)):
+                    if isinstance(part, (tests.AssessmentSection,
+                                         tests.TestPart)):
                         if ignore:
                             ignore = ignore - 1
                         else:
@@ -2423,8 +2502,9 @@ class TestSessionState(SessionState):
     def GetNamespace(self, varName):
         """Takes a variable name *varName* and returns a tuple of namespace/varName.
 
-        The resulting namespace will be a dictionary or a dictionary-like object
-        from which the value of the returned varName object can be looked up."""
+        The resulting namespace will be a dictionary or a dictionary-like
+        object from which the value of the returned varName object can be
+        looked up."""
         splitName = varName.split('.')
         if len(splitName) == 1:
             return self.namespace[0], varName

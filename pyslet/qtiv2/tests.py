@@ -23,19 +23,28 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
     when (if at all) feedback is to be given::
 
             <xsd:attributeGroup name="assessmentTest.AttrGroup">
-                    <xsd:attribute name="identifier" type="string.Type" use="required"/>
-                    <xsd:attribute name="title" type="string.Type" use="required"/>
-                    <xsd:attribute name="toolName" type="string256.Type" use="optional"/>
-                    <xsd:attribute name="toolVersion" type="string256.Type" use="optional"/>
+                    <xsd:attribute name="identifier" type="string.Type"
+                                    use="required"/>
+                    <xsd:attribute name="title" type="string.Type"
+                                    use="required"/>
+                    <xsd:attribute name="toolName" type="string256.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="toolVersion" type="string256.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="assessmentTest.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="outcomeDeclaration" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="timeLimits" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="testPart" minOccurs="1" maxOccurs="unbounded"/>
-                            <xsd:element ref="outcomeProcessing" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="testFeedback" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element ref="outcomeDeclaration" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="timeLimits" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="testPart" minOccurs="1"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="outcomeProcessing" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="testFeedback" minOccurs="0"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentTest')
@@ -57,7 +66,8 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
         self.TestPart = []
         self.OutcomeProcessing = None
         self.TestFeedback = []
-        # : a dictionary of testPart, assessmentSection and assessmentItemRef keyed on identifier
+        # : a dictionary of testPart, assessmentSection and assessmentItemRef
+        # keyed on identifier
         self.parts = {}
 
     def get_children(self):
@@ -78,8 +88,8 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
     def SortDeclarations(self):
         """Sort the outcome declarations so that they are in identifier order.
         This is not essential but it does help ensure that output is
-        predictable. This method is called automatically when reading items from
-        XML files."""
+        predictable. This method is called automatically when reading items
+        from XML files."""
         self.OutcomeDeclaration.sort()
 
     def RegisterPart(self, part):
@@ -99,10 +109,10 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
 class NavigationMode(xsi.Enumeration):
 
     """The navigation mode determines the general paths that the candidate may
-    take. A testPart in linear mode restricts the candidate to attempt each item
-    in turn. Once the candidate moves on they are not permitted to return. A
-    testPart in nonlinear mode removes this restriction - the candidate is free
-    to navigate to any item in the test at any time::
+    take. A testPart in linear mode restricts the candidate to attempt each
+    item in turn. Once the candidate moves on they are not permitted to return.
+    A testPart in nonlinear mode removes this restriction - the candidate is
+    free to navigate to any item in the test at any time::
 
             <xsd:simpleType name="navigationMode.Type">
                     <xsd:restriction base="xsd:NMTOKEN">
@@ -162,19 +172,28 @@ class TestPart(core.QTIElement):
     into sections, sub-sections, and so on::
 
             <xsd:attributeGroup name="testPart.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
-                    <xsd:attribute name="navigationMode" type="navigationMode.Type" use="required"/>
-                    <xsd:attribute name="submissionMode" type="submissionMode.Type" use="required"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                                    use="required"/>
+                    <xsd:attribute name="navigationMode"
+                                    type="navigationMode.Type" use="required"/>
+                    <xsd:attribute name="submissionMode"
+                                    type="submissionMode.Type" use="required"/>
             </xsd:attributeGroup>
 
             <xsd:group name="testPart.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="preCondition" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="branchRule" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="itemSessionControl" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="timeLimits" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="assessmentSection" minOccurs="1" maxOccurs="unbounded"/>
-                            <xsd:element ref="testFeedback" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element ref="preCondition" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="branchRule" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="itemSessionControl" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="timeLimits" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="assessmentSection" minOccurs="1"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="testFeedback" minOccurs="0"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'testPart')
@@ -244,13 +263,13 @@ class TestPart(core.QTIElement):
                     if not isinstance(target, TestPart):
                         # test parts can only point at other test parts
                         raise core.ProcessingError(
-                            "Target of testPart branch rule is not a testPart: %s" %
-                            r.target)
+                            "Target of testPart branch rule is not a"
+                            " testPart: %s" % r.target)
                     return r.target
                 except KeyError:
                     raise core.ProcessingError(
-                        "Target of testPart branch rule has not been declared: %s" %
-                        r.target)
+                        "Target of testPart branch rule has not been"
+                        " declared: %s" % r.target)
 
 
 class Selection(core.QTIElement):
@@ -259,14 +278,17 @@ class Selection(core.QTIElement):
     of a section for each test session::
 
             <xsd:attributeGroup name="selection.AttrGroup">
-                    <xsd:attribute name="select" type="integer.Type" use="required"/>
-                    <xsd:attribute name="withReplacement" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="select" type="integer.Type"
+                                    use="required"/>
+                    <xsd:attribute name="withReplacement" type="boolean.Type"
+                                    use="optional"/>
                     <xsd:anyAttribute namespace="##other"/>
             </xsd:attributeGroup>
 
             <xsd:group name="selection.ContentGroup">
                     <xsd:sequence>
-                    <xsd:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="skip"/>
+                    <xsd:any namespace="##any" minOccurs="0"
+                                maxOccurs="unbounded" processContents="skip"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'selection')
@@ -285,16 +307,19 @@ class Ordering(core.QTIElement):
 
     """The ordering class specifies the rule used to arrange the child elements
     of a section following selection. If no ordering rule is given we assume
-    that the elements are to be ordered in the order in which they are defined::
+    that the elements are to be ordered in the order in which they are
+    defined::
 
             <xsd:attributeGroup name="ordering.AttrGroup">
-                    <xsd:attribute name="shuffle" type="boolean.Type" use="required"/>
+                    <xsd:attribute name="shuffle" type="boolean.Type"
+                                    use="required"/>
                     <xsd:anyAttribute namespace="##other"/>
             </xsd:attributeGroup>
 
             <xsd:group name="ordering.ContentGroup">
                     <xsd:sequence>
-                    <xsd:any namespace="##any" minOccurs="0" maxOccurs="unbounded" processContents="skip"/>
+                    <xsd:any namespace="##any" minOccurs="0"
+                                maxOccurs="unbounded" processContents="skip"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'ordering')
@@ -312,17 +337,24 @@ class SectionPart(core.QTIElement):
     number of common parameters are shared by both types of child element::
 
             <xsd:attributeGroup name="sectionPart.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
-                    <xsd:attribute name="required" type="boolean.Type" use="optional"/>
-                    <xsd:attribute name="fixed" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="identifier" type="identifier.Type"
+                                    use="required"/>
+                    <xsd:attribute name="required" type="boolean.Type"
+                                    use="optional"/>
+                    <xsd:attribute name="fixed" type="boolean.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="sectionPart.ContentGroup">
                     <xsd:sequence>
-                            <xsd:element ref="preCondition" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="branchRule" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="itemSessionControl" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="timeLimits" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element ref="preCondition" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="branchRule" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="itemSessionControl" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="timeLimits" minOccurs="0"
+                                            maxOccurs="1"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLATTR_identifier = 'identifier'
@@ -379,23 +411,24 @@ class SectionPart(core.QTIElement):
         for r in self.BranchRule:
             if r.Evaluate(state):
                 try:
-                    if r.target in (u"EXIT_SECTION", u"EXIT_TESTPART", u"EXIT_TEST"):
+                    if r.target in (u"EXIT_SECTION", u"EXIT_TESTPART",
+                                    u"EXIT_TEST"):
                         return r.target
                     target = test.GetPart(r.target)
                     if not isinstance(target, SectionPart):
                         # section parts can only point at other section parts
                         raise core.ProcessingError(
-                            "Target of section or item branch rule is not a section or item: %s" %
-                            r.target)
+                            "Target of section or item branch rule is not a"
+                            " section or item: %s" % r.target)
                     if target.find_parent(TestPart) is not testPart:
                         raise core.ProcessingError(
-                            "Target or section or item branch rule is not in the same testPart: %s" %
-                            r.target)
+                            "Target or section or item branch rule is not in"
+                            " the same testPart: %s" % r.target)
                     return r.target
                 except KeyError:
                     raise core.ProcessingError(
-                        "Target of section or item branch rule has not been declared: %s" %
-                        r.target)
+                        "Target of section or item branch rule has not"
+                        " been declared: %s" % r.target)
 
 
 class AssessmentSection(SectionPart):
@@ -405,18 +438,26 @@ class AssessmentSection(SectionPart):
 
             <xsd:attributeGroup name="assessmentSection.AttrGroup">
                     <xsd:attributeGroup ref="sectionPart.AttrGroup"/>
-                    <xsd:attribute name="title" type="string.Type" use="required"/>
-                    <xsd:attribute name="visible" type="boolean.Type" use="required"/>
-                    <xsd:attribute name="keepTogether" type="boolean.Type" use="optional"/>
+                    <xsd:attribute name="title" type="string.Type"
+                                    use="required"/>
+                    <xsd:attribute name="visible" type="boolean.Type"
+                                    use="required"/>
+                    <xsd:attribute name="keepTogether" type="boolean.Type"
+                                    use="optional"/>
             </xsd:attributeGroup>
 
             <xsd:group name="assessmentSection.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="sectionPart.ContentGroup"/>
-                            <xsd:element ref="selection" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="ordering" minOccurs="0" maxOccurs="1"/>
-                            <xsd:element ref="rubricBlock" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:group ref="sectionPart.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element ref="selection" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="ordering" minOccurs="0"
+                                            maxOccurs="1"/>
+                            <xsd:element ref="rubricBlock" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:group ref="sectionPart.ElementGroup"
+                                            minOccurs="0"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentSection')
@@ -467,9 +508,12 @@ class AssessmentItemRef(SectionPart):
             <xsd:group name="assessmentItemRef.ContentGroup">
                     <xsd:sequence>
                             <xsd:group ref="sectionPart.ContentGroup"/>
-                            <xsd:element ref="variableMapping" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="weight" minOccurs="0" maxOccurs="unbounded"/>
-                            <xsd:element ref="templateDefault" minOccurs="0" maxOccurs="unbounded"/>
+                            <xsd:element ref="variableMapping" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="weight" minOccurs="0"
+                                            maxOccurs="unbounded"/>
+                            <xsd:element ref="templateDefault" minOccurs="0"
+                                            maxOccurs="unbounded"/>
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentItemRef')
@@ -518,11 +562,11 @@ class TestForm(object):
     ordering rules have been applied.
 
     QTI tests can contain selection and ordering rules that enable basic
-    variation between instances, or 'forms' of the test.  Selection and ordering
-    is not the only source of variation but it provides the basic framework for
-    the test.
+    variation between instances, or 'forms' of the test.  Selection and
+    ordering is not the only source of variation but it provides the basic
+    framework for the test.
 
-    The TestForm acts like a (read-only) sequence of component identifiers.  The
+    The TestForm acts like a (read-only) sequence of component identifiers. The
     identifiers are the identifiers of the test components in the order they
     have been selected.  Identifiers of test parts and sections are included as
     they are legitimate targets of branch rules and may have their own
@@ -533,12 +577,14 @@ class TestForm(object):
 
             [ "", "PartI", "SectionA", "Q1", "Q2", "-SectionA", "-PartI" ]
 
-    Notice that index 0 is always an empty string corresponding to the test itself."""
+    Notice that index 0 is always an empty string corresponding to the test
+    itself."""
 
     def __init__(self, test):
         self.test = test		#: the test from which this form was created
         self.components = []  # : the ordered list of identifiers
-        #: a mapping from component identifiers to (lists of) indexes into the component list
+        #: a mapping from component identifiers to (lists of) indexes into the
+        # component list
         self.map = {}
         # Index 0 represents the test itself!
         self.components.append("")
@@ -562,8 +608,8 @@ class TestForm(object):
     def Select(self, section, expandChildren=True):
         """Runs the selection and ordering rules for *section*.
 
-        It returns a list of identifiers, not including the identifier of the section
-        itself."""
+        It returns a list of identifiers, not including the identifier of the
+        section itself."""
         children = section.SectionPart
         if section.Ordering:
             shuffle = section.Ordering.shuffle
@@ -586,7 +632,8 @@ class TestForm(object):
                     bag.remove(i)
         if len(selection) > targetSize:
             raise core.SelectionError(
-                "#%s contains a selection rule that selects fewer child elements than the number of required elements" %
+                "#%s contains a selection rule that selects fewer child"
+                " elements than the number of required elements" %
                 section.identifier)
         # Step 2: top up the selection until we reach the target size
         while len(selection) < targetSize:
@@ -597,16 +644,17 @@ class TestForm(object):
                     bag.remove(i)
             else:
                 raise core.SelectionError(
-                    "Number of children to select in #%s exceeds the number of child elements, use withReplacement to resolve" %
+                    "Number of children to select in #%s exceeds the number"
+                    " of child elements, use withReplacement to resolve" %
                     section.identifier)
         shuffleList = []
         # Step 3: sort the list to ensure the position of fixed children is
         # honoured
         selection.sort()
         # Step 4: transform to a list of identifiers...
-        #			replace invisible sections with their contents if we need to split/shuffle them
-        # replace floating children with empty slots and put them in the
-        # shuffle list
+        # replace invisible sections with their contents if we need to
+        # split/shuffle them replace floating children with empty slots and put
+        # them in the shuffle list
         newSelection = []
         for i in selection:
             child = children[i]
@@ -618,14 +666,16 @@ class TestForm(object):
                 if invisibleSection and not child.keepTogether:
                     # the grand-children go into the shuffleList independently
                     # What does a fixed grand-child mean in this situation?
-                    # we raise an error at the moment.  Note that we don't expand
-                    # the grand children (unless they are also mixed in from a nested
-                    # invisible section)
+                    # we raise an error at the moment.  Note that we don't
+                    # expand the grand children (unless they are also mixed in
+                    # from a nested invisible section)
                     for gChildID in self.Select(child, False):
                         gChild = self.test.GetPart(gChildID)
                         if gChild.fixed:
                             raise core.SelectionError(
-                                "Fixed child of invisible section #%s is subject to parent shuffling, use keepTogether to resolve" %
+                                "Fixed child of invisible section #%s is"
+                                " subject to parent shuffling, use"
+                                " keepTogether to resolve" %
                                 child.identifier)
                         shuffleList.append(gChildID)
                 else:
@@ -643,13 +693,15 @@ class TestForm(object):
         if shuffleList:
             # Step 5: shuffle!
             random.shuffle(shuffleList)
-            # Expanded invisible sections may mean we have more shuffled items than free slots
-            # We need to partition the shuffle list into n buckets where n is the number of slots
-            # We choose to put one item in each bucket initially then randomly assign the rest
-            # This gives the expected result in the case where the shuffle list contains one
-            # item for each slot.  It also preserves the relative order of fixed items and
-            # ensures that adjacent fixed items are not split by a random choice.  Similarly,
-            # items fixed at the start or end of the section remain in place
+            """Expanded invisible sections may mean we have more shuffled items
+            than free slots We need to partition the shuffle list into
+            n buckets where n is the number of slots. We choose to put one item
+            in each bucket initially then randomly assign the rest. This gives
+            the expected result in the case where the shuffle list contains one
+            item for each slot.  It also preserves the relative order of fixed
+            items and ensures that adjacent fixed items are not split by a
+            random choice.  Similarly, items fixed at the start or end of the
+            section remain in place"""
             i = 0
             buckets = []
             for child in selection:

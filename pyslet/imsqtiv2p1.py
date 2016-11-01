@@ -8,8 +8,6 @@ import pyslet.xml.xsdatatypes as xsdatatypes
 import pyslet.html401 as html
 import pyslet.rfc2396 as uri
 
-xsi = xsdatatypes
-
 import string
 import itertools
 import types
@@ -26,13 +24,15 @@ import pyslet.qtiv2.items as items
 import pyslet.qtiv2.tests as tests
 import pyslet.qtiv2.metadata as md
 
+xsi = xsdatatypes
 
 QTI_HTMLProfile = [
-    'abbr', 'acronym', 'address', 'blockquote', 'br', 'cite', 'code', 'dfn', 'div',
-    'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'kbd', 'p', 'pre', 'q', 'samp', 'span',
-    'strong', 'var', 'dl', 'dt', 'dd', 'ol', 'ul', 'li', 'object', 'param', 'b', 'big',
-    'hr', 'i', 'small', 'sub', 'sup', 'tt', 'caption', 'col', 'colgroup', 'table',
-    'tbody', 'tfoot', 'thead', 'td', 'th', 'tr', 'img', 'a']
+    'abbr', 'acronym', 'address', 'blockquote', 'br', 'cite', 'code', 'dfn',
+    'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'kbd', 'p', 'pre', 'q',
+    'samp', 'span', 'strong', 'var', 'dl', 'dt', 'dd', 'ol', 'ul', 'li',
+    'object', 'param', 'b', 'big', 'hr', 'i', 'small', 'sub', 'sup', 'tt',
+    'caption', 'col', 'colgroup', 'table', 'tbody', 'tfoot', 'thead', 'td',
+    'th', 'tr', 'img', 'a']
 
 MakeValidNCName = core.ValidateIdentifier
 
@@ -84,27 +84,31 @@ class RubricBlock(html.BlockMixin, content.BodyElement):
                 "%s in %s" % (repr(name), self.__class__.__name__))
 
 #
-#		MISCELLANEOUS INTERACTIONS
+# MISCELLANEOUS INTERACTIONS
 #
 
 
 #
-#	Modal Feedback
+# Modal Feedback
 #
 class QTIModalFeedback(content.FlowContainerMixin, core.QTIElement):
 
     """Represents the modalFeedback element.
 
     <xsd:attributeGroup name="modalFeedback.AttrGroup">
-            <xsd:attribute name="outcomeIdentifier" type="identifier.Type" use="required"/>
-            <xsd:attribute name="showHide" type="showHide.Type" use="required"/>
-            <xsd:attribute name="identifier" type="identifier.Type" use="required"/>
+            <xsd:attribute name="outcomeIdentifier" type="identifier.Type"
+            use="required"/>
+            <xsd:attribute name="showHide" type="showHide.Type"
+            use="required"/>
+            <xsd:attribute name="identifier" type="identifier.Type"
+            use="required"/>
             <xsd:attribute name="title" type="string.Type" use="optional"/>
     </xsd:attributeGroup>
 
     <xsd:group name="modalFeedback.ContentGroup">
             <xsd:sequence>
-                    <xsd:group ref="flowStatic.ElementGroup" minOccurs="0" maxOccurs="unbounded"/>
+                    <xsd:group ref="flowStatic.ElementGroup" minOccurs="0"
+                    maxOccurs="unbounded"/>
             </xsd:sequence>
     </xsd:group>
     """

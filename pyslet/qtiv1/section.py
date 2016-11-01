@@ -123,8 +123,8 @@ class SectionControl(common.QTICommentContainer):
             hintswitch  (Yes | No )  'Yes'
             solutionswitch  (Yes | No )  'Yes'
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                            Tutor ) 'All' >"""
+                            Candidate | InvigilatorProctor | Psychometrician |
+                            Scorer | Tutor ) 'All' >"""
     XMLNAME = 'sectioncontrol'
     XMLATTR_feedbackswitch = (
         'feedbackSwitch', core.ParseYesNo, core.FormatYesNo)
@@ -160,8 +160,8 @@ class SectionFeedback(common.QTICommentContainer, common.ContentMixin):
     <!ELEMENT sectionfeedback (qticomment? , (material+ | flow_mat+))>
     <!ATTLIST sectionfeedback
             view	(All | Administrator | AdminAuthority | Assessor | Author |
-                            Candidate | InvigilatorProctor | Psychometrician | Scorer |
-                            Tutor ) 'All'
+                            Candidate | InvigilatorProctor | Psychometrician |
+                            Scorer | Tutor ) 'All'
             ident CDATA  #REQUIRED
             title CDATA  #IMPLIED >"""
     XMLNAME = 'sectionfeedback'
@@ -213,8 +213,8 @@ class SectionRef(core.SectionMixin, core.QTIElement):
 class ItemRef(core.QTIElement, core.SectionItemMixin):
 
     """This element is used to 'pull' an Item into the scope. This is used to
-    refer to a Item that has been defined elsewhere but which is to be logically
-    related to this group of Items::
+    refer to a Item that has been defined elsewhere but which is to be
+    logically related to this group of Items::
 
     <!ELEMENT itemref (#PCDATA)>
     <!ATTLIST itemref  linkrefid CDATA  #REQUIRED >"""

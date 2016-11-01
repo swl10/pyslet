@@ -1,4 +1,5 @@
-""" Python Character Mapping Codec symbol generated from 'codecs/SYMBOL.TXT' with gencodec.py.
+""" Python Character Mapping Codec symbol generated from 'codecs/SYMBOL.TXT'
+with gencodec.py.
 
 """  # "
 

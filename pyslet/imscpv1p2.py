@@ -72,7 +72,8 @@ class CPZIPFilenameError(CPException):
 
 class CPElement(xmlns.XMLNSElement):
 
-    """Base class for all elements defined by the Content Packaging specification."""
+    """Base class for all elements defined by the Content Packaging
+    specification."""
     pass
 
 
@@ -177,7 +178,8 @@ class File(CPElement):
         self.href = None
 
     def PackagePath(self, cp):
-        """Returns the normalized file path relative to the root of the content package, *cp*.
+        """Returns the normalized file path relative to the root of the content
+        package, *cp*.
 
         If the href does not point to a local file then None is returned.
         Otherwise, this function calculates an absolute path to the file and
@@ -247,7 +249,8 @@ class Resource(CPElement):
         return None
 
     def SetEntryPoint(self, f):
-        """Set's the :py:class:`File` object that is identified as the resource's entry point.
+        """Set's the :py:class:`File` object that is identified as the
+        resource's entry point.
 
         The File must already exist and be associated with the resource."""
         # We resolve and recalculate just in case xml:base lurks on this file
@@ -296,7 +299,8 @@ class Resources(CPElement):
 
 class Manifest(CPElement):
 
-    """Represents the manifest element, the root element of the imsmanifest file."""
+    """Represents the manifest element, the root element of the imsmanifest
+    file."""
     ID = (xmlns.NO_NAMESPACE, "identifier")
     XMLNAME = (IMSCP_NAMESPACE, 'manifest')
     XMLCONTENT = xml.ElementContent
@@ -340,8 +344,8 @@ class ManifestDocument(xmlns.XMLNSDocument):
 
     """Represents the imsmanifest.xml file itself.
 
-    Buildong on :py:class:`pyslet.xml.namespace.XMLNSDocument` this class is used
-    for parsing and writing manifest files.
+    Buildong on :py:class:`pyslet.xml.namespace.XMLNSDocument` this class is
+    used for parsing and writing manifest files.
 
     The constructor defines three additional prefixes using
     :py:meth:`~pyslet.xml.namespace.XMLNSDocument.make_prefix`, mapping xsi
@@ -362,19 +366,24 @@ class ManifestDocument(xmlns.XMLNSDocument):
         self.make_prefix(imsqti.core.IMSQTI_NAMESPACE, 'imsqti')
         schemaLocation = [IMSCP_NAMESPACE, IMSCP_SCHEMALOCATION,
                           imsmd.IMSLRM_NAMESPACE, imsmd.IMSLRM_SCHEMALOCATION,
-                          imsqti.core.IMSQTI_NAMESPACE, imsqti.core.IMSQTI_SCHEMALOCATION]
+                          imsqti.core.IMSQTI_NAMESPACE,
+                          imsqti.core.IMSQTI_SCHEMALOCATION]
         if isinstance(self.root, CPElement):
             self.root.set_attribute(
-                (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'), string.join(schemaLocation, ' '))
+                (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'),
+                string.join(schemaLocation, ' '))
 
     def get_element_class(self, name):
-        """Overrides :py:meth:`pyslet.xml.namespace.XMLNSDocument.get_element_class` to look up name.
+        """Overrides
+        :py:meth:`pyslet.xml.namespace.XMLNSDocument.get_element_class` to look
+        up name.
 
         The class contains a mapping from (namespace,element name) pairs to
         class objects representing the elements.  Any element not in the class
         map returns :py:meth:`~pyslet.xml.namespace.XMLNSElement` instead."""
         eClass = ManifestDocument.classMap.get(
-            name, ManifestDocument.classMap.get((name[0], None), xmlns.XMLNSElement))
+            name, ManifestDocument.classMap.get((name[0], None),
+                                                xmlns.XMLNSElement))
         return eClass
 
 xmlns.map_class_elements(ManifestDocument.classMap, globals())
@@ -397,7 +406,8 @@ class ContentPackage:
     temporary folder to facilitate manipulation of the package contents.
 
     A new manifest file is created and written to the file system when creating
-    a new package, or if it is missing from an existing package or directory."""
+    a new package, or if it is missing from an existing package or
+    directory."""
 
     #: the default class for representing the Manifest file
     ManifestDocumentClass = ManifestDocument
@@ -407,7 +417,8 @@ class ContentPackage:
         errorFlag = True
         try:
             if dPath is None:
-                #: the :py:class:`~pyslet.vfs.VirtualFilePath` to the package's directory
+                #: the :py:class:`~pyslet.vfs.VirtualFilePath` to the package's
+                # directory
                 self.dPath = vfs.defaultFS.mkdtemp('.d', 'imscpv1p2-')
                 self.tempDir = True
                 self.packageName = 'imscp'
@@ -436,7 +447,8 @@ class ContentPackage:
                             head, tail = self.dPath.split()
                             if str(mPath.normcase()) != 'imsmanifest.xml':
                                 raise CPManifestError(
-                                    "%s must be named imsmanifest.xml" % str(mPath))
+                                    "%s must be named imsmanifest.xml" %
+                                    str(mPath))
                             self.packageName = str(tail)
                     finally:
                         f.close()
@@ -449,16 +461,20 @@ class ContentPackage:
             if mPath.exists():
                 self.manifest = self.ManifestDocumentClass(
                     baseURI=str(uri.URI.from_virtual_path(mPath)))
-                """The :py:class:`ManifestDocument` object representing the imsmanifest.xml file.
-				
-				The file is read (or created) on construction."""
+                """The :py:class:`ManifestDocument` object representing the
+                imsmanifest.xml file.
+
+                The file is read (or created) on construction."""
                 self.manifest.read()
                 if not isinstance(self.manifest.root, Manifest):
-                    raise CPManifestError("%s not a manifest file, found %s::%s " %
-                                          (mPath, self.manifest.root.ns, self.manifest.root.xmlname))
+                    raise CPManifestError("%s not a manifest file, found"
+                                          " %s::%s " %
+                                          (mPath, self.manifest.root.ns,
+                                           self.manifest.root.xmlname))
             else:
-                self.manifest = self.ManifestDocumentClass(root=Manifest,
-                                                           baseURI=str(uri.URI.from_virtual_path(mPath)))
+                self.manifest = self.ManifestDocumentClass(
+                    root=Manifest,
+                    baseURI=str(uri.URI.from_virtual_path(mPath)))
                 self.manifest.root.set_id(
                     self.manifest.get_unique_id('manifest'))
                 md = self.manifest.root.add_child(
@@ -469,30 +485,32 @@ class ContentPackage:
             self.SetIgnoreFiles(IGNOREFILES_RE)
             self.fileTable = {}
             """The fileTable is a dictionary that maps package relative file
-			paths to the :py:class:`File` objects that represent them in the
-			manifest.
-			
-			It is possible for a file to be referenced multiple times (although
-			dependencies were designed to take care of most cases it is still
-			possible for two resources to share a physical file, or even for a
-			resource to contain multiple references to the same file.)  Therefore,
-			the dictionary values are lists of :py:class:`File` objects.
-	
-			If a file path maps to an empty list then a file exists in the package
-			which is not referenced by any resource.  In some packages it is commone
-			for auxiliary files such as supporting schemas to be included in
-			packages without a corresponding :py:class:`File` object so an empty
-			list does not indicate that the file can be removed safely.  These files
-			are still included when packaging the content package for
-			interchange.
-			
-			Finally, if a file referred to by a :py:class:`File` object in the
-			manifest is missing an entry is still created in the fileTable.  You
-			can walk the keys of the fileTable testing if each file exists to
-			determine if some expected files are missing from the package.
-			
-			The keys in fileTable are VirtualFilePath instances.  To convert a
-			string to an appropriate instance use the :py:meth:`FilePath` method."""
+            paths to the :py:class:`File` objects that represent them in the
+            manifest.
+
+            It is possible for a file to be referenced multiple times (although
+            dependencies were designed to take care of most cases it is still
+            possible for two resources to share a physical file, or even for a
+            resource to contain multiple references to the same file.)
+            Therefore, the dictionary values are lists of :py:class:`File`
+            objects.
+
+            If a file path maps to an empty list then a file exists in the
+            package which is not referenced by any resource.  In some packages
+            it is common for auxiliary files such as supporting schemas to be
+            included in packages without a corresponding :py:class:`File`
+            object so an empty list does not indicate that the file can be
+            removed safely.  These files are still included when packaging the
+            content package for interchange.
+
+            Finally, if a file referred to by a :py:class:`File` object in the
+            manifest is missing an entry is still created in the fileTable. You
+            can walk the keys of the fileTable testing if each file exists to
+            determine if some expected files are missing from the package.
+
+            The keys in fileTable are VirtualFilePath instances.  To convert a
+            string to an appropriate instance use the :py:meth:`FilePath`
+            method."""
             self.RebuildFileTable()
             errorFlag = False
         finally:
@@ -501,7 +519,7 @@ class ContentPackage:
 
     def FilePath(self, *path):
         """Converts a string into a :py:class:`pyslet.vfs.VirtualFilePath`
-        instance suitable for using as a key into the :py:attr:`fileTable`.  The
+        instance suitable for using as a key into the :py:attr:`fileTable`. The
         conversion is done using the file system of the content package's
         directory, :py:attr:`dPath`."""
         return self.dPath.__class__(*path)
@@ -509,18 +527,20 @@ class ContentPackage:
     def SetIgnoreFiles(self, ignoreFiles):
         """Sets the regular expression used to determine if a file should be ignored.
 
-        Some operating systems and utilities create hidden files or other spurious data
-        inside the content package directory.  For example, Apple's OS X creates .DS_Store
-        files and the svn source control utility creates .svn directories.  The files shouldn't
-        generally be included in exported packages as they may confuse the recipient (who
-        may be using a system on which these files and directories are not hidden) and be
-        deemed to violate the specification, not to mention adding unnecessarily to the size
-        of the package and perhaps even leaking information unintentionally.
+        Some operating systems and utilities create hidden files or other
+        spurious data inside the content package directory.  For example,
+        's OS X creates .DS_Store files and the svn source control utility
+        creates .svn directories.  The files shouldn't generally be included in
+        exported packages as they may confuse the recipient (who may be using a
+        system on which these files and directories are not hidden) and be
+        deemed to violate the specification, not to mention adding
+        unnecessarily to the size of the package and perhaps even leaking
+        information unintentionally.
 
-        To help avoid this type of problem the class uses a regular expression to determine
-        if a file should be considered part of the package.  When listing directories, the
-        names of the files found are compared against this regular expression and are ignored
-        if they match.
+        To help avoid this type of problem the class uses a regular expression
+        to determine if a file should be considered part of the package.  When
+        listing directories, the names of the files found are compared against
+        this regular expression and are ignored if they match.
 
         By default, the pattern is set to match all directories and files with
         names beginning '.' so you will not normally need to call this
@@ -528,7 +548,8 @@ class ContentPackage:
         self.ignoreFiles = re.compile(ignoreFiles)
 
     def IgnoreFile(self, f):
-        """Compares a file or directory name against the pattern set by :py:meth:`SetIgnoreFiles`.
+        """Compares a file or directory name against the pattern set by
+        :py:meth:`SetIgnoreFiles`.
 
         f is a unicode string."""
         match = self.ignoreFiles.match(f)
@@ -553,7 +574,8 @@ class ContentPackage:
         fPath = fPath.normpath()
         while True:
             head, tail = fPath.split()
-            if tail and tail != fPath.pardir and self.IgnoreFile(unicode(tail)):
+            if (tail and tail != fPath.pardir and
+               self.IgnoreFile(unicode(tail))):
                 return True
             if not head or head == fPath:
                 # No head left, or the path is unsplitable
@@ -561,7 +583,8 @@ class ContentPackage:
             fPath = head
 
     def RebuildFileTable(self):
-        """Rescans the file system and manifest and rebuilds the :py:attr:`fileTable`."""
+        """Rescans the file system and manifest and rebuilds the
+        :py:attr:`fileTable`."""
         self.fileTable = {}
         been_there = {}
         for f in self.dPath.listdir():
@@ -649,11 +672,12 @@ class ContentPackage:
         *zPath* is overwritten by this operation.
 
         In order to make content packages more interoperable this method goes
-        beyond the basic zip specification and ensures that pathnames are always
-        UTF-8 encoded when added to the archive.  When creating instances of
-        :py:class:`ContentPackage` from an existing archive the reverse
-        transformation is performed.  When exchanging PIF files between systems
-        with different native file path encodings, encoding erros may occurr."""
+        beyond the basic zip specification and ensures that pathnames are
+        always UTF-8 encoded when added to the archive.  When creating
+        instances of :py:class:`ContentPackage` from an existing archive the
+        reverse transformation is performed.  When exchanging PIF files between
+        systems with different native file path encodings, encoding erros may
+        occur."""
         zf = zipfile.ZipFile(zPath, 'w')
         base = ''
         been_there = {}
@@ -708,8 +732,8 @@ class ContentPackage:
 
         If suggestedPath already corresponds to a file already in the package,
         or to a file already referred to in the manifest, then a random string
-        is added to it while preserving the suggested extension in order to make
-        it unique.
+        is added to it while preserving the suggested extension in order to
+        make it unique.
 
         The return result is always normalized and returned relative to the
         package root."""
@@ -738,8 +762,8 @@ class ContentPackage:
     def File(self, resource, href):
         """Returns a new :py:class:`File` object attached to *resource*
 
-        *href* is the URI of the file expressed relative to the resource element
-        in the manifest.  Although this is normally the same as the URI
+        *href* is the URI of the file expressed relative to the resource
+        element in the manifest.  Although this is normally the same as the URI
         expressed relative to the package, a resource may have an xml:base
         attribute that alters the base for resolving relative URIs.
 
@@ -764,28 +788,32 @@ class ContentPackage:
             if self.IgnoreFile(unicode(tail)):
                 raise CPFilePathError(fullPath)
             rel_path = PathInPath(fullPath, self.dPath)
-            if rel_path is None or unicode(rel_path).lower == u'imsmanifest.xml':
+            if (rel_path is None or
+               unicode(rel_path).lower == u'imsmanifest.xml'):
                 raise CPFilePathError(url.path)
             # normalise the case ready to put in the file table
             rel_path = rel_path.normcase()
             f = resource.add_child(resource.FileClass)
             f.href = href
-            if not rel_path in self.fileTable:
+            if rel_path not in self.fileTable:
                 self.fileTable[rel_path] = [f]
             else:
                 self.fileTable[rel_path].append(f)
         return f
 
     def FileCopy(self, resource, srcURL):
-        """Returns a new :py:class:`File` object copied into the package from *srcURL*, attached to *resource*.
+        """Returns a new :py:class:`File` object copied into the package from
+        *srcURL*, attached to *resource*.
 
         The file is copied to the same directory as the resource's entry point
         or to the main package directory if the resource has no entry point.
 
-        The :py:class:`File` object is actually created with the :py:meth:`File` method.
+        The :py:class:`File` object is actually created with the
+        :py:meth:`File` method.
 
-        Note that if srcURL points to a missing file then no file is copied to the package but the
-        associated :py:class:`File` is still created.  It will point to a missing file."""
+        Note that if srcURL points to a missing file then no file is copied to
+        the package but the associated :py:class:`File` is still created.
+        It will point to a missing file."""
         srcPath = srcURL.get_virtual_file_path()
         # We need to create a new file object
         fStart = resource.GetEntryPoint()
@@ -816,9 +844,9 @@ class ContentPackage:
     def DeleteFile(self, href):
         """Removes the file at *href* from the file system
 
-        This method also removes any file references to it from resources in the
-        manifest. href may be given relative to the package root directory.  The
-        entry in :py:attr:`fileTable` is also removed. 
+        This method also removes any file references to it from resources in
+        the manifest. href may be given relative to the package root directory.
+        The entry in :py:attr:`fileTable` is also removed.
 
         :py:class:`CPFileTypeError` is raised if the file is not a regular file
 
@@ -883,7 +911,7 @@ class ContentPackage:
         processing the content package.  Temporary files are created inside a
         special temporary directory created using the builtin python
         tempdir.mkdtemp function.  They are not automatically cleaned up when
-        the process exits or when the garbage collector disposes of the object. 
+        the process exits or when the garbage collector disposes of the object.
         Use of try:... finally: to clean up the package is recommended.  For
         example::
 

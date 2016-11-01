@@ -1,5 +1,6 @@
 #! /usr/bin/env python
-"""This module implements test to check against the IMSCC Profile 1.0 specification defined by IMS GLC"""
+"""This module implements test to check against the IMSCC Profile 1.0
+specification defined by IMS GLC"""
 
 import unittest
 from types import StringTypes
@@ -8,7 +9,8 @@ import os.path
 
 CCOrganizationStructure = "rooted-hierarchy"
 CartridgeWebContentType = "webcontent"
-AssociatedContentType = "associatedcontent/imscc_xmlv1p0/learning-application-resource"
+AssociatedContentType = ("associatedcontent/imscc_xmlv1p0/"
+                         "learning-application-resource")
 DiscussionTopicContentType = "imsdt_xmlv1p0"
 WebLinkContentType = "imswl_xmlv1p0"
 AssessmentContentType = "imsqti_xmlv1p2/imscc_xmlv1p0/assessment"
@@ -33,9 +35,10 @@ class CommonCartridge:
     def ScanResources(self):
         """Scans the content package and builds lists of resources.
 
-        Resources in Common Cartridge are either Cartridge Web Content resources,
-        Learning Application Object (LAO) resources or an LAO's Associated Content
-        resources.  Any other resources are treated as passengers."""
+        Resources in Common Cartridge are either Cartridge Web Content
+        resources, Learning Application Object (LAO) resources or an LAO's
+        Associated Content resources.  Any other resources are treated as
+        passengers."""
         self.cwcList = []
         self.laoTable = {}
         resources = self.cp.manifest.root.Resources
@@ -64,7 +67,8 @@ class CommonCartridge:
             depList = r.Dependency
             for dep in depList:
                 rDep = self.cp.manifest.get_element_by_id(dep.identifierref)
-                if isinstance(rDep, imscp.Resource) and rDep.type == AssociatedContentType:
+                if (isinstance(rDep, imscp.Resource) and
+                   rDep.type == AssociatedContentType):
                     acr = rDep
                     break
             self.laoTable[r.id] = [head, acr]
@@ -121,7 +125,8 @@ class CCTestCase(unittest.TestCase):
     def test1_4_AssociatedContent_2(self):
         """A resource of the type associatedcontent must ...
         2. It must not contain any references to files above the directory
-        containing the associated Learning Application Object's descriptor file."""
+        containing the associated Learning Application Object's descriptor
+        file."""
         for lao in self.cc.laoTable.keys():
             dPath, acr = self.cc.laoTable[lao]
             if acr is None:
@@ -209,8 +214,8 @@ class CCTestCase(unittest.TestCase):
             # The use of 'the' suggests that there must be only one such acr
             self.assertFalse(len(acrList) > 1)
             if len(acrList):
-                # And hence all associated content dependencies in lao must be to
-                # the single acr in this list.
+                # And hence all associated content dependencies in lao must be
+                # to the single acr in this list.
                 for d in laoResource.Dependency:
                     acr = self.cc.cp.manifest.get_element_by_id(
                         d.identifierref)
@@ -224,9 +229,10 @@ class CCTestCase(unittest.TestCase):
     def test1_4_WebContent_1(self):
         """A resource of the type "webcontent" must comply with the following
         restrictions...
-        1. It may contain a file element for any file that exists in the package
-        so long as the file is not in a Learning Application Object directory or
-        a subdirectory of any Learning Application Object directory."""
+        1. It may contain a file element for any file that exists in the
+        package so long as the file is not in a Learning Application Object
+        directory or a subdirectory of any Learning Application Object
+        directory."""
         dPathList = []
         for lao in self.cc.laoTable.keys():
             dPath, acr = self.cc.laoTable[lao]

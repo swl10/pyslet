@@ -125,9 +125,10 @@ def MigrateV2AreaCoords(area, value, log):
     defined and in some cases content uses a mixture of space and ','.
 
     Note also that the definition of rarea was updated in the 1.2.1 errata and
-    that affects this algorithm.  The clarification on the definition of ellipse
-    from radii to diameters might mean that some content ends up with hotspots
-    that are too small but this is safer than hotspots that are too large.
+    that affects this algorithm.  The clarification on the definition of
+    ellipse from radii to diameters might mean that some content ends up with
+    hotspots that are too small but this is safer than hotspots that are too
+    large.
 
     Example::
 
@@ -165,7 +166,8 @@ def MigrateV2AreaCoords(area, value, log):
     if area == Area.Rectangle:
         if len(coords) < 4:
             log.append(
-                "Error: not enough coordinates for rectangle, padding with zeros")
+                "Error: not enough coordinates for rectangle,"
+                " padding with zeros")
             while len(coords) < 4:
                 coords.append(0)
         shape = qtiv2.core.Shape.rect
@@ -175,16 +177,19 @@ def MigrateV2AreaCoords(area, value, log):
         if len(coords) < 4:
             if len(corrds) < 2:
                 log.append(
-                    "Error: not enough coordinates to locate ellipse, padding with zero")
+                    "Error: not enough coordinates to locate ellipse,"
+                    " padding with zero")
                 while len(coords) < 2:
                     coords.append(0)
             if len(coords) == 2:
                 log.append(
-                    "Error: ellipse has no radius, treating as circule radius 4")
+                    "Error: ellipse has no radius, treating as circule"
+                    " radius 4")
                 coords = coords + [8, 8]
             elif len(coords) == 3:
                 log.append(
-                    "Error: only one radius given for ellipse, assuming circular")
+                    "Error: only one radius given for ellipse,"
+                    " assuming circular")
                 coords.append(coords[-1])
         if coords[2] == coords[3]:
             r = coords[2] // 2  # centre-pixel coordinate model again
@@ -272,7 +277,8 @@ class FIBType(xsi.Enumeration):
 
 class MDOperator(xsi.EnumerationNoCase):
 
-    """Metadata operator enumeration for :py:class:`pyslet.qtiv1.sao.SelectionMetadata`::
+    """Metadata operator enumeration for
+    :py:class:`pyslet.qtiv1.sao.SelectionMetadata`::
 
     (EQ | NEQ | LT | LTE | GT | GTE )
 
@@ -397,8 +403,8 @@ class RCardinality(xsi.Enumeration):
 def MigrateV2Cardinality(rCardinality):
     """Maps a v1 cardinality onto the corresponding v2 constant.
 
-    Raises KeyError if *rCardinality* is not one of the :py:class:`RCardinality`
-    constants."""
+    Raises KeyError if *rCardinality* is not one of the
+    :py:class:`RCardinality` constants."""
     return {
         RCardinality.Single: qtiv2.variables.Cardinality.single,
         RCardinality.Multiple: qtiv2.variables.Cardinality.multiple,
@@ -415,7 +421,8 @@ class VarType(xsi.Enumeration):
 
     """vartype enumeration::
 
-    (Integer | String | Decimal | Scientific | Boolean | Enumerated | Set )  'Integer'
+        (Integer | String | Decimal | Scientific | Boolean | Enumerated |
+            Set )  'Integer'
 
     Defines constants for the above view types.  Usage example::
 
@@ -471,8 +478,9 @@ class View(xsi.EnumerationNoCase):
 
     """View enumeration::
 
-            (All | Administrator | AdminAuthority | Assessor | Author | Candidate |
-            InvigilatorProctor | Psychometrician | Scorer | Tutor )  'All'
+            (All | Administrator | AdminAuthority | Assessor | Author |
+            Candidate | InvigilatorProctor | Psychometrician | Scorer |
+            Tutor )  'All'
 
     Defines constants for the above view types.  Usage example::
 
@@ -482,8 +490,8 @@ class View(xsi.EnumerationNoCase):
 
             View.DEFAULT == View.All
 
-    In addition to the constants defined in the specification we add two aliases
-    which are in common use::
+    In addition to the constants defined in the specification we add two
+    aliases which are in common use::
 
             (Invigilator | Proctor)
 
@@ -555,9 +563,9 @@ class QTIElement(xml.Element):
 
         Most QTIElements will be contained by some type of metadata container
         that collects metadata in a format suitable for easy lookup and export
-        to other metadata formats.  The default implementation simply passes the
-        call to the parent element or, if there is no parent, the declaration is
-        ignored.
+        to other metadata formats.  The default implementation simply passes
+        the call to the parent element or, if there is no parent, the
+        declaration is ignored.
 
         For more information see :py:class:`MetadataContainer`."""
         if isinstance(self.parent, QTIElement):

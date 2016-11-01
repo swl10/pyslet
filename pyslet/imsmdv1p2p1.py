@@ -16,8 +16,8 @@ IMSLRM_NAMESPACE = "http://www.imsglobal.org/xsd/imsmd_v1p2"
 IMSLRM_SCHEMALOCATION = "http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd"
 
 IMSLRM_NAMESPACE_ALIASES = {
-    #	"http://www.imsproject.org/metadata":"1.1",
-    #	"http://www.imsproject.org/metadata/":"1.1",
+    # "http://www.imsproject.org/metadata":"1.1",
+    # "http://www.imsproject.org/metadata/":"1.1",
     "http://www.imsproject.org/xsd/imsmd_rootv1p2": IMSLRM_NAMESPACE,
     "http://www.imsglobal.org/xsd/imsmd_rootv1p2p1": IMSLRM_NAMESPACE}
 
@@ -321,7 +321,8 @@ class LOMLifecycle(LRMElement):
     <xsd:sequence>
             <xsd:element ref = "version" minOccurs = "0"/>
             <xsd:element ref = "status" minOccurs = "0"/>
-            <xsd:element ref = "contribute" minOccurs = "0" maxOccurs = "unbounded"/>
+            <xsd:element ref = "contribute" minOccurs = "0"
+            maxOccurs = "unbounded"/>
             <xsd:group ref = "grp.any"/>
     </xsd:sequence>
     """
@@ -358,7 +359,8 @@ class LOMContribute(LRMElement):
     """
     <xsd:sequence>
             <xsd:element ref = "role"/>
-            <xsd:element ref = "centity" minOccurs = "0" maxOccurs = "unbounded"/>
+            <xsd:element ref = "centity" minOccurs = "0"
+            maxOccurs = "unbounded"/>
             <xsd:element ref = "date" minOccurs = "0"/>
             <xsd:group ref = "grp.any"/>
     </xsd:sequence>
@@ -449,10 +451,12 @@ class LOMEducational(LRMElement):
 <xsd:complexType name="educationalType" mixed="true">
   <xsd:sequence>
      <xsd:element ref="interactivitytype" minOccurs="0"/>
-     <xsd:element ref="learningresourcetype" minOccurs="0" maxOccurs="unbounded"/>
+     <xsd:element ref="learningresourcetype" minOccurs="0"
+     maxOccurs="unbounded"/>
      <xsd:element ref="interactivitylevel" minOccurs="0"/>
      <xsd:element ref="semanticdensity" minOccurs="0"/>
-     <xsd:element ref="intendedenduserrole" minOccurs="0" maxOccurs="unbounded"/>
+     <xsd:element ref="intendedenduserrole" minOccurs="0"
+     maxOccurs="unbounded"/>
      <xsd:element ref="context" minOccurs="0" maxOccurs="unbounded"/>
      <xsd:element ref="typicalagerange" minOccurs="0" maxOccurs="unbounded"/>
      <xsd:element ref="difficulty" minOccurs="0"/>
@@ -547,8 +551,7 @@ class LOMRelation(LRMElement):
 
 
 class LOMAnnotation(LRMElement):
-
-    """ 
+    """
     <xsd:complexType name="annotationType" mixed="true">
   <xsd:sequence>
      <xsd:element ref="person" minOccurs="0"/>
@@ -593,4 +596,5 @@ def get_element_class(name):
     ns, xmlname = name
     if ns in IMSLRM_NAMESPACE_ALIASES:
         ns = IMSLRM_NAMESPACE_ALIASES[ns]
-    return classMap.get((ns, xmlname), classMap.get((ns, None), xmlns.XMLNSElement))
+    return classMap.get((ns, xmlname), classMap.get((ns, None),
+                                                    xmlns.XMLNSElement))
