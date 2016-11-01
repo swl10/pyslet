@@ -1399,15 +1399,17 @@ class AreaMapping(core.QTIElement):
         return iter(self.AreaMapEntry)
 
     def MapValue(self, value, width, height):
-        """Maps an instance of :py:class:`Value` with point base type to an
-        instance of :py:class:`Value` with base type float.
+        """Maps a point onto a float.
+        
+        Returns an instance of :py:class:`Value` with base type float.
 
         *	value is a :py:class:`Value` of base type point
 
-        *	width is the integer width of the object on which the area is defined
+        *   width is the integer width of the object on which the area
+            is defined
 
-        *	height is the integer height of the object on which the area is
-            defined
+        *   height is the integer height of the object on which the
+            area is defined
 
         The width and height of the object are required because HTML allows
         relative values to be used when defining areas."""

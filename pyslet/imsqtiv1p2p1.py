@@ -32,11 +32,14 @@ QTI_SOURCE = 'QTIv1'
 
 class QuesTestInterop(QTICommentContainer):
 
-    """The <questestinterop> element is the outermost container for the QTI
-    contents i.e. the container of the Assessment(s), Section(s) and Item(s)::
+    """Outermost container for QTI content
+    
+    The <questestinterop> element is the outermost container for the QTI
+    contents i.e. the container of the Assessment(s), Section(s) and
+    Item(s)::
 
-    <!ELEMENT questestinterop (qticomment? , (objectbank | assessment |
-    (section | item)+))>"""
+        <!ELEMENT questestinterop (qticomment? , (objectbank | assessment |
+            (section | item)+))>"""
 
     XMLNAME = 'questestinterop'
 

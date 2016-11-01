@@ -1982,13 +1982,14 @@ class Acronym(Phrase):
 
 class Address(AttrsMixin, BlockMixin, InlineContainer):
 
-    """Address (of author)
+    """Address \\(of author)
 ::
 
     <!ELEMENT ADDRESS - - ((%inline;)|P)*  -- information on author -->
     <!ATTLIST ADDRESS
         %attrs;     -- %coreattrs, %i18n, %events --
-        >"""
+        >
+"""
     XMLNAME = (XHTML_NAMESPACE, 'address')
 
     def check_model(self, child_class):

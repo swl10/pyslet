@@ -421,8 +421,8 @@ class VarType(xsi.Enumeration):
 
     """vartype enumeration::
 
-    (Integer | String | Decimal | Scientific | Boolean | Enumerated |
-    Set )  'Integer'
+        (Integer | String | Decimal | Scientific | Boolean | Enumerated |
+            Set )  'Integer'
 
     Defines constants for the above view types.  Usage example::
 
