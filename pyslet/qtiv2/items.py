@@ -172,3 +172,52 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
             if isinstance(child, core.QTIElement):
                 child.add_to_cpresource(cp, resource, {})
         return resource
+
+
+#
+# Modal Feedback
+#
+class QTIModalFeedback(content.FlowContainerMixin, core.QTIElement):
+
+    """Represents the modalFeedback element.
+
+    <xsd:attributeGroup name="modalFeedback.AttrGroup">
+            <xsd:attribute name="outcomeIdentifier" type="identifier.Type"
+            use="required"/>
+            <xsd:attribute name="showHide" type="showHide.Type"
+            use="required"/>
+            <xsd:attribute name="identifier" type="identifier.Type"
+            use="required"/>
+            <xsd:attribute name="title" type="string.Type" use="optional"/>
+    </xsd:attributeGroup>
+
+    <xsd:group name="modalFeedback.ContentGroup">
+            <xsd:sequence>
+                    <xsd:group ref="flowStatic.ElementGroup" minOccurs="0"
+                    maxOccurs="unbounded"/>
+            </xsd:sequence>
+    </xsd:group>
+    """
+    XMLNAME = (core.IMSQTI_NAMESPACE, 'modalFeedback')
+    XMLATTR_outcomeIdentifier = (
+        'outcomeIdentifier', core.ValidateIdentifier, lambda x: x)
+    XMLATTR_showHide = (
+        'showHide', core.ShowHide.from_str_lower, core.ShowHide.to_str)
+    XMLATTR_identifier = ('identifier', core.ValidateIdentifier, lambda x: x)
+    XMLATTR_title = 'title'
+    XMLCONTENT = xml.XMLMixedContent
+
+    def __init__(self, parent):
+        core.QTIElement.__init__(self, parent)
+        self.outcomeIdentifier = None
+        self.showHide = None
+        self.identifier = None
+        self.title = None
+
+    def add_child(self, childClass, name=None):
+        if issubclass(childClass, html.FlowMixin):
+            return core.QTIElement.add_child(self, childClass, name)
+        else:
+            # This child cannot go in here
+            raise core.QTIValidityError(
+                "%s in %s" % (repr(name), self.__class__.__name__))

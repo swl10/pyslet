@@ -3,7 +3,7 @@
 import pyslet.xml.structures as xml
 import pyslet.xml.xsdatatypes as xsi
 import pyslet.html401 as html
-import pyslet.imsqtiv2p1 as qtiv2
+import pyslet.qtiv2.xml as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
 
 import core
@@ -105,11 +105,11 @@ class Item(
         # First thing we do is initialize any fixups
         for rp in self.ResProcessing:
             rp._interactionFixup = {}
-        doc = qtiv2.core.QTIDocument(root=qtiv2.items.AssessmentItem)
+        doc = qtiv2.QTIDocument(root=qtiv2.items.AssessmentItem)
         item = doc.root
         lom = imsmd.LOM(None)
         log = []
-        ident = qtiv2.MakeValidNCName(self.ident)
+        ident = qtiv2.core.ValidateIdentifier(self.ident)
         if self.ident != ident:
             log.append(
                 "Warning: illegal NCName for ident: %s, replaced with: %s" %
@@ -498,7 +498,7 @@ class ItemMetadata(common.MetadataContainerMixin, core.QTIElement):
         self.LRMMigrateStatus(lom, log)
         vendors = self.metadata.get('toolvendor', ())
         for value, definition in vendors:
-            item.metadata.add_child(qtiv2.md.ToolVendor).set_value(value)
+            item.metadata.add_child(qtiv2.metadata.ToolVendor).set_value(value)
         self.LRMMigrateTopic(lom, log)
         self.LRMMigrateContributor('author', 'author', lom, log)
         self.LRMMigrateContributor('creator', 'initiator', lom, log)
@@ -2297,7 +2297,7 @@ class ItemProcExtension(common.ContentMixin, core.QTIElement, ConditionMixin):
                 # view
                 v2Item = ruleContainer.find_parent(qtiv2.items.AssessmentItem)
                 rubric = v2Item.get_or_add_child(
-                    qtiv2.content.ItemBody).add_child(qtiv2.RubricBlock)
+                    qtiv2.content.ItemBody).add_child(qtiv2.content.RubricBlock)
                 rubric.view = qtiv2.core.View.scorer
                 material = list(
                     child.find_children_depth_first(common.Material, False))
@@ -2344,7 +2344,7 @@ class ItemFeedback(core.QTIElement, common.ContentMixin):
             self.contentChildren)
 
     def MigrateV2(self, v2Item, log):
-        feedback = v2Item.add_child(qtiv2.QTIModalFeedback)
+        feedback = v2Item.add_child(qtiv2.items.QTIModalFeedback)
         if self.view not in (core.View.All, core.View.Candidate):
             log.append("Warning: discarding view on feedback (%s)" %
                        core.View.to_str(self.view))

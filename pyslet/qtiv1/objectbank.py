@@ -2,7 +2,7 @@
 
 import pyslet.xml.structures as xml
 import pyslet.xml.xsdatatypes as xsi
-import pyslet.imsqtiv2p1 as qtiv2
+import pyslet.qtiv2.xml as qtiv2
 
 import core
 import common

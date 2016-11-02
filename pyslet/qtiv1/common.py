@@ -3,7 +3,7 @@
 import pyslet.xml.structures as xml
 import pyslet.xml.xsdatatypes as xsi
 import pyslet.html401 as html
-import pyslet.imsqtiv2p1 as qtiv2
+import pyslet.qtiv2.xml as qtiv2
 import pyslet.imsmdv1p2p1 as imsmd
 
 import core
@@ -1098,7 +1098,7 @@ class Objectives(FlowMatContainer):
         """Adds rubric representing these objectives to the given item's
         body"""
         rubric = v2Item.add_child(
-            qtiv2.content.ItemBody).add_child(qtiv2.RubricBlock)
+            qtiv2.content.ItemBody).add_child(qtiv2.content.RubricBlock)
         rubric.set_attribute(
             'view',
             qtiv2.core.View.list_to_str(
@@ -1147,7 +1147,7 @@ class Rubric(FlowMatContainer):
             rubric.style_class = ['rubric']
         else:
             rubric = v2Item.get_or_add_child(
-                qtiv2.content.ItemBody).add_child(qtiv2.RubricBlock)
+                qtiv2.content.ItemBody).add_child(qtiv2.content.RubricBlock)
             rubric.set_attribute(
                 'view',
                 qtiv2.core.View.list_to_str(

@@ -6,7 +6,7 @@ import pyslet.xml.structures as xml
 import pyslet.xml.namespace as xmlns
 import pyslet.xml.xsdatatypes as xsi
 import pyslet.imsmdv1p2p1 as imsmd
-import pyslet.imsqtiv2p1 as imsqti
+import pyslet.qtiv2.xml as qtixml2
 import pyslet.qtiv2.metadata as qtimd
 import pyslet.rfc2396 as uri
 import pyslet.vfs as vfs
@@ -363,11 +363,11 @@ class ManifestDocument(xmlns.XMLNSDocument):
         self.defaultNS = IMSCP_NAMESPACE
         self.make_prefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
         self.make_prefix(imsmd.IMSLRM_NAMESPACE, 'imsmd')
-        self.make_prefix(imsqti.core.IMSQTI_NAMESPACE, 'imsqti')
+        self.make_prefix(qtixml2.core.IMSQTI_NAMESPACE, 'imsqti')
         schemaLocation = [IMSCP_NAMESPACE, IMSCP_SCHEMALOCATION,
                           imsmd.IMSLRM_NAMESPACE, imsmd.IMSLRM_SCHEMALOCATION,
-                          imsqti.core.IMSQTI_NAMESPACE,
-                          imsqti.core.IMSQTI_SCHEMALOCATION]
+                          qtixml2.core.IMSQTI_NAMESPACE,
+                          qtixml2.core.IMSQTI_SCHEMALOCATION]
         if isinstance(self.root, CPElement):
             self.root.set_attribute(
                 (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'),

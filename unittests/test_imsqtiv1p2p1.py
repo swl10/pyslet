@@ -197,11 +197,11 @@ class QTIV2ConversionTests(unittest.TestCase):
             f = r.GetEntryPoint()
             if f:
                 fPath = f.PackagePath(cp2)
-                qtiDoc = qtiv2.core.QTIDocument(
+                qtiDoc = qtiv2.QTIDocument(
                     baseURI=str(uri.URI.from_virtual_path(self.cp.dPath.join(fPath))))
                 qtiDoc.read()
                 # print str(qtiDoc)
-                qtiDoc2 = qtiv2.core.QTIDocument(
+                qtiDoc2 = qtiv2.QTIDocument(
                     baseURI=str(uri.URI.from_virtual_path(cp2.dPath.join(fPath))))
                 qtiDoc2.read()
                 # print str(qtiDoc2)

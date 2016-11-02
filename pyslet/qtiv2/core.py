@@ -18,6 +18,14 @@ IMSQTI_ITEM_RESOURCETYPE = "imsqti_item_xmlv2p1"
 """The resource type to use for the QTI 2.1 items when added to content
 packages."""
 
+QTI_HTML_PROFILE = set((
+    'abbr', 'acronym', 'address', 'blockquote', 'br', 'cite', 'code', 'dfn',
+    'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'kbd', 'p', 'pre', 'q',
+    'samp', 'span', 'strong', 'var', 'dl', 'dt', 'dd', 'ol', 'ul', 'li',
+    'object', 'param', 'b', 'big', 'hr', 'i', 'small', 'sub', 'sup', 'tt',
+    'caption', 'col', 'colgroup', 'table', 'tbody', 'tfoot', 'thead', 'td',
+    'th', 'tr', 'img', 'a'))
+
 
 class QTIError(Exception):
 
@@ -333,45 +341,6 @@ class QTIElement(xmlns.XMLNSElement):
         for child in self.get_children():
             if hasattr(child, 'add_to_cpresource'):
                 child.add_to_cpresource(cp, resource, been_there)
-
-
-class QTIDocument(xmlns.XMLNSDocument):
-
-    """Used to represent all documents representing information from the QTI v2
-    specification."""
-
-    classMap = {}
-
-    def __init__(self, **args):
-        xmlns.XMLNSDocument.__init__(self, defaultNS=IMSQTI_NAMESPACE, **args)
-        self.make_prefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
-        if isinstance(self.root, QTIElement):
-            self.root.set_attribute(
-                (xsi.XMLSCHEMA_NAMESPACE,
-                 'schemaLocation'),
-                IMSQTI_NAMESPACE +
-                ' ' +
-                IMSQTI_SCHEMALOCATION)
-
-    def get_element_class(self, name):
-        return QTIDocument.classMap.get(
-            name, QTIDocument.classMap.get(
-                (name[0], None), xmlns.XMLNSElement))
-
-    def AddToContentPackage(self, cp, metadata, dName=None):
-        """Copies this QTI document into a content package and returns the
-        resource ID used.
-
-        An optional directory name can be specified in which to put the
-        resource files."""
-        # We call the element's AddToContentPackage method which returns the
-        # new resource.
-        # The document's base is automatically set to the URI of the resource
-        # entry point.
-        resource = self.root.AddToContentPackage(cp, metadata, dName)
-        # Finish by writing out the document to the new base_uri
-        self.create()
-        return resource
 
 
 class DeclarationContainer:

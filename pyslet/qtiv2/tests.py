@@ -544,8 +544,9 @@ class AssessmentItemRef(SectionPart):
         """Returns the AssessmentItem referred to by this reference."""
         if self.item is None:
             if self.href:
+                from . import xml as qtixml
                 itemLocation = self.resolve_uri(self.href)
-                doc = core.QTIDocument(baseURI=itemLocation)
+                doc = qtixml.QTIDocument(baseURI=itemLocation)
                 doc.read()
                 if isinstance(doc.root, items.AssessmentItem):
                     self.item = doc.root

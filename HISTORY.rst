@@ -53,6 +53,8 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+Build 20161102:
+
 Build 20161030:
 
 #49 Fixed OData serialisation of LongDescription element

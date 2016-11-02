@@ -135,11 +135,11 @@ HTMLProfile.update(HypertextElement)
 
 
 def FixHTMLNamespace(e):
-    """Fixes e and all children to be in the QTINamespace"""
+    """Fixes e and all children to be in the QTI namespace"""
     if e.ns == html.XHTML_NAMESPACE:
-        name = (core.IMSQTI_NAMESPACE, e.xmlname.lower())
-        if name in core.QTIDocument.classMap:
-            e.set_xmlname(name)
+        name = e.xmlname.lower()
+        if name in core.QTI_HTML_PROFILE:
+            e.set_xmlname((core.IMSQTI_NAMESPACE, name))
     for e in e.get_children():
         if type(e) in StringTypes:
             continue
@@ -205,3 +205,51 @@ class FlowContainerMixin:
             elif isinstance(child, html.InlineMixin):
                 return False
         return True
+
+
+class RubricBlock(html.BlockMixin, BodyElement):
+
+    """Represent the rubricBlock element.
+
+    <xsd:attributeGroup name="rubricBlock.AttrGroup">
+            <xsd:attributeGroup ref="simpleBlock.AttrGroup"/>
+            <xsd:attribute name="view" use="required">
+                    <xsd:simpleType>
+                            <xsd:list itemType="view.Type"/>
+                    </xsd:simpleType>
+            </xsd:attribute>
+    </xsd:attributeGroup>
+
+    <xsd:group name="rubricBlock.ContentGroup">
+            <xsd:sequence>
+                    <xsd:group ref="simpleBlock.ContentGroup"/>
+            </xsd:sequence>
+    </xsd:group>
+    """
+    XMLNAME = (core.IMSQTI_NAMESPACE, 'rubricBlock')
+    XMLATTR_view = (
+        'view', core.View.from_str_lower, core.View.to_str, dict)
+    XMLCONTENT = xml.ElementContent
+
+    def __init__(self, parent):
+        BodyElement.__init__(self, parent)
+        self.view = {}
+
+    def AddView(self, view):
+        if type(view) in StringTypes:
+            view = core.View.from_str_lower(view.strip())
+        viewValue = core.View.to_str(view)
+        if viewValue:
+            self.view[view] = viewValue
+        else:
+            raise ValueError("illegal value for view: %s" % view)
+
+    # need to constrain content to html.BlockMixin
+    def add_child(self, childClass, name=None):
+        if issubclass(childClass, html.BlockMixin):
+            return BodyElement.add_child(self, childClass, name)
+        else:
+            # This child cannot go in here
+            raise core.QTIValidityError(
+                "%s in %s" % (repr(name), self.__class__.__name__))
+
