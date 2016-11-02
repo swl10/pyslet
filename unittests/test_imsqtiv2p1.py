@@ -99,7 +99,7 @@ class ValueTests(unittest.TestCase):
         try:
             v.set_value(".Name", False)
         except ValueError:
-            self.fail("Bad name with nameCheck=False")
+            self.fail("Bad name with name_check=False")
 
     def test_boolean(self):
         v = variables.BooleanValue()
@@ -230,10 +230,10 @@ class ValueTests(unittest.TestCase):
             try:
                 v.set_value((".NameA", ".NameB"), False)
             except ValueError:
-                self.fail("nameCheck=False parsing from tuple")
+                self.fail("name_check=False parsing from tuple")
             try:
                 v.set_value(".NameA .NameB", False)
-                self.fail("nameCheck=False parsing from string")
+                self.fail("name_check=False parsing from string")
             except ValueError:
                 pass
         self.assertTrue(dp_pass, "directedPair ordering!")
@@ -475,7 +475,7 @@ class VariableTests(unittest.TestCase):
 </assessmentItem>"""
         doc = qtixml.QTIDocument()
         doc.read(src=BytesIO(sample))
-        rc = doc.root.ResponseDeclaration[0].GetCorrectValue()
+        rc = doc.root.ResponseDeclaration[0].get_correct_value()
         self.assertTrue(isinstance(rc, variables.Value),
                         "Correct value not a Value")
         self.assertTrue(rc.Cardinality() == variables.Cardinality.single,
@@ -487,7 +487,7 @@ class VariableTests(unittest.TestCase):
         self.assertTrue(
             doc.root.ResponseDeclaration[0].CorrectResponse.interpretation ==
             "single", "Correct interpretation")
-        rc = doc.root.ResponseDeclaration[1].GetCorrectValue()
+        rc = doc.root.ResponseDeclaration[1].get_correct_value()
         self.assertTrue(rc.Cardinality() == variables.Cardinality.ordered,
                         "Ordered value not a container")
         self.assertTrue(rc.baseType == variables.BaseType.integer,
@@ -496,7 +496,7 @@ class VariableTests(unittest.TestCase):
         self.assertTrue(
             doc.root.ResponseDeclaration[1].CorrectResponse.interpretation is
             None, "Emptyy correct interpretation")
-        rc = doc.root.ResponseDeclaration[2].GetCorrectValue()
+        rc = doc.root.ResponseDeclaration[2].get_correct_value()
         self.assertTrue(rc.Cardinality() == variables.Cardinality.single,
                         "Single NULL value cardinality")
         self.assertTrue(rc.baseType == variables.BaseType.string,
@@ -664,29 +664,29 @@ class VariableTests(unittest.TestCase):
                 10: "A",
                 -1: "U"}):
             value = variables.IntegerValue(rawScore)
-            map_grade = match_table.Lookup(value)
+            map_grade = match_table.lookup(value)
             self.assertTrue(isinstance(map_grade, variables.IdentifierValue),
-                            "Lookup response type")
+                            "lookup response type")
             self.assertTrue(map_grade.value == grade,
                             "MatchTable failed for %i, returned %s" %
                             (rawScore, map_grade.value))
             try:
                 value = variables.FloatValue(float(rawScore))
-                map_grade = match_table.Lookup(value)
+                map_grade = match_table.lookup(value)
                 self.fail("MatchTable accepted float for lookup")
             except ValueError:
                 pass
             value = variables.IntegerValue(rawScore)
-            map_grade = interpolation_table.Lookup(value)
+            map_grade = interpolation_table.lookup(value)
             self.assertTrue(isinstance(map_grade, variables.IdentifierValue),
-                            "Lookup response type")
+                            "lookup response type")
             self.assertTrue(map_grade.value == grade,
                             "InterpolationTable failed for %i, returned %s" %
                             (rawScore, map_grade.value))
             value = variables.FloatValue(float(rawScore))
-            map_grade = interpolation_table.Lookup(value)
+            map_grade = interpolation_table.lookup(value)
             self.assertTrue(isinstance(map_grade, variables.IdentifierValue),
-                            "Lookup response type")
+                            "lookup response type")
             self.assertTrue(
                 map_grade.value == grade,
                 "InterpolationTable failed for %i, returned %s" %
@@ -737,7 +737,7 @@ class VariableTests(unittest.TestCase):
         self.assertTrue(not session_state.IsTemplate('completionStatus'),
                         "completionStatus is not a template variable")
         self.assertTrue(len(session_state) == 3, "3 default variables")
-        session_state.BeginSession()
+        session_state.begin_session()
         self.assertTrue(session_state['numAttempts'].value == 0,
                         "numAttempts must initially be 0")
         self.assertTrue(session_state['duration'].value == 0.0,
@@ -824,7 +824,7 @@ class VariableTests(unittest.TestCase):
                         "VARIABLE is not an outcome variable")
         self.assertTrue(session_state.IsTemplate('VARIABLE'),
                         "VARIABLE is a template variable")
-        session_state.BeginSession()
+        session_state.begin_session()
         self.assertFalse(session_state['RESPONSE'],
                          "RESPONSE initial value must be NULL")
         self.assertTrue(session_state['SCORE'].value == -1,
@@ -837,7 +837,7 @@ class VariableTests(unittest.TestCase):
                          "SCORE3 initial value must be NULL")
         self.assertTrue(session_state['VARIABLE'].value == 3.14159,
                         "VARIABLE initial value")
-        session_state.BeginAttempt()
+        session_state.begin_attempt()
         value = session_state['numAttempts']
         self.assertTrue(value.value == 1,
                         "numAttempts set to 1 at start of attempt")
@@ -851,8 +851,8 @@ class VariableTests(unittest.TestCase):
             "completionStatus set to unknown at start of first attempt: %s" %
             value.value)
         value.set_value("completed")
-        session_state.EndAttempt()
-        session_state.BeginAttempt()
+        session_state.end_attempt()
+        session_state.begin_attempt()
         value = session_state['numAttempts']
         self.assertTrue(value.value == 2, "numAttempts incremented")
         value = session_state['completionStatus']
@@ -902,7 +902,7 @@ class VariableTests(unittest.TestCase):
                         "duration must be of DurationValue type")
         self.assertTrue(value.value is None, "duration non NULL")
         self.assertTrue(len(session_state) == 3, "3 default variables")
-        session_state.BeginSession(session_state.key)
+        session_state.begin_session(session_state.key)
         self.assertTrue(session_state['duration'].value == 0.0,
                         "duration must initially be 0")
         self.assertTrue(
@@ -990,38 +990,38 @@ class ResponseProcessingTests(unittest.TestCase):
         self.doc = qtixml.QTIDocument()
         self.doc.read(src=BytesIO(sample))
         self.session_state = variables.ItemSessionState(self.doc.root)
-        self.session_state.BeginSession()
+        self.session_state.begin_session()
 
     def tearDown(self):     # noqa
         pass
 
     def test_non_adaptive(self):
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_1")
         self.assertTrue(self.session_state["SCORE"].value == 0.5,
                         "Initial score value")
         self.assertTrue(self.session_state["N"].value == 0, "Initial N value")
         self.assertTrue(self.session_state["numAttempts"].value == 1,
                         "Initial numAttempts")
-        self.session_state.EndAttempt()
+        self.session_state.end_attempt()
         self.assertTrue(self.session_state["SCORE"].value == 0.5,
                         "Initial score value")
         self.assertTrue(
             self.session_state["N"].value == 0,
             "CASE_1 N value: %s" % repr(self.session_state["N"].value))
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         self.assertTrue(self.session_state["numAttempts"].value == 2,
                         "numAttempts=2")
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_2")
-        self.session_state.EndAttempt()
+        self.session_state.end_attempt()
         self.assertTrue(
             self.session_state["SCORE"].value == 3.14, "CASE_2 score")
         self.assertTrue(self.session_state["N"].value == 1, "CASE_2 N value")
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         self.assertTrue(self.session_state["numAttempts"].value == 3,
                         "numAttempts=3")
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_3")
-        self.session_state.EndAttempt()
+        self.session_state.end_attempt()
         self.assertTrue(self.session_state["SCORE"].value == 3.0,
                         "CASE_3 score")
         self.assertTrue(
@@ -1029,27 +1029,27 @@ class ResponseProcessingTests(unittest.TestCase):
             "CASE_3 N value: %s" % repr(self.session_state["N"].value))
 
     def test_adaptive(self):
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         self.session_state.item.adaptive = True
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_1")
         self.assertTrue(self.session_state["N"].value == 0, "Initial N value")
         self.assertTrue(self.session_state["numAttempts"].value == 1,
                         "Initial numAttempts")
-        self.session_state.EndAttempt()
+        self.session_state.end_attempt()
         self.assertTrue(
             self.session_state["N"].value == 0,
             "CASE_1 N value: %s" % repr(self.session_state["N"].value))
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         self.assertTrue(self.session_state["numAttempts"].value == 2,
                         "numAttempts=2")
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_2")
-        self.session_state.EndAttempt()
+        self.session_state.end_attempt()
         self.assertTrue(self.session_state["N"].value == 1, "CASE_2 N value")
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         self.assertTrue(self.session_state["numAttempts"].value == 3,
                         "numAttempts=3")
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_3")
-        self.session_state.EndAttempt()
+        self.session_state.end_attempt()
         self.assertTrue(
             self.session_state["N"].value == 2,
             "CASE_3 N value: %s" % repr(self.session_state["N"].value))
@@ -1154,15 +1154,15 @@ class TemplateProcessingTests(unittest.TestCase):
 
     def test_case_1(self):
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_1")
-        self.session_state.SelectClone()
+        self.session_state.select_clone()
         v = self.session_state['T']
         self.assertFalse(v, "CASE_1 result: %s" % repr(v.value))
-        self.session_state.BeginSession()
+        self.session_state.begin_session()
         # outcomes have their defaults
         v = self.session_state['SCORE']
         self.assertTrue(v.value == 0.5,
                         "CASE_1 default SCORE: %s" % repr(v.value))
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         # responses have their defaults
         v = self.session_state['RESPONSE']
         self.assertTrue(v.value == "A",
@@ -1170,15 +1170,15 @@ class TemplateProcessingTests(unittest.TestCase):
 
     def test_case_2(self):
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_2")
-        self.session_state.SelectClone()
+        self.session_state.select_clone()
         v = self.session_state['T']
         self.assertTrue(v.value is True, "CASE_2 result: %s" % repr(v.value))
-        self.session_state.BeginSession()
+        self.session_state.begin_session()
         # outcomes have their defaults
         v = self.session_state['SCORE']
         self.assertTrue(v.value == 0.5,
                         "CASE_2 default SCORE: %s" % repr(v.value))
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         # responses have their defaults
         v = self.session_state['RESPONSE']
         self.assertTrue(v.value == "A",
@@ -1186,15 +1186,15 @@ class TemplateProcessingTests(unittest.TestCase):
 
     def test_case_3(self):
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_3")
-        self.session_state.SelectClone()
+        self.session_state.select_clone()
         v = self.session_state['T']
         self.assertTrue(v.value is True, "CASE_3 result: %s" % repr(v.value))
-        self.session_state.BeginSession()
+        self.session_state.begin_session()
         # outcomes have their defaults
         v = self.session_state['SCORE']
         self.assertTrue(v.value == 0.5,
                         "CASE_3 default SCORE: %s" % repr(v.value))
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         # responses have their defaults
         v = self.session_state['RESPONSE']
         self.assertTrue(v.value == "B",
@@ -1202,15 +1202,15 @@ class TemplateProcessingTests(unittest.TestCase):
 
     def test_case_4(self):
         self.session_state["TESTCASE"] = variables.IdentifierValue("CASE_4")
-        self.session_state.SelectClone()
+        self.session_state.select_clone()
         v = self.session_state['T']
         self.assertTrue(v.value is False, "CASE_4 result: %s" % repr(v.value))
-        self.session_state.BeginSession()
+        self.session_state.begin_session()
         # outcomes have their defaults
         v = self.session_state['SCORE']
         self.assertTrue(v.value == 0.0,
                         "CASE_4 default SCORE: %s" % repr(v.value))
-        self.session_state.BeginAttempt()
+        self.session_state.begin_attempt()
         # responses have their defaults
         v = self.session_state['RESPONSE']
         self.assertTrue(v.value == "A",
@@ -1340,8 +1340,8 @@ class ExpressionTests(unittest.TestCase):
         self.doc = qtixml.QTIDocument()
         self.doc.read(src=BytesIO(sample))
         self.session_state = variables.ItemSessionState(self.doc.root)
-        self.session_state.BeginSession()
-        self.session_state.BeginAttempt()
+        self.session_state.begin_session()
+        self.session_state.begin_attempt()
 
     def tearDown(self):     # noqa
         pass
@@ -3504,20 +3504,20 @@ class BasicAssessmentTests(unittest.TestCase):
         form = tests.TestForm(doc.root)
         state = variables.TestSessionState(form)
         try:
-            state.BeginSession('wrongkey')
-            self.fail("TestSessionState.BeginSession: failed to match key")
+            state.begin_session('wrongkey')
+            self.fail("TestSessionState.begin_session: failed to match key")
         except variables.SessionKeyMismatch:
             pass
         save_key = state.key
-        html_div = state.BeginSession(state.key)
+        html_div = state.begin_session(state.key)
         self.assertFalse(save_key == state.key,
                          "No key change: %s" % state.key)
         logging.debug(html_div)
         # we should be able to read the the current test part
         self.assertTrue(
-            state.GetCurrentTestPart().identifier == "PartI",
+            state.get_current_test_part().identifier == "PartI",
             "Current test part")
-        self.assertTrue(state.GetCurrentQuestion().identifier ==
+        self.assertTrue(state.get_current_question().identifier ==
                         "Q1", "Current question (pre-condition skip check)")
         # In linear mode (applicable to PartI) template defaults are evaluated
         # after preConditions
@@ -3561,15 +3561,16 @@ class BasicAssessmentTests(unittest.TestCase):
             "SAVE": save_key,
             "Q1.RESPONSE": "C"}
         try:
-            state.HandleEvent(response)
+            state.handle_event(response)
             self.fail(
-                "TestSessionState.HandleEvent: failed to match current key")
+                "TestSessionState.handle_event: failed to match current key")
         except variables.SessionKeyMismatch:
-            self.fail("TestSessionState.HandleEvent: failed to detect old key")
+            self.fail(
+                "TestSessionState.handle_event: failed to detect old key")
         except variables.SessionKeyExpired:
             pass
         response['SAVE'] = save_key = state.key
-        html_div = state.HandleEvent(response)
+        html_div = state.handle_event(response)
         logging.debug(html_div)
         self.assertFalse(state["Q1.RESPONSE"],
                          "RESPONSE not NULL after save (no submit)")
@@ -3598,7 +3599,7 @@ class BasicAssessmentTests(unittest.TestCase):
             "SUBMIT": state.key,
             "Q1.RESPONSE": "D"
         }
-        html_div = state.HandleEvent(response)
+        html_div = state.handle_event(response)
         logging.debug(html_div)
         self.assertFalse("Q1.RESPONSE.SAVED" in state,
                          "SAVED RESPONSE not NULL after submit")
@@ -3626,7 +3627,7 @@ class BasicAssessmentTests(unittest.TestCase):
             "SUBMIT": state.key,
             "Q2.RESPONSE": ["B", "C", "D"]
         }
-        html_div = state.HandleEvent(response)
+        html_div = state.handle_event(response)
         logging.debug(html_div)
         self.assertTrue(
             state["Q2.RESPONSE"].value == {

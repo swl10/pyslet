@@ -1,21 +1,35 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.html401 as html
-from pyslet.rfc2396 import URI, URIFactory
-import pyslet.qtiv2.core as core
-import pyslet.qtiv2.tests as tests
-
-import os
-import time
 import hashlib
-import types
-import string
 import itertools
-from types import BooleanType, IntType, LongType, FloatType, StringTypes
-from types import DictType, TupleType, ListType
+import logging
+import os
+import random
+import time
+
+from io import BytesIO
+
+from . import core
+from . import tests
+from .. import html401 as html
+from ..http import params
+from ..pep8 import MigratedClass, old_method
+from ..py2 import (
+    BoolMixin,
+    byte,
+    dict_keys,
+    force_text,
+    is_text,
+    join_bytes,
+    long2,
+    range3,
+    SortableMixin,
+    uempty,
+    ul)
+from ..rfc2396 import URI
+from ..xml import structures as xml
+from ..xml import namespace as xmlns
+from ..xml import xsdatatypes as xsi
 
 
 class SessionKeyMismatch(core.QTIError):
@@ -34,6 +48,11 @@ class SessionActionMissing(core.QTIError):
 
     """Exception raised when an unrecognised action is handled by a test
     session."""
+
+
+class BadSessionParams(core.QTIError):
+
+    """Data submitted is incompatible with session."""
 
 
 class BaseType(xsi.EnumerationNoCase):
@@ -87,42 +106,43 @@ class BaseType(xsi.EnumerationNoCase):
     }
 
 
-def CheckBaseTypes(*baseType):
-    """Checks base types for compatibility.  None is treated as a wild card that
-    matches all base types.  It returns the resulting base type, or None if all
-    are wild cards.  If they don't match then a ProcessingError is raised."""
-    bReturn = None
-    for b in baseType:
+def check_base_types(*base_type):
+    """Checks base types for compatibility.  None is treated as a wild
+    card that matches all base types.  It returns the resulting base
+    type, or None if all are wild cards.  If they don't match then a
+    ProcessingError is raised."""
+    breturn = None
+    for b in base_type:
         if b is None:
             continue
-        elif bReturn is None:
-            bReturn = b
-        elif b != bReturn:
+        elif breturn is None:
+            breturn = b
+        elif b != breturn:
             raise core.ProcessingError("Base type mismatch: %s and %s" % (
-                BaseType.to_str(bReturn),
+                BaseType.to_str(breturn),
                 BaseType.to_str(b)))
-    return bReturn
+    return breturn
 
 
-def CheckNumericalTypes(*baseType):
-    """Checks base types for numerical compatibility.  None is treated as a
-    wild card that matches all base types.  It returns the resulting base type,
-    or None if all are wild cards.  If they don't match then a ProcessingError
-    is raised."""
-    bReturn = None
-    for b in baseType:
+def check_numerical_types(*base_type):
+    """Checks base types for numerical compatibility.  None is treated
+    as a wild card that matches all base types.  It returns the
+    resulting base type, or None if all are wild cards.  If they don't
+    match then a ProcessingError is raised."""
+    breturn = None
+    for b in base_type:
         if b is None:
             continue
         elif b not in (BaseType.float, BaseType.integer):
             raise core.ProcessingError(
                 "Numeric type required, found: %s" % BaseType.to_str(b))
-        elif bReturn is None:
-            bReturn = b
-        elif b != bReturn:
+        elif breturn is None:
+            breturn = b
+        elif b != breturn:
             # we only return integer when all values are of type integer, so we
             # must return float!
-            bReturn = BaseType.float
-    return bReturn
+            breturn = BaseType.float
+    return breturn
 
 
 class Cardinality(xsi.Enumeration):
@@ -160,22 +180,22 @@ class Cardinality(xsi.Enumeration):
     }
 
 
-def CheckCardinalities(*cardinality):
-    """Checks cardinality values for compatibility.  None is treated as a wild
-    card that matches all cardinalities.  It returns the resulting cardinality,
-    or None if all are wild cards.  If they don't match then a ProcessingError
-    is raised."""
-    cReturn = None
+def check_cardinalities(*cardinality):
+    """Checks cardinality values for compatibility.  None is treated as
+    a wild card that matches all cardinalities.  It returns the
+    resulting cardinality, or None if all are wild cards.  If they don't
+    match then a ProcessingError is raised."""
+    creturn = None
     for c in cardinality:
         if c is None:
             continue
-        elif cReturn is None:
-            cReturn = c
-        elif c != cReturn:
+        elif creturn is None:
+            creturn = c
+        elif c != creturn:
             raise core.ProcessingError("Cardinality mismatch: %s and %s" % (
-                Cardinality.to_str(cReturn),
+                Cardinality.to_str(creturn),
                 Cardinality.to_str(c)))
-    return cReturn
+    return creturn
 
 
 class ValueElement(core.QTIElement):
@@ -222,7 +242,7 @@ class NullResult(core.QTIError):
         self.value = value
 
 
-class Value(object):
+class Value(MigratedClass, BoolMixin):
 
     """Represents a single value in the processing model.
 
@@ -300,32 +320,34 @@ class Value(object):
     def set_value(self, value):
         """Sets the value.
 
-        All single values can be set from a single text string corresponding to
-        their XML schema defined lexical values (*without* character level
-        escaping).  If v is a single Value instance then the following always
-        leaves v unchanged::
+        All single values can be set from a single text string
+        corresponding to their XML schema defined lexical values
+        (*without* character level escaping).  If v is a single Value
+        instance then the following always leaves v unchanged::
 
-                v.set_value(unicode(v))
+            v.set_value(unicode(v))     # str() in Python 3
 
-        Value instances can also be set from values of the appropriate type as
-        described in :py:attr:`value`.  For base types that are represented
-        with tuples we also accept and convert lists.
+        Value instances can also be set from values of the appropriate
+        type as described in :py:attr:`value`.  For base types that are
+        represented with tuples we also accept and convert lists.
 
         Containers values cannot be set from strings."""
         if value is None:
             self.value = None
         else:
-            self.ValueError(value)
+            self.value_error(value)
 
-    def ValueError(self, value):
+    @old_method('ValueError')
+    def value_error(self, value):
         """Raises a ValueError with a debug-friendly message string."""
         raise ValueError(
             "Can't set value of %s %s from %s" %
             (Cardinality.to_str(
-                self.Cardinality()), BaseType.to_str(
+                self.cardinality()), BaseType.to_str(
                 self.baseType), repr(value)))
 
-    def Cardinality(self):
+    @old_method('Cardinality')
+    def cardinality(self):
         """Returns the cardinality of this value.  One of the
         :py:class:`Cardinality` constants.
 
@@ -333,25 +355,26 @@ class Value(object):
         only be the case if the value is a NULL."""
         return None
 
-    def IsNull(self):
+    @old_method('IsNull')
+    def is_null(self):
         """Returns True is this value is NULL, as defined by the QTI
         specification."""
         return self.value is None
 
-    def __nonzero__(self):
-        """The python non-zero test is equivalent to the non-NULL test in QTI.
+    def __bool__(self):
+        """The python 'non-zero' test: equivalent to the non-NULL test in QTI.
 
         Care is therefore needed, for example::
 
-                flag=BooleanValue(False)
-                if flag:
-                        print "All non-NULL values are True"
-                if flag.value:
-                        print "Test the value attribute to access the python
-                        native value"
+            flag = BooleanValue(False)
+            if flag:
+                print("All non-NULL values are True")
+            if flag.value:
+                print("Test the value attribute to access the "
+                      "python native value")
 
-                # prints the following...
-                All non-NULL values are True"""
+            # prints the following...
+            All non-NULL values are True"""
         return self.value is not None
 
     #: Value instances are mutable so cannot be used as dictionary keys
@@ -364,8 +387,9 @@ class Value(object):
         and matching baseType.  The test then proceeds to return True if the
         two python values compare equal and False if they don't.  If either is
         Null we raise NullResult."""
-        CheckCardinalities(self.Cardinality(), other.Cardinality())
-        if CheckBaseTypes(self.baseType, other.baseType) == BaseType.duration:
+        check_cardinalities(self.cardinality(), other.cardinality())
+        if check_base_types(
+                self.baseType, other.baseType) == BaseType.duration:
             raise core.ProcessingError("Can't match duration values")
         if self and other:
             return self.value == other.value
@@ -376,29 +400,31 @@ class Value(object):
         """Creates a string representation of the object.  The NULL value
         returns None."""
         if self.value is None:
-            return u''
+            return uempty
         else:
             raise NotImplementedError(
                 "Serialization of %s" % self.__class__.__name__)
 
     @classmethod
-    def NewValue(cls, cardinality, baseType=None):
-        """Creates a new value instance with *cardinality* and *baseType*."""
+    @old_method('NewValue')
+    def new_value(cls, cardinality, base_type=None):
+        """Creates a new value instance with *cardinality* and *base_type*."""
         if cardinality == Cardinality.single:
-            return SingleValue.NewValue(baseType)
+            return SingleValue.new_value(base_type)
         elif cardinality == Cardinality.ordered:
-            return OrderedContainer(baseType)
+            return OrderedContainer(base_type)
         elif cardinality == Cardinality.multiple:
-            return MultipleContainer(baseType)
+            return MultipleContainer(base_type)
         elif cardinality == Cardinality.record:
             return RecordContainer()
         else:
             raise ValueError("Unknown cardinality")
 
     @classmethod
-    def CopyValue(cls, value):
+    @old_method('CopyValue')
+    def copy_value(cls, value):
         """Creates a new value instance copying *value*."""
-        v = cls.NewValue(value.Cardinality(), value.baseType)
+        v = cls.new_value(value.cardinality(), value.baseType)
         v.set_value(value.value)
         return v
 
@@ -407,40 +433,40 @@ class SingleValue(Value):
 
     """Represents all values with single cardinality."""
 
-    def Cardinality(self):
+    def cardinality(self):
         return Cardinality.single
 
     @classmethod
-    def NewValue(cls, baseType, value=None):
-        """Creates a new instance of a single value with *baseType* and
+    def new_value(cls, base_type, value=None):
+        """Creates a new instance of a single value with *base_type* and
         *value*"""
-        if baseType is None:
+        if base_type is None:
             return SingleValue()
-        elif baseType == BaseType.boolean:
+        elif base_type == BaseType.boolean:
             return BooleanValue(value)
-        elif baseType == BaseType.directedPair:
+        elif base_type == BaseType.directedPair:
             return DirectedPairValue(value)
-        elif baseType == BaseType.duration:
+        elif base_type == BaseType.duration:
             return DurationValue(value)
-        elif baseType == BaseType.file:
+        elif base_type == BaseType.file:
             return FileValue(value)
-        elif baseType == BaseType.float:
+        elif base_type == BaseType.float:
             return FloatValue(value)
-        elif baseType == BaseType.identifier:
+        elif base_type == BaseType.identifier:
             return IdentifierValue(value)
-        elif baseType == BaseType.integer:
+        elif base_type == BaseType.integer:
             return IntegerValue(value)
-        elif baseType == BaseType.pair:
+        elif base_type == BaseType.pair:
             return PairValue(value)
-        elif baseType == BaseType.point:
+        elif base_type == BaseType.point:
             return PointValue(value)
-        elif baseType == BaseType.string:
+        elif base_type == BaseType.string:
             return StringValue(value)
-        elif baseType == BaseType.uri:
+        elif base_type == BaseType.uri:
             return URIValue(value)
         else:
             raise ValueError("Unknown base type: %s" %
-                             BaseType.to_str(baseType))
+                             BaseType.to_str(base_type))
 
 
 class BooleanValue(SingleValue):
@@ -455,7 +481,7 @@ class BooleanValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
             return xsi.boolean_to_str(self.value)
 
@@ -471,14 +497,14 @@ class BooleanValue(SingleValue):
                 v.set_value(True if x else False)"""
         if value is None:
             self.value = None
-        elif isinstance(value, BooleanType):
+        elif isinstance(value, bool):
             self.value = value
-        elif type(value) in (IntType, LongType):
+        elif isinstance(value, (int, long2)):
             self.value = True if value else False
-        elif type(value) in StringTypes:
+        elif is_text(value):
             self.value = xsi.boolean_from_str(value)
         else:
-            self.ValueError(value)
+            self.value_error(value)
 
 
 class DirectedPairValue(SingleValue):
@@ -493,32 +519,32 @@ class DirectedPairValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
-            return string.join(self.value, ' ')
+            return ' '.join(self.value)
 
-    def set_value(self, value, nameCheck=False):
-        """See comment on :py:meth:`Identifier.SetValue` for usage of *nameCheck*.
+    def set_value(self, value, name_check=False):
+        """See :py:meth:`Identifier.SetValue` for usage of *name_check*.
 
-        Note that if value is a string then nameCheck is ignored and identifier
-        validation is always performed."""
+        Note that if value is a string then name_check is ignored and
+        identifier validation is always performed."""
         if value is None:
             self.value = None
         else:
-            if type(value) in StringTypes:
-                value = string.split(value)
-                nameCheck = True
-            if type(value) in (ListType, TupleType):
+            if is_text(value):
+                value = value.split()
+                name_check = True
+            if isinstance(value, (list, tuple)):
                 if len(value) != 2:
                     raise ValueError("%s expected 2 values: %s" % (
                         BaseType.to_str(self.baseType), repr(value)))
                 for v in value:
-                    if (type(v) not in StringTypes or
-                       (nameCheck and not xmlns.is_valid_ncname(v))):
+                    if (not is_text(v) or
+                            (name_check and not xmlns.is_valid_ncname(v))):
                         raise ValueError("Illegal identifier %s" % repr(v))
-                self.value = (unicode(value[0]), unicode(value[1]))
+                self.value = (force_text(value[0]), force_text(value[1]))
             else:
-                self.ValueError(value)
+                self.value_error(value)
 
 
 class FileValue(SingleValue):
@@ -537,15 +563,12 @@ class FileValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
             raise NotImplementedError("String serialization of BaseType.file.")
 
-    def set_value(
-            self,
-            value,
-            type="application/octet-stream",
-            name="data.bin"):
+    def set_value(self, value, type="application/octet-stream",
+                  name="data.bin"):
         """Sets a file value from a file like object or a string.
 
         There are some important and subtle distinctions in this method.
@@ -562,16 +585,16 @@ class FileValue(SingleValue):
         self.file_name = name
         if value is None:
             self.value = None
-        elif isinstance(value, FileType):
+        elif isinstance(value, file):
             self.value = value
-        elif isinstance(value, StringType):
-            self.value = StringIO.StringIO(value)
-        elif isinstance(value, UnicodeType):
+        elif isinstance(value, bytes):
+            self.value = BytesIO.BytesIO(value)
+        elif isinstance(value, str):
             # Parse this value from the MIME stream.
             raise NotImplementedError(
                 "String deserialization of BaseType.file.")
         else:
-            self.ValueError(value)
+            self.value_error(value)
 
 
 class FloatValue(SingleValue):
@@ -586,7 +609,7 @@ class FloatValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
             return xsi.double_to_str(self.value)
 
@@ -600,12 +623,12 @@ class FloatValue(SingleValue):
                 v.set_value(float(x))"""
         if value is None:
             self.value = None
-        elif isinstance(value, FloatType):
+        elif isinstance(value, float):
             self.value = value
-        elif type(value) in StringTypes:
+        elif is_text(value):
             self.value = xsi.double_from_str(value)
         else:
-            self.ValueError(value)
+            self.value_error(value)
 
 
 class DurationValue(FloatValue):
@@ -631,11 +654,11 @@ class IdentifierValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
-            return unicode(self.value)
+            return force_text(self.value)
 
-    def set_value(self, value, nameCheck=True):
+    def set_value(self, value, name_check=True):
         """In general, to speed up computation we do not check the validity of
         identifiers unless parsing the value from a string representation (such
         as a value read from an XML input document).
@@ -644,16 +667,16 @@ class IdentifierValue(SingleValue):
         cannot tell if this method is being called with an existing,
         name-checked value or a new value being parsed from an external source.
         To speed up computation you can suppress the name check in the first
-        case by setting *nameCheck* to False (the default is True)."""
+        case by setting *name_check* to False (the default is True)."""
         if value is None:
             self.value = None
-        elif type(value) in StringTypes:
-            if not nameCheck or xmlns.is_valid_ncname(value):
-                self.value = unicode(value)
+        elif is_text(value):
+            if not name_check or xmlns.is_valid_ncname(value):
+                self.value = force_text(value)
             else:
                 raise ValueError("Illegal identifier %s" % repr(value))
         else:
-            self.ValueError(value)
+            self.value_error(value)
 
 
 class IntegerValue(SingleValue):
@@ -668,7 +691,7 @@ class IntegerValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
             return xsi.integer_to_str(self.value)
 
@@ -680,16 +703,16 @@ class IntegerValue(SingleValue):
         -2147483648...2147483647."""
         if value is None:
             self.value = None
-        elif type(value) in (IntType, LongType):
+        elif isinstance(value, (int, long2)):
             # python integers may be bigger than 32bits
             if value < -2147483648 or value > 2147483647:
                 raise ValueError("Integer range: %s" % repr(value))
             else:
                 self.value = int(value)
-        elif type(value) in StringTypes:
+        elif is_text(value):
             self.value = xsi.integer_from_str(value)
         else:
-            self.ValueError(value)
+            self.value_error(value)
 
 
 class PairValue(DirectedPairValue):
@@ -702,10 +725,10 @@ class PairValue(DirectedPairValue):
         if value is not None:
             self.set_value(value)
 
-    def set_value(self, value, nameCheck=True):
+    def set_value(self, value, name_check=True):
         """Overrides DirectedPair's implementation to force a predictable
         ordering on the identifiers."""
-        super(PairValue, self).set_value(value, nameCheck)
+        super(PairValue, self).set_value(value, name_check)
         if self.value and self.value[0] > self.value[1]:
             self.value = (self.value[1], self.value[0])
 
@@ -722,32 +745,31 @@ class PointValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
-            return string.join(map(xsi.integer_to_str, self.value), ' ')
+            return ' '.join(map(xsi.integer_to_str, self.value))
 
     def set_value(self, value):
         if value is None:
             self.value = None
         else:
-            if type(value) in StringTypes:
-                value = map(xsi.integer_from_str, string.split(value))
-            if type(value) in (ListType, TupleType):
+            if is_text(value):
+                value = [xsi.integer_from_str(x) for x in value.split()]
+            if isinstance(value, (list, tuple)):
                 if len(value) != 2:
                     raise ValueError("%s expected 2 values: %s" % (
                         BaseType.to_str(self.baseType), repr(value)))
                 for v in value:
-                    if type(v) not in (IntType, LongType):
+                    if not isinstance(v, (int, long2)):
                         raise ValueError(
                             "Illegal type for point coordinate %s" %
-                            repr(
-                                type(v)))
+                            repr(type(v)))
                     elif v < -2147483648 or v > 2147483647:
                         raise ValueError(
                             "Integer coordinate range: %s" % repr(v))
                 self.value = (int(value[0]), int(value[1]))
             else:
-                self.ValueError(value)
+                self.value_error(value)
 
 
 class StringValue(SingleValue):
@@ -762,19 +784,19 @@ class StringValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
-            return unicode(self.value)
+            return force_text(self.value)
 
     def set_value(self, value):
         if value is None:
             self.value = None
-        elif type(value) in StringTypes:
-            self.value = unicode(value)
+        elif is_text(value):
+            self.value = force_text(value)
             if len(self.value) == 0:
                 self.value = None
         else:
-            self.ValueError(value)
+            self.value_error(value)
 
 
 class URIValue(SingleValue):
@@ -789,20 +811,20 @@ class URIValue(SingleValue):
 
     def __unicode__(self):
         if self.value is None:
-            return u''
+            return uempty
         else:
-            return unicode(self.value)
+            return force_text(self.value)
 
     def set_value(self, value):
         """Sets a uri value from a string or another URI instance."""
         if value is None:
             self.value = None
-        elif type(value) in StringTypes:
+        elif is_text(value):
             self.value = URI.from_octets(value)
         elif isinstance(value, URI):
             self.value = value
         else:
-            self.ValueError(value)
+            self.value_error(value)
 
 
 class Container(Value):
@@ -814,11 +836,11 @@ class Container(Value):
     constructor.  This will cause the container to generate TypeError if used
     in a context where the specified baseType is not allowed."""
 
-    def __init__(self, baseType=None):
+    def __init__(self, base_type=None):
         super(Container, self).__init__()
-        self.baseType = baseType
+        self.baseType = base_type
 
-    def GetValues(self):
+    def get_values(self):
         """Returns an iterable of the container's values."""
         return
 
@@ -829,49 +851,49 @@ class Container(Value):
 
         We therefore opt for a minimal representation."""
         if self.baseType is None:
-            return u"%s container of unknown base type" % Cardinality.to_str(
-                self.Cardinality)
+            return ul(
+                "%s container of unknown base type") % Cardinality.to_str(
+                    self.Cardinality)
         else:
-            return u"%s container of base type %s" % (Cardinality.to_str(
-                self.Cardinality),
-                BaseType.to_str(
-                self.baseType))
+            return ul("%s container of base type %s") % (
+                Cardinality.to_str(self.Cardinality),
+                BaseType.to_str(self.baseType))
 
     @classmethod
-    def NewValue(cls, cardinality, baseType=None):
-        """Creates a new container with *cardinality* and *baseType*."""
+    def new_value(cls, cardinality, base_type=None):
+        """Creates a new container with *cardinality* and *base_type*."""
         if cardinality == Cardinality.single:
             raise ValueError("Container with single cardinality")
         elif cardinality == Cardinality.ordered:
-            return OrderedContainer(baseType)
+            return OrderedContainer(base_type)
         elif cardinality == Cardinality.multiple:
-            return MultipleContainer(baseType)
+            return MultipleContainer(base_type)
         elif cardinality == Cardinality.record:
             return RecordContainer()
         else:
-            return Container(baseType)
+            return Container(base_type)
 
 
 class OrderedContainer(Container):
 
     """Represents containers with ordered :py:class:`Cardinality`."""
 
-    def Cardinality(self):
+    def cardinality(self):
         return Cardinality.ordered
 
-    def set_value(self, value, baseType=None):
+    def set_value(self, value, base_type=None):
         """Sets the value of this container from a list, tuple or other
-        iterable. The list must contain valid representations of *baseType*,
+        iterable. The list must contain valid representations of *base_type*,
         items may be None indicating a NULL value in the list.  In accordance
         with the specification's multiple operator NULL values are ignored.
 
         If the input list of values empty, or contains only NULL values then
         the resulting container is empty.
 
-        If *baseType* is None the base type specified when the container was
+        If *base_type* is None the base type specified when the container was
         constructed is assumed."""
-        if baseType is not None:
-            self.baseType = baseType
+        if base_type is not None:
+            self.baseType = base_type
         if value is None:
             self.value = None
         else:
@@ -886,12 +908,12 @@ class OrderedContainer(Container):
                     raise ValueError(
                         "Can't create non-empty ordered container without a"
                         " base type")
-                vAdd = SingleValue.NewValue(self.baseType, v)
-                self.value.append(vAdd.value)
+                v_add = SingleValue.new_value(self.baseType, v)
+                self.value.append(v_add.value)
             if not self.value:
                 self.value = None
 
-    def GetValues(self):
+    def get_values(self):
         """Returns an iterable of values in the ordered container."""
         if self.value is None:
             return
@@ -903,22 +925,22 @@ class MultipleContainer(Container):
 
     """Represents containers with multiple :py:class:`Cardinality`."""
 
-    def Cardinality(self):
+    def cardinality(self):
         return Cardinality.multiple
 
-    def set_value(self, value, baseType=None):
+    def set_value(self, value, base_type=None):
         """Sets the value of this container from a list, tuple or other
-        iterable. The list must contain valid representations of *baseType*,
+        iterable. The list must contain valid representations of *base_type*,
         items may be None indicating a NULL value in the list.  In accordance
         with the specification's multiple operator NULL values are ignored.
 
         If the input list of values is empty, or contains only NULL values then
         the resulting container is empty.
 
-        If *baseType* is None the base type specified when the container was
+        If *base_type* is None the base type specified when the container was
         constructed is assumed."""
-        if baseType is not None:
-            self.baseType = baseType
+        if base_type is not None:
+            self.baseType = base_type
         if value is None:
             self.value = None
         else:
@@ -932,18 +954,18 @@ class MultipleContainer(Container):
                     raise ValueError(
                         "Can't create non-empty multiple container without a"
                         " base type")
-                vAdd = SingleValue.NewValue(self.baseType, v)
-                self.value[vAdd.value] = self.value.get(vAdd.value, 0) + 1
+                v_add = SingleValue.new_value(self.baseType, v)
+                self.value[v_add.value] = self.value.get(v_add.value, 0) + 1
             if not self.value:
                 self.value = None
 
-    def GetValues(self):
+    def get_values(self):
         """Returns an iterable of values in the ordered container."""
         if self.value is None:
             return
-        keys = sorted(self.value.keys())
+        keys = sorted(dict_keys(self.value))
         for k in keys:
-            for i in xrange(self.value[k]):
+            for i in range3(self.value[k]):
                 yield k
 
 
@@ -954,7 +976,7 @@ class RecordContainer(Container):
     def __init__(self):
         super(Container, self).__init__()
 
-    def Cardinality(self):
+    def cardinality(self):
         return Cardinality.record
 
     def set_value(self, value):
@@ -970,14 +992,13 @@ class RecordContainer(Container):
             self.value = None
         else:
             new_value = {}
-            if isinstance(value, DictType):
-                valueDict = value
-                fieldList = value.keys()
+            if isinstance(value, dict):
+                field_list = list(dict_keys(value))
             else:
                 raise ValueError(
                     "RecordContainer.SetValue expected dictionary, found %s" %
                     repr(value))
-            for f in fieldList:
+            for f in field_list:
                 v = value[f]
                 if v is None:
                     continue
@@ -999,45 +1020,46 @@ class RecordContainer(Container):
         else:
             return 0
 
-    def __getitem__(self, fieldIdentifier):
+    def __getitem__(self, field_identifier):
         """Returns the :py:class:`Value` instance corresponding to
-        *fieldIdentifier* or raises KeyError if there is no field with that
+        *field_identifier* or raises KeyError if there is no field with that
         name."""
         if self.value:
-            return self.value[fieldIdentifier]
+            return self.value[field_identifier]
         else:
-            raise KeyError(fieldIdentifier)
+            raise KeyError(field_identifier)
 
-    def __setitem__(self, fieldIdentifier, value):
+    def __setitem__(self, field_identifier, value):
         """Sets the value in the named field to *value*.
 
-        We add some special behaviour here.  If *value* is None or is a NULL
-        value then we remove the field with the give name.  In other words::
+        We add some special behaviour here.  If *value* is None or is a
+        NULL value then we remove the field with the give name.  In
+        other words::
 
-                r=RecordContainer()
-                r['pi']=FloatValue(3.14)
-                r['pi']=FloatValue()     # a NULL value
-                print r['pi']            # raises KeyError"""
+            r=RecordContainer()
+            r['pi']=FloatValue(3.14)
+            r['pi']=FloatValue()    # a NULL value
+            r['pi']                 # raises KeyError"""
         if value is None:
-            if self.value and fieldIdentifier in self.value:
-                del self.value[fieldIdentifier]
+            if self.value and field_identifier in self.value:
+                del self.value[field_identifier]
         elif isinstance(value, SingleValue):
             if not value:
-                if self.value and fieldIdentifier in self.value:
-                    del self.value[fieldIdentifier]
+                if self.value and field_identifier in self.value:
+                    del self.value[field_identifier]
             else:
                 if self.value is None:
-                    self.value = {fieldIdentifier: value}
+                    self.value = {field_identifier: value}
                 else:
-                    self.value[fieldIdentifier] = value
+                    self.value[field_identifier] = value
         else:
-            raise ValueError("Single value required, found %s" % repr(v))
+            raise ValueError("Single value required, found %s" % repr(value))
 
-    def __delitem__(self, fieldIdentifier):
+    def __delitem__(self, field_identifier):
         if self.value:
-            del self.value[fieldIdentifier]
+            del self.value[field_identifier]
         else:
-            raise KeyError(fieldIdentifier)
+            raise KeyError(field_identifier)
 
     def __iter__(self):
         if self.value:
@@ -1045,34 +1067,33 @@ class RecordContainer(Container):
         else:
             return iter([])
 
-    def __contains__(self, fieldIdentifier):
+    def __contains__(self, field_identifier):
         if self.value:
-            return fieldIdentifier in self.value
+            return field_identifier in self.value
         else:
             return False
 
 
-class VariableDeclaration(core.QTIElement):
+class VariableDeclaration(core.QTIElement, SortableMixin):
 
     """Item variables are declared by variable declarations... The purpose of the
     declaration is to associate an identifier with the variable and to identify
     the runtime type of the variable's value::
 
-            <xsd:attributeGroup name="variableDeclaration.AttrGroup">
-                    <xsd:attribute name="identifier" type="identifier.Type"
-                                    use="required"/>
-                    <xsd:attribute name="cardinality" type="cardinality.Type"
-                                    use="required"/>
-                    <xsd:attribute name="baseType" type="baseType.Type"
-                                    use="optional"/>
-            </xsd:attributeGroup>
+        <xsd:attributeGroup name="variableDeclaration.AttrGroup">
+            <xsd:attribute name="identifier" type="identifier.Type"
+                use="required"/>
+            <xsd:attribute name="cardinality" type="cardinality.Type"
+                use="required"/>
+            <xsd:attribute name="baseType" type="baseType.Type"
+                use="optional"/>
+        </xsd:attributeGroup>
 
-            <xsd:group name="variableDeclaration.ContentGroup">
-                    <xsd:sequence>
-                            <xsd:element ref="defaultValue" minOccurs="0"
-                                            maxOccurs="1"/>
-                    </xsd:sequence>
-            </xsd:group>"""
+        <xsd:group name="variableDeclaration.ContentGroup">
+            <xsd:sequence>
+                <xsd:element ref="defaultValue" minOccurs="0" maxOccurs="1"/>
+            </xsd:sequence>
+        </xsd:group>"""
     XMLATTR_baseType = (
         'baseType', BaseType.from_str_lower, BaseType.to_str)
     XMLATTR_cardinality = (
@@ -1086,12 +1107,8 @@ class VariableDeclaration(core.QTIElement):
         self.baseType = None
         self.DefaultValue = None
 
-    def __cmp__(self, other):
-        if isinstance(other, VariableDeclaration):
-            return cmp(self.identifier, other.identifier)
-        else:
-            raise TypeError(
-                "Can't compare VariableDeclaration with %s" % repr(other))
+    def sortkey(self):
+        return self.identifier
 
     def get_children(self):
         if self.DefaultValue:
@@ -1103,36 +1120,36 @@ class VariableDeclaration(core.QTIElement):
         if self.parent:
             self.parent.RegisterDeclaration(self)
 
-    def GetDefinedValue(self, definedValue):
-        if definedValue:
+    def get_defined_value(self, defined_value):
+        if defined_value:
             if self.cardinality == Cardinality.single:
-                value = SingleValue.NewValue(
-                    self.baseType, definedValue.ValueElement[0].get_value())
+                value = SingleValue.new_value(
+                    self.baseType, defined_value.ValueElement[0].get_value())
             else:
-                value = Value.NewValue(self.cardinality, self.baseType)
+                value = Value.new_value(self.cardinality, self.baseType)
                 if isinstance(value, RecordContainer):
                     # handle record processing
-                    for v in definedValue.ValueElement:
-                        value[v.fieldIdentifier] = SingleValue.NewValue(
+                    for v in defined_value.ValueElement:
+                        value[v.fieldIdentifier] = SingleValue.new_value(
                             v.baseType, v.get_value())
                 else:
                     # handle multiple and ordered processing
                     value.set_value(
-                        map(lambda v: v.get_value(),
-                            definedValue.ValueElement))
+                        [v.get_value() for v in defined_value.ValueElement])
         else:
             # generate NULL values with the correct cardinality and base type
             if self.cardinality == Cardinality.single:
-                value = SingleValue.NewValue(self.baseType)
+                value = SingleValue.new_value(self.baseType)
             else:
-                value = Value.NewValue(self.cardinality, self.baseType)
+                value = Value.new_value(self.cardinality, self.baseType)
         return value
 
-    def GetDefaultValue(self):
+    @old_method('GetDefaultValue')
+    def get_default_value(self):
         """Returns a :py:class:`Value` instance representing either the default
         value or an appropriately typed NULL value if there is no default
         defined."""
-        return self.GetDefinedValue(self.DefaultValue)
+        return self.get_defined_value(self.DefaultValue)
 
 
 class DefinedValue(core.QTIElement):
@@ -1221,37 +1238,39 @@ class Mapping(core.QTIElement):
         source strings."""
         if isinstance(self.parent, ResponseDeclaration):
             self.baseType = self.parent.baseType
-        elif isinstance(self.parent, CategorizedStatistic):
-            self.baseType = BaseType.integer
+        # <categorizedStatistic>  not yet supported
+        # elif isinstance(self.parent, CategorizedStatistic):
+        #    self.baseType = BaseType.integer
         else:
             self.baseType = BaseType.string
         self.map = {}
         for me in self.MapEntry:
-            v = SingleValue.NewValue(self.baseType, me.mapKey)
+            v = SingleValue.new_value(self.baseType, me.mapKey)
             self.map[v.value] = me.mappedValue
 
-    def MapValue(self, value):
+    @old_method('MapValue')
+    def map_value(self, value):
         """Maps an instance of :py:class:`Value` with the same base type as the
         mapping to an instance of :py:class:`Value` with base type float."""
-        nullFlag = False
+        null_flag = False
         if not value:
-            srcValues = []
-            nullFlag = True
-        elif value.Cardinality() == Cardinality.single:
-            srcValues = [value.value]
-        elif value.Cardinality() == Cardinality.ordered:
-            srcValues = value.value
-        elif value.Cardinality() == Cardinality.multiple:
-            srcValues = value.value.keys()
+            src_values = []
+            null_flag = True
+        elif value.cardinality() == Cardinality.single:
+            src_values = [value.value]
+        elif value.cardinality() == Cardinality.ordered:
+            src_values = value.value
+        elif value.cardinality() == Cardinality.multiple:
+            src_values = list(dict_keys(value.value))
         else:
             raise ValueError("Can't map %s" % repr(value))
         result = 0.0
         been_there = {}
-        dstValue = FloatValue(0.0)
+        dst_value = FloatValue(0.0)
         if value.baseType is None:
             # a value of unknown type results in NULL
-            nullFlag = True
-        for v in srcValues:
+            null_flag = True
+        for v in src_values:
             if v in been_there:
                 # If a container contains multiple instances of the same value
                 # then that value is counted once only
@@ -1259,18 +1278,18 @@ class Mapping(core.QTIElement):
             else:
                 been_there[v] = True
             result = result + self.map.get(v, self.defaultValue)
-        if nullFlag:
+        if null_flag:
             # We save the NULL return up to the end to ensure that we generate
             # errors in the case where a container contains mixed or
             # mismatching values.
-            return dstValue
+            return dst_value
         else:
             if self.lowerBound is not None and result < self.lowerBound:
                 result = self.lowerBound
             elif self.upperBound is not None and result > self.upperBound:
                 result = self.upperBound
-            dstValue.set_value(result)
-            return dstValue
+            dst_value.set_value(result)
+            return dst_value
 
 
 class MapEntry(core.QTIElement):
@@ -1330,13 +1349,13 @@ class ResponseDeclaration(VariableDeclaration):
         if self.AreaMapping:
             yield self.AreaMapping
 
-    def GetCorrectValue(self):
+    def get_correct_value(self):
         """Returns a :py:class:`Value` instance representing either the correct
         response value or an appropriately typed NULL value if there is no
         correct value."""
-        return self.GetDefinedValue(self.CorrectResponse)
+        return self.get_defined_value(self.CorrectResponse)
 
-    def GetStageDimensions(self):
+    def get_stage_dimensions(self):
         """For response variables with point type, returns a pair of integer
         values: width,height
 
@@ -1398,9 +1417,10 @@ class AreaMapping(core.QTIElement):
     def get_children(self):
         return iter(self.AreaMapEntry)
 
-    def MapValue(self, value, width, height):
+    @old_method('MapValue')
+    def map_value(self, value, width, height):
         """Maps a point onto a float.
-        
+
         Returns an instance of :py:class:`Value` with base type float.
 
         *	value is a :py:class:`Value` of base type point
@@ -1413,52 +1433,52 @@ class AreaMapping(core.QTIElement):
 
         The width and height of the object are required because HTML allows
         relative values to be used when defining areas."""
-        nullFlag = False
+        null_flag = False
         if not value:
-            srcValues = []
-            nullFlag = True
-        elif value.Cardinality() == Cardinality.single:
-            srcValues = [value.value]
-        elif value.Cardinality() == Cardinality.ordered:
-            srcValues = value.value
-        elif value.Cardinality() == Cardinality.multiple:
-            srcValues = value.value.keys()
+            src_values = []
+            null_flag = True
+        elif value.cardinality() == Cardinality.single:
+            src_values = [value.value]
+        elif value.cardinality() == Cardinality.ordered:
+            src_values = value.value
+        elif value.cardinality() == Cardinality.multiple:
+            src_values = list(dict_keys(value.value))
         else:
             raise ValueError("Can't map %s" % repr(value))
         result = 0.0
         been_there = [False] * len(self.AreaMapEntry)
-        dstValue = FloatValue(0.0)
+        dst_value = FloatValue(0.0)
         if value.baseType is None:
             # a value of unknown type results in NULL
-            nullFlag = True
+            null_flag = True
         elif value.baseType != BaseType.point:
             raise ValueError("Can't map %s" % repr(value))
-        for v in srcValues:
-            hitPoint = False
-            for i in xrange(len(self.AreaMapEntry)):
+        for v in src_values:
+            hit_point = False
+            for i in range3(len(self.AreaMapEntry)):
                 if self.AreaMapEntry[i].TestPoint(v, width, height):
-                    hitPoint = True
+                    hit_point = True
                     if not been_there[i]:
                         # When mapping containers each area can be mapped once
                         # only
                         been_there[i] = True
                         result = result + self.AreaMapEntry[i].mappedValue
                     break
-            if not hitPoint:
+            if not hit_point:
                 # This point is not in any of the areas
                 result = result + self.defaultValue
-        if nullFlag:
+        if null_flag:
             # We save the NULL return up to the end to ensure that we generate
             # errors in the case where a container contains mixed or
             # mismatching values.
-            return dstValue
+            return dst_value
         else:
             if self.lowerBound is not None and result < self.lowerBound:
                 result = self.lowerBound
             elif self.upperBound is not None and result > self.upperBound:
                 result = self.upperBound
-            dstValue.set_value(result)
-            return dstValue
+            dst_value.set_value(result)
+            return dst_value
 
 
 class AreaMapEntry(core.QTIElement, core.ShapeElementMixin):
@@ -1516,11 +1536,7 @@ class OutcomeDeclaration(VariableDeclaration):
                     </xsd:sequence>
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'outcomeDeclaration')
-    XMLATTR_view = (
-        'view',
-        core.View.from_str_lower,
-        core.View.to_str,
-        types.DictType)
+    XMLATTR_view = ('view', core.View.from_str_lower, core.View.to_str, dict)
     XMLATTR_interpretation = 'interpretation'
     XMLATTR_longInterpretation = (
         'longInterpretation', html.uri.URI.from_octets, html.to_text)
@@ -1585,7 +1601,7 @@ class LookupTable(core.QTIElement):
             self.baseType = self.parent.baseType
         else:
             self.baseType = BaseType.string
-        self.default = SingleValue.NewValue(self.baseType, self.defaultValue)
+        self.default = SingleValue.new_value(self.baseType, self.defaultValue)
 
 
 class MatchTable(LookupTable):
@@ -1614,17 +1630,17 @@ class MatchTable(LookupTable):
         LookupTable.content_changed(self)
         self.map = {}
         for mte in self.MatchTableEntry:
-            v = SingleValue.NewValue(self.baseType, mte.targetValue)
+            v = SingleValue.new_value(self.baseType, mte.targetValue)
             self.map[mte.sourceValue] = v.value
 
-    def Lookup(self, value):
+    def lookup(self, value):
         """Maps an instance of :py:class:`Value` with integer base type to an
         instance of :py:class:`Value` with the base type of the match table."""
-        nullFlag = False
+        null_flag = False
         if not value:
-            nullFlag = True
-            srcValue = None
-        elif value.Cardinality() != Cardinality.single:
+            null_flag = True
+            src_value = None
+        elif value.cardinality() != Cardinality.single:
             raise ValueError("Can't match container: %s" % repr(value))
         elif value.baseType != BaseType.integer:
             raise ValueError(
@@ -1632,11 +1648,11 @@ class MatchTable(LookupTable):
                 BaseType.to_str(
                     value.baseType))
         else:
-            srcValue = value.value
-        dstValue = SingleValue.NewValue(self.baseType)
-        if not nullFlag:
-            dstValue.set_value(self.map.get(srcValue, self.default.value))
-        return dstValue
+            src_value = value.value
+        dst_value = SingleValue.new_value(self.baseType)
+        if not null_flag:
+            dst_value.set_value(self.map.get(src_value, self.default.value))
+        return dst_value
 
 
 class MatchTableEntry(core.QTIElement):
@@ -1695,36 +1711,36 @@ class InterpolationTable(LookupTable):
         LookupTable.content_changed(self)
         self.table = []
         for ite in self.InterpolationTableEntry:
-            v = SingleValue.NewValue(self.baseType, ite.targetValue)
+            v = SingleValue.new_value(self.baseType, ite.targetValue)
             self.table.append((ite.sourceValue, ite.includeBoundary, v.value))
 
-    def Lookup(self, value):
+    def lookup(self, value):
         """Maps an instance of :py:class:`Value` with integer or float base type
         to an instance of :py:class:`Value` with the base type of the
         interpolation table."""
-        nullFlag = False
+        null_flag = False
         if not value:
-            nullFlag = True
-            srcValue = None
-        elif value.Cardinality() != Cardinality.single:
+            null_flag = True
+            src_value = None
+        elif value.cardinality() != Cardinality.single:
             raise ValueError("Can't match container: %s" % repr(value))
         elif value.baseType == BaseType.integer:
-            srcValue = float(value.value)
+            src_value = float(value.value)
         elif value.baseType in (BaseType.float, BaseType.duration):
-            srcValue = value.value
+            src_value = value.value
         else:
             raise ValueError(
                 "Interpolation table requires integer or float, found %s" %
                 BaseType.to_str(
                     value.baseType))
-        dstValue = SingleValue.NewValue(self.baseType)
-        if not nullFlag:
-            dstValue.set_value(self.default.value)
+        dst_value = SingleValue.new_value(self.baseType)
+        if not null_flag:
+            dst_value.set_value(self.default.value)
             for testValue, lte, targetValue in self.table:
-                if testValue < srcValue or (lte and testValue == srcValue):
-                    dstValue.set_value(targetValue)
+                if testValue < src_value or (lte and testValue == src_value):
+                    dst_value.set_value(targetValue)
                     break
-        return dstValue
+        return dst_value
 
 
 class InterpolationTableEntry(core.QTIElement):
@@ -1791,51 +1807,55 @@ class TemplateDeclaration(VariableDeclaration):
         self.mathVariable = None
 
 
-class SessionState(object):
+class SessionState(MigratedClass):
 
     """Abstract class used as the base class for namespace-like objects used to
     track the state of an item or test session.  Instances can be used as if
     they were dictionaries of :py:class:`Value`."""
 
-    def GetDeclaration(self, varName):
-        """Returns the declaration associated with *varName* or None if the
-        variable is one of the built-in variables.  If *varName* is not a
+    @old_method('GetDeclaration')
+    def get_declaration(self, var_name):
+        """Returns the declaration associated with *var_name* or None if the
+        variable is one of the built-in variables.  If *var_name* is not a
         variable KeyError is raised.  To test for the existence of a variable
         just use the object as you would a dictionary::
 
                 # state is a SessionState instance
                 if 'RESPONSE' in state:
-                        print "RESPONSE declared!" """
-        raise KeyError(varName)
+                    print("RESPONSE declared!") """
+        raise KeyError(var_name)
 
-    def IsResponse(self, varName):
-        """Return True if *varName* is the name of a response variable."""
-        d = self.GetDeclaration(varName)
+    @old_method('IsResponse')
+    def is_response(self, var_name):
+        """Return True if *var_name* is the name of a response variable."""
+        d = self.get_declaration(var_name)
         return isinstance(d, ResponseDeclaration)
 
-    def IsOutcome(self, varName):
-        """Return True if *varName* is the name of an outcome variable."""
-        d = self.GetDeclaration(varName)
+    @old_method('IsOutcome')
+    def is_outcome(self, var_name):
+        """Return True if *var_name* is the name of an outcome variable."""
+        d = self.get_declaration(var_name)
         return isinstance(d, OutcomeDeclaration)
 
-    def SetOutcomeDefaults(self):
+    def set_outcome_defaults(self):
         raise NotImplementedError
 
-    def IsTemplate(self, varName):
-        """Return True if *varName* is the name of a template variable."""
-        d = self.GetDeclaration(varName)
+    @old_method('IsTemplate')
+    def is_template(self, var_name):
+        """Return True if *var_name* is the name of a template variable."""
+        d = self.get_declaration(var_name)
         return isinstance(d, TemplateDeclaration)
 
     def __len__(self):
         return 0
 
-    def __getitem__(self, varName):
-        """Returns the :py:class:`Value` instance corresponding to *varName* or
+    def __getitem__(self, var_name):
+        """Returns the :py:class:`Value` instance corresponding to *var_name* or
         raises KeyError if there is no variable with that name."""
-        raise KeyError(varName)
+        raise KeyError(var_name)
 
-    def __setitem__(self, varName, value):
-        """Sets the value of *varName* to the :py:class:`Value` instance *value*.
+    def __setitem__(self, var_name, value):
+        """Sets the value of *var_name* to the :py:class:`Value` instance *value*.
 
         The *baseType* and cardinality of *value* must match those expected for
         the variable.
@@ -1855,14 +1875,14 @@ class SessionState(object):
                                         True!"""
         if not isinstance(value, Value):
             raise TypeError
-        v = self[varName]
-        if (value.Cardinality() is not None and
-           value.Cardinality() != v.Cardinality()):
+        v = self[var_name]
+        if (value.cardinality() is not None and
+           value.cardinality() != v.cardinality()):
             raise ValueError(
                 "Expected %s value, found %s" %
                 (Cardinality.to_str(
-                    v.Cardinality()), Cardinality.to_str(
-                    value.Cardinality())))
+                    v.cardinality()), Cardinality.to_str(
+                    value.cardinality())))
         if value.baseType is not None and value.baseType != v.baseType:
             raise ValueError(
                 "Expected %s value, found %s" %
@@ -1871,14 +1891,14 @@ class SessionState(object):
                     value.baseType)))
         v.set_value(value.value)
 
-    def __delitem__(self, varName):
+    def __delitem__(self, var_name):
         raise TypeError("Can't delete variables from SessionState")
 
     def __iter__(self):
         raise NotImplementedError
 
-    def __contains__(self, varName):
-        raise KeyError(varName)
+    def __contains__(self, var_name):
+        raise KeyError(var_name)
 
 
 class ItemSessionState(SessionState):
@@ -1904,31 +1924,31 @@ class ItemSessionState(SessionState):
         self.item = item
         self.map = {}
         for td in self.item.TemplateDeclaration:
-            self.map[td.identifier] = td.GetDefaultValue()
+            self.map[td.identifier] = td.get_default_value()
         # add the default response variables
         self.map['numAttempts'] = IntegerValue()
         self.map['duration'] = DurationValue()
         self.map['completionStatus'] = IdentifierValue()
         # now loop through the declared variables...
         for rd in self.item.ResponseDeclaration:
-            self.map[rd.identifier + ".CORRECT"] = rd.GetCorrectValue()
-            self.map[rd.identifier + ".DEFAULT"] = rd.GetDefaultValue()
+            self.map[rd.identifier + ".CORRECT"] = rd.get_correct_value()
+            self.map[rd.identifier + ".DEFAULT"] = rd.get_default_value()
             # Response variables do not get their default... yet!
-            self.map[rd.identifier] = Value.NewValue(
+            self.map[rd.identifier] = Value.new_value(
                 rd.cardinality, rd.baseType)
         # outcomes do not get their default yet either
         for od in self.item.OutcomeDeclaration:
-            self.map[od.identifier + ".DEFAULT"] = od.GetDefaultValue()
-            self.map[od.identifier] = Value.NewValue(
+            self.map[od.identifier + ".DEFAULT"] = od.get_default_value()
+            self.map[od.identifier] = Value.new_value(
                 od.cardinality, od.baseType)
 
-    def SelectClone(self):
+    def select_clone(self):
         """Item templates describe a range of possible items referred to as
         *clones*.
 
-        If the item used to create the session object is an item template then
-        you must call SelectClone before beginning the candidate's session with
-        :py:meth:`BeginSession`.
+        If the item used to create the session object is an item
+        template then you must call select_clone before beginning the
+        candidate's session with :py:meth:`begin_session`.
 
         The main purpose of this method is to run the template processing
         rules. These rules update the values of the template variables and may
@@ -1937,7 +1957,7 @@ class ItemSessionState(SessionState):
         if self.item.TemplateProcessing:
             self.item.TemplateProcessing.Run(self)
 
-    def BeginSession(self):
+    def begin_session(self):
         """Called at the start of an item session. According to the specification:
 
                 "The session starts when the associated item first becomes
@@ -1946,8 +1966,8 @@ class ItemSessionState(SessionState):
         The main purpose of this method is to set the outcome values to their
         defaults."""
         # sets the default values of all outcome variables
-        self.map['completionStatus'].value = u'not_attempted'
-        self.SetOutcomeDefaults()
+        self.map['completionStatus'].value = ul('not_attempted')
+        self.set_outcome_defaults()
         # The spec says that numAttempts is a response that has value 0
         # initially. That suggests that it behaves more like an outcome in this
         # respect so we initialise the value here.
@@ -1957,166 +1977,166 @@ class ItemSessionState(SessionState):
         # the rest of the response variables are initialised when the first
         # attempt starts
 
-    def BeginAttempt(self, htmlParent=None):
+    def begin_attempt(self, html_parent=None):
         """Called at the start of an attempt.
 
         This method sets the default RESPONSE values and completionStatus if
         this is the first attempt and increments numAttempts accordingly."""
-        numAttempts = self.map['numAttempts']
-        numAttempts.set_value(numAttempts.value + 1)
-        if numAttempts.value == 1:
+        num_attempts = self.map['numAttempts']
+        num_attempts.set_value(num_attempts.value + 1)
+        if num_attempts.value == 1:
             # first attempt, set default responses
             for rd in self.item.ResponseDeclaration:
-                self.map[rd.identifier] = Value.CopyValue(
+                self.map[rd.identifier] = Value.copy_value(
                     self.map[rd.identifier + ".DEFAULT"])
             # and set completionStatus
             self.map['completionStatus'] = IdentifierValue('unknown')
-        return self.item.render_html(self, htmlParent)
+        return self.item.render_html(self, html_parent)
 
-    def SaveSession(self, params, htmlParent=None):
+    def save_session(self, params, html_parent=None):
         """Called when we wish to save unsubmitted values."""
-        self._SaveParameters(params)
-        return self.item.render_html(self, htmlParent)
+        self._save_parameters(params)
+        return self.item.render_html(self, html_parent)
 
-    def SubmitSession(self, params, htmlParent=None):
+    def submit_session(self, params, html_parent=None):
         """Called when we wish to submit values (i.e., end an attempt)."""
-        self._SaveParameters(params)
+        self._save_parameters(params)
         # Now we go through all response variables and update their value from
         # the saved value, removing the saved values as we go.
         for rd in self.item.ResponseDeclaration:
-            sName = rd.identifier + ".SAVED"
-            if sName in self.map:
-                self.map[rd.identifier].set_value(self.map[sName].value)
-                del self.map[sName]
-        self.EndAttempt()
-        return self.item.render_html(self, htmlParent)
+            sname = rd.identifier + ".SAVED"
+            if sname in self.map:
+                self.map[rd.identifier].set_value(self.map[sname].value)
+                del self.map[sname]
+        self.end_attempt()
+        return self.item.render_html(self, html_parent)
 
-    def _SaveParameters(self, params):
-        orderedParams = {}
+    def _save_parameters(self, params):
+        ordered_params = {}
         for p in params:
             if self.formPrefix and not p.startswith(self.formPrefix):
                 # ignore values not intended for us
                 continue
-            rName = p[len(self.formPrefix):].split(".")
-            if not rName:
+            rname = p[len(self.formPrefix):].split(".")
+            if not rname:
                 continue
-            # rName must be the name of a response variable
-            rd = self.GetDeclaration(rName[0])
+            # rname must be the name of a response variable
+            rd = self.get_declaration(rname[0])
             if rd is None or not isinstance(rd, ResponseDeclaration):
                 # unexpected item in bagging area!
                 raise BadSessionParams(
                     "Unexpected item submitted wth form: %s" % p)
             # so we have a new response value to save
-            saveName = rName[0] + ".SAVED"
-            if saveName not in self:
-                self.map[saveName] = v = Value.NewValue(
+            save_name = rname[0] + ".SAVED"
+            if save_name not in self:
+                self.map[save_name] = v = Value.new_value(
                     rd.cardinality, rd.baseType)
             else:
-                v = self.map[saveName]
+                v = self.map[save_name]
             # now we need to parse a value from the form to save
-            sValue = params[p]
+            svalue = params[p]
             if rd.cardinality == Cardinality.single:
                 # We are expecting a single value from the form
-                if type(sValue) in StringTypes:
-                    v.set_value(sValue)
+                if is_text(svalue):
+                    v.set_value(svalue)
                 else:
                     raise BadSessionParams(
                         "Unexpected multi-value submission: %s" % p)
             elif rd.cardinality == Cardinality.multiple:
                 # we are expecting a simple list of values
-                if type(sValue) in StringTypes:
+                if is_text(svalue):
                     # single item list
-                    v.set_value([sValue])
+                    v.set_value([svalue])
                 else:
-                    v.set_value(sValue)
+                    v.set_value(svalue)
             elif rd.cardinality == Cardinality.ordered:
                 # there are two ways of setting these values, either
                 # RESPONSE.rank=VALUE or RESPONSE.VALUE=rank.  The latter
                 # representation is only valid for identifiers, to ensure we
                 # don't mix them up with ranks.
-                if len(rName) != 2:
+                if len(rname) != 2:
                     continue
                 try:
                     if (rd.baseType == BaseType.Identifier and
-                       core.ValidateIdentifier(rName[1])):
-                        if type(sValue) in StringTypes:
-                            v.set_value(sValue)
+                       core.ValidateIdentifier(rname[1])):
+                        if is_text(svalue):
+                            v.set_value(svalue)
                         else:
                             raise ValueError
-                        rank = xsi.integer_from_str(sValue)
-                        sValue = rName[1]
+                        rank = xsi.integer_from_str(svalue)
+                        svalue = rname[1]
                     else:
-                        rank = xsi.integer_from_str(rName[1])
-                    if saveName in orderedParams:
-                        if rank in orderedParams[saveName]:
+                        rank = xsi.integer_from_str(rname[1])
+                    if save_name in ordered_params:
+                        if rank in ordered_params[save_name]:
                             # duplicate entries, we don't allow these
                             raise ValueError
-                        orderedParams[saveName][rank] = sValue
+                        ordered_params[save_name][rank] = svalue
                     else:
-                        orderedParams[saveName] = {rank: sValue}
+                        ordered_params[save_name] = {rank: svalue}
                 except ValueError:
                     raise BadSessionParams(
                         "Bad value in submission for: %s" % p)
             else:
                 raise NotImplementedError
-        if orderedParams:
+        if ordered_params:
             # we've gathered ordered parameters in a dictionary of dictionaries
             # keyed first on response identifier and then on rank.  For each
             # response we just sort them, so missing ranks are OK.
-            for response in orderedParams:
-                rParams = orderedParams[response]
-                ranks = sorted(rParams.keys())
-                sValue = []
+            for response in ordered_params:
+                rparams = ordered_params[response]
+                ranks = sorted(rparams.keys())
+                svalue = []
                 for r in ranks:
-                    sValue.append(rParams[r])
-                saveName = response + ".SAVED"
-                v = self.map[saveName]
-                v.set_value(sValue)
+                    svalue.append(rparams[r])
+                save_name = response + ".SAVED"
+                v = self.map[save_name]
+                v.set_value(svalue)
 
-    def EndAttempt(self):
+    def end_attempt(self):
         """Called at the end of an attempt.  Invokes response processing if
         present."""
         if not self.item.adaptive:
             # For a Non-adaptive Item the values of the outcome variables are
             # reset to their default values (or NULL if no default is given)
             # before each invocation of response processing
-            self.SetOutcomeDefaults()
+            self.set_outcome_defaults()
         if self.item.ResponseProcessing:
             self.item.ResponseProcessing.Run(self)
 
-    def GetDeclaration(self, varName):
-        if varName in self.map:
-            return self.item.GetDeclaration(varName)
+    def get_declaration(self, var_name):
+        if var_name in self.map:
+            return self.item.get_declaration(var_name)
         else:
-            raise KeyError(varName)
+            raise KeyError(var_name)
 
-    def IsResponse(self, varName):
-        """Return True if *varName* is the name of a response variable.
+    def is_response(self, var_name):
+        """Return True if *var_name* is the name of a response variable.
 
         We add handling of the built-in response variables numAttempts and
         duration."""
-        d = self.GetDeclaration(varName)
+        d = self.get_declaration(var_name)
         if d is None:
-            return varName in ('numAttempts', 'duration')
+            return var_name in ('numAttempts', 'duration')
         else:
             return isinstance(d, ResponseDeclaration)
 
-    def IsOutcome(self, varName):
-        """Return True if *varName* is the name of an outcome variable.
+    def is_outcome(self, var_name):
+        """Return True if *var_name* is the name of an outcome variable.
 
         We add handling of the built-in outcome variable completionStatus."""
-        d = self.GetDeclaration(varName)
+        d = self.get_declaration(var_name)
         if d is None:
-            return varName == 'completionStatus'
+            return var_name == 'completionStatus'
         else:
             return isinstance(d, OutcomeDeclaration)
 
-    def SetOutcomeDefaults(self):
+    def set_outcome_defaults(self):
         for od in self.item.OutcomeDeclaration:
-            self.map[od.identifier] = v = Value.CopyValue(
+            self.map[od.identifier] = v = Value.copy_value(
                 self.map[od.identifier + ".DEFAULT"])
             if not v:
-                if v.Cardinality() == Cardinality.single:
+                if v.cardinality() == Cardinality.single:
                     if v.baseType == BaseType.integer:
                         v.set_value(0)
                     elif v.baseType == BaseType.float:
@@ -2125,14 +2145,14 @@ class ItemSessionState(SessionState):
     def __len__(self):
         return len(self.map)
 
-    def __getitem__(self, varName):
-        return self.map[varName]
+    def __getitem__(self, var_name):
+        return self.map[var_name]
 
     def __iter__(self):
         return iter(self.map)
 
-    def __contains__(self, varName):
-        return varName in self.map
+    def __contains__(self, var_name):
+        return var_name in self.map
 
 
 class TestSessionState(SessionState):
@@ -2158,7 +2178,7 @@ class TestSessionState(SessionState):
         self.namespace[0]['duration'] = DurationValue()
         # now loop through all test parts and (visible) sections to define
         # other durations
-        for i in xrange(1, len(self.namespace)):
+        for i in range3(1, len(self.namespace)):
             p = form[i]
             if p[0] == "-":
                 continue
@@ -2172,7 +2192,7 @@ class TestSessionState(SessionState):
         # now loop through the declared variables, outcomes do not get their
         # default yet
         for od in self.test.OutcomeDeclaration:
-            self.namespace[0][od.identifier] = Value.NewValue(
+            self.namespace[0][od.identifier] = Value.new_value(
                 od.cardinality, od.baseType)
         self.t = None			#: the time of the last event
         try:
@@ -2180,9 +2200,9 @@ class TestSessionState(SessionState):
             self.salt = os.urandom(8)
         except NotImplementedError:
             self.salt = []
-            for i in xrange(8):
-                self.salt.append(chr(random.randint(0, 255)))
-            self.salt = string.join(self.salt, '')
+            for i in range3(8):
+                self.salt.append(byte(random.randint(0, 255)))
+            self.salt = join_bytes(self.salt)
         self.key = ''
         """A key representing this session in its current state, this key is
         initialised to a random value and changes as each event is received.
@@ -2201,15 +2221,15 @@ class TestSessionState(SessionState):
         that a session response was not received (e.g., due to a connection
         failure) and that the session should be re-started with the previous
         response."""
-        self.EventUpdate(self.key)
+        self.event_update(self.key)
         self.cQuestion = 0
 
-    def EventUpdate(self, keyCheck):
-        if self.key != keyCheck:
-            if keyCheck in self.keyMap:
-                raise SessionKeyExpired(keyCheck)
+    def event_update(self, key_check):
+        if self.key != key_check:
+            if key_check in self.keyMap:
+                raise SessionKeyExpired(key_check)
             else:
-                raise SessionKeyMismatch(keyCheck)
+                raise SessionKeyMismatch(key_check)
         if self.key:
             self.keyMap[self.key] = True
             self.prevKey = self.key
@@ -2224,193 +2244,192 @@ class TestSessionState(SessionState):
             self.t = time.time()
             dt = 0.0
         hash = hashlib.sha224()
-        hash.update(self.salt + "%.6f" % self.t)
-        self.key = unicode(hash.hexdigest())
+        hash.update(self.salt + ("%.6f" % self.t).encode('ascii'))
+        self.key = force_text(hash.hexdigest())
         return dt
 
-    def GetCurrentTestPart(self):
+    def get_current_test_part(self):
         """Returns the current test part or None if the test is finished."""
-        q = self.GetCurrentQuestion()
+        q = self.get_current_question()
         if q is None:
             return None
         else:
             return q.find_parent(tests.TestPart)
 
-    def GetCurrentQuestion(self):
+    def get_current_question(self):
         """Returns the current question or None if the test is finished."""
         if self.cQuestion is None:
             return None
         else:
             return self.test.GetPart(self.form[self.cQuestion])
 
-    def _BranchTarget(self, qPos):
-        id = self.form[qPos]
-        if id[0] == u"-":
+    def _branch_target(self, qpos):
+        id = self.form[qpos]
+        if id[0] == "-":
             id = id[1:]
         q = self.test.GetPart(id)
-        target = q.GetBranchTarget(self)
+        target = q.get_branch_target(self)
         if target is None:
-            return qPos + 1
-        elif target == u"EXIT_TEST":
+            return qpos + 1
+        elif target == "EXIT_TEST":
             return len(self.form)
         else:
-            qPos = qPos + 1
+            qpos = qpos + 1
             while True:
-                if qPos >= len(self.form):
-                    return qPos
-                id = self.form[qPos]
+                if qpos >= len(self.form):
+                    return qpos
+                id = self.form[qpos]
                 if target == id:
-                    return qPos
-                qPos = qPos + 1
+                    return qpos
+                qpos = qpos + 1
                 # handle the other special identifiers which move to the point
                 # just after the end of the part being exited
-                if id[0] == u"-":
-                    if target == u"EXIT_SECTION":
-                        return qPos
-                    elif (target == u"EXIT_TESTPART" and
+                if id[0] == "-":
+                    if target == "EXIT_SECTION":
+                        return qpos
+                    elif (target == "EXIT_TESTPART" and
                           isinstance(self.test.GetPart(id[1:]),
                                      tests.TestPart)):
-                        return qPos
+                        return qpos
 
-    def _NextQuestion(self):
+    def _next_question(self):
         if self.cQuestion is None:
             # we've finished
             return
         elif self.cQuestion is 0:
             # We need to find the first question
-            iQ = 1
+            iq = 1
         else:
             # we're currently pointing at an assessmentItemRef
-            iQ = self._BranchTarget(self.cQuestion)
-        while iQ is not None:
-            # What type of thing is iQ?
-            if iQ >= len(self.form):
+            iq = self._branch_target(self.cQuestion)
+        while iq is not None:
+            # What type of thing is iq?
+            if iq >= len(self.form):
                 # we've run out of stuff, that was the end of the test.
                 self.cQuestion = None
                 break
             # check for preConditions
-            id = self.form[iQ]
-            if id[0] == u"-":
+            id = self.form[iq]
+            if id[0] == "-":
                 # end of a section or test part
-                iQ = self._BranchTarget(iQ)
+                iq = self._branch_target(iq)
             else:
                 # check preconditions
                 part = self.test.GetPart(id)
-                if part.CheckPreConditions(self):
+                if part.check_pre_conditions(self):
                     if isinstance(part, tests.TestPart):
                         # descend in to this testPart
-                        iQ = iQ + 1
+                        iq = iq + 1
                         if (part.navigationMode ==
                            tests.NavigationMode.nonlinear):
                             # evaluate templateDefaults for all items in this
                             # part
-                            endId = u"-" + part.identifier
-                            jQ = iQ
-                            while jQ <= len(self.form):
-                                id = self.form[jQ]
-                                if id == endId:
+                            end_id = "-" + part.identifier
+                            jq = iq
+                            while jq <= len(self.form):
+                                id = self.form[jq]
+                                if id == end_id:
                                     break
-                                if id[0] != u"-":
-                                    jPart = self.test.GetPart(id)
-                                    if isinstance(jPart,
+                                if id[0] != "-":
+                                    jpart = self.test.GetPart(id)
+                                    if isinstance(jpart,
                                                   tests.AssessmentItemRef):
                                         # Now evaluate the template defaults
-                                        itemState = self.namespace[jQ]
-                                        jPart.SetTemplateDefaults(
-                                            itemState, self)
+                                        item_state = self.namespace[jq]
+                                        jpart.SetTemplateDefaults(
+                                            item_state, self)
                                         # and pick a clone
-                                        itemState.SelectClone()
-                                        itemState.BeginSession()
-                                jQ = jQ + 1
+                                        item_state.select_clone()
+                                        item_state.begin_session()
+                                jq = jq + 1
                     elif isinstance(part, tests.AssessmentSection):
                         # descend in to this section
-                        iQ = iQ + 1
+                        iq = iq + 1
                     elif isinstance(part, tests.AssessmentItemRef):
                         # we've found the next question
-                        testPart = part.find_parent(tests.TestPart)
-                        if (testPart.navigationMode ==
+                        test_part = part.find_parent(tests.TestPart)
+                        if (test_part.navigationMode ==
                            tests.NavigationMode.linear):
-                            itemState = self.namespace[iQ]
-                            part.SetTemplateDefaults(itemState, self)
-                            itemState.SelectClone()
-                            itemState.BeginSession()
-                        self.cQuestion = iQ
+                            item_state = self.namespace[iq]
+                            part.SetTemplateDefaults(item_state, self)
+                            item_state.select_clone()
+                            item_state.begin_session()
+                        self.cQuestion = iq
                         break
                 else:
                     # skip this item
-                    iQ = iQ + 1
+                    iq = iq + 1
 
-    def BeginSession(self, key, htmlParent=None):
+    def begin_session(self, key, html_parent=None):
         """Called at the start of a test session.  Represents a 'Start Test' event.
 
         The main purpose of this method is to set the outcome values to their
         defaults and to select the first question."""
         # ignore any time elapsed between construction and beginSession
-        self.EventUpdate(key)
+        self.event_update(key)
         # sets the default values of all outcome variables
-        self.SetOutcomeDefaults()
+        self.set_outcome_defaults()
         self.namespace[0]['duration'].value = 0.0
-        self._NextQuestion()
-        div, form = self.CreateHTMLForm(htmlParent)
+        self._next_question()
+        div, form = self.create_html_form(html_parent)
         if self.cQuestion:
-            id = self.form[self.cQuestion]
-            itemState = self.namespace[self.cQuestion]
-            itemDiv = itemState.BeginAttempt(form)
+            self.form[self.cQuestion]
+            item_state = self.namespace[self.cQuestion]
+            item_state.begin_attempt(form)
         else:
             # this test had no questions: end screen
-            id = None
             pass
-        self.AddHTMLNavigation(form)
+        self.add_html_navigation(form)
         return div
 
-    def HandleEvent(self, params, htmlParent=None):
+    def handle_event(self, params, html_parent=None):
         # seek out the action
         if "SAVE" in params:
-            return self.SaveSession(params["SAVE"], params, htmlParent)
+            return self.save_session(params["SAVE"], params, html_parent)
         elif "SUBMIT" in params:
-            return self.SubmitSession(params["SUBMIT"], params, htmlParent)
+            return self.submit_session(params["SUBMIT"], params, html_parent)
         else:
             raise SessionActionMissing
 
-    def SaveSession(self, key, params, htmlParent=None):
-        dt = self.EventUpdate(key)
+    def save_session(self, key, params, html_parent=None):
+        dt = self.event_update(key)
         # Now add the accumulated time to the various durations
-        self.AddDuration(dt)
-        div, form = self.CreateHTMLForm(htmlParent)
+        self.add_duration(dt)
+        div, form = self.create_html_form(html_parent)
         # Now go through params and look for updated values
         if self.cQuestion:
-            itemState = self.namespace[self.cQuestion]
-            itemState.SaveSession(params, form)
+            item_state = self.namespace[self.cQuestion]
+            item_state.save_session(params, form)
         else:
             pass
-        self.AddHTMLNavigation(form)
+        self.add_html_navigation(form)
         return div
 
-    def SubmitSession(self, key, params, htmlParent=None):
-        dt = self.EventUpdate(key)
+    def submit_session(self, key, params, html_parent=None):
+        dt = self.event_update(key)
         # Now add the accumulated time to the various durations
-        self.AddDuration(dt)
-        div, form = self.CreateHTMLForm(htmlParent)
+        self.add_duration(dt)
+        div, form = self.create_html_form(html_parent)
         # Now go through params and look for updated values
         if self.cQuestion:
             id = self.form[self.cQuestion]
             part = self.test.GetPart(id)
-            testPart = part.find_parent(tests.TestPart)
+            test_part = part.find_parent(tests.TestPart)
             # so what type of testPart are we in?
-            if testPart.navigationMode == tests.NavigationMode.linear:
-                if testPart.submissionMode == tests.SubmissionMode.individual:
-                    itemState = self.namespace[self.cQuestion]
-                    itemState.SubmitSession(params)
+            if test_part.navigationMode == tests.NavigationMode.linear:
+                if test_part.submissionMode == tests.SubmissionMode.individual:
+                    item_state = self.namespace[self.cQuestion]
+                    item_state.submit_session(params)
                 else:
                     # simultaneous submission means we save the current values
                     # then run through all questions in this part submitting
                     # the saved values - it still happens at the end of the
                     # test part
-                    itemState = self.namespace[self.cQuestion]
-                    itemState.SaveSession(params)
+                    item_state = self.namespace[self.cQuestion]
+                    item_state.save_session(params)
                     raise NotImplementedError
                 # Now move on to the next question
-                self._NextQuestion()
+                self._next_question()
             else:
                 # nonlinear mode
                 raise NotImplementedError
@@ -2418,25 +2437,25 @@ class TestSessionState(SessionState):
             pass
         if self.cQuestion:
             id = self.form[self.cQuestion]
-            itemState = self.namespace[self.cQuestion]
-            itemDiv = itemState.BeginAttempt(form)
+            item_state = self.namespace[self.cQuestion]
+            item_state.begin_attempt(form)
         else:
             # this test had no questions: end screen
             id = None
             pass
-        self.AddHTMLNavigation(form)
+        self.add_html_navigation(form)
         return div
 
-    def CreateHTMLForm(self, htmlParent=None):
-        if htmlParent:
-            div = htmlParent.add_child(html.Div)
+    def create_html_form(self, html_parent=None):
+        if html_parent:
+            div = html_parent.add_child(html.Div)
         else:
             div = html.Div(None)
         form = div.add_child(html.Form)
         form.method = html.Method.POST
         return div, form
 
-    def AddHTMLNavigation(self, form):
+    def add_html_navigation(self, form):
         # Now add the navigation
         nav = form.add_child(html.Div)
         nav.style_class = ["navigation"]
@@ -2449,10 +2468,10 @@ class TestSessionState(SessionState):
         if self.cQuestion:
             id = self.form[self.cQuestion]
             part = self.test.GetPart(id)
-            testPart = part.find_parent(tests.TestPart)
+            test_part = part.find_parent(tests.TestPart)
             # so what type of testPart are we in?
-            if testPart.navigationMode == tests.NavigationMode.linear:
-                if testPart.submissionMode == tests.SubmissionMode.individual:
+            if test_part.navigationMode == tests.NavigationMode.linear:
+                if test_part.submissionMode == tests.SubmissionMode.individual:
                     # going to the next question is a submit
                     submit = nav.add_child(html.Button)
                     submit.type = html.ButtonType.submit
@@ -2467,16 +2486,16 @@ class TestSessionState(SessionState):
             save.disabled = True
         return nav
 
-    def AddDuration(self, dt):
-        iQ = self.cQuestion
+    def add_duration(self, dt):
+        iq = self.cQuestion
         ignore = 0
-        if iQ:
+        if iq:
             # we have a question, add to the duration
-            self.namespace[iQ]["duration"].value += dt
-            iQ = iQ - 1
+            self.namespace[iq]["duration"].value += dt
+            iq = iq - 1
             ignore = 0
-            while iQ > 0:
-                id = self.form[iQ]
+            while iq > 0:
+                id = self.form[iq]
                 if id[0] == "-":
                     ignore += 1
                 else:
@@ -2487,72 +2506,72 @@ class TestSessionState(SessionState):
                             ignore = ignore - 1
                         else:
                             # This must be an open section or test part
-                            v = self.namespace[iQ]["duration"]
+                            v = self.namespace[iq]["duration"]
                             if v:
                                 v.value += dt
                             else:
                                 v.set_value(dt)
-                iQ = iQ - 1
+                iq = iq - 1
             # Finally, add to the total test duration
             self.namespace[0]["duration"].value += dt
         else:
             # we've finished the test, don't count time
             pass
 
-    def GetNamespace(self, varName):
-        """Takes a variable name *varName* and returns a tuple of namespace/varName.
+    def get_namespace(self, var_name):
+        """Returns a tuple of namespace/var_name from variable name
 
-        The resulting namespace will be a dictionary or a dictionary-like
-        object from which the value of the returned varName object can be
-        looked up."""
-        splitName = varName.split('.')
-        if len(splitName) == 1:
-            return self.namespace[0], varName
-        elif len(splitName) > 1:
-            nsIndexList = self.form.find(splitName[0])
-            if nsIndexList:
+        The resulting namespace will be a dictionary or a
+        dictionary-like object from which the value of the returned
+        var_name object can be looked up."""
+        split_name = var_name.split('.')
+        if len(split_name) == 1:
+            return self.namespace[0], var_name
+        elif len(split_name) > 1:
+            ns_index_list = self.form.find(split_name[0])
+            if ns_index_list:
                 # we can only refer to the first instance when looking up
                 # variables
-                ns = self.namespace[nsIndexList[0]]
-                return ns, string.join(splitName[1:], '.')
-        print "Looking for: " + varName
-        print self.namespace
-        print self.form.components
-        raise KeyError(varName)
+                ns = self.namespace[ns_index_list[0]]
+                return ns, '.'.join(split_name[1:])
+        logging.debug("Looking for: %s", var_name)
+        logging.debug(self.namespace)
+        logging.debug(self.form.components)
+        raise KeyError(var_name)
 
-    def GetDeclaration(self, varName):
-        ns, name = self.GetNamespace(varName)
+    def get_declaration(self, var_name):
+        ns, name = self.get_namespace(var_name)
         if isinstance(ns, ItemSessionState):
-            return ns.GetDeclaration(name)
+            return ns.get_declaration(name)
         elif ns:
             if name in ns:
                 # a test level variable
-                return self.test.GetDeclaration(name)
+                return self.test.get_declaration(name)
             else:
-                raise KeyError(varName)
+                raise KeyError(var_name)
         else:
             # attempt to look up an unsupported namespace
             raise NotImplementedError
 
-    def IsResponse(self, varName):
-        """Return True if *varName* is the name of a response variable.  The
+    def is_response(self, var_name):
+        """Return True if *var_name* is the name of a response variable.  The
         test-level duration values are treated as built-in responses and return
         True."""
-        ns, name = self.GetNamespace(varName)
+        ns, name = self.get_namespace(var_name)
         if isinstance(ns, ItemSessionState):
-            return ns.IsResponse(name)
+            return ns.is_response(name)
         elif ns:
             # duration is the only test-level response variable
-            return name == u'duration'
+            return name == ul('duration')
         else:
             # attempt to look up an unsupported namespace
             raise NotImplementedError
 
-    def SetOutcomeDefaults(self):
+    def set_outcome_defaults(self):
         for od in self.test.OutcomeDeclaration:
-            self.namespace[0][od.identifier] = v = od.GetDefaultValue()
+            self.namespace[0][od.identifier] = v = od.get_default_value()
             if not v:
-                if v.Cardinality() == Cardinality.single:
+                if v.cardinality() == Cardinality.single:
                     if v.baseType == BaseType.integer:
                         v.set_value(0)
                     elif v.baseType == BaseType.float:
@@ -2568,16 +2587,16 @@ class TestSessionState(SessionState):
                 total = total + len(ns)
         return total
 
-    def __getitem__(self, varName):
-        """Returns the :py:class:`Value` instance corresponding to *varName* or
+    def __getitem__(self, var_name):
+        """Returns the :py:class:`Value` instance corresponding to *var_name* or
         raises KeyError if there is no variable with that name."""
-        ns, name = self.GetNamespace(varName)
+        ns, name = self.get_namespace(var_name)
         if ns:
             return ns[name]
-        print "Looking for: " + varName
-        print self.namespace
-        print self.form.components
-        raise KeyError(varName)
+        logging.debug("Looking for: %s", var_name)
+        logging.debug(self.namespace)
+        logging.debug(self.form.components)
+        raise KeyError(var_name)
 
     def __iter__(self):
         for nsName, ns in zip(self.form, self.namespace):
@@ -2591,9 +2610,9 @@ class TestSessionState(SessionState):
                 for key in ns:
                     yield prefix + key
 
-    def __contains__(self, varName):
+    def __contains__(self, var_name):
         try:
-            v = self[varName]
+            self[var_name]
             return True
         except KeyError:
             return False

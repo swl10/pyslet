@@ -1,17 +1,14 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.html401 as html
-
-import pyslet.qtiv2.core as core
-import pyslet.qtiv2.items as items
-
-import string
-import itertools
 import random
-import types
+
+from . import core
+from . import items
+from .. import html401 as html
+from ..pep8 import MigratedClass, old_method
+from ..py2 import range3
+from ..xml import structures as xml
+from ..xml import xsdatatypes as xsi
 
 
 class AssessmentTest(core.QTIElement, core.DeclarationContainer):
@@ -83,16 +80,17 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
             yield child
 
     def content_changed(self):
-        self.SortDeclarations()
+        self.sort_declarations()
 
-    def SortDeclarations(self):
+    def sort_declarations(self):
         """Sort the outcome declarations so that they are in identifier order.
         This is not essential but it does help ensure that output is
         predictable. This method is called automatically when reading items
         from XML files."""
         self.OutcomeDeclaration.sort()
 
-    def RegisterPart(self, part):
+    @old_method('RegisterPart')
+    def register_part(self, part):
         """Registers a testPart, asssessmentSection or assessmentItemRef in
         :py:attr:`parts`."""
         if part.identifier in self.parts:
@@ -100,7 +98,8 @@ class AssessmentTest(core.QTIElement, core.DeclarationContainer):
         else:
             self.parts[part.identifier] = part
 
-    def GetPart(self, identifier):
+    @old_method('GetPart')
+    def get_part(self, identifier):
         """Returns the testPart, assessmentSection or assessmentItemRef with the
         given identifier."""
         return self.parts[identifier]
@@ -239,7 +238,7 @@ class TestPart(core.QTIElement):
         if test:
             test.RegisterPart(self)
 
-    def CheckPreConditions(self, state):
+    def check_pre_conditions(self, state):
         """Returns True if this testPart's pre-conditions are satisfied or if
         there are no pre-conditions in effect."""
         for c in self.PreCondition:
@@ -247,7 +246,7 @@ class TestPart(core.QTIElement):
                 return False
         return True
 
-    def GetBranchTarget(self, state):
+    def get_branch_target(self, state):
         """Returns the identifier of the testPart to branch to, or the
         pre-defined EXIT_TEST identifier.  If there is no branch rule in effect
         then None is returned.  *state* is a
@@ -257,7 +256,7 @@ class TestPart(core.QTIElement):
         for r in self.BranchRule:
             if r.Evaluate(state):
                 try:
-                    if r.target == u"EXIT_TEST":
+                    if r.target == "EXIT_TEST":
                         return r.target
                     target = test.GetPart(r.target)
                     if not isinstance(target, TestPart):
@@ -294,13 +293,13 @@ class Selection(core.QTIElement):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'selection')
     XMLATTR_select = ('select', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_withReplacement = (
-        'withReplacement', xsi.boolean_from_str, xsi.boolean_to_str)
+        'with_replacement', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
         core.QTIElement.__init__(self, parent)
         self.select = None
-        self.withReplacement = False
+        self.with_replacement = False
 
 
 class Ordering(core.QTIElement):
@@ -386,33 +385,32 @@ class SectionPart(core.QTIElement):
         if test:
             test.RegisterPart(self)
 
-    def CheckPreConditions(self, state):
+    def check_pre_conditions(self, state):
         """Returns True if this item or section's pre-conditions are satisfied
         or if there are no pre-conditions in effect."""
-        test = self.find_parent(AssessmentTest)
-        testPart = self.find_parent(TestPart)
-        if testPart.navigationMode != NavigationMode.linear:
+        test_part = self.find_parent(TestPart)
+        if test_part.navigationMode != NavigationMode.linear:
             return None
         for c in self.PreCondition:
             if not c.Evaluate(state):
                 return False
         return True
 
-    def GetBranchTarget(self, state):
+    def get_branch_target(self, state):
         """Returns the identifier of the next item or section to branch to, or
         one of the pre-defined EXIT_* identifiers.  If there is no branch rule
         in effect then None is returned.  *state* is a
         :py:class:`variables.TestSessionState` instance used to evaluate the
         branch rule expressions."""
         test = self.find_parent(AssessmentTest)
-        testPart = self.find_parent(TestPart)
-        if testPart.navigationMode != NavigationMode.linear:
+        test_part = self.find_parent(TestPart)
+        if test_part.navigationMode != NavigationMode.linear:
             return None
         for r in self.BranchRule:
             if r.Evaluate(state):
                 try:
-                    if r.target in (u"EXIT_SECTION", u"EXIT_TESTPART",
-                                    u"EXIT_TEST"):
+                    if r.target in ("EXIT_SECTION", "EXIT_TESTPART",
+                                    "EXIT_TEST"):
                         return r.target
                     target = test.GetPart(r.target)
                     if not isinstance(target, SectionPart):
@@ -420,7 +418,7 @@ class SectionPart(core.QTIElement):
                         raise core.ProcessingError(
                             "Target of section or item branch rule is not a"
                             " section or item: %s" % r.target)
-                    if target.find_parent(TestPart) is not testPart:
+                    if target.find_parent(TestPart) is not test_part:
                         raise core.ProcessingError(
                             "Target or section or item branch rule is not in"
                             " the same testPart: %s" % r.target)
@@ -518,7 +516,7 @@ class AssessmentItemRef(SectionPart):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'assessmentItemRef')
     XMLATTR_href = ('href', html.uri.URI.from_octets, html.to_text)
-    XMLATTR_category = ('category', None, None, types.ListType)
+    XMLATTR_category = ('category', None, None, list)
     XMLCONTENT = xml.ElementContent
 
     def __init__(self, parent):
@@ -540,24 +538,26 @@ class AssessmentItemRef(SectionPart):
         for c in self.TemplateDefault:
             yield c
 
-    def GetItem(self):
+    @old_method('GetItem')
+    def get_item(self):
         """Returns the AssessmentItem referred to by this reference."""
         if self.item is None:
             if self.href:
                 from . import xml as qtixml
-                itemLocation = self.resolve_uri(self.href)
-                doc = qtixml.QTIDocument(baseURI=itemLocation)
+                item_location = self.resolve_uri(self.href)
+                doc = qtixml.QTIDocument(baseURI=item_location)
                 doc.read()
                 if isinstance(doc.root, items.AssessmentItem):
                     self.item = doc.root
         return self.item
 
-    def SetTemplateDefaults(self, itemState, testState):
+    @old_method('SetTemplateDefaults')
+    def set_template_defaults(self, item_state, test_state):
         for td in self.TemplateDefault:
-            td.Run(itemState, testState)
+            td.Run(item_state, test_state)
 
 
-class TestForm(object):
+class TestForm(MigratedClass):
 
     """A TestForm is a particular instance of a test, after selection and
     ordering rules have been applied.
@@ -597,16 +597,17 @@ class TestForm(object):
                 # no shuffling in test parts, just add a hidden section as a
                 # block
                 self.components.extend(self.Select(s))
-                self.components.append(u"-" + s.identifier)
-            self.components.append(u"-" + part.identifier)
-        for i in xrange(len(self.components)):
+                self.components.append("-" + s.identifier)
+            self.components.append("-" + part.identifier)
+        for i in range3(len(self.components)):
             id = self.components[i]
             if id in self.map:
                 self.map[id].append(i)
             else:
                 self.map[id] = [i]
 
-    def Select(self, section, expandChildren=True):
+    @old_method('Select')
+    def select(self, section, expand_children=True):
         """Runs the selection and ordering rules for *section*.
 
         It returns a list of identifiers, not including the identifier of the
@@ -617,38 +618,38 @@ class TestForm(object):
         else:
             shuffle = False
         if section.Selection:
-            targetSize = section.Selection.select
-            withReplacement = section.Selection.withReplacement
+            target_size = section.Selection.select
+            with_replacement = section.Selection.with_replacement
         else:
-            targetSize = len(children)
-            withReplacement = False
+            target_size = len(children)
+            with_replacement = False
         selection = []
-        bag = list(xrange(len(children)))
-        shuffleList = []
+        bag = list(range3(len(children)))
+        shuffle_list = []
         # Step 1: make sure we select required children at least once
-        for i in xrange(len(children)):
+        for i in range3(len(children)):
             if children[i].required:
                 selection.append(i)
-                if not withReplacement:
+                if not with_replacement:
                     bag.remove(i)
-        if len(selection) > targetSize:
+        if len(selection) > target_size:
             raise core.SelectionError(
                 "#%s contains a selection rule that selects fewer child"
                 " elements than the number of required elements" %
                 section.identifier)
         # Step 2: top up the selection until we reach the target size
-        while len(selection) < targetSize:
+        while len(selection) < target_size:
             if bag:
                 i = random.choice(bag)
                 selection.append(i)
-                if not withReplacement:
+                if not with_replacement:
                     bag.remove(i)
             else:
                 raise core.SelectionError(
                     "Number of children to select in #%s exceeds the number"
-                    " of child elements, use withReplacement to resolve" %
+                    " of child elements, use with_replacement to resolve" %
                     section.identifier)
-        shuffleList = []
+        shuffle_list = []
         # Step 3: sort the list to ensure the position of fixed children is
         # honoured
         selection.sort()
@@ -656,85 +657,86 @@ class TestForm(object):
         # replace invisible sections with their contents if we need to
         # split/shuffle them replace floating children with empty slots and put
         # them in the shuffle list
-        newSelection = []
+        new_selection = []
         for i in selection:
             child = children[i]
-            invisibleSection = isinstance(
+            invisible_section = isinstance(
                 child, AssessmentSection) and not child.visible
             if shuffle and not child.fixed:
                 # We're shuffling, add a free slot to the selection
-                newSelection.append(None)
-                if invisibleSection and not child.keepTogether:
-                    # the grand-children go into the shuffleList independently
+                new_selection.append(None)
+                if invisible_section and not child.keepTogether:
+                    # the grand-children go into the shuffle_list independently
                     # What does a fixed grand-child mean in this situation?
                     # we raise an error at the moment.  Note that we don't
                     # expand the grand children (unless they are also mixed in
                     # from a nested invisible section)
-                    for gChildID in self.Select(child, False):
-                        gChild = self.test.GetPart(gChildID)
-                        if gChild.fixed:
+                    for g_child_id in self.Select(child, False):
+                        g_child = self.test.GetPart(g_child_id)
+                        if g_child.fixed:
                             raise core.SelectionError(
                                 "Fixed child of invisible section #%s is"
                                 " subject to parent shuffling, use"
                                 " keepTogether to resolve" %
                                 child.identifier)
-                        shuffleList.append(gChildID)
+                        shuffle_list.append(g_child_id)
                 else:
                     # invisible sections with keepTogether go in to the shuffle
                     # list just like items
-                    shuffleList.append(child.identifier)
+                    shuffle_list.append(child.identifier)
             else:
                 # We're not shuffling or this child is fixed in position
                 # (doesn't matter whether visible or not)
-                newSelection.append(child.identifier)
-                if isinstance(child, AssessmentSection) and expandChildren:
-                    newSelection = newSelection + self.Select(child, True)
-                    newSelection.append(u"-" + child.identifier)
-        selection = newSelection
-        if shuffleList:
+                new_selection.append(child.identifier)
+                if isinstance(child, AssessmentSection) and expand_children:
+                    new_selection = new_selection + self.Select(child, True)
+                    new_selection.append("-" + child.identifier)
+        selection = new_selection
+        if shuffle_list:
             # Step 5: shuffle!
-            random.shuffle(shuffleList)
-            """Expanded invisible sections may mean we have more shuffled items
-            than free slots We need to partition the shuffle list into
-            n buckets where n is the number of slots. We choose to put one item
-            in each bucket initially then randomly assign the rest. This gives
-            the expected result in the case where the shuffle list contains one
-            item for each slot.  It also preserves the relative order of fixed
-            items and ensures that adjacent fixed items are not split by a
-            random choice.  Similarly, items fixed at the start or end of the
-            section remain in place"""
+            random.shuffle(shuffle_list)
+            # Expanded invisible sections may mean we have more shuffled
+            # items than free slots We need to partition the shuffle
+            # list into n buckets where n is the number of slots. We
+            # choose to put one item in each bucket initially then
+            # randomly assign the rest. This gives the expected result
+            # in the case where the shuffle list contains one item for
+            # each slot.  It also preserves the relative order of fixed
+            # items and ensures that adjacent fixed items are not split
+            # by a random choice.  Similarly, items fixed at the start
+            # or end of the section remain in place
             i = 0
             buckets = []
             for child in selection:
                 if child is None:
-                    buckets.append([shuffleList[i]])
+                    buckets.append([shuffle_list[i]])
                     i += 1
-            while i < len(shuffleList):
+            while i < len(shuffle_list):
                 # choose a random bucket
-                random.choice(buckets).append(shuffleList[i])
+                random.choice(buckets).append(shuffle_list[i])
                 i += 1
             # Now splice the buckets into the selection
             for b in buckets:
                 # We need to expand any sections that appear in the buckets
-                newBucket = []
+                new_bucket = []
                 for childID in b:
-                    newBucket.append(childID)
+                    new_bucket.append(childID)
                     child = self.test.GetPart(childID)
                     if isinstance(child, AssessmentSection):
-                        newBucket.extend(self.Select(childID, True))
-                        newBucket.append(u"-" + childID)
+                        new_bucket.extend(self.Select(childID, True))
+                        new_bucket.append("-" + childID)
                 i = selection.index(None)
-                selection[i:i + 1] = newBucket
+                selection[i:i + 1] = new_bucket
         return selection
 
-    def find(self, pName):
-        if pName in self.map:
-            return self.map[pName]
+    def find(self, pname):
+        if pname in self.map:
+            return self.map[pname]
         else:
             return []
 
-    def index(self, pName):
-        return self.components.index(pName)
+    def index(self, pname):
+        return self.components.index(pname)
 
     def __len__(self):
         return len(self.components)

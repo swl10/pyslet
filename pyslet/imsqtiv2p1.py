@@ -4,7 +4,7 @@
 
 import warnings
 
-from pyslet.qtiv2 import (
+from pyslet.qtiv2 import (      # noqa
     core,
     variables,
     expressions,
@@ -14,9 +14,8 @@ from pyslet.qtiv2 import (
     items,
     tests,
     metadata as md,
-    xml as qtixml)      # noqa
+    xml as qtixml)
 
 warnings.warn(
     "pyslet.imsqtiv2p1 is deprecated, use pyslet.qtiv2 package instead",
     DeprecationWarning, stacklevel=3)
-

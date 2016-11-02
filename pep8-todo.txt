@@ -1,13 +1,3 @@
-pyslet/qtiv2/core.py
-pyslet/qtiv2/content.py
-pyslet/qtiv2/metadata.py
-pyslet/qtiv2/interactions.py
-pyslet/qtiv2/items.py
-pyslet/qtiv2/tests.py
-pyslet/qtiv2/variables.py
-pyslet/qtiv2/expressions.py
-pyslet/qtiv2/processing.py
-pyslet/imsqti_2p1.py
 unittests/test_imsmdv1p2p1.py
 pyslet/imsmd.py
 unittests/test_imscpv1p2.py

@@ -463,7 +463,14 @@ directly or with a list or tuple of Length values."""
         if len(self.values) < 3:
             raise ValueError(
                 "Circle test requires 3 coordinates: %s" % str(self.values))
-        if width < height:
+        if width is None:
+            if height is None:
+                rmax = None
+            else:
+                rmax = height
+        elif height is None:
+            rmax = width
+        elif width < height:
             rmax = width
         else:
             rmax = height

@@ -1,14 +1,12 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-
-import pyslet.qtiv2.core as core
-import pyslet.qtiv2.variables as variables
-
-import string
 import itertools
+import logging
+
+from . import core
+from . import variables
+from ..pep8 import old_method
+from ..xml import structures as xml
 
 
 class ResponseProcessing(core.QTIElement):
@@ -45,7 +43,8 @@ class ResponseProcessing(core.QTIElement):
             self.ResponseRule,
             core.QTIElement.get_children(self))
 
-    def Run(self, state):
+    @old_method('Run')
+    def run(self, state):
         """Runs response processing using the values in *state*.
 
         *	*state* is an :py:class:`~pyslet.qtiv2.variables.ItemSessionState`
@@ -63,7 +62,8 @@ class ResponseRule(core.QTIElement):
 
     """Abstract class to represent all response rules."""
 
-    def Run(self, state):
+    @old_method('Run')
+    def run(self, state):
         """Abstract method to run this rule using the values in *state*."""
         raise NotImplementedError(
             "Unsupported response rule: <%s>" % repr(self.xmlname))
@@ -103,7 +103,7 @@ class ResponseCondition(ResponseRule):
         if self.ResponseElse:
             yield self.ResponseElse
 
-    def Run(self, state):
+    def run(self, state):
         if self.ResponseIf.Run(state):
             return
         for c in self.ResponseElseIf:
@@ -142,15 +142,16 @@ class ResponseIf(core.QTIElement):
         for child in self.ResponseRule:
             yield child
 
-    def Run(self, state):
+    @old_method('Run')
+    def run(self, state):
         """Run this test and, if True, any resulting rules.
 
         Returns *True* if the condition evaluated to *True*."""
         if self.Expression is None:
             raise core.ProcessingError("responseIf with missing condition")
         value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.boolean)
-        variables.CheckCardinalities(
+        variables.check_base_types(value.baseType, variables.BaseType.boolean)
+        variables.check_cardinalities(
             value.Cardinality(), variables.Cardinality.single)
         if value and value.value:
             for r in self.ResponseRule:
@@ -181,7 +182,8 @@ class ResponseElse(core.QTIElement):
     def get_children(self):
         return iter(self.ResponseRule)
 
-    def Run(self, state):
+    @old_method('Run')
+    def run(self, state):
         """Runs the sub-rules."""
         for r in self.ResponseRule:
             r.Run(state)
@@ -232,7 +234,7 @@ class SetOutcomeValue(ResponseRule):
         if self.Expression:
             yield self.Expression
 
-    def Run(self, state):
+    def run(self, state):
         if self.Expression is None:
             raise core.ProcessingError(
                 "setOutcomeValue with missing expression")
@@ -259,7 +261,7 @@ class ExitResponse(ResponseRule):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'exitResponse')
     XMLCONTENT = xml.XMLEmpty
 
-    def Run(self, state):
+    def run(self, state):
         raise StopProcessing
 
 
@@ -291,7 +293,8 @@ class TemplateProcessing(core.QTIElement):
             self.TemplateRule,
             core.QTIElement.get_children(self))
 
-    def Run(self, state):
+    @old_method('Run')
+    def run(self, state):
         """Runs template processing rules using the values in *state*.
 
         *	*state* is an :py:class:`~pyslet.qtiv2.variables.ItemSessionState`
@@ -309,7 +312,8 @@ class TemplateRule(core.QTIElement):
 
     """Abstract class to represent all template rules."""
 
-    def Run(self, state):
+    @old_method('Run')
+    def run(self, state):
         """Abstract method to run this rule using the values in *state*."""
         raise NotImplementedError(
             "Unsupported template rule: <%s>" % repr(self.xmlname))
@@ -349,7 +353,7 @@ class TemplateCondition(TemplateRule):
         if self.TemplateElse:
             yield self.TemplateElse
 
-    def Run(self, state):
+    def run(self, state):
         if self.TemplateIf.Run(state):
             return
         for c in self.TemplateElseIf:
@@ -388,15 +392,16 @@ class TemplateIf(core.QTIElement):
         for child in self.TemplateRule:
             yield child
 
-    def Run(self, state):
+    @old_method('Run')
+    def run(self, state):
         """Run this test and, if True, any resulting rules.
 
         Returns *True* if the condition evaluated to *True*."""
         if self.Expression is None:
             raise core.ProcessingError("templateIf with missing condition")
         value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.boolean)
-        variables.CheckCardinalities(
+        variables.check_base_types(value.baseType, variables.BaseType.boolean)
+        variables.check_cardinalities(
             value.Cardinality(), variables.Cardinality.single)
         if value and value.value:
             for r in self.TemplateRule:
@@ -427,7 +432,8 @@ class TemplateElse(core.QTIElement):
     def get_children(self):
         return iter(self.TemplateRule)
 
-    def Run(self, state):
+    @old_method('Run')
+    def run(self, state):
         """Runs the sub-rules."""
         for r in self.TemplateRule:
             r.Run(state)
@@ -478,7 +484,7 @@ class SetTemplateValue(TemplateRule):
         if self.Expression:
             yield self.Expression
 
-    def Run(self, state):
+    def run(self, state):
         if self.Expression is None:
             raise core.ProcessingError(
                 "setTemplateValue with missing expression")
@@ -519,7 +525,7 @@ class SetCorrectResponse(TemplateRule):
         if self.Expression:
             yield self.Expression
 
-    def Run(self, state):
+    def run(self, state):
         if self.Expression is None:
             raise core.ProcessingError(
                 "setCorrectResponse with missing expression")
@@ -565,7 +571,7 @@ class SetDefaultValue(TemplateRule):
         if self.Expression:
             yield self.Expression
 
-    def Run(self, state):
+    def run(self, state):
         if self.Expression is None:
             raise core.ProcessingError(
                 "setDefaultValue with missing expression")
@@ -593,7 +599,7 @@ class ExitTemplate(TemplateRule):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'exitTemplate')
     XMLCONTENT = xml.XMLEmpty
 
-    def Run(self, state):
+    def run(self, state):
         raise StopProcessing
 
 
@@ -609,7 +615,8 @@ class TestPartCondition(core.QTIElement):
         for child in core.QTIElement.get_children(self):
             yield child
 
-    def Evaluate(self, state):
+    @old_method('Evaluate')
+    def evaluate(self, state):
         """Evaluates the condition using the values in *state*.
 
         *	*state* is a :py:class:`~pyslet.qtiv2.variables.TestSessionState`
@@ -618,8 +625,8 @@ class TestPartCondition(core.QTIElement):
             raise core.ProcessingError(
                 "preCondition or branchRule with missing condition")
         value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.boolean)
-        variables.CheckCardinalities(
+        variables.check_base_types(value.baseType, variables.BaseType.boolean)
+        variables.check_cardinalities(
             value.Cardinality(), variables.Cardinality.single)
         return value and value.value
 
@@ -700,24 +707,25 @@ class TemplateDefault(core.QTIElement):
         for child in core.QTIElement.get_children(self):
             yield child
 
-    def Run(self, itemState, testState):
-        """Updates the value of a template variable in *itemState* based on the
-        values in *testState*."""
+    @old_method('Run')
+    def run(self, item_state, test_state):
+        """Updates the value of a template variable in *item_state* based on the
+        values in *test_state*."""
         if self.Expression is None:
             raise core.ProcessingError(
                 "templateDefault with missing expression")
-        value = self.Expression.Evaluate(testState)
+        value = self.Expression.Evaluate(test_state)
         if self.templateIdentifier is None:
-            print self
+            logging.debug("TemplateDefault.run: %s", self)
         try:
-            d = itemState.GetDeclaration(self.templateIdentifier)
+            d = item_state.GetDeclaration(self.templateIdentifier)
         except KeyError:
             raise core.ProcessingError(
                 "%s is not a variable" % self.templateIdentifier)
         if isinstance(d, variables.TemplateDeclaration):
             # we don't actually use the .DEFAULT form for template variables as
             # they have their values set directly.
-            itemState[self.templateIdentifier] = value
+            item_state[self.templateIdentifier] = value
         else:
             raise core.ProcessingError(
                 "%s is not a template variable" % self.templateIdentifier)

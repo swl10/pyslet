@@ -1,34 +1,24 @@
 #! /usr/bin/env python
+"""This module implements the QTI 2.1 specification defined by IMS GLC"""
 
-#! /usr/bin/env python
-"""This module implements the QTI 2.1 specification defined by IMS GLC
-"""
+import logging
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsdatatypes
-import pyslet.html401 as html
-import pyslet.rfc2396 as uri
+from .. import html401 as html
+from ..pep8 import old_method
+from ..xml import namespace as xmlns
+from ..xml import xsdatatypes as xsi
 
-import string
-import itertools
-import types
-import sys
-from types import StringTypes
+from . import (     # noqa
+    content,
+    core,
+    expressions,
+    interactions,
+    items,
+    metadata,
+    processing,
+    tests,
+    variables)
 
-import pyslet.qtiv2.core as core
-import pyslet.qtiv2.variables as variables
-import pyslet.qtiv2.expressions as expressions
-import pyslet.qtiv2.processing as processing
-import pyslet.qtiv2.content as content
-import pyslet.qtiv2.interactions as interactions
-import pyslet.qtiv2.items as items
-import pyslet.qtiv2.tests as tests
-import pyslet.qtiv2.metadata as metadata
-
-xsi = xsdatatypes
-
-# MakeValidNCName = core.ValidateIdentifier
 
 class QTIDocument(xmlns.XMLNSDocument):
 
@@ -38,7 +28,8 @@ class QTIDocument(xmlns.XMLNSDocument):
     classMap = {}
 
     def __init__(self, **args):
-        xmlns.XMLNSDocument.__init__(self, defaultNS=core.IMSQTI_NAMESPACE, **args)
+        xmlns.XMLNSDocument.__init__(self,
+                                     defaultNS=core.IMSQTI_NAMESPACE, **args)
         self.make_prefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
         if isinstance(self.root, core.QTIElement):
             self.root.set_attribute(
@@ -50,7 +41,8 @@ class QTIDocument(xmlns.XMLNSDocument):
             name, QTIDocument.classMap.get(
                 (name[0], None), xmlns.XMLNSElement))
 
-    def AddToContentPackage(self, cp, md, dName=None):
+    @old_method('AddToContentPackage')
+    def add_to_content_package(self, cp, md, dname=None):
         """Copies this QTI document into a content package and returns the
         resource ID used.
 
@@ -60,7 +52,7 @@ class QTIDocument(xmlns.XMLNSDocument):
         # new resource.
         # The document's base is automatically set to the URI of the resource
         # entry point.
-        resource = self.root.AddToContentPackage(cp, md, dName)
+        resource = self.root.AddToContentPackage(cp, md, dname)
         # Finish by writing out the document to the new base_uri
         self.create()
         return resource
@@ -82,4 +74,4 @@ for name in core.QTI_HTML_PROFILE:
     if eClass:
         QTIDocument.classMap[(core.IMSQTI_NAMESPACE, name)] = eClass
     else:
-        print "Failed to map XHTML element name %s" % name
+        logging.debug("Failed to map XHTML element name %s", name)

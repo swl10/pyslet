@@ -484,7 +484,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                             p.add_data(child)
                         else:
                             newChild = child.deepcopy(p)
-                            qtiv2.content.FixHTMLNamespace(newChild)
+                            qtiv2.content.fix_html_namespace(newChild)
                     else:
                         # stop collecting inlines
                         p = None
@@ -494,7 +494,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                                 'cannot be wrapped with <%s>' %
                                 self.inlineWrapper.XMLNAME[1])
                         newChild = child.deepcopy(parent)
-                        qtiv2.content.FixHTMLNamespace(newChild)
+                        qtiv2.content.fix_html_namespace(newChild)
             else:
                 # Flow context (with only inline children) or inline context
                 if self.inlineWrapper:
@@ -509,7 +509,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                         addNode.add_data(child)
                     else:
                         newChild = child.deepcopy(addNode)
-                        qtiv2.content.FixHTMLNamespace(newChild)
+                        qtiv2.content.fix_html_namespace(newChild)
         else:
             raise QTIUnimplementedError
 

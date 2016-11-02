@@ -45,9 +45,8 @@ if py2:
 if py2:
     import test_imsqtiv1p2p1
     all_tests.addTest(test_imsqtiv1p2p1.suite())
-if py2:
-    import test_imsqtiv2p1
-    all_tests.addTest(test_imsqtiv2p1.suite())
+import test_imsqtiv2p1
+all_tests.addTest(test_imsqtiv2p1.suite())
 import test_iso8601
 all_tests.addTest(test_iso8601.suite())
 import test_odata2_core

@@ -32,7 +32,7 @@ QTI_SOURCE = 'QTIv1'
 class QuesTestInterop(QTICommentContainer):
 
     """Outermost container for QTI content
-    
+
     The <questestinterop> element is the outermost container for the QTI
     contents i.e. the container of the Assessment(s), Section(s) and
     Item(s)::
@@ -201,11 +201,11 @@ class QTIDocument(xml.Document):
                 # Make a directory to hold the files (makes it easier to find
                 # unique names for media files)
                 if isinstance(self.base_uri, uri.FileURL):
-                    ignore, dName = os.path.split(self.base_uri.get_pathname())
+                    ignore, dname = os.path.split(self.base_uri.get_pathname())
                 else:
-                    dName = "questestinterop"
-                dName, ext = os.path.splitext(dName)
-                dName = cp.GetUniqueFile(dName)
+                    dname = "questestinterop"
+                dname, ext = os.path.splitext(dname)
+                dname = cp.GetUniqueFile(dname)
                 for doc, metadata, log in results:
                     logging.debug("\nQTIv2 Output:\n%s", str(doc))
                     if log:
@@ -227,7 +227,7 @@ class QTIDocument(xml.Document):
                         description.add_child(
                             description.LangStringClass).set_value(
                             annotationMsg)
-                    r = doc.AddToContentPackage(cp, metadata, dName)
+                    r = doc.AddToContentPackage(cp, metadata, dname)
                     newResults.append((doc, metadata, log, r))
                 cp.manifest.update()
             return newResults

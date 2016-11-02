@@ -20,7 +20,7 @@ pyslet/http/server.py
 unittests/test_http_server.py
 pyslet/imsbltiv1p0.py
 unittests/test_imsbltiv1p0.py
-unittests/test_imsqtiv2p1.py
+pyslet/imsqtiv2p1.py
 pyslet/iso8601.py
 unittests/test_iso8601.py
 pyslet/mysqldbds.py
@@ -47,6 +47,17 @@ pyslet/py26.py
 unittests/test_py26.py
 pyslet/py2.py
 unittests/test_py2.py
+pyslet/qtiv2/content.py
+pyslet/qtiv2/core.py
+pyslet/qtiv2/expressions.py
+pyslet/qtiv2/interactions.py
+pyslet/qtiv2/items.py
+pyslet/qtiv2/metadata.py
+pyslet/qtiv2/processing.py
+pyslet/qtiv2/tests.py
+pyslet/qtiv2/variables.py
+pyslet/qtiv2/xml.py
+unittests/test_imsqtiv2p1.py
 pyslet/rfc2396.py
 unittests/test_rfc2396.py
 pyslet/rfc2616.py

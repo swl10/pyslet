@@ -1,26 +1,30 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.qtiv2.core as core
-import pyslet.qtiv2.variables as variables
-
-import string
 import random
-import itertools
 import math
+
+from . import core
+from . import variables
+from ..pep8 import old_method
+from ..py2 import (
+    dict_keys,
+    dict_values,
+    range3,
+    uempty)
+from ..xml import structures as xml
+from ..xml import xsdatatypes as xsi
 
 
 class Expression(core.QTIElement):
 
     """Abstract class for all expression elements."""
 
-    def Evaluate(self, state):
+    @old_method('Evaluate')
+    def evaluate(self, state):
         """Evaluates this expression in the context of the session *state*."""
         raise NotImplementedError("Evaluation of %s" % self.__class__.__name__)
 
-    def IntegerOrTemplateRef(self, state, value):
+    def integer_or_template_ref(self, state, value):
         """Given a value of type integerOrTemplateRef this method returns the
         corresponding integer by looking up the value, if necessary, in
         *state*.  If value is a variable reference to a variable with NULL
@@ -40,7 +44,7 @@ class Expression(core.QTIElement):
         else:
             return xsi.integer_from_str(value)
 
-    def FloatOrTemplateRef(self, state, value):
+    def float_or_template_ref(self, state, value):
         """Given a value of type floatOrTemplateRef this method returns the
         corresponding float by looking up the value, if necessary, in
         *state*.  If value is a variable reference to a variable with NULL
@@ -60,7 +64,7 @@ class Expression(core.QTIElement):
         else:
             return xsi.double_from_str(value)
 
-    def StringOrTemplateRef(self, state, value):
+    def string_or_template_ref(self, state, value):
         """Given a value of type stringOrTemplateRef this method returns the
         corresponding string by looking up the value, if necessary, in
         *state*.  If value is a variable reference to a variable with NULL
@@ -118,7 +122,7 @@ class BaseValue(Expression):
         Expression.__init__(self, parent)
         self.baseType = variables.BaseType.string
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         return variables.SingleValue.NewValue(self.baseType, self.get_value())
 
 
@@ -145,7 +149,7 @@ class Variable(Expression):
         self.identifier = ''
         self.weightIdentifier = None
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         try:
             return state[self.identifier]
         except KeyError:
@@ -170,9 +174,9 @@ class Default(Expression):
         Expression.__init__(self, parent)
         self.identifier = ''
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         try:
-            d = state.GetDeclaration(self.identifier)
+            state.GetDeclaration(self.identifier)
             return state[self.identifier + ".DEFAULT"]
         except KeyError:
             raise core.ProcessingError(
@@ -197,7 +201,7 @@ class Correct(Expression):
         Expression.__init__(self, parent)
         self.identifier = ''
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         try:
             d = state.GetDeclaration(self.identifier)
             if isinstance(d, variables.ResponseDeclaration):
@@ -232,7 +236,7 @@ class MapResponse(Expression):
         Expression.__init__(self, parent)
         self.identifier = ''
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         try:
             d = state.GetDeclaration(self.identifier)
             if isinstance(d, variables.ResponseDeclaration):
@@ -268,7 +272,7 @@ class MapResponsePoint(Expression):
         Expression.__init__(self, parent)
         self.identifier = ''
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         try:
             d = state.GetDeclaration(self.identifier)
             if isinstance(d, variables.ResponseDeclaration):
@@ -278,7 +282,7 @@ class MapResponsePoint(Expression):
                 elif d.AreaMapping is None:
                     raise core.ProcessingError(
                         "%s has no areaMapping" % self.identifier)
-                width, height = d.GetStageDimensions()
+                width, height = d.get_stage_dimensions()
                 return d.AreaMapping.MapValue(
                     state[
                         self.identifier],
@@ -305,7 +309,7 @@ class Null(Expression):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'null')
     XMLCONTENT = xml.XMLEmpty
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         return variables.Value()
 
 
@@ -334,10 +338,10 @@ class RandomInteger(Expression):
         self.max = None
         self.step = "1"
 
-    def Evaluate(self, state):
-        min = self.IntegerOrTemplateRef(state, self.min)
-        max = self.IntegerOrTemplateRef(state, self.max)
-        step = self.IntegerOrTemplateRef(state, self.step)
+    def evaluate(self, state):
+        min = self.integer_or_template_ref(state, self.min)
+        max = self.integer_or_template_ref(state, self.max)
+        step = self.integer_or_template_ref(state, self.step)
         return variables.IntegerValue(
             min +
             step *
@@ -369,9 +373,9 @@ class RandomFloat(Expression):
         self.min = "0"
         self.max = None
 
-    def Evaluate(self, state):
-        min = self.FloatOrTemplateRef(state, self.min)
-        max = self.FloatOrTemplateRef(state, self.max)
+    def evaluate(self, state):
+        min = self.float_or_template_ref(state, self.min)
+        max = self.float_or_template_ref(state, self.max)
         # strictly speaking, we can never return max, but due to possible
         # rounding this point is academic
         return variables.FloatValue(min + random.random() * (max - min))
@@ -390,11 +394,12 @@ class NOperator(Expression):
     def get_children(self):
         return iter(self.Expression)
 
-    def EvaluateChildren(self, state):
+    @old_method('EvaluateChildren')
+    def evaluate_children(self, state):
         """Evaluates all child expressions, returning an iterable of
         :py:class:`Value` instances."""
         for e in self.Expression:
-            yield e.Evaluate(state)
+            yield e.evaluate(state)
 
 
 class UnaryOperator(Expression):
@@ -424,38 +429,38 @@ class Multiple(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'multiple')
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         # We are going to recurse through the sub-expressions evaluating as we
         # go...
-        baseType = None
-        values = list(self.EvaluateChildren(state))
-        vInput = []
+        base_type = None
+        values = list(self.evaluate_children(state))
+        vinput = []
         for v in values:
             if v.baseType is None:
                 continue
-            if baseType is None:
-                baseType = v.baseType
-            elif baseType != v.baseType:
+            if base_type is None:
+                base_type = v.baseType
+            elif base_type != v.baseType:
                 raise core.ProcessingError(
                     "Mixed containers are not allowed: expected %s, found %s" %
-                    (variables.BaseType.to_str(baseType),
+                    (variables.BaseType.to_str(base_type),
                      variables.BaseType.to_str(
                         v.baseType)))
             if not v:
                 # ignore NULL
                 continue
             if v.Cardinality() == variables.Cardinality.single:
-                vInput.append(v.value)
+                vinput.append(v.value)
             elif v.Cardinality() == variables.Cardinality.multiple:
                 # apologies for the obscure code, but this turns {'x':2,'y':3}
                 # into ['y', 'y', 'y', 'x', 'x']
-                vInput = vInput + list(v.GetValues())
+                vinput = vinput + list(v.get_values())
             else:
                 raise core.ProcessingError(
                     "Ordered or Record values not allowed in Mutiple")
         # finally we have a matching list of input values
-        result = variables.MultipleContainer(baseType)
-        result.set_value(vInput)
+        result = variables.MultipleContainer(base_type)
+        result.set_value(vinput)
         return result
 
 
@@ -472,36 +477,36 @@ class Ordered(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'ordered')
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         # We are going to recurse through the sub-expressions evaluating as we
         # go...
-        baseType = None
-        values = list(self.EvaluateChildren(state))
-        vInput = []
+        base_type = None
+        values = list(self.evaluate_children(state))
+        vinput = []
         for v in values:
             if v.baseType is None:
                 continue
-            if baseType is None:
-                baseType = v.baseType
-            elif baseType != v.baseType:
+            if base_type is None:
+                base_type = v.baseType
+            elif base_type != v.baseType:
                 raise core.ProcessingError(
                     "Mixed containers are not allowed: expected %s, found %s" %
-                    (variables.BaseType.to_str(baseType),
+                    (variables.BaseType.to_str(base_type),
                      variables.BaseType.to_str(
                         v.baseType)))
             if not v:
                 # ignore NULL
                 continue
             if v.Cardinality() == variables.Cardinality.single:
-                vInput.append(v.value)
+                vinput.append(v.value)
             elif v.Cardinality() == variables.Cardinality.ordered:
-                vInput = vInput + list(v.value)
+                vinput = vinput + list(v.value)
             else:
                 raise core.ProcessingError(
                     "Multiple or Record values not allowed in Ordered")
         # finally we have a matching list of input values
-        result = variables.OrderedContainer(baseType)
-        result.set_value(vInput)
+        result = variables.OrderedContainer(base_type)
+        result.set_value(vinput)
         return result
 
 
@@ -518,8 +523,8 @@ class ContainerSize(UnaryOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'containerSize')
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
         if value.Cardinality() == variables.Cardinality.ordered:
             if value:
                 return variables.IntegerValue(len(value.value))
@@ -530,7 +535,7 @@ class ContainerSize(UnaryOperator):
                 # multiple containers are kept as a mapping to value
                 # frequencies
                 sum = 0
-                for v in value.value.values():
+                for v in dict_values(value.value):
                     sum += v
                 return variables.IntegerValue(sum)
             else:
@@ -554,8 +559,8 @@ class IsNull(UnaryOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'isNull')
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
         if value:
             return variables.BooleanValue(False)
         else:
@@ -586,8 +591,8 @@ class Index(UnaryOperator):
         UnaryOperator.__init__(self, parent)
         self.n = None
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
         if value.Cardinality() == variables.Cardinality.ordered:
             result = variables.SingleValue.NewValue(value.baseType)
             if value:
@@ -630,8 +635,8 @@ class FieldValue(UnaryOperator):
         UnaryOperator.__init__(self, parent)
         self.fieldIdentifier = ''
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
         if value.Cardinality() == variables.Cardinality.record:
             if self.fieldIdentifier in value:
                 return value[self.fieldIdentifier]
@@ -659,8 +664,8 @@ class Random(UnaryOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'random')
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
         if value.Cardinality() == variables.Cardinality.ordered:
             result = variables.SingleValue.NewValue(value.baseType)
             if value:
@@ -670,7 +675,7 @@ class Random(UnaryOperator):
         elif value.Cardinality() == variables.Cardinality.multiple:
             result = variables.SingleValue.NewValue(value.baseType)
             if value:
-                result.set_value(random.choice(list(value.GetValues())))
+                result.set_value(random.choice(list(value.get_values())))
             return result
         elif value.Cardinality() is None:
             return variables.SingleValue()
@@ -698,8 +703,8 @@ class Member(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'member')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "Member requires two sub-expressions, found %i" % len(values))
@@ -724,7 +729,7 @@ class Member(NOperator):
             elif (containerValue.Cardinality() ==
                   variables.Cardinality.multiple):
                 return variables.BooleanValue(
-                    singleValue.value in containerValue.value.keys())
+                    singleValue.value in containerValue.value)
             else:
                 raise core.ProcessingError(
                     "Expected ordered or multiple value, found %s" %
@@ -750,8 +755,8 @@ class Delete(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'delete')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "Delete requires two sub-expressions, found %i" % len(values))
@@ -788,11 +793,11 @@ class Delete(NOperator):
         if singleValue and containerValue:
             # we treat multiple and ordered the same, less efficient as we
             # enumerate all members
-            vResult = []
-            for v in containerValue.GetValues():
+            vresult = []
+            for v in containerValue.get_values():
                 if singleValue.value != v:
-                    vResult.append(v)
-            result.set_value(vResult)
+                    vresult.append(v)
+            result.set_value(vresult)
             return result
         else:
             return result
@@ -814,28 +819,27 @@ class Contains(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'contains')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "Contains requires two sub-expressions, found %i" %
                 len(values))
         v1, v2 = values
-        baseType = variables.CheckBaseTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        base_type = variables.check_base_types(v1.baseType, v2.baseType)
+        cardinality = variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality())
-        if baseType == variables.BaseType.duration:
+        if base_type == variables.BaseType.duration:
             raise core.ProcessingError(
                 "Contains operator must not be used on duration values")
-        if cardinality is None or baseType is None:
+        if cardinality is None or base_type is None:
             return variables.BooleanValue()
         if v1 and v2:
             if cardinality == variables.Cardinality.ordered:
                 # we use a naive implementation here as we don't expect large
                 # containers
-                matchPos = 0
                 imax = len(v2.value) - len(v1.value)
-                for i in xrange(imax + 1):
+                for i in range3(imax + 1):
                     # try a match starting at i
                     match = True
                     for iv1, iv2 in zip(v1.value,
@@ -849,7 +853,7 @@ class Contains(NOperator):
             elif cardinality == variables.Cardinality.multiple:
                 # this is much easier to do
                 match = True
-                for iv1 in v1.value.keys():
+                for iv1 in v1.value:
                     if v2.value.get(iv1, 0) < v1.value[iv1]:
                         # no match
                         match = False
@@ -889,16 +893,16 @@ class SubString(NOperator):
         NOperator.__init__(self, parent)
         self.caseSensitive = True
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "substring requires two sub-expressions, found %i" %
                 len(values))
         v1, v2 = values
-        baseType = variables.CheckBaseTypes(
+        variables.check_base_types(
             v1.baseType, v2.baseType, variables.BaseType.string)
-        cardinality = variables.CheckCardinalities(
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             if self.caseSensitive:
@@ -924,10 +928,10 @@ class Not(UnaryOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'not')
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.boolean)
-        variables.CheckCardinalities(
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
+        variables.check_base_types(value.baseType, variables.BaseType.boolean)
+        variables.check_cardinalities(
             value.Cardinality(), variables.Cardinality.single)
         if value:
             return variables.BooleanValue(not value.value)
@@ -949,16 +953,14 @@ class And(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'and')
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         # We are going to recurse through the sub-expressions evaluating as we
         # go...
-        baseType = None
-        values = list(self.EvaluateChildren(state))
-        variables.CheckCardinalities(*
-                                     map(lambda x: x.Cardinality(), values) +
-                                     [variables.Cardinality.single])
-        variables.CheckBaseTypes(
-            *map(lambda x: x.baseType, values) + [variables.BaseType.boolean])
+        values = list(self.evaluate_children(state))
+        variables.check_cardinalities(variables.Cardinality.single,
+                                      *[x.Cardinality() for x in values])
+        variables.check_base_types(variables.BaseType.boolean,
+                                   *[x.baseType for x in values])
         result = True
         for v in values:
             if v.value is False:
@@ -983,16 +985,14 @@ class Or(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'or')
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         # We are going to recurse through the sub-expressions evaluating as we
         # go...
-        baseType = None
-        values = list(self.EvaluateChildren(state))
-        variables.CheckCardinalities(*
-                                     map(lambda x: x.Cardinality(), values) +
-                                     [variables.Cardinality.single])
-        variables.CheckBaseTypes(
-            *map(lambda x: x.baseType, values) + [variables.BaseType.boolean])
+        values = list(self.evaluate_children(state))
+        variables.check_cardinalities(variables.Cardinality.single,
+                                      *[x.Cardinality() for x in values])
+        variables.check_base_types(variables.BaseType.boolean,
+                                   *[x.baseType for x in values])
         result = False
         for v in values:
             if v.value:
@@ -1031,35 +1031,34 @@ class AnyN(NOperator):
         self.min = None
         self.max = None
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         # We are going to recurse through the sub-expressions evaluating as we
         # go...
-        min = self.IntegerOrTemplateRef(state, self.min)
-        max = self.IntegerOrTemplateRef(state, self.max)
-        values = list(self.EvaluateChildren(state))
-        variables.CheckCardinalities(*
-                                     map(lambda x: x.Cardinality(), values) +
-                                     [variables.Cardinality.single])
-        variables.CheckBaseTypes(
-            *map(lambda x: x.baseType, values) + [variables.BaseType.boolean])
-        nTrue = nNull = 0
+        min = self.integer_or_template_ref(state, self.min)
+        max = self.integer_or_template_ref(state, self.max)
+        values = list(self.evaluate_children(state))
+        variables.check_cardinalities(variables.Cardinality.single,
+                                      *[x.Cardinality() for x in values])
+        variables.check_base_types(variables.BaseType.boolean,
+                                   *[x.baseType for x in values])
+        ntrue = nnull = 0
         for v in values:
             if v.value:
-                nTrue += 1
+                ntrue += 1
             elif v.value is None:
-                nNull += 1
+                nnull += 1
         # The hard part is figuring out what to return!
-        if nTrue >= min:
+        if ntrue >= min:
             # could be True
-            if nTrue > max:
+            if ntrue > max:
                 # we overshot
                 result = False
-            elif nTrue + nNull > max:
+            elif ntrue + nnull > max:
                 # we could still overshoot
                 result = None
             else:
                 result = True
-        elif nTrue + nNull >= min:
+        elif ntrue + nnull >= min:
             # we could still be True
             result = None
         else:
@@ -1082,8 +1081,8 @@ class Match(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'match')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "Match requires two sub-expressions, found %i" % len(values))
@@ -1123,16 +1122,16 @@ class StringMatch(NOperator):
         self.caseSensitive = True
         self.substring = None
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "stringMatch requires two sub-expressions, found %i" %
                 len(values))
         v1, v2 = values
-        baseType = variables.CheckBaseTypes(
+        variables.check_base_types(
             v1.baseType, v2.baseType, variables.BaseType.string)
-        cardinality = variables.CheckCardinalities(
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             if not self.caseSensitive:
@@ -1173,13 +1172,13 @@ class PatternMatch(UnaryOperator):
 
     def __init__(self, parent):
         UnaryOperator.__init__(self, parent)
-        self.pattern = u""
+        self.pattern = uempty
 
-    def Evaluate(self, state):
-        pattern = self.StringOrTemplateRef(state, self.pattern)
-        value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.string)
-        variables.CheckCardinalities(
+    def evaluate(self, state):
+        pattern = self.string_or_template_ref(state, self.pattern)
+        value = self.Expression.evaluate(state)
+        variables.check_base_types(value.baseType, variables.BaseType.string)
+        variables.check_cardinalities(
             value.Cardinality(), variables.Cardinality.single)
         if value:
             try:
@@ -1273,14 +1272,14 @@ class Equal(NOperator):
         self.includeLowerBound = True
         self.includeUpperBound = True
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "equal requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             # grab two floats
@@ -1292,28 +1291,28 @@ class Equal(NOperator):
                 if len(self.tolerance) == 0:
                     raise core.ProcessingError(
                         "Inexact equal test requires specificed tolerance.")
-                t0 = self.FloatOrTemplateRef(state, self.tolerance[0])
+                t0 = self.float_or_template_ref(state, self.tolerance[0])
                 if len(self.tolerance) > 1:
-                    t1 = self.FloatOrTemplateRef(state, self.tolerance[1])
+                    t1 = self.float_or_template_ref(state, self.tolerance[1])
                 else:
                     t1 = t0
                 if self.toleranceMode == ToleranceMode.absolute:
-                    lowerBound = v1v - t0
-                    upperBound = v1v + t1
+                    lower_bound = v1v - t0
+                    upper_bound = v1v + t1
                 else:
                     # relative
-                    lowerBound = v1v * (1 - t0 / 100.0)
-                    upperBound = v1v * (1 + t1 / 100.0)
+                    lower_bound = v1v * (1 - t0 / 100.0)
+                    upper_bound = v1v * (1 + t1 / 100.0)
                 if self.includeUpperBound:
                     if self.includeLowerBound:
-                        result = (v2v >= lowerBound and v2v <= upperBound)
+                        result = (v2v >= lower_bound and v2v <= upper_bound)
                     else:
-                        result = (v2v > lowerBound and v2v <= upperBound)
+                        result = (v2v > lower_bound and v2v <= upper_bound)
                 else:
                     if self.includeLowerBound:
-                        result = (v2v >= lowerBound and v2v < upperBound)
+                        result = (v2v >= lower_bound and v2v < upper_bound)
                     else:
-                        result = (v2v > lowerBound and v2v < upperBound)
+                        result = (v2v > lower_bound and v2v < upper_bound)
                 return variables.BooleanValue(result)
         else:
             return variables.BooleanValue()
@@ -1380,21 +1379,21 @@ class EqualRounded(NOperator):
         self.roundingMode = RoundingMode.DEFAULT
         self.figures = None
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "equalRounded requires two sub-expressions, found %i" %
                 len(values))
         v1, v2 = values
-        baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             # grab two floats
             v1v = float(v1.value)
             v2v = float(v2.value)
-            figures = self.IntegerOrTemplateRef(state, self.figures)
+            figures = self.integer_or_template_ref(state, self.figures)
             if self.roundingMode == RoundingMode.decimalPlaces:
                 return variables.BooleanValue(
                     xsi.decimal_to_str(
@@ -1445,9 +1444,9 @@ class Inside(UnaryOperator, core.ShapeElementMixin):
         UnaryOperator.__init__(self, parent)
         core.ShapeElementMixin.__init__(self)
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.point)
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
+        variables.check_base_types(value.baseType, variables.BaseType.point)
         if value.Cardinality() == variables.Cardinality.single:
             if value:
                 return variables.BooleanValue(
@@ -1461,10 +1460,10 @@ class Inside(UnaryOperator, core.ShapeElementMixin):
                                      variables.Cardinality.multiple):
             if value:
                 if value.Cardinality() == variables.Cardinality.multiple:
-                    vList = value.value.keys()
+                    vlist = list(dict_keys(value.value))
                 else:
-                    vList = value.value
-                for value in vList:
+                    vlist = value.value
+                for value in vlist:
                     if self.TestPoint(value, None, None):
                         return variables.BooleanValue(True)
                 return variables.BooleanValue(False)
@@ -1491,14 +1490,14 @@ class LT(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'lt')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "lt requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             # grab two floats
@@ -1524,14 +1523,14 @@ class GT(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gt')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "gt requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             # grab two floats
@@ -1557,14 +1556,14 @@ class LTE(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'lte')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "lte requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             # grab two floats
@@ -1590,14 +1589,14 @@ class GTE(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'gte')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "gte requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             # grab two floats
@@ -1623,15 +1622,15 @@ class DurationLT(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'durationLT')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "lt requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        baseType = variables.CheckBaseTypes(
+        variables.check_base_types(
             v1.baseType, v2.baseType, variables.BaseType.duration)
-        cardinality = variables.CheckCardinalities(
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             # grab two floats
@@ -1658,15 +1657,15 @@ class DurationGTE(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'durationGTE')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "gte requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        baseType = variables.CheckBaseTypes(
+        variables.check_base_types(
             v1.baseType, v2.baseType, variables.BaseType.duration)
-        cardinality = variables.CheckCardinalities(
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             # grab two floats
@@ -1692,18 +1691,17 @@ class Sum(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'sum')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) < 1:
             raise core.ProcessingError(
                 "sum requires at least one sub-expression, found %i" %
                 len(values))
-        variables.CheckCardinalities(*
-                                     map(lambda x: x.Cardinality(), values) +
-                                     [variables.Cardinality.single])
-        baseType = variables.CheckNumericalTypes(
-            *map(lambda x: x.baseType, values))
-        if baseType is None:
+        variables.check_cardinalities(variables.Cardinality.single,
+                                      *[x.cardinality() for x in values])
+        base_type = variables.check_numerical_types(
+            *[x.baseType for x in values])
+        if base_type is None:
             # there are no values to add up, we don't know what type we are
             return variables.SingleValue()
         sum = 0
@@ -1711,11 +1709,11 @@ class Sum(NOperator):
             if v:
                 sum = sum + v.value
             else:
-                if baseType == variables.BaseType.float:
+                if base_type == variables.BaseType.float:
                     return variables.FloatValue()
                 else:
                     return variables.IntegerValue()
-        if baseType == variables.BaseType.float:
+        if base_type == variables.BaseType.float:
             return variables.FloatValue(float(sum))
         else:
             # sum will still be of type integer at this point
@@ -1737,18 +1735,17 @@ class Product(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'product')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) < 1:
             raise core.ProcessingError(
                 "product requires at least one sub-expression, found %i" %
                 len(values))
-        variables.CheckCardinalities(*
-                                     map(lambda x: x.Cardinality(), values) +
-                                     [variables.Cardinality.single])
-        baseType = variables.CheckNumericalTypes(
-            *map(lambda x: x.baseType, values))
-        if baseType is None:
+        variables.check_cardinalities(variables.Cardinality.single,
+                                      *[x.cardinality() for x in values])
+        base_type = variables.check_numerical_types(
+            *[x.baseType for x in values])
+        if base_type is None:
             # there are no values to multiply, we don't know what type we are
             return variables.SingleValue()
         product = 1
@@ -1756,11 +1753,11 @@ class Product(NOperator):
             if v:
                 product = product * v.value
             else:
-                if baseType == variables.BaseType.float:
+                if base_type == variables.BaseType.float:
                     return variables.FloatValue()
                 else:
                     return variables.IntegerValue()
-        if baseType == variables.BaseType.float:
+        if base_type == variables.BaseType.float:
             return variables.FloatValue(float(product))
         else:
             # sum will still be of type integer at this point
@@ -1782,29 +1779,29 @@ class Subtract(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'subtract')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "subtract requires two sub-expressions, found %i" %
                 len(values))
         v1, v2 = values
-        baseType = variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        base_type = variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
-        if baseType is None:
+        if base_type is None:
             # there are no values to subtract, we don't know what type we are
             return variables.SingleValue()
         if v1 and v2:
             # grab two floats
-            if baseType == variables.BaseType.float:
+            if base_type == variables.BaseType.float:
                 v1v = float(v1.value)
                 v2v = float(v2.value)
                 return variables.FloatValue(v1v - v2v)
             else:
                 return variables.IntegerValue(v1.value - v2.value)
         else:
-            if baseType == variables.BaseType.float:
+            if base_type == variables.BaseType.float:
                 return variables.FloatValue()
             else:
                 return variables.IntegerValue()
@@ -1824,14 +1821,14 @@ class Divide(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'divide')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "divide requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             v1v = float(v1.value)
@@ -1862,14 +1859,14 @@ class Power(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'power')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "power requires two sub-expressions, found %i" % len(values))
         v1, v2 = values
-        variables.CheckNumericalTypes(v1.baseType, v2.baseType)
-        cardinality = variables.CheckCardinalities(
+        variables.check_numerical_types(v1.baseType, v2.baseType)
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             v1v = float(v1.value)
@@ -1901,16 +1898,16 @@ class IntegerDivide(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'integerDivide')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "integerDivide requires two sub-expressions, found %i" %
                 len(values))
         v1, v2 = values
-        variables.CheckBaseTypes(
+        variables.check_base_types(
             v1.baseType, v2.baseType, variables.BaseType.integer)
-        variables.CheckCardinalities(
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             try:
@@ -1937,16 +1934,16 @@ class IntegerModulus(NOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'integerModulus')
 
-    def Evaluate(self, state):
-        values = list(self.EvaluateChildren(state))
+    def evaluate(self, state):
+        values = list(self.evaluate_children(state))
         if len(values) != 2:
             raise core.ProcessingError(
                 "integerModulus requires two sub-expressions, found %i" %
                 len(values))
         v1, v2 = values
-        variables.CheckBaseTypes(
+        variables.check_base_types(
             v1.baseType, v2.baseType, variables.BaseType.integer)
-        variables.CheckCardinalities(
+        variables.check_cardinalities(
             v1.Cardinality(), v2.Cardinality(), variables.Cardinality.single)
         if v1 and v2:
             try:
@@ -1971,10 +1968,10 @@ class Truncate(UnaryOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'truncate')
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.float)
-        variables.CheckCardinalities(
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
+        variables.check_base_types(value.baseType, variables.BaseType.float)
+        variables.check_cardinalities(
             value.Cardinality(), variables.Cardinality.single)
         if value:
             return variables.IntegerValue(int(value.value))
@@ -1997,10 +1994,10 @@ class Round(UnaryOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'round')
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.float)
-        variables.CheckCardinalities(
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
+        variables.check_base_types(value.baseType, variables.BaseType.float)
+        variables.check_cardinalities(
             value.Cardinality(), variables.Cardinality.single)
         if value:
             return variables.IntegerValue(int(math.floor(value.value + 0.5)))
@@ -2022,10 +2019,10 @@ class IntegerToFloat(UnaryOperator):
             </xsd:group>"""
     XMLNAME = (core.IMSQTI_NAMESPACE, 'integerToFloat')
 
-    def Evaluate(self, state):
-        value = self.Expression.Evaluate(state)
-        variables.CheckBaseTypes(value.baseType, variables.BaseType.integer)
-        variables.CheckCardinalities(
+    def evaluate(self, state):
+        value = self.Expression.evaluate(state)
+        variables.check_base_types(value.baseType, variables.BaseType.integer)
+        variables.check_cardinalities(
             value.Cardinality(), variables.Cardinality.single)
         if value:
             return variables.FloatValue(float(value.value))
@@ -2061,7 +2058,7 @@ class CustomOperator(NOperator):
         self.customClass = None
         self.definition = None
 
-    def Evaluate(self, state):
+    def evaluate(self, state):
         raise core.ProcessingError(
             "customOperator.%s not supported" %
             (self.customClass

@@ -1,16 +1,15 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.html401 as html
-import pyslet.rfc2396 as uri
-
-import pyslet.qtiv2.core as core
-import pyslet.qtiv2.content as content
-import pyslet.qtiv2.metadata as metadata
-
 import sys
+
+from . import content
+from . import core
+from . import metadata
+from .. import html401 as html
+from .. import rfc2396 as uri
+from ..pep8 import old_method
+from ..xml import structures as xml
+from ..xml import xsdatatypes as xsi
 
 
 class AssessmentItem(core.QTIElement, core.DeclarationContainer):
@@ -106,58 +105,60 @@ class AssessmentItem(core.QTIElement, core.DeclarationContainer):
             yield child
 
     def content_changed(self):
-        self.SortDeclarations()
+        self.sort_declarations()
 
-    def SortDeclarations(self):
-        """Sort each of the variable declaration lists so that they are in
-        identifier order.  This is not essential but it does help ensure that
-        output is predictable. This method is called automatically when reading
-        items from XML files."""
+    def sort_declarations(self):
+        """Sort each of the variable declaration lists so that they are
+        in identifier order.  This is not essential but it does help
+        ensure that output is predictable. This method is called
+        automatically when reading items from XML files."""
         self.ResponseDeclaration.sort()
         self.OutcomeDeclaration.sort()
         self.TemplateDeclaration.sort()
 
-    def render_html(self, itemState, htmlParent=None):
-        """Renders this item in html, adding nodes to *htmlParent*.  The state
-        of the item (e.g., the values of any controls and template variables),
-        is taken from *itemState*, a :py:class:`variables.ItemSessionState`
-        instance.
+    def render_html(self, item_state, html_parent=None):
+        """Renders this item in html, adding nodes to *html_parent*.
+        The state of the item (e.g., the values of any controls and
+        template variables), is taken from *item_state*, a
+        :py:class:`variables.ItemSessionState` instance.
 
         The result is the top-level div containing the item added to the
-        htmlParent. If htmlParent is None then a parentless div is created. If
-        the item has no itemBody then an empty Div is returned."""
+        html_parent. If html_parent is None then a parentless div is
+        created. If the item has no itemBody then an empty Div is
+        returned."""
         if self.ItemBody:
-            htmlDiv = self.ItemBody.render_html(
-                htmlParent, content.HTMLProfile, itemState)
+            html_div = self.ItemBody.render_html(
+                html_parent, content.HTMLProfile, item_state)
         else:
-            if htmlParent:
-                htmlDiv = htmlParent.add_child(html.Div)
+            if html_parent:
+                html_div = html_parent.add_child(html.Div)
             else:
-                htmlDiv = html.Div(None)
-        return htmlDiv
+                html_div = html.Div(None)
+        return html_div
 
-    def AddToContentPackage(self, cp, lom, dName=None):
+    @old_method('AddToContentPackage')
+    def add_to_content_package(self, cp, lom, dname=None):
         """Adds a resource and associated files to the content package."""
-        resourceID = cp.manifest.get_unique_id(self.identifier)
+        resource_id = cp.manifest.get_unique_id(self.identifier)
         resource = cp.manifest.root.Resources.add_child(
             cp.manifest.root.Resources.ResourceClass)
-        resource.set_id(resourceID)
+        resource.set_id(resource_id)
         resource.type = core.IMSQTI_ITEM_RESOURCETYPE
-        resourceMetadata = resource.add_child(resource.MetadataClass)
-        # resourceMetadata.AdoptChild(lom)
-        # resourceMetadata.AdoptChild(self.metadata.deepcopy())
-        lom.deepcopy(resourceMetadata)
-        self.metadata.deepcopy(resourceMetadata)
+        resource_metadata = resource.add_child(resource.MetadataClass)
+        # resource_metadata.AdoptChild(lom)
+        # resource_metadata.AdoptChild(self.metadata.deepcopy())
+        lom.deepcopy(resource_metadata)
+        self.metadata.deepcopy(resource_metadata)
         # Security alert: we're leaning heavily on ValidateIdentifier assuming
         # it returns a good file name
-        fPath = (core.ValidateIdentifier(resourceID) +
+        fpath = (core.ValidateIdentifier(resource_id) +
                  '.xml').encode(sys.getfilesystemencoding())
-        if dName:
-            fPath = cp.FilePath(dName, fPath)
-        fPath = cp.GetUniqueFile(fPath)
+        if dname:
+            fpath = cp.FilePath(dname, fpath)
+        fpath = cp.GetUniqueFile(fpath)
         # This will be the path to the file in the package
-        fullPath = cp.dPath.join(fPath)
-        base = uri.URI.from_virtual_path(fullPath)
+        full_path = cp.dPath.join(fpath)
+        base = uri.URI.from_virtual_path(full_path)
         if isinstance(self.parent, xml.Document):
             # we are the root so we change the document base
             self.parent.set_base(base)
@@ -214,9 +215,9 @@ class QTIModalFeedback(content.FlowContainerMixin, core.QTIElement):
         self.identifier = None
         self.title = None
 
-    def add_child(self, childClass, name=None):
-        if issubclass(childClass, html.FlowMixin):
-            return core.QTIElement.add_child(self, childClass, name)
+    def add_child(self, child_class, name=None):
+        if issubclass(child_class, html.FlowMixin):
+            return core.QTIElement.add_child(self, child_class, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(

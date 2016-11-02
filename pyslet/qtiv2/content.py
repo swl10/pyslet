@@ -1,12 +1,10 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.html401 as html
 
-import pyslet.qtiv2.core as core
-
-from types import StringTypes
+from . import core
+from .. import html401 as html
+from ..py2 import is_text
+from ..xml import structures as xml
 
 
 class BodyElement(core.QTIElement):
@@ -36,24 +34,24 @@ class BodyElement(core.QTIElement):
         self.id = None
         self.label = None
 
-    def render_html(self, parent, profile, itemState):
+    def render_html(self, parent, profile, item_state):
         """Renders this element in html form, adding nodes to *parent*.  This
         method effectively overrides
         :py:class:`html401.XHTMLElement.render_html` enabling QTI and
         XHTML elements to be mixed freely.
 
         The state of the item (e.g., the values of any controls), is taken from
-        *itemState*, a :py:class:`variables.ItemSessionState` instance."""
+        *item_state*, a :py:class:`variables.ItemSessionState` instance."""
         raise NotImplementedError(self.__class__.__name__ + ".render_html")
 
-    def RenderHTMLChildren(self, parent, profile, itemState):
+    def render_html_children(self, parent, profile, item_state):
         """Renders this element's children to an external document represented
         by the *parent* node"""
         for child in self.get_children():
-            if type(child) in StringTypes:
+            if is_text(child):
                 parent.add_data(child)
             else:
-                child.render_html(parent, profile, itemState)
+                child.render_html(parent, profile, item_state)
 
 
 TextElements = {
@@ -134,16 +132,16 @@ HTMLProfile.update(ImageElement)
 HTMLProfile.update(HypertextElement)
 
 
-def FixHTMLNamespace(e):
+def fix_html_namespace(e):
     """Fixes e and all children to be in the QTI namespace"""
     if e.ns == html.XHTML_NAMESPACE:
         name = e.xmlname.lower()
         if name in core.QTI_HTML_PROFILE:
             e.set_xmlname((core.IMSQTI_NAMESPACE, name))
     for e in e.get_children():
-        if type(e) in StringTypes:
+        if is_text(e):
             continue
-        FixHTMLNamespace(e)
+        fix_html_namespace(e)
 
 
 class ItemBody(BodyElement):
@@ -165,40 +163,40 @@ class ItemBody(BodyElement):
     XMLNAME = (core.IMSQTI_NAMESPACE, 'itemBody')
     XMLCONTENT = xml.ElementContent
 
-    def add_child(self, childClass, name=None):
-        if issubclass(childClass, html.BlockMixin):
-            return BodyElement.add_child(self, childClass, name)
+    def add_child(self, child_class, name=None):
+        if issubclass(child_class, html.BlockMixin):
+            return BodyElement.add_child(self, child_class, name)
         else:
             raise core.QTIValidityError(
                 "%s (%s) in %s" %
                 (repr(name),
-                 childClass.__name__,
+                 child_class.__name__,
                  self.__class__.__name__))
 
-    def render_html(self, parent, profile, itemState):
+    def render_html(self, parent, profile, item_state):
         """Overrides :py:meth:`BodyElement.render_html`, the result is always a
         Div with class set to "itemBody".  Unlike other such method *parent*
         may by None, in which case a new parentless Div is created."""
         if parent:
-            htmlDiv = parent.add_child(html.Div)
+            html_div = parent.add_child(html.Div)
         else:
-            htmlDiv = html.Div(None)
-        htmlDiv.style_class = ["itemBody"]
-        self.RenderHTMLChildren(htmlDiv, profile, itemState)
+            html_div = html.Div(None)
+        html_div.style_class = ["itemBody"]
+        self.render_html_children(html_div, profile, item_state)
 
 
-class FlowContainerMixin:
+class FlowContainerMixin(object):
 
     """Mixin class used for objects that can contain flows."""
 
-    def PrettyPrint(self):
-        """Deteremins if this flow-container-like object should be pretty printed.
+    def pretty_print(self):
+        """True if this object should be pretty printed.
 
         This is similar to the algorithm we use in HTML flow containers,
         suppressing pretty printing if we have inline elements (ignoring
         non-trivial data).  This could be refactored in future."""
         for child in self.get_children():
-            if type(child) in StringTypes:
+            if is_text(child):
                 for c in child:
                     if not xml.is_s(c):
                         return False
@@ -235,21 +233,20 @@ class RubricBlock(html.BlockMixin, BodyElement):
         BodyElement.__init__(self, parent)
         self.view = {}
 
-    def AddView(self, view):
-        if type(view) in StringTypes:
+    def add_view(self, view):
+        if is_text(view):
             view = core.View.from_str_lower(view.strip())
-        viewValue = core.View.to_str(view)
-        if viewValue:
-            self.view[view] = viewValue
+        view_value = core.View.to_str(view)
+        if view_value:
+            self.view[view] = view_value
         else:
             raise ValueError("illegal value for view: %s" % view)
 
     # need to constrain content to html.BlockMixin
-    def add_child(self, childClass, name=None):
-        if issubclass(childClass, html.BlockMixin):
-            return BodyElement.add_child(self, childClass, name)
+    def add_child(self, child_class, name=None):
+        if issubclass(child_class, html.BlockMixin):
+            return BodyElement.add_child(self, child_class, name)
         else:
             # This child cannot go in here
             raise core.QTIValidityError(
                 "%s in %s" % (repr(name), self.__class__.__name__))
-

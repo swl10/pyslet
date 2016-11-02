@@ -57,9 +57,9 @@ files are not added::
 						continue
 					dstPath=os.path.join(pkg.dPath,PathInPath(srcPath,srcDir))
 					# copy the file
-					dName,fName=os.path.split(dstPath)
-					if not os.path.isdir(dName):
-						os.makedirs(dName)
+					dname,fName=os.path.split(dstPath)
+					if not os.path.isdir(dname):
+						os.makedirs(dname)
 					print "Copying: %s"%srcPath
 					shutil.copy(srcPath,dstPath)
 					pkg.File(r,URI.from_path(dstPath))

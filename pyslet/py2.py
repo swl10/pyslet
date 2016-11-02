@@ -427,7 +427,7 @@ class BoolMixin(object):
     """Mixin class for handling legacy __nonzero__
 
     For compatibility with Python 2 this class defines __nonzero__
-    returning the value of the metho __bool__."""
+    returning the value of the method __bool__."""
 
     def __nonzero__(self):
         return self.__bool__()

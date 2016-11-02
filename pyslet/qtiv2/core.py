@@ -1,11 +1,13 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.html401 as html
-
-import string
+from .. import html401 as html
+from ..pep8 import (
+    MigratedClass,
+    old_function,
+    old_method)
+from ..xml import structures as xml
+from ..xml import namespace as xmlns
+from ..xml import xsdatatypes as xsi
 
 
 IMSQTI_NAMESPACE = "http://www.imsglobal.org/xsd/imsqti_v2p1"
@@ -55,36 +57,38 @@ class QTIValidityError(QTIError):
     pass
 
 
-def ValidateIdentifier(value, prefix='_'):
+@old_function('ValidateIdentifier')
+def validate_identifier(value, prefix='_'):
     """Decodes an identifier from a string::
 
-            <xsd:simpleType name="identifier.Type">
-                    <xsd:restriction base="xsd:NCName"/>
-            </xsd:simpleType>
+        <xsd:simpleType name="identifier.Type">
+                <xsd:restriction base="xsd:NCName"/>
+        </xsd:simpleType>
 
-    This function takes a string that is supposed to match the production for
-    NCName in XML and forces it to comply by replacing illegal characters with
-    '_', except the ':' which is replaced with a hyphen for compatibility with
-    previous versions of the QTI migraiton script.  If name starts with a valid
-    name character but not a valid name start character, it is prefixed with
-    '_' too, but the prefix string used can be overridden."""
+    This function takes a string that is supposed to match the
+    production for NCName in XML and forces it to comply by replacing
+    illegal characters with '_', except the ':' which is replaced with a
+    hyphen for compatibility with previous versions of the QTI migration
+    script.  If name starts with a valid name character but not a valid
+    name start character, it is prefixed with '_' too, but the prefix
+    string used can be overridden."""
     if value:
-        goodName = []
+        good_name = []
         if not xml.is_name_start_char(value[0]):
-            goodName.append(prefix)
+            good_name.append(prefix)
         elif value[0] == ':':
             # Previous versions of the migrate script didn't catch this problem
             # as a result, we deviate from its broken behaviour of using '-'
             # by using the prefix too.
-            goodName.append(prefix)
+            good_name.append(prefix)
         for c in value:
             if c == ':':
-                goodName.append('-')
+                good_name.append('-')
             elif xml.is_name_char(c):
-                goodName.append(c)
+                good_name.append(c)
             else:
-                goodName.append('_')
-        return string.join(goodName, '')
+                good_name.append('_')
+        return ''.join(good_name)
     else:
         return prefix
 
@@ -152,7 +156,7 @@ class Shape(xsi.Enumeration):
     }
 
 
-def CalculateShapeBounds(shape, coords):
+def calculate_shape_bounds(shape, coords):
     """Calculates a bounding rectangle from a Shape value and a
     :py:class:`pyslet.html401.Coords` instance."""
     if shape == Shape.circle:
@@ -190,34 +194,34 @@ def CalculateShapeBounds(shape, coords):
         raise ValueError("Unknown value for shape: %s" % str(shape))
 
 
-def OffsetShape(shape, coords, xOffset, yOffset):
+def offset_shape(shape, coords, xoffset, yoffset):
     """Interprets the shape and coords relative to the given offset and maps
     them back to the origin.
 
-    In other words, xOffset and yOffset are subtracted from the coordinates."""
+    In other words, xoffset and yoffset are subtracted from the coordinates."""
     if shape == Shape.circle:
-        coords[0].add(-xOffset)
-        coords[1].add(-yOffset)
+        coords[0].add(-xoffset)
+        coords[1].add(-yoffset)
     elif shape == Shape.default:
         pass
     elif shape == Shape.ellipse:
-        coords[0].add(-xOffset)
-        coords[1].add(-yOffset)
+        coords[0].add(-xoffset)
+        coords[1].add(-yoffset)
     elif shape == Shape.poly:
         i = 0
         while 2 * i + 1 < len(coords):
-            coords[2 * i].add(-xOffset)
-            coords[2 * i + 1].add(-yOffset)
+            coords[2 * i].add(-xoffset)
+            coords[2 * i + 1].add(-yoffset)
     elif shape == Shape.rect:
-        coords[0].add(-xOffset)
-        coords[1].add(-yOffset)
-        coords[2].add(-xOffset)
-        coords[3].add(-yOffset)
+        coords[0].add(-xoffset)
+        coords[1].add(-yoffset)
+        coords[2].add(-xoffset)
+        coords[3].add(-yoffset)
     else:
         raise ValueError("Unknown value for shape: %s" % str(shape))
 
 
-class ShapeElementMixin:
+class ShapeElementMixin(MigratedClass):
     XMLATTR_shape = ('shape', Shape.from_str_lower, Shape.to_str)
     XMLATTR_coords = ('coords', html.Coords.from_str, html.Coords.__unicode__)
 
@@ -225,7 +229,8 @@ class ShapeElementMixin:
         self.shape = Shape.DEFAULT  # : The shape
         self.coords = None			#: A list of Length values
 
-    def TestPoint(self, point, width, height):
+    @old_method('TestPoint')
+    def test_point(self, point, width, height):
         """Tests *point* to see if it is in this area."""
         x, y = point
         if self.shape == Shape.circle:
@@ -245,7 +250,8 @@ class ShapeElementMixin:
         else:
             raise ValueError("Unknown Shape type")
 
-    def TestEllipse(self, x, y, width, height):
+    @old_method('TestEllipse')
+    def test_ellipse(self, x, y, width, height):
         """Tests an x,y point against an ellipse with these coordinates.
 
         HTML does not define ellipse, we take our definition from the QTI
@@ -343,7 +349,7 @@ class QTIElement(xmlns.XMLNSElement):
                 child.add_to_cpresource(cp, resource, been_there)
 
 
-class DeclarationContainer:
+class DeclarationContainer(MigratedClass):
 
     """An abstract mix-in class used to manage a dictionary of variable
     declarations."""
@@ -352,25 +358,29 @@ class DeclarationContainer:
         #: a dictionary of outcome variable declarations
         self.declarations = {}
 
-    def RegisterDeclaration(self, declaration):
+    @old_method('RegisterDeclaration')
+    def register_declaration(self, declaration):
         if declaration.identifier in self.declarations:
             raise DeclarationError
         else:
             self.declarations[declaration.identifier] = declaration
 
-    def IsDeclared(self, identifier):
+    @old_method('IsDeclared')
+    def is_declared(self, identifier):
         return identifier in self.declarations
 
-    def GetDeclaration(self, identifier):
+    @old_method('GetDeclaration')
+    def get_declaration(self, identifier):
         return self.declarations.get(identifier, None)
 
 
-def GetTemplateRef(value):
+@old_function('GetTemplateRef')
+def get_template_ref(value):
     """Given a string used to set an attribute of an *...orTemplateRef* type
     this function returns the name of the variable being referred to or None if
     the value does not look like a template variable reference."""
     if value.startswith('{') and value.endswith('}'):
-        idValue = value[1:-1]
-        if xsi.is_valid_ncname(idValue):
-            return idValue
+        id_value = value[1:-1]
+        if xsi.is_valid_ncname(id_value):
+            return id_value
     return None

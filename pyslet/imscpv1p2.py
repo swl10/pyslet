@@ -834,9 +834,9 @@ class ContentPackage:
         # resource
         href = resource.relative_uri(newSrc)
         f = self.File(resource, href)
-        dName, fName = newSrcPath.split()
-        if not dName.isdir():
-            dName.makedirs()
+        dname, fName = newSrcPath.split()
+        if not dname.isdir():
+            dname.makedirs()
         if srcPath.isfile():
             srcPath.copy(newSrcPath)
         return f

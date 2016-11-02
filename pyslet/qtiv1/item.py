@@ -202,7 +202,7 @@ class Item(
             self.ResProcessing[-1].MigrateV2(item, log)
         for feedback in self.ItemFeedback:
             feedback.MigrateV2(item, log)
-        item.SortDeclarations()
+        item.sort_declarations()
         output.append((doc, lom, log))
         # print doc.root
 
@@ -1972,7 +1972,7 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
         choice.shape, choice.coords = core.MigrateV2AreaCoords(
             self.rArea, valueData, log)
         if xOffset or yOffset:
-            qtiv2.core.OffsetShape(
+            qtiv2.core.offset_shape(
                 choice.shape, choice.coords, xOffset, yOffset)
         if lang is not None:
             choice.set_lang(lang)
@@ -1993,7 +1993,7 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
             return False
         lang, label, value = self.ParseValue()
         shape, coords = core.MigrateV2AreaCoords(self.rArea, value, [])
-        bounds = qtiv2.core.CalculateShapeBounds(shape, coords)
+        bounds = qtiv2.core.calculate_shape_bounds(shape, coords)
         if bounds[0] > matImage.x0 + matImage.width or bounds[2] < matImage.x0:
             return False
         if (bounds[1] > matImage.y0 + matImage.height or
@@ -2297,7 +2297,8 @@ class ItemProcExtension(common.ContentMixin, core.QTIElement, ConditionMixin):
                 # view
                 v2Item = ruleContainer.find_parent(qtiv2.items.AssessmentItem)
                 rubric = v2Item.get_or_add_child(
-                    qtiv2.content.ItemBody).add_child(qtiv2.content.RubricBlock)
+                    qtiv2.content.ItemBody).add_child(
+                        qtiv2.content.RubricBlock)
                 rubric.view = qtiv2.core.View.scorer
                 material = list(
                     child.find_children_depth_first(common.Material, False))

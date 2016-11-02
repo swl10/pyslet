@@ -17,7 +17,7 @@ element and the abstract :py:class:`Value` being used as the root of the runtime
 object model.
 
 For example, to get the default value of a variable from a variable declaration
-you'll use the :py:meth:`~VariableDeclaration.GetDefaultValue` method and it
+you'll use the :py:meth:`~VariableDeclaration.get_default_value` method and it
 will return a :py:class:`Value` instance which could be of any cardinality or
 base type.
 
