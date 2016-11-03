@@ -64,9 +64,12 @@ the compatibility modules described elsewhere on this page)::
     pyslet.blockstore
     pyslet.html401
     pyslet.http.*
+    pyslet.imscpv1p2
+    pyslet.imsmdv1p2p1
     pyslet.info
     pyslet.iso8601
     pyslet.odata2.*
+    pyslet.qtiv2.*
     pyslet.rfc2396
     pyslet.rfc4287
     pyslet.rfc5023

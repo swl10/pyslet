@@ -2,15 +2,17 @@
 """This module implements the IMS LRM 1.2.1 specification defined by IMS GLC
 """
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
+import itertools
+
+from .pep8 import old_method
+from .xml import namespace as xmlns
+from .xml import structures as xml
 
 try:
     import vobject
 except ImportError:
     vobject = None
 
-import itertools
 
 IMSLRM_NAMESPACE = "http://www.imsglobal.org/xsd/imsmd_v1p2"
 IMSLRM_SCHEMALOCATION = "http://www.imsglobal.org/xsd/imsmd_v1p2p4.xsd"
@@ -54,7 +56,8 @@ class LangStringList(LRMElement):
     def get_children(self):
         return iter(self.LangString)
 
-    def GetLangString(self, lang=None):
+    @old_method('GetLangString')
+    def get_lang_string(self, lang=None):
         if lang is None:
             for s in self.LangString:
                 if s.get_lang() is None:
@@ -66,13 +69,14 @@ class LangStringList(LRMElement):
                     return s
             lang = lang.split('-')[0]
             for s in self.LangString:
-                sLang = s.get_lang().split('-')[0]
-                if sLang == lang:
+                slang = s.get_lang().split('-')[0]
+                if slang == lang:
                     return s
         return None
 
-    def AddString(self, lang, value):
-        s = self.GetLangString(lang)
+    @old_method('AddString')
+    def add_string(self, lang, value):
+        s = self.get_lang_string(lang)
         if s is None:
             s = self.add_child(self.LangStringClass)
             s.set_value(value)
@@ -129,75 +133,35 @@ class LOM(LRMElement):
 
     def __init__(self, parent):
         LRMElement.__init__(self, parent)
-        self.general = None
-        self.lifecycle = None
-        self.metametadata = None
-        self.technical = None
-        self.educational = None
+        self.LOMGeneral = None
+        self.LOMLifecycle = None
+        self.LOMMetaMetadata = None
+        self.LOMTechnical = None
+        self.LOMEducational = None
         self.rights = None
-        self.relations = []
-        self.annotations = []
-        self.classifications = []
+        self.LOMRelation = []
+        self.LOMAnnotation = []
+        self.LOMClassification = []
 
     def get_children(self):
-        if self.general:
-            yield self.general
-        if self.lifecycle:
-            yield self.lifecycle
-        if self.metametadata:
-            yield self.metametadata
-        if self.technical:
-            yield self.technical
-        if self.educational:
-            yield self.educational
+        if self.LOMGeneral:
+            yield self.LOMGeneral
+        if self.LOMLifecycle:
+            yield self.LOMLifecycle
+        if self.LOMMetaMetadata:
+            yield self.LOMMetaMetadata
+        if self.LOMTechnical:
+            yield self.LOMTechnical
+        if self.LOMEducational:
+            yield self.LOMEducational
         if self.rights:
             yield self.rights
         for child in itertools.chain(
-                self.relations,
-                self.annotations,
-                self.classifications,
+                self.LOMRelation,
+                self.LOMAnnotation,
+                self.LOMClassification,
                 LRMElement.get_children(self)):
             yield child
-
-    def LOMGeneral(self):
-        if not self.general:
-            self.general = LOMGeneral(self)
-        return self.general
-
-    def LOMLifecycle(self):
-        if not self.lifecycle:
-            self.lifecycle = LOMLifecycle(self)
-        return self.lifecycle
-
-    def LOMMetaMetadata(self):
-        if not self.metametadata:
-            self.metametadata = LOMMetaMetadata(self)
-        return self.metametadata
-
-    def LOMTechnical(self):
-        if not self.technical:
-            self.technical = LOMTechnical(self)
-        return self.technical
-
-    def LOMEducational(self):
-        if not self.educational:
-            self.educational = LOMEducational(self)
-        return self.educational
-
-    def LOMRelation(self):
-        r = LOMRelation(self)
-        self.relations.append(r)
-        return r
-
-    def LOMAnnotation(self):
-        a = LOMAnnotation(self)
-        self.annotations.append(a)
-        return a
-
-    def LOMClassification(self):
-        c = LOMClassification(self)
-        self.classifications.append(c)
-        return c
 
 
 class Description(LangStringList):
@@ -213,74 +177,34 @@ class LOMGeneral(LRMElement):
 
     def __init__(self, parent):
         LRMElement.__init__(self, parent)
-        self.identifier = None
-        self.title = None
-        self.catalogEntries = []
-        self.languages = []
+        self.LOMIdentifier = None
+        self.LOMTitle = None
+        self.LOMCatalogEntry = []
+        self.LOMLanguage = []
         self.Description = []
-        self.keywords = []
-        self.coverage = []
-        self.structure = None
-        self.aggregationLevel = None
+        self.LOMKeyword = []
+        self.LOMCoverage = []
+        self.LOMStructure = None
+        self.LOMAggregationLevel = None
 
     def get_children(self):
-        if self.identifier:
-            yield self.identifier
-        if self.title:
-            yield self.title
+        if self.LOMIdentifier:
+            yield self.LOMIdentifier
+        if self.LOMTitle:
+            yield self.LOMTitle
         for child in itertools.chain(
-                self.catalogEntries,
-                self.languages,
+                self.LOMCatalogEntry,
+                self.LOMLanguage,
                 self.Description,
-                self.keywords,
-                self.coverage):
+                self.LOMKeyword,
+                self.LOMCoverage):
             yield child
-        if self.structure:
-            yield self.structure
-        if self.aggregationLevel:
-            yield self.aggregationLevel
+        if self.LOMStructure:
+            yield self.LOMStructure
+        if self.LOMAggregationLevel:
+            yield self.LOMAggregationLevel
         for child in LRMElement.get_children(self):
             yield child
-
-    def LOMIdentifier(self):
-        if not self.identifier:
-            self.identifier = LOMIdentifier(self)
-        return self.identifier
-
-    def LOMTitle(self):
-        if not self.title:
-            self.title = LOMTitle(self)
-        return self.title
-
-    def LOMCatalogEntry(self):
-        c = LOMCatalogEntry(self)
-        self.catalogEntries.append(c)
-        return c
-
-    def LOMLanguage(self):
-        l = LOMLanguage(self)
-        self.languages.append(l)
-        return l
-
-    def LOMKeyword(self):
-        kw = LOMKeyword(self)
-        self.keywords.append(kw)
-        return kw
-
-    def LOMCoverage(self):
-        c = LOMCoverage(self)
-        self.coverage.append(c)
-        return c
-
-    def LOMStructure(self):
-        if not self.structure:
-            self.structure = LOMStructure(self)
-        return self.structure
-
-    def LOMAggregationLevel(self):
-        if not self.aggregationLevel:
-            self.aggregationLevel = LOMAggregationLevel(self)
-        return self.aggregationLevel
 
 
 class LOMIdentifier(LRMElement):
@@ -419,15 +343,15 @@ class LOMVCard(LRMElement):
         self.vcard = vcard
         LRMElement.set_value(self, vcard.serialize())
 
-    def PrettyPrint(self):
+    def can_pretty_print(self):
         """Overridden to prevent pretty-printing of the element contents."""
         return False
 
-    def GetCanonicalChildren(self):
+    def get_canonical_children(self):
         """Overridden to prevent collapsing of whitespace"""
         return self.get_children()
 
-    def GotChildren(self):
+    def content_changed(self):
         # called when all children have been parsed
         if vobject is not None:
             src = LRMElement.get_value(self)
@@ -551,6 +475,7 @@ class LOMRelation(LRMElement):
 
 
 class LOMAnnotation(LRMElement):
+
     """
     <xsd:complexType name="annotationType" mixed="true">
   <xsd:sequence>

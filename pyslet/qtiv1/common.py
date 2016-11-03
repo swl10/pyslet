@@ -367,7 +367,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
             doc.read_from_entity(e)
             self.matChildren = list(doc.root.Body.get_children())
             if (len(self.matChildren) == 1 and
-               isinstance(self.matChildren[0], html.Div)):
+                    isinstance(self.matChildren[0], html.Div)):
                 div = self.matChildren[0]
                 if div.style_class is None:
                     # a single div with no style class is removed...
@@ -383,7 +383,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
             # we are inline if all elements in matChildren are inline
             for child in self.matChildren:
                 if (type(child) in StringTypes or
-                   isinstance(child, html.InlineMixin)):
+                        isinstance(child, html.InlineMixin)):
                     continue
                 else:
                     return False
@@ -465,13 +465,13 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                 parent.add_data(data)
         elif self.texttype == 'text/html':
             if (childType is html.BlockMixin or
-               (childType is html.FlowMixin and not self.IsInline())):
+                    (childType is html.FlowMixin and not self.IsInline())):
                 # Block or mixed-up flow, wrap all text and inline elements in
                 # p
                 p = None
                 for child in self.matChildren:
                     if (type(child) in StringTypes or
-                       isinstance(child, html.InlineMixin)):
+                            isinstance(child, html.InlineMixin)):
                         if p is None:
                             p = parent.add_child(
                                 html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
@@ -1519,7 +1519,7 @@ class VarEqual(VarThing):
         elif d.cardinality == qtiv2.variables.Cardinality.single:
             # simple test of equality
             if (d.baseType == qtiv2.variables.BaseType.identifier or
-               d.baseType == qtiv2.variables.BaseType.pair):
+                    d.baseType == qtiv2.variables.BaseType.pair):
                 if not self.case:
                     log.append(
                         "Warning: case-insensitive comparison of identifiers"
@@ -1545,7 +1545,7 @@ class VarEqual(VarThing):
         else:
             # This test simply becomes a member-test operation
             if (d.baseType == qtiv2.variables.BaseType.identifier or
-               qtiv2.variables.BaseType.pair):
+                    qtiv2.variables.BaseType.pair):
                 if not self.case:
                     log.append(
                         "Warning: case-insensitive comparison of identifiers"
@@ -1586,7 +1586,7 @@ class VarInequality(VarThing):
         elif d.cardinality == qtiv2.variables.Cardinality.single:
             # simple inequality
             if (d.baseType == qtiv2.variables.BaseType.integer or
-               d.baseType == qtiv2.variables.BaseType.float):
+                    d.baseType == qtiv2.variables.BaseType.float):
                 expression = parent.add_child(self.MigrateV2Inequality())
             else:
                 raise QTIUnimplementedOperator(

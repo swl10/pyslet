@@ -23,10 +23,6 @@ XML Basics
 	:members:
 	:show-inheritance:
 
-..	autoclass:: QTIDocument
-	:members:
-	:show-inheritance:
-
 
 Exceptions
 ~~~~~~~~~~

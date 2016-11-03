@@ -247,8 +247,8 @@ class QTIV2ConversionTests(unittest.TestCase):
                             break
 
     def PrintPrettyWeird(self, e1, e2):
-        c1 = e1.GetCanonicalChildren()
-        c2 = e2.GetCanonicalChildren()
+        c1 = e1.get_canonical_children()
+        c2 = e2.get_canonical_children()
         if len(c1) != len(c2):
             print "Number of children mismatch in similar elements...\n>>>\n%s\n>>>\n%s\n>>>\n%s" % (repr(c1), repr(c2), str(e1))
             return

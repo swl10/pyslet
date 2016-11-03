@@ -88,7 +88,7 @@ class QuesTestInterop(QTICommentContainer):
             elif len(self.ObjectMixin) == 1:
                 # Add this comment to this object's metdata description
                 doc, lom, log = output[0]
-                general = lom.LOMGeneral()
+                general = lom.LOMGeneral
                 description = general.add_child(general.DescriptionClass)
                 descriptionString = description.add_child(
                     description.LangStringClass)
@@ -138,7 +138,7 @@ class QTIDocument(xml.Document):
 
     def UnregisterMatThing(self, mathThing):
         if (matThing.label is not None and
-           matThing is self.matThings.get(matThing.label, None)):
+                matThing is self.matThings.get(matThing.label, None)):
             del self.matThings[matThing.label]
 
     def FindMatThing(self, linkRefID):
@@ -162,7 +162,7 @@ class QTIDocument(xml.Document):
 
     def UnregisterMaterial(self, material):
         if (material.label is not None and
-           material is self.material.get(material.label, None)):
+                material is self.material.get(material.label, None)):
             del self.material[material.label]
 
     def FindMaterial(self, linkRefID):
@@ -219,7 +219,7 @@ class QTIDocument(xml.Document):
                             else:
                                 logCleaner[log[i]] = i
                                 i = i + 1
-                        annotation = metadata.LOMAnnotation()
+                        annotation = metadata.add_child(imsmd.LOMAnnotation)
                         annotationMsg = string.join(log, ';\n')
                         logging.info(annotationMsg)
                         description = annotation.add_child(

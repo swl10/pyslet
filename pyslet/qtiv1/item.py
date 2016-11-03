@@ -137,8 +137,8 @@ class Item(
             item.label = self.label
         lang = self.resolve_lang()
         item.set_lang(lang)
-        general = lom.LOMGeneral()
-        id = general.LOMIdentifier()
+        general = lom.add_child(imsmd.LOMGeneral)
+        id = general.add_child(imsmd.LOMIdentifier)
         id.set_value(self.ident)
         if title:
             lomTitle = general.add_child(imsmd.LOMTitle)
@@ -787,7 +787,7 @@ class FlowContainer(common.QTICommentContainer, common.ContentMixin):
 
     def ContentMixin(self, childClass):
         if (childClass in (common.Material, Flow) or
-           issubclass(childClass, Response)):
+                issubclass(childClass, Response)):
             return common.ContentMixin.ContentMixin(self, childClass)
         else:
             raise TypeError
@@ -879,7 +879,7 @@ class Presentation(FlowContainer, common.PositionMixin):
                     parent = img.parent
                     parent.remove_child(img)
                     if (isinstance(parent, html.P) and
-                       len(list(parent.get_children())) == 0):
+                            len(list(parent.get_children())) == 0):
                         # It is always safe to remove a paragraph left empty by
                         # deleting an image. The chances are the paragraph was
                         # created by us to house a matimage
@@ -1096,7 +1096,7 @@ class ResponseThing(Response):
                 parent, childType, interactionPrompt, log)
             item = parent.find_parent(qtiv2.items.AssessmentItem)
             if (len(interactionList) > 1 and
-               self.rCardinality == core.RCardinality.Single):
+                    self.rCardinality == core.RCardinality.Single):
                 log.append(
                     "Error: unable to migrate a response with Single"
                     " cardinality to a single interaction: %s" %
@@ -1113,7 +1113,7 @@ class ResponseThing(Response):
                         while True:
                             rIdentifier = "%s_%02i" % (baseIdentifier, i)
                             if (item is None or
-                               not item.IsDeclared(rIdentifier)):
+                                    not item.IsDeclared(rIdentifier)):
                                 break
                         interaction.responseIdentifier = rIdentifier
                         responseList.append(rIdentifier)
@@ -1488,7 +1488,7 @@ class RenderHotspot(RenderThing):
                     # Check that this is the right image in case img was
                     # embedded in MatText
                     if (str(images[0].resolve_uri(images[0].uri)) ==
-                       str(img.resolve_uri(img.src))):
+                            str(img.resolve_uri(img.src))):
                         hotspotImage.type = images[0].imageType
             for child in labels:
                 if isinstance(child, ResponseLabel):
@@ -1687,7 +1687,7 @@ class RenderFIB(RenderThing):
         # ignore any pre-existing interactions of this type
         interactionList = interactionList[iCount:]
         if (self.parent.rCardinality == core.RCardinality.Single and
-           len(interactionList) > 1):
+                len(interactionList) > 1):
             log.append(
                 "Warning: single response fib ignoring all but last"
                 " <response_label>")
@@ -1821,7 +1821,7 @@ class RenderSlider(RenderThing):
     def MigrateV2InteractionDefault(self, declaration, interaction):
         # Most interactions do not need default values.
         if (isinstance(interaction, qtiv2.interactions.SliderInteraction) and
-           self.startVal is not None):
+                self.startVal is not None):
             value = declaration.add_child(
                 qtiv2.variables.DefaultValue).add_child(
                 qtiv2.variables.ValueElement)
@@ -1926,7 +1926,7 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
         choice = interaction.add_child(qtiv2.interactions.SimpleChoice)
         choice.identifier = qtiv2.core.ValidateIdentifier(self.ident)
         if (isinstance(interaction, qtiv2.interactions.ChoiceInteraction) and
-           interaction.shuffle):
+                interaction.shuffle):
             choice.fixed = not self.rShuffle
         data = []
         gotElements = False
@@ -1997,7 +1997,7 @@ class ResponseLabel(core.QTIElement, common.ContentMixin):
         if bounds[0] > matImage.x0 + matImage.width or bounds[2] < matImage.x0:
             return False
         if (bounds[1] > matImage.y0 + matImage.height or
-           bounds[3] < matImage.y0):
+                bounds[3] < matImage.y0):
             return False
         return True
 

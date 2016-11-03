@@ -1,7 +1,3 @@
-unittests/test_imsmdv1p2p1.py
-pyslet/imsmd.py
-unittests/test_imscpv1p2.py
-pyslet/imscp.py
 unittests/test_imsqtiv1p2p1.py
 pyslet/qtiv1/core.py
 pyslet/qtiv1/common.py

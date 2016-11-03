@@ -2,23 +2,22 @@
 """This module implements the IMS CP 1.2 specification defined by IMS GLC
 """
 
-import pyslet.xml.structures as xml
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.imsmdv1p2p1 as imsmd
-import pyslet.qtiv2.xml as qtixml2
-import pyslet.qtiv2.metadata as qtimd
-import pyslet.rfc2396 as uri
-import pyslet.vfs as vfs
-
-from types import StringTypes, StringType, UnicodeType
-from tempfile import mkdtemp
-import sys
-import string
-import re
-import random
-import zipfile
 import itertools
+import random
+import re
+import zipfile
+
+from . import imsmdv1p2p1 as imsmd
+from . import rfc2396 as uri
+from . import vfs
+from .pep8 import MigratedClass, old_function, old_method
+from .py2 import py2, to_text
+from .qtiv2 import xml as qtixml2
+from .qtiv2 import metadata as qtimd
+from .xml import structures as xml
+from .xml import namespace as xmlns
+from .xml import xsdatatypes as xsi
+
 
 # :	String constant for the main namespace
 IMSCP_NAMESPACE = "http://www.imsglobal.org/xsd/imscp_v1p1"
@@ -54,6 +53,10 @@ class CPValidationError(CPException):
     pass
 
 
+class CPPackageBeenThereError(CPException):
+    pass
+
+
 class CPZIPBeenThereError(Exception):
     pass
 
@@ -77,28 +80,29 @@ class CPElement(xmlns.XMLNSElement):
     pass
 
 
-def PathInPath(childPath, parentPath):
-    """Utility function that returns childPath expressed relative to parentPath
+@old_function('PathInPath')
+def path_in_path(child_path, parent_path):
+    """Utility function that returns child_path expressed relative to parent_path
 
     This function processes file system paths, not the path components of URI.
 
     Both paths are normalized to remove any redundant navigational segments
     before any processing, the resulting path will not contain these either.
 
-    If childPath is not contained in parentPath then None is returned.
+    If child_path is not contained in parent_path then None is returned.
 
-    If childPath and parentPath are equal an empty string is returned."""
+    If child_path and parent_path are equal an empty string is returned."""
     rel_path = []
-    childPath = childPath.normpath()
-    parentPath = parentPath.normpath().normcase()
-    while childPath.normcase() != parentPath:
-        childPath, tail = childPath.split()
-        if not childPath or not tail:
+    child_path = child_path.normpath()
+    parent_path = parent_path.normpath().normcase()
+    while child_path.normcase() != parent_path:
+        child_path, tail = child_path.split()
+        if not child_path or not tail:
             # We've gone as far as we can, fail!
             return None
         rel_path[0:0] = [tail]
     if rel_path:
-        return parentPath.__class__(*rel_path)
+        return parent_path.__class__(*rel_path)
     else:
         return ''
 
@@ -177,18 +181,19 @@ class File(CPElement):
         #: the href used to locate the file object
         self.href = None
 
-    def PackagePath(self, cp):
+    @old_method('PackagePath')
+    def package_path(self, cp):
         """Returns the normalized file path relative to the root of the content
         package, *cp*.
 
         If the href does not point to a local file then None is returned.
         Otherwise, this function calculates an absolute path to the file and
-        then calls the content package's :py:meth:`ContentPackage.PackagePath`
+        then calls the content package's :py:meth:`ContentPackage.package_path`
         method."""
         url = self.resolve_uri(self.href)
         if not isinstance(url, uri.FileURL):
             return None
-        return cp.PackagePath(url.get_virtual_file_path())
+        return cp.package_path(url.get_virtual_file_path())
 
 
 class Dependency(CPElement):
@@ -232,7 +237,8 @@ class Resource(CPElement):
         #: a list of dependencies of this resource
         self.Dependency = []
 
-    def GetEntryPoint(self):
+    @old_method('GetEntryPoint')
+    def get_entry_point(self):
         """Returns the :py:class:`File` object that is identified as the entry point.
 
         If there is no entry point, or no :py:class:`File` object with a
@@ -241,14 +247,15 @@ class Resource(CPElement):
         if href:
             href = self.resolve_uri(href)
             for f in self.File:
-                fHREF = f.href
-                if fHREF:
-                    fHREF = f.resolve_uri(fHREF)
-                    if href.match(fHREF):
+                f_href = f.href
+                if f_href:
+                    f_href = f.resolve_uri(f_href)
+                    if href.match(f_href):
                         return f
         return None
 
-    def SetEntryPoint(self, f):
+    @old_method('SetEntryPoint')
+    def set_entry_point(self, f):
         """Set's the :py:class:`File` object that is identified as the
         resource's entry point.
 
@@ -266,13 +273,15 @@ class Resource(CPElement):
                 CPElement.get_children(self)):
             yield child
 
-    def DeleteFile(self, f):
+    @old_method('DeleteFile')
+    def delete_file(self, f):
         index = self.File.index(f)
         f.detach_from_doc()
         f.parent = None
         del self.File[index]
 
-    def DeleteDependency(self, d):
+    @old_method('DeleteDependency')
+    def delete_dependency(self, d):
         index = self.Dependency.index(d)
         d.detach_from_doc()
         d.parent = None
@@ -364,14 +373,15 @@ class ManifestDocument(xmlns.XMLNSDocument):
         self.make_prefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
         self.make_prefix(imsmd.IMSLRM_NAMESPACE, 'imsmd')
         self.make_prefix(qtixml2.core.IMSQTI_NAMESPACE, 'imsqti')
-        schemaLocation = [IMSCP_NAMESPACE, IMSCP_SCHEMALOCATION,
-                          imsmd.IMSLRM_NAMESPACE, imsmd.IMSLRM_SCHEMALOCATION,
-                          qtixml2.core.IMSQTI_NAMESPACE,
-                          qtixml2.core.IMSQTI_SCHEMALOCATION]
+        schema_location = [
+            IMSCP_NAMESPACE, IMSCP_SCHEMALOCATION,
+            imsmd.IMSLRM_NAMESPACE, imsmd.IMSLRM_SCHEMALOCATION,
+            qtixml2.core.IMSQTI_NAMESPACE,
+            qtixml2.core.IMSQTI_SCHEMALOCATION]
         if isinstance(self.root, CPElement):
             self.root.set_attribute(
                 (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'),
-                string.join(schemaLocation, ' '))
+                ' '.join(schema_location))
 
     def get_element_class(self, name):
         """Overrides
@@ -381,10 +391,10 @@ class ManifestDocument(xmlns.XMLNSDocument):
         The class contains a mapping from (namespace,element name) pairs to
         class objects representing the elements.  Any element not in the class
         map returns :py:meth:`~pyslet.xml.namespace.XMLNSElement` instead."""
-        eClass = ManifestDocument.classMap.get(
+        eclass = ManifestDocument.classMap.get(
             name, ManifestDocument.classMap.get((name[0], None),
                                                 xmlns.XMLNSElement))
-        return eClass
+        return eclass
 
 xmlns.map_class_elements(ManifestDocument.classMap, globals())
 xmlns.map_class_elements(ManifestDocument.classMap, imsmd)
@@ -392,7 +402,7 @@ xmlns.map_class_elements(ManifestDocument.classMap, qtimd)
 # Add other supported metadata schemas in here
 
 
-class ContentPackage:
+class ContentPackage(MigratedClass):
 
     """Represents a content package.
 
@@ -412,20 +422,20 @@ class ContentPackage:
     #: the default class for representing the Manifest file
     ManifestDocumentClass = ManifestDocument
 
-    def __init__(self, dPath=None):
+    def __init__(self, dpath=None):
         self.tempDir = False
-        errorFlag = True
+        error_flag = True
         try:
-            if dPath is None:
+            if dpath is None:
                 #: the :py:class:`~pyslet.vfs.VirtualFilePath` to the package's
                 # directory
                 self.dPath = vfs.defaultFS.mkdtemp('.d', 'imscpv1p2-')
                 self.tempDir = True
                 self.packageName = 'imscp'
             else:
-                if type(dPath) in StringTypes:
-                    dPath = vfs.defaultFS(dPath)
-                self.dPath = dPath.abspath()
+                if not isinstance(dpath, vfs.VirtualFilePath):
+                    dpath = vfs.defaultFS(dpath)
+                self.dPath = dpath.abspath()
                 head, tail = self.dPath.split()
                 self.packageName = tail
                 if self.dPath.isdir():
@@ -439,16 +449,16 @@ class ContentPackage:
                             name, ext = tail.splitext()
                             if ext.lower() == ".zip":
                                 self.packageName = name
-                            self.ExpandZip(f)
+                            self.expand_zip(f)
                         else:
                             # anything else must be a manifest file
                             self.dPath = head
-                            mPath = tail
+                            mpath = tail
                             head, tail = self.dPath.split()
-                            if str(mPath.normcase()) != 'imsmanifest.xml':
+                            if str(mpath.normcase()) != 'imsmanifest.xml':
                                 raise CPManifestError(
                                     "%s must be named imsmanifest.xml" %
-                                    str(mPath))
+                                    str(mpath))
                             self.packageName = str(tail)
                     finally:
                         f.close()
@@ -457,10 +467,10 @@ class ContentPackage:
             if not isinstance(self.dPath, vfs.VirtualFilePath):
                 import traceback
                 traceback.print_stack()
-            mPath = self.dPath.join('imsmanifest.xml')
-            if mPath.exists():
+            mpath = self.dPath.join('imsmanifest.xml')
+            if mpath.exists():
                 self.manifest = self.ManifestDocumentClass(
-                    baseURI=str(uri.URI.from_virtual_path(mPath)))
+                    base_uri=str(uri.URI.from_virtual_path(mpath)))
                 """The :py:class:`ManifestDocument` object representing the
                 imsmanifest.xml file.
 
@@ -469,12 +479,12 @@ class ContentPackage:
                 if not isinstance(self.manifest.root, Manifest):
                     raise CPManifestError("%s not a manifest file, found"
                                           " %s::%s " %
-                                          (mPath, self.manifest.root.ns,
+                                          (mpath, self.manifest.root.ns,
                                            self.manifest.root.xmlname))
             else:
                 self.manifest = self.ManifestDocumentClass(
                     root=Manifest,
-                    baseURI=str(uri.URI.from_virtual_path(mPath)))
+                    base_uri=str(uri.URI.from_virtual_path(mpath)))
                 self.manifest.root.set_id(
                     self.manifest.get_unique_id('manifest'))
                 md = self.manifest.root.add_child(
@@ -482,7 +492,7 @@ class ContentPackage:
                 md.add_child(md.SchemaClass).set_value("IMS Content")
                 md.add_child(md.SchemaVersionClass).set_value("1.2")
                 self.manifest.create()
-            self.SetIgnoreFiles(IGNOREFILES_RE)
+            self.set_ignore_files(IGNOREFILES_RE)
             self.fileTable = {}
             """The fileTable is a dictionary that maps package relative file
             paths to the :py:class:`File` objects that represent them in the
@@ -511,20 +521,22 @@ class ContentPackage:
             The keys in fileTable are VirtualFilePath instances.  To convert a
             string to an appropriate instance use the :py:meth:`FilePath`
             method."""
-            self.RebuildFileTable()
-            errorFlag = False
+            self.rebuild_file_table()
+            error_flag = False
         finally:
-            if errorFlag:
+            if error_flag:
                 self.Close()
 
-    def FilePath(self, *path):
+    @old_method('FilePath')
+    def make_file_path(self, *path):
         """Converts a string into a :py:class:`pyslet.vfs.VirtualFilePath`
         instance suitable for using as a key into the :py:attr:`fileTable`. The
         conversion is done using the file system of the content package's
         directory, :py:attr:`dPath`."""
         return self.dPath.__class__(*path)
 
-    def SetIgnoreFiles(self, ignoreFiles):
+    @old_method('SetIgnoreFiles')
+    def set_ignore_files(self, ignore_files):
         """Sets the regular expression used to determine if a file should be ignored.
 
         Some operating systems and utilities create hidden files or other
@@ -545,21 +557,23 @@ class ContentPackage:
         By default, the pattern is set to match all directories and files with
         names beginning '.' so you will not normally need to call this
         method."""
-        self.ignoreFiles = re.compile(ignoreFiles)
+        self.ignore_files = re.compile(ignore_files)
 
-    def IgnoreFile(self, f):
+    @old_method('IgnoreFile')
+    def ignore_file(self, f):
         """Compares a file or directory name against the pattern set by
-        :py:meth:`SetIgnoreFiles`.
+        :py:meth:`set_ignore_files`.
 
         f is a unicode string."""
-        match = self.ignoreFiles.match(f)
+        match = self.ignore_files.match(f)
         if match:
             return len(f) == match.end()
         else:
             return False
 
-    def IgnoreFilePath(self, fPath):
-        """Compares a file path against the pattern set by :py:meth:`SetIgnoreFiles`
+    @old_method('IgnoreFilePath')
+    def ignore_file_path(self, fpath):
+        """Compares a file path against the pattern set by :py:meth:`set_ignore_files`
 
         The path is normalised before comparison and any segments consisting of
         the string '..' are skipped.  The method returns True if any of the
@@ -571,84 +585,93 @@ class ContentPackage:
         absolute prior to comparison so this method is not affected by the
         current directory, even if the current diretory would itself be
         ignored."""
-        fPath = fPath.normpath()
+        fpath = fpath.normpath()
         while True:
-            head, tail = fPath.split()
-            if (tail and tail != fPath.pardir and
-               self.IgnoreFile(unicode(tail))):
+            head, tail = fpath.split()
+            if (tail and tail != fpath.pardir and
+                    self.ignore_file(to_text(tail))):
                 return True
-            if not head or head == fPath:
+            if not head or head == fpath:
                 # No head left, or the path is unsplitable
                 return False
-            fPath = head
+            fpath = head
 
-    def RebuildFileTable(self):
+    @old_method('RebuildFileTable')
+    def rebuild_file_table(self):
         """Rescans the file system and manifest and rebuilds the
         :py:attr:`fileTable`."""
         self.fileTable = {}
         been_there = {}
         for f in self.dPath.listdir():
-            if self.IgnoreFile(unicode(f)):
+            if self.ignore_file(to_text(f)):
                 continue
             if f.normcase() == 'imsmanifest.xml':
                 continue
-            self.FileScanner(f, been_there)
+            self.file_scanner(f, been_there)
         # Now scan the manifest and identify which file objects refer to which
         # files
         for r in self.manifest.root.Resources.Resource:
             for f in r.File:
-                fPath = f.PackagePath(self)
-                if fPath is None:
+                fpath = f.package_path(self)
+                if fpath is None:
                     continue
-                if fPath in self.fileTable:
-                    self.fileTable[fPath].append(f)
+                if fpath in self.fileTable:
+                    self.fileTable[fpath].append(f)
                 else:
-                    self.fileTable[fPath] = [f]
+                    self.fileTable[fpath] = [f]
 
-    def FileScanner(self, fPath, been_there):
-        fullPath = self.dPath.join(fPath)
-        rFullPath = fullPath.realpath()
-        if rFullPath in been_there:
-            raise CPPackageBeenThereError(rFullPath)
-        been_there[rFullPath] = True
-        if fullPath.isdir():
-            for f in fullPath.listdir():
-                if self.IgnoreFile(unicode(f)):
+    @old_method('FileScanner')
+    def file_scanner(self, fpath, been_there):
+        full_path = self.dPath.join(fpath)
+        rfull_path = full_path.realpath()
+        if rfull_path in been_there:
+            raise CPPackageBeenThereError(rfull_path)
+        been_there[rfull_path] = True
+        if full_path.isdir():
+            for f in full_path.listdir():
+                if self.ignore_file(to_text(f)):
                     continue
-                self.FileScanner(fPath.join(f), been_there)
-        elif fullPath.isfile():
-            self.fileTable[fPath.normcase()] = []
+                self.file_scanner(fpath.join(f), been_there)
+        elif full_path.isfile():
+            self.fileTable[fpath.normcase()] = []
         else:  # skip non-regular files.
             pass
 
-    def PackagePath(self, fPath):
+    @old_method('PackagePath')
+    def package_path(self, fpath):
         """Converts an absolute file path into a canonical package-relative path
 
-        Returns None if fPath is not inside the package."""
+        Returns None if fpath is not inside the package."""
         rel_path = []
-        assert isinstance(fPath, vfs.VirtualFilePath)
-        while fPath != self.dPath:
-            fPath, tail = fPath.split()
-            if not fPath or not tail:
+        assert isinstance(fpath, vfs.VirtualFilePath)
+        while fpath != self.dPath:
+            fpath, tail = fpath.split()
+            if not fpath or not tail:
                 # We've gone as far as we can, fail!
                 return None
             rel_path[0:0] = [tail]
         return self.dPath.__class__(*rel_path).normcase()
 
-    def ExpandZip(self, zf):
+    @old_method('ExpandZip')
+    def expand_zip(self, zf):
         self.dPath = vfs.defaultFS.mkdtemp('.d', 'imscpv1p2-')
         self.tempDir = True
         zf = zipfile.ZipFile(zf)
         try:
             for zfi in zf.infolist():
                 path = self.dPath
-                for pathSeg in zfi.filename.split('/'):
+                for path_seg in zfi.filename.split('/'):
                     # The current path will need to be a directory
                     if not path.isdir():
                         path.mkdir()
-                    pathSeg = unicode(pathSeg, 'utf-8')
-                    path = path.join(pathSeg).normpath()
-                    if self.PackagePath(path) is None:
+                    if isinstance(path_seg, bytes):
+                        path_seg = path_seg.decode('utf-8')
+                    elif not py2 and (zfi.flag_bits ^ 0x800):
+                        # Python3 decodes as cp437 if the flag is clear
+                        # we force utf-8 in this case
+                        path_seg = path_seg.encode('cp437').decode('utf-8')
+                    path = path.join(path_seg).normpath()
+                    if self.package_path(path) is None:
                         raise CPZIPFilenameError(zfi.filename)
                 if path.isdir():
                     if zfi.file_size > 0:
@@ -666,10 +689,11 @@ class ContentPackage:
         finally:
             zf.close()
 
-    def ExportToPIF(self, zPath):
-        """Exports the content package, saving the zipped package in *zPath*
+    @old_method('ExportToPIF')
+    def export_to_pif(self, zpath):
+        """Exports the content package, saving the zipped package in *zpath*
 
-        *zPath* is overwritten by this operation.
+        *zpath* is overwritten by this operation.
 
         In order to make content packages more interoperable this method goes
         beyond the basic zip specification and ensures that pathnames are
@@ -678,51 +702,59 @@ class ContentPackage:
         reverse transformation is performed.  When exchanging PIF files between
         systems with different native file path encodings, encoding erros may
         occur."""
-        zf = zipfile.ZipFile(zPath, 'w')
-        base = ''
+        zf = zipfile.ZipFile(zpath, 'w')
+        base = b''
         been_there = {}
         try:
             for f in self.dPath.listdir():
-                if self.IgnoreFile(unicode(f)):
+                if self.ignore_file(to_text(f)):
                     continue
-                self.AddToZip(self.dPath.join(f), zf, base, been_there)
+                self.add_to_zip(self.dPath.join(f), zf, base, been_there)
         finally:
             zf.close()
 
-    def AddToZip(self, fPath, zf, zbase, been_there):
-        rfName = fPath.realpath()
-        if rfName in been_there:
-            raise CPZIPBeenThereError(fPath)
-        been_there[rfName] = True
-        fName = unicode(fPath.split()[1])
-        zfName = fName.replace('/', ':')
-# 		if type(zfName) is StringType:
-# 			zfName=zfName.decode(sys.getfilesystemencoding())
-        zpath = zbase + zfName.encode('utf-8')
-        if fPath.isdir():
-            zpath += '/'
-            zf.writestr(zpath, '')
-            for f in fPath.listdir():
-                if self.IgnoreFile(unicode(f)):
+    @old_method('AddToZip')
+    def add_to_zip(self, fpath, zf, zbase, been_there):
+        rfname = fpath.realpath()
+        if rfname in been_there:
+            raise CPZIPBeenThereError(fpath)
+        been_there[rfname] = True
+        fname = to_text(fpath.split()[1])
+        zfname = fname.replace('/', ':')
+# 		if type(zfname) is StringType:
+# 			zfname=zfname.decode(sys.getfilesystemencoding())
+        zpath = zbase + zfname.encode('utf-8')
+        if fpath.isdir():
+            zpath += b'/'
+            if py2:
+                zf.writestr(zpath, b'')
+            else:
+                zf.writestr(zpath.decode('utf-8'), b'')
+            for f in fpath.listdir():
+                if self.ignore_file(to_text(f)):
                     continue
-                self.AddToZip(fPath.join(f), zf, zpath, been_there)
-        elif fPath.isfile():
+                self.add_to_zip(fpath.join(f), zf, zpath, been_there)
+        elif fpath.isfile():
             with vfs.ZipHooks():
-                zf.write(fPath, zpath)
+                # in Python3 zpath must be a string
+                if not py2:
+                    zpath = zpath.decode('utf-8')
+                zf.write(fpath, zpath)
         else:  # skip non-regular files.
             pass
 
-    def GetUniqueFile(self, suggestedPath):
+    @old_method('GetUniqueFile')
+    def get_unique_path(self, suggested_path):
         """Returns a unique file path suitable for creating a new file in the package.
 
-        suggestedPath is used to provide a suggested path for the file.  This
+        suggested_path is used to provide a suggested path for the file.  This
         may be relative (to the root and manifest) or absolute but it must
-        resolve to a file (potentially) in the package.  The suggestedPath
+        resolve to a file (potentially) in the package.  The suggested_path
         should either be a VirtualFilePath (of the same type as the content
         package's :py:attr:`dPath`) or a string suitable for conversion to a
         VirtualFilePath.
 
-        When suggestedPath is relative, it is forced to lower-case.  This is
+        When suggested_path is relative, it is forced to lower-case.  This is
         consistent with the behaviour of normcase on systems that are case
         insensitive.  The trouble with case insensitive file systems is that it
         may be impossible to unpack a content package created on a case
@@ -730,36 +762,37 @@ class ContentPackage:
         all file storage through this method (and constructing any URIs *after*
         the file has been stored) the resulting packages will be more portable.
 
-        If suggestedPath already corresponds to a file already in the package,
+        If suggested_path already corresponds to a file already in the package,
         or to a file already referred to in the manifest, then a random string
         is added to it while preserving the suggested extension in order to
         make it unique.
 
         The return result is always normalized and returned relative to the
         package root."""
-        if type(suggestedPath) in StringTypes:
-            suggestedPath = self.dPath.__class__(suggestedPath)
-        if suggestedPath.isabs():
-            fPath = suggestedPath
+        if not isinstance(suggested_path, vfs.VirtualFilePath):
+            suggested_path = self.dPath.__class__(suggested_path)
+        if suggested_path.isabs():
+            fpath = suggested_path
         else:
-            fPath = self.dPath.join(unicode(suggestedPath).lower())
-        fPath = PathInPath(fPath, self.dPath)
-        if fPath is None:
-            raise CPFilePathError(suggestedPath)
-        fPath = fPath.normcase()
+            fpath = self.dPath.join(to_text(suggested_path).lower())
+        fpath = path_in_path(fpath, self.dPath)
+        if fpath is None:
+            raise CPFilePathError(suggested_path)
+        fpath = fpath.normcase()
         # Now we can try and make it unique
-        pathStr = fPath
-        pathExtra = 0
-        while pathStr in self.fileTable:
-            if not pathExtra:
-                pathExtra = random.randint(0, 0xFFFF)
-            fName, fExt = fPath.splitext()
-            pathStr = '%s_%X%s' % (unicode(fName), pathExtra, fExt)
-            pathExtra = pathExtra + 1
+        path_str = fpath
+        path_extra = 0
+        while path_str in self.fileTable:
+            if not path_extra:
+                path_extra = random.randint(0, 0xFFFF)
+            fname, fExt = fpath.splitext()
+            path_str = '%s_%X%s' % (to_text(fname), path_extra, fExt)
+            path_extra = path_extra + 1
         # we have the path string
-        return self.dPath.__class__(pathStr)
+        return self.dPath.__class__(path_str)
 
-    def File(self, resource, href):
+    @old_method('File')
+    def new_file(self, resource, href):
         """Returns a new :py:class:`File` object attached to *resource*
 
         *href* is the URI of the file expressed relative to the resource
@@ -775,22 +808,22 @@ class ContentPackage:
         file iteself will raise :py:class:`CPFilePathError`.
 
         The :py:attr:`fileTable` is updated automatically by this method."""
-        fURL = resource.resolve_uri(href)
-        if not isinstance(fURL, uri.FileURL):
+        furl = resource.resolve_uri(href)
+        if not isinstance(furl, uri.FileURL):
             # Not a local file
             f = resource.add_child(resource.FileClass)
             f.href = href
         else:
             if href.is_absolute():
                 href = uri.URIFactory.relative(href, resource.resolve_base())
-            fullPath = fURL.get_virtual_file_path()
-            head, tail = fullPath.split()
-            if self.IgnoreFile(unicode(tail)):
-                raise CPFilePathError(fullPath)
-            rel_path = PathInPath(fullPath, self.dPath)
+            full_path = furl.get_virtual_file_path()
+            head, tail = full_path.split()
+            if self.ignore_file(to_text(tail)):
+                raise CPFilePathError(full_path)
+            rel_path = path_in_path(full_path, self.dPath)
             if (rel_path is None or
-               unicode(rel_path).lower == u'imsmanifest.xml'):
-                raise CPFilePathError(url.path)
+                    to_text(rel_path).lower() == 'imsmanifest.xml'):
+                raise CPFilePathError(furl.path)
             # normalise the case ready to put in the file table
             rel_path = rel_path.normcase()
             f = resource.add_child(resource.FileClass)
@@ -801,9 +834,10 @@ class ContentPackage:
                 self.fileTable[rel_path].append(f)
         return f
 
-    def FileCopy(self, resource, srcURL):
+    @old_method('FileCopy')
+    def file_copy(self, resource, src_url):
         """Returns a new :py:class:`File` object copied into the package from
-        *srcURL*, attached to *resource*.
+        *src_url*, attached to *resource*.
 
         The file is copied to the same directory as the resource's entry point
         or to the main package directory if the resource has no entry point.
@@ -811,37 +845,38 @@ class ContentPackage:
         The :py:class:`File` object is actually created with the
         :py:meth:`File` method.
 
-        Note that if srcURL points to a missing file then no file is copied to
+        Note that if src_url points to a missing file then no file is copied to
         the package but the associated :py:class:`File` is still created.
         It will point to a missing file."""
-        srcPath = srcURL.get_virtual_file_path()
+        src_path = src_url.get_virtual_file_path()
         # We need to create a new file object
-        fStart = resource.GetEntryPoint()
-        if fStart is None:
-            basePath = self.dPath
+        fstart = resource.get_entry_point()
+        if fstart is None:
+            base_path = self.dPath
         else:
-            url = fStart.resolve_uri(fStart.href)
+            url = fstart.resolve_uri(fstart.href)
             if not isinstance(url, uri.FileURL):
-                basePath = self.dPath
+                base_path = self.dPath
             else:
-                basePath, tail = url.get_virtual_file_path().split()
+                base_path, tail = url.get_virtual_file_path().split()
         # now pick up the last component of src
-        head, tail = srcPath.split()
-        newSrcPath = self.GetUniqueFile(basePath.join(tail))
-        newSrcPath = self.dPath.join(newSrcPath)
-        newSrc = uri.URI.from_virtual_path(newSrcPath)
+        head, tail = src_path.split()
+        new_src_path = self.get_unique_path(base_path.join(tail))
+        new_src_path = self.dPath.join(new_src_path)
+        new_src = uri.URI.from_virtual_path(new_src_path)
         # Turn this file path into a relative URL in the context of the new
         # resource
-        href = resource.relative_uri(newSrc)
+        href = resource.relative_uri(new_src)
         f = self.File(resource, href)
-        dname, fName = newSrcPath.split()
+        dname, fname = new_src_path.split()
         if not dname.isdir():
             dname.makedirs()
-        if srcPath.isfile():
-            srcPath.copy(newSrcPath)
+        if src_path.isfile():
+            src_path.copy(new_src_path)
         return f
 
-    def DeleteFile(self, href):
+    @old_method('DeleteFile')
+    def delete_file(self, href):
         """Removes the file at *href* from the file system
 
         This method also removes any file references to it from resources in
@@ -851,44 +886,44 @@ class ContentPackage:
         :py:class:`CPFileTypeError` is raised if the file is not a regular file
 
         :py:class:`CPFilePathError` is raised if the file is an
-        :py:meth:`IgnoreFile`, the manifest itself or outside of the content
+        :py:meth:`ignore_file`, the manifest itself or outside of the content
         package.
 
         :py:class:`CPProtocolError` is raised if the indicated file is not in
         the local file system."""
-        baser = self
-        baseURI = self.manifest.get_base()
-        base = uri.URI.from_octets(baseURI)
-        fURL = uri.URI.from_octets(href).resolve(base)
-        if not isinstance(fURL, uri.FileURL):
+        base_uri = self.manifest.get_base()
+        base = uri.URI.from_octets(base_uri)
+        furl = uri.URI.from_octets(href).resolve(base)
+        if not isinstance(furl, uri.FileURL):
             # We cannot delete non-file objects (though in future
             # we should support HTTP DELETE)
-            return CPProtocolError(str(fURL))
-        fullPath = fURL.get_virtual_file_path()
-        if not fullPath.isfile():
-            raise CPFileTypeError(fullPath)
-        head, tail = fullPath.split()
-        if self.IgnoreFile(unicode(tail)):
-            raise CPFilePathError(fullPath)
-        rel_path = PathInPath(fullPath, self.dPath)
-        if rel_path is None or unicode(rel_path).lower == u'imsmanifest.xml':
-            raise CPFilePathError(fullPath)
+            return CPProtocolError(str(furl))
+        full_path = furl.get_virtual_file_path()
+        if not full_path.isfile():
+            raise CPFileTypeError(full_path)
+        head, tail = full_path.split()
+        if self.ignore_file(to_text(tail)):
+            raise CPFilePathError(full_path)
+        rel_path = path_in_path(full_path, self.dPath)
+        if rel_path is None or to_text(rel_path).lower() == 'imsmanifest.xml':
+            raise CPFilePathError(full_path)
         # normalise the case ready for comparisons
         rel_path = rel_path.normcase()
         for r in self.manifest.root.Resources.Resource:
-            delList = []
+            del_list = []
             for f in r.File:
                 # Does f point to the same file?
-                if f.PackagePath(self) == rel_path:
-                    delList.append(f)
-            for f in delList:
-                r.DeleteFile(f)
+                if f.package_path(self) == rel_path:
+                    del_list.append(f)
+            for f in del_list:
+                r.delete_file(f)
         # Now there are no more references, safe to remove the file itself
-        fullPath.remove()
+        full_path.remove()
         if rel_path in self.fileTable:
             del self.fileTable[rel_path]
 
-    def GetPackageName(self):
+    @old_method('GetPackageName')
+    def get_package_name(self):
         """Returns a human readable name for the package
 
         The name is determined by the method used to create the object. The
@@ -899,12 +934,13 @@ class ContentPackage:
         Note that the name is returned as a unicode string suitable for showing
         to the user and may need to be encoded before being used in file path
         operations."""
-        if type(self.packageName) is StringType:
-            return unicode(self.packageName, 'utf-8')
+        if isinstance(self.packageName, bytes):
+            return self.packageName.decode('utf-8')
         else:
-            return self.packageName
+            return to_text(self.packageName)
 
-    def Close(self):
+    @old_method('Close')
+    def close(self):
         """Closes the content package, removing any temporary files.
 
         This method must be called to clean up any temporary files created when

@@ -571,7 +571,7 @@ class QMLTag(QMLElement):
     def set_value(self, value):
         self.value = value
 
-    def GotChildren(self):
+    def content_changed(self):
         # called when all children have been parsed
         self.value = ParseNameString(QMLElement.get_value(self))
 

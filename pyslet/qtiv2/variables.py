@@ -1877,7 +1877,7 @@ class SessionState(MigratedClass):
             raise TypeError
         v = self[var_name]
         if (value.cardinality() is not None and
-           value.cardinality() != v.cardinality()):
+                value.cardinality() != v.cardinality()):
             raise ValueError(
                 "Expected %s value, found %s" %
                 (Cardinality.to_str(
@@ -2058,7 +2058,7 @@ class ItemSessionState(SessionState):
                     continue
                 try:
                     if (rd.baseType == BaseType.Identifier and
-                       core.ValidateIdentifier(rname[1])):
+                            core.ValidateIdentifier(rname[1])):
                         if is_text(svalue):
                             v.set_value(svalue)
                         else:
@@ -2321,7 +2321,7 @@ class TestSessionState(SessionState):
                         # descend in to this testPart
                         iq = iq + 1
                         if (part.navigationMode ==
-                           tests.NavigationMode.nonlinear):
+                                tests.NavigationMode.nonlinear):
                             # evaluate templateDefaults for all items in this
                             # part
                             end_id = "-" + part.identifier
@@ -2349,7 +2349,7 @@ class TestSessionState(SessionState):
                         # we've found the next question
                         test_part = part.find_parent(tests.TestPart)
                         if (test_part.navigationMode ==
-                           tests.NavigationMode.linear):
+                                tests.NavigationMode.linear):
                             item_state = self.namespace[iq]
                             part.SetTemplateDefaults(item_state, self)
                             item_state.select_clone()

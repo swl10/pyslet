@@ -20,6 +20,10 @@ pyslet/http/server.py
 unittests/test_http_server.py
 pyslet/imsbltiv1p0.py
 unittests/test_imsbltiv1p0.py
+pyslet/imscpv1p2.py
+unittests/test_imscpv1p2.py
+pyslet/imsmdv1p2p1.py
+unittests/test_imsmdv1p2p1.py
 pyslet/imsqtiv2p1.py
 pyslet/iso8601.py
 unittests/test_iso8601.py

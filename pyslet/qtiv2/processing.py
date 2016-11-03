@@ -578,7 +578,7 @@ class SetDefaultValue(TemplateRule):
         value = self.Expression.Evaluate(state)
         d = state.GetDeclaration(self.identifier)
         if (isinstance(d, variables.ResponseDeclaration) or
-           isinstance(d, variables.OutcomeDeclaration)):
+                isinstance(d, variables.OutcomeDeclaration)):
             state[self.identifier + ".DEFAULT"] = value
         elif (state.IsResponse(self.identifier) or
               state.IsOutcome(self.identifier)):

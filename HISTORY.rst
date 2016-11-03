@@ -53,9 +53,21 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
-Build 20161102:
+*Build 20161103*
 
-Build 20161030:
+#38 Python 3 compatibility work (ongoing)
+
+IMS Content Packaging and Metadata modules: tests passing in Python 3
+
+
+*Build 20161102*
+
+#38 Python 3 compatibility work (ongoing)
+
+QTI v2 modules: tests passing in Python 3.
+
+
+*Build 20161030*
 
 #49 Fixed OData serialisation of LongDescription element
 
@@ -87,7 +99,7 @@ Fixed a bug in the XML tests that shows up on Windows if the xml test
 files are checked out with auto-translation of line ends.
 
 
-Build 20160405:
+*Build 20160405*
 
 #38 Python 3 compatibility work (ongoing)
 
@@ -100,7 +112,7 @@ Fixed a bug in the detect_encoding function in unicode5 module (most
 likely benign).
 
 
-Build 20160327:
+*Build 20160327*
 
 #3 PEP-8 driven refactoring (ongoing)
 
@@ -115,7 +127,7 @@ OData v2 core, csdl, edmx and metadata modules refactored, Python 3
 tests passing
 
 
-Build 20160313:
+*Build 20160313*
 
 #3 PEP-8 driven refactoring (ongoing)
 
@@ -145,7 +157,7 @@ Fixed a bug in the XML parser where the parsed DTD was not being set
 in the Document instance.
 
  
-Build 20160225:
+*Build 20160225*
  
 #3 PEP-8 driven refactoring (ongoing)
 
@@ -182,7 +194,7 @@ refactored to catch StopIteration as per:
 https://www.python.org/dev/peps/pep-0479/
 
 
-Build 20160221:
+*Build 20160221*
 
 #3 PEP-8 driven refactoring (ongoing)
 
@@ -208,7 +220,7 @@ may wish to wait before upgrading until that module is also converted
 (coming soon).
 
 
-Build 20160209:
+*Build 20160209*
 
 #38 Python 3 compatibility work
 

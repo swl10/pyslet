@@ -36,12 +36,10 @@ if py2:
 if py2:
     import test_imscc_profilev1p1
     all_tests.addTest(test_imscc_profilev1p1.suite())
-if py2:
-    import test_imscpv1p2
-    all_tests.addTest(test_imscpv1p2.suite())
-if py2:
-    import test_imsmdv1p2p1
-    all_tests.addTest(test_imsmdv1p2p1.suite())
+import test_imscpv1p2
+all_tests.addTest(test_imscpv1p2.suite())
+import test_imsmdv1p2p1
+all_tests.addTest(test_imsmdv1p2p1.suite())
 if py2:
     import test_imsqtiv1p2p1
     all_tests.addTest(test_imsqtiv1p2p1.suite())
