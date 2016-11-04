@@ -1,14 +1,11 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.qtiv2.xml as qtiv2
+import itertools
 
-import core
-import common
-import item
-
-import string
+from . import common
+from . import core
+from . import item
+from ..xml import structures as xml
 
 
 class OutcomesProcessing(common.QTICommentContainer):
@@ -36,7 +33,7 @@ class OutcomesProcessing(common.QTICommentContainer):
     def __init__(self, parent):
         common.QTICommentContainer.__init__(self, parent)
         self.scoreModel = None
-        self.Outcomes = itemm.Outcomes(self)
+        self.Outcomes = item.Outcomes(self)
         self.ObjectsCondition = []
         self.ProcessingParameter = []
         self.MapOutput = []

@@ -1,16 +1,21 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.html401 as html
-import pyslet.qtiv2.xml as qtiv2
-import pyslet.imsmdv1p2p1 as imsmd
-
-import core
-
-import string
+import logging
 import itertools
-from types import StringTypes
+
+from . import core
+from .. import html401 as html
+from .. import imsmdv1p2p1 as imsmd
+from ..http import messages
+from ..pep8 import old_method
+from ..py2 import is_text, to_text
+from ..qtiv2 import xml as qtiv2
+from ..xml import structures as xml
+from ..xml import xsdatatypes as xsi
+
+
+class QTIUnimplementedOperator(core.QTIUnimplementedError):
+    pass
 
 
 class QTICommentContainer(core.QTIElement):
@@ -51,48 +56,66 @@ class Duration(core.QTIElement):
     XMLCONTENT = xml.XMLMixedContent
 
 
-class ContentMixin:
+class ContentMixin(object):
 
     """Mixin class for handling all content-containing elements.
 
-    This class is used by all elements that behave as content, the default
-    implementation provides an additional contentChildren member that should
-    be used to collect any content-like children."""
+    This class is used by all elements that behave as content, the
+    default implementation provides an additional contentChildren member
+    that should be used to collect any content-like children."""
 
     def __init__(self):
         self.contentChildren = []		#: the list of content children
 
-    def ContentMixin(self, childClass):
-        """Creates a new ContentMixin child of this element.
+    def content_child(self, child_class):
+        """Returns True if child_class is an allowed subclass of
+        ContentMixin in this context."""
+        return True
 
-        This factory method is called by the parser when it finds an element
-        that is derived from ContentMixin.  By default we accept any type of
-        content but derived classes override this behaviour to limit the range
-        of elements to match their content models."""
-        child = childClass(self)
-        self.contentChildren.append(child)
-        return child
+    def add_child(self, child_class, name=None):
+        """Creates a new child of this element.
 
-    def GetContentChildren(self):
+        Overrides the underlying Element class to implement special
+        handling for ContentMixin and its subclasses.  By default we
+        accept any type of content but derived classes override this
+        behaviour by providing an implementation of content_child to
+        limit the range of elements to match their own content models."""
+        if issubclass(child_class, ContentMixin):
+            if self.content_child(child_class):
+                child = child_class(self)
+                self.contentChildren.append(child)
+                if name:
+                    child.set_xmlname(name)
+                return child
+            else:
+                raise TypeError
+        else:
+            return super(ContentMixin, self).add_child(child_class, name)
+
+    @old_method('GetContentChildren')
+    def get_content_children(self):
         """Returns an iterable of the content children."""
         return iter(self.contentChildren)
 
-    def IsInline(self):
+    @old_method('IsInline')
+    def is_inline(self):
         """True if this element can be inlined, False if it is block level
 
         The default implementation returns True if all
         :py:attr:`contentChildren` can be inlined."""
-        return self.InlineChildren()
+        return self.inline_children()
 
-    def InlineChildren(self):
+    @old_method('InlineChildren')
+    def inline_children(self):
         """True if all of this element's :py:attr:`contentChildren` can all be
         inlined."""
         for child in self.contentChildren:
-            if not child.IsInline():
+            if not child.is_inline():
                 return False
         return True
 
-    def ExtractText(self):
+    @old_method('ExtractText')
+    def extract_text(self):
         """Returns a tuple of (<text string>, <lang>).
 
         Sometimes it is desirable to have a plain text representation of a
@@ -107,19 +130,20 @@ class ContentMixin:
         result = []
         lang = self.get_lang()
         for child in self.contentChildren:
-            childText, childLang = child.ExtractText()
+            childText, childLang = child.extract_text()
             if lang is None:
                 lang = childLang
             if childText:
                 result.append(childText.strip())
-        return string.join(result, ' '), lang
+        return ' '.join(result), lang
 
-    def MigrateV2Content(self, parent, childType, log, children=None):
+    @old_method('MigrateV2Content')
+    def migrate_content_to_v2(self, parent, child_type, log, children=None):
         """Migrates this content element to QTIv2.
 
         The resulting QTIv2 content is added to *parent*.
 
-        *childType* indicates whether the context allows block, inline or a
+        *child_type* indicates whether the context allows block, inline or a
         mixture of element content types (flow).  It is set to one of the
         following HTML classes: :py:class:`pyslet.html401.BlockMixin`,
         :py:class:`pyslet.html401.InlineMixin` or
@@ -131,66 +155,73 @@ class ContentMixin:
         permits.  Nested flows are handled by the addition of <br/>."""
         if children is None:
             children = self.contentChildren
-        if childType is html.InlineMixin or (childType is html.FlowMixin and
-                                             self.InlineChildren()):
+        if child_type is html.InlineMixin or (child_type is html.FlowMixin and
+                                              self.inline_children()):
             # We can only hold inline children, raise an error if find anything
             # else
-            brBefore = brAfter = False
-            firstItem = True
+            br_before = br_after = False
+            first_item = True
             for child in children:
                 if isinstance(child, FlowMixin):
-                    brBefore = not firstItem
-                    brAfter = True
-                elif brAfter:
-                    # we only honour brAfter if flow is followed by something
+                    br_before = not first_item
+                    br_after = True
+                elif br_after:
+                    # we only honour br_after if flow is followed by something
                     # other than flow
+                    parent.add_child(html.Br,
+                                     (qtiv2.core.IMSQTI_NAMESPACE, 'br'))
+                    br_after = False
+                if br_before:
                     parent.add_child(
                         html.Br, (qtiv2.core.IMSQTI_NAMESPACE, 'br'))
-                    brAfter = False
-                if brBefore:
-                    parent.add_child(
-                        html.Br, (qtiv2.core.IMSQTI_NAMESPACE, 'br'))
-                    brBefore = False
+                    br_before = False
                 # we force InlineMixin here to prevent unnecessary checks on
                 # inline status
-                child.MigrateV2Content(parent, html.InlineMixin, log)
-                firstItem = False
+                child.migrate_content_to_v2(parent, html.InlineMixin, log)
+                first_item = False
         else:
-            # childType is html.BlockMixin or html.FlowMixin and we have a
+            # child_type is html.BlockMixin or html.FlowMixin and we have a
             # mixture of inline/block children
             p = None
-            brBefore = False
-            brAfter = False
+            br_before = False
+            br_after = False
             for child in children:
                 try:
-                    if child.IsInline():
-                        if brAfter:
+                    if child.is_inline():
+                        if br_after:
                             p.add_child(
                                 html.Br, (qtiv2.core.IMSQTI_NAMESPACE, 'br'))
-                            brAfter = False
+                            br_after = False
                         if isinstance(child, FlowMixin):
-                            brBefore = brAfter = True
+                            br_before = br_after = True
                         if p is None:
                             p = parent.add_child(
                                 html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
-                            brBefore = False
-                        if brBefore:
+                            br_before = False
+                        if br_before:
                             p.add_child(html.Br)
-                            brBefore = False
-                        child.MigrateV2Content(p, html.InlineMixin, log)
+                            br_before = False
+                        child.migrate_content_to_v2(p, html.InlineMixin, log)
                     else:
                         # stop collecting inlines
                         p = None
-                        brBefore = brAfter = False
-                        child.MigrateV2Content(parent, html.BlockMixin, log)
+                        br_before = br_after = False
+                        child.migrate_content_to_v2(parent, html.BlockMixin,
+                                                    log)
                 except AttributeError as e:
-                    print e
+                    logging.error("migrate_content_to_v2: %s", str(e))
                     raise core.QTIError(
                         "Error: unsupported QTI v1 content element " +
                         child.xmlname)
 
 
-class Material(QTICommentContainer, ContentMixin):
+class MatThingMixin(ContentMixin):
+
+    """An abstract class used to help identify the mat* elements."""
+    pass
+
+
+class Material(ContentMixin, QTICommentContainer):
 
     """This is the container for any content that is to be displayed by the
     question-engine. The supported content types are text (emphasized or not),
@@ -214,26 +245,23 @@ class Material(QTICommentContainer, ContentMixin):
         self.AltMaterial = []
         self.label = None
 
-    def ContentMixin(self, childClass):
-        if issubclass(childClass, MatThingMixin):
-            return ContentMixin.ContentMixin(self, childClass)
-        else:
-            raise TypeError
+    def content_child(self, child_class):
+        return issubclass(child_class, MatThingMixin)
 
     def get_children(self):
         return itertools.chain(
             QTICommentContainer.get_children(self),
-            ContentMixin.GetContentChildren(self))
+            ContentMixin.get_content_children(self))
 
     def content_changed(self):
         if self.label:
             doc = self.get_document()
             if doc:
-                doc.RegisterMaterial(self)
+                doc.register_material(self)
         QTICommentContainer.content_changed(self)
 
 
-class AltMaterial(QTICommentContainer, ContentMixin):
+class AltMaterial(ContentMixin, QTICommentContainer):
 
     """This is the container for alternative content. This content is to be
     displayed if, for whatever reason, the primary content cannot be rendered.
@@ -252,22 +280,13 @@ class AltMaterial(QTICommentContainer, ContentMixin):
         QTICommentContainer.__init__(self, parent)
         ContentMixin.__init__(self)
 
-    def ContentMixin(self, childClass):
-        if issubclass(childClass, MatThingMixin):
-            return ContentMixin.ContentMixin(self, childClass)
-        else:
-            raise TypeError
+    def content_child(self, child_class):
+        return issubclass(child_class, MatThingMixin)
 
     def get_children(self):
         return itertools.chain(
             QTICommentContainer.get_children(self),
-            ContentMixin.GetContentChildren(self))
-
-
-class MatThingMixin(ContentMixin):
-
-    """An abstract class used to help identify the mat* elements."""
-    pass
+            ContentMixin.get_content_children(self))
 
 
 class PositionMixin:
@@ -290,7 +309,7 @@ class PositionMixin:
         self.width = None
         self.height = None
 
-    def GotPosition(self):
+    def got_position(self):
         return (self.x0 is not None or self.y0 is not None or
                 self.width is not None or self.height is not None)
 
@@ -341,15 +360,15 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
         if self.label:
             doc = self.get_document()
             if doc:
-                doc.RegisterMatThing(self)
+                doc.register_mat_thing(self)
         if self.texttype == 'text/html':
             if self.uri:
                 # The content is external, load it up
                 uri = self.resolve_uri(self.uri)
                 try:
                     e = xml.XMLEntity(uri)
-                except messags.HTTPException as e:
-                    e = xml.XMLEntity(unicode(e))
+                except messages.HTTPException as e:
+                    e = xml.XMLEntity(to_text(e))
             else:
                 uri = self.resolve_base()
                 try:
@@ -359,8 +378,8 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                     # CDATA
                     value = []
                     for child in self.get_children():
-                        value.append(unicode(child))
-                    value = string.join(value, '')
+                        value.append(to_text(child))
+                    value = ''.join(value)
                 if value:
                     e = xml.XMLEntity(value)
             doc = html.XHTMLDocument(baseURI=uri)
@@ -374,45 +393,44 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                     self.matChildren = list(div.get_children())
         elif self.texttype == 'text/rtf':
             # parse the RTF content
-            raise QTIUnimplementedError
+            raise core.QTIUnimplementedError
 
-    def IsInline(self):
+    def is_inline(self):
         if self.texttype == 'text/plain':
             return True
         elif self.texttype == 'text/html':
             # we are inline if all elements in matChildren are inline
             for child in self.matChildren:
-                if (type(child) in StringTypes or
-                        isinstance(child, html.InlineMixin)):
+                if (is_text(child) or isinstance(child, html.InlineMixin)):
                     continue
                 else:
                     return False
             return True
         else:
-            raise QTIUnimplementedError(self.texttype)
+            raise core.QTIUnimplementedError(self.texttype)
 
-    def ExtractText(self):
+    def extract_text(self):
         if self.matChildren:
             # we need to extract the text from these children
             results = []
             para = []
             for child in self.matChildren:
-                if type(child) in StringTypes:
+                if is_text(child):
                     para.append(child)
                 elif isinstance(child, html.InlineMixin):
                     para.append(child.plain_text())
                 else:
                     if para:
-                        results.append(string.join(para, ''))
+                        results.append(''.join(para))
                         para = []
                     results.append(child.plain_text())
             if para:
-                results.append(string.join(para, ''))
-            return string.join(results, '\n\n'), self.resolve_lang()
+                results.append(''.join(para))
+            return '\n\n'.join(results), self.resolve_lang()
         else:
             return self.get_value(), self.resolve_lang()
 
-    def MigrateV2Content(self, parent, childType, log):
+    def migrate_content_to_v2(self, parent, child_type, log):
         if self.texttype == 'text/plain':
             data = self.get_value(True)
             if self.charset.lower() in MatText.SymbolCharsets:
@@ -421,7 +439,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                 data = data.encode('iso-8859-1').decode('apple-symbol')
             lang = self.get_lang()
             if lang or self.label:
-                if childType is html.BlockMixin:
+                if child_type is html.BlockMixin:
                     span = parent.add_child(
                         html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
                     if self.inlineWrapper:
@@ -444,7 +462,7 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                     span.set_attribute('label', self.label)
                 # force child elements to render as inline XML
                 span.add_data(data)
-            elif childType is html.BlockMixin:
+            elif child_type is html.BlockMixin:
                 p = parent.add_child(
                     html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
                 if self.inlineWrapper:
@@ -456,21 +474,21 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
             else:
                 # inline or flow, just add the text directly...
                 if self.inlineWrapper:
-                    addNode = parent.add_child(
+                    add_node = parent.add_child(
                         self.inlineWrapper,
                         (qtiv2.core.IMSQTI_NAMESPACE,
                          self.inlineWrapper.XMLNAME[1]))
                 else:
-                    addNode = parent
+                    add_node = parent
                 parent.add_data(data)
         elif self.texttype == 'text/html':
-            if (childType is html.BlockMixin or
-                    (childType is html.FlowMixin and not self.IsInline())):
+            if (child_type is html.BlockMixin or
+                    (child_type is html.FlowMixin and not self.is_inline())):
                 # Block or mixed-up flow, wrap all text and inline elements in
                 # p
                 p = None
                 for child in self.matChildren:
-                    if (type(child) in StringTypes or
+                    if (is_text(child) or
                             isinstance(child, html.InlineMixin)):
                         if p is None:
                             p = parent.add_child(
@@ -480,11 +498,11 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                                     self.inlineWrapper,
                                     (qtiv2.core.IMSQTI_NAMESPACE,
                                      self.inlineWrapper.XMLNAME[1]))
-                        if type(child) in StringTypes:
+                        if is_text(child):
                             p.add_data(child)
                         else:
-                            newChild = child.deepcopy(p)
-                            qtiv2.content.fix_html_namespace(newChild)
+                            new_child = child.deepcopy(p)
+                            qtiv2.content.fix_html_namespace(new_child)
                     else:
                         # stop collecting inlines
                         p = None
@@ -493,25 +511,25 @@ class MatText(core.QTIElement, PositionMixin, MatThingMixin):
                                 'Warning: block level elements in text/html'
                                 'cannot be wrapped with <%s>' %
                                 self.inlineWrapper.XMLNAME[1])
-                        newChild = child.deepcopy(parent)
-                        qtiv2.content.fix_html_namespace(newChild)
+                        new_child = child.deepcopy(parent)
+                        qtiv2.content.fix_html_namespace(new_child)
             else:
                 # Flow context (with only inline children) or inline context
                 if self.inlineWrapper:
-                    addNode = parent.add_child(
+                    add_node = parent.add_child(
                         self.inlineWrapper,
                         (qtiv2.core.IMSQTI_NAMESPACE,
                          self.inlineWrapper.XMLNAME[1]))
                 else:
-                    addNode = parent
+                    add_node = parent
                 for child in self.matChildren:
-                    if type(child) in StringTypes:
-                        addNode.add_data(child)
+                    if is_text(child):
+                        add_node.add_data(child)
                     else:
-                        newChild = child.deepcopy(addNode)
-                        qtiv2.content.fix_html_namespace(newChild)
+                        new_child = child.deepcopy(add_node)
+                        qtiv2.content.fix_html_namespace(new_child)
         else:
-            raise QTIUnimplementedError
+            raise core.QTIUnimplementedError
 
 
 class MatEmText(MatText):
@@ -555,15 +573,15 @@ class MatBreak(core.QTIElement, MatThingMixin):
         core.QTIElement.__init__(self, parent)
         MatThingMixin.__init__(self)
 
-    def IsInline(self):
+    def is_inline(self):
         return True
 
-    def ExtractText(self):
+    def extract_text(self):
         """Returns a simple line break"""
         return "\n"
 
-    def MigrateV2Content(self, parent, childType, log):
-        if childType in (html.InlineMixin, html.FlowMixin):
+    def migrate_content_to_v2(self, parent, child_type, log):
+        if child_type in (html.InlineMixin, html.FlowMixin):
             parent.add_child(html.Br, (qtiv2.core.IMSQTI_NAMESPACE, 'br'))
         else:
             # a break in a group of block level elements is ignored
@@ -578,14 +596,14 @@ class MatImage(core.QTIElement, PositionMixin, MatThingMixin):
             <!ELEMENT matimage (#PCDATA)>
             <!ATTLIST matimage
                     imagtype    CDATA  'image/jpeg'
-                    label		CDATA  #IMPLIED
-                    height		CDATA  #IMPLIED
-                    uri			CDATA  #IMPLIED
-                    embedded	CDATA  'base64'
-                    width		CDATA  #IMPLIED
-                    y0			CDATA  #IMPLIED
-                    x0			CDATA  #IMPLIED
-                    entityref	ENTITY #IMPLIED >"""
+                    label       CDATA  #IMPLIED
+                    height      CDATA  #IMPLIED
+                    uri         CDATA  #IMPLIED
+                    embedded    CDATA  'base64'
+                    width       CDATA  #IMPLIED
+                    y0          CDATA  #IMPLIED
+                    x0          CDATA  #IMPLIED
+                    entityref   ENTITY #IMPLIED >"""
     XMLNAME = "matimage"
     XMLATTR_imagtype = 'imageType'
     XMLATTR_label = 'label'
@@ -602,18 +620,18 @@ class MatImage(core.QTIElement, PositionMixin, MatThingMixin):
         self.uri = None
         self.embedded = 'base64'
 
-    def IsInline(self):
+    def is_inline(self):
         return True
 
-    def ExtractText(self):
+    def extract_text(self):
         """We cannot extract text from matimage so we return a simple
         string."""
         return "[image]"
 
-    def MigrateV2Content(self, parent, childType, log):
+    def migrate_content_to_v2(self, parent, child_type, log):
         if self.uri is None:
-            raise QTIUnimplementedError("inclusion of inline images")
-        if childType is html.BlockMixin:
+            raise core.QTIUnimplementedError("inclusion of inline images")
+        if child_type is html.BlockMixin:
             # We must wrap this img in a <p>
             p = parent.add_child(html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
             img = p.add_child(
@@ -657,18 +675,18 @@ class MatAudio(core.QTIElement, MatThingMixin):
         self.uri = None
         self.embedded = 'base64'
 
-    def IsInline(self):
+    def is_inline(self):
         return True
 
-    def ExtractText(self):
+    def extract_text(self):
         """We cannot extract text from mataudio so we return a simple
         string."""
         return "[sound]"
 
-    def MigrateV2Content(self, parent, childType, log):
+    def migrate_content_to_v2(self, parent, child_type, log):
         if self.uri is None:
-            raise QTIUnimplementedError("inclusion of inline audio")
-        if childType is html.BlockMixin:
+            raise core.QTIUnimplementedError("inclusion of inline audio")
+        if child_type is html.BlockMixin:
             # We must wrap this object in a <p>
             p = parent.add_child(html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
             obj = p.add_child(
@@ -713,18 +731,18 @@ class MatVideo(core.QTIElement, PositionMixin, MatThingMixin):
         self.uri = None
         self.embedded = 'base64'
 
-    def IsInline(self):
+    def is_inline(self):
         return True
 
-    def ExtractText(self):
+    def extract_text(self):
         """We cannot extract text from matvideo so we return a simple
         string."""
         return "[video]"
 
-    def MigrateV2Content(self, parent, childType, log):
+    def migrate_content_to_v2(self, parent, child_type, log):
         if self.uri is None:
-            raise QTIUnimplementedError("inclusion of inline video")
-        if childType is html.BlockMixin:
+            raise core.QTIUnimplementedError("inclusion of inline video")
+        if child_type is html.BlockMixin:
             # We must wrap this object in a <p>
             p = parent.add_child(html.P, (qtiv2.core.IMSQTI_NAMESPACE, 'p'))
             obj = p.add_child(
@@ -768,16 +786,16 @@ class MatApplet(core.QTIElement, PositionMixin, MatThingMixin):
         self.uri = None
         self.embedded = 'base64'
 
-    def IsInline(self):
+    def is_inline(self):
         return True
 
-    def ExtractText(self):
+    def extract_text(self):
         """We cannot extract text from matapplet so we return a simple
         string."""
         return "[applet]"
 
-    def MigrateV2Content(self, parent, childType, log):
-        raise QTIUnimplementedError("matapplet")
+    def migrate_content_to_v2(self, parent, child_type, log):
+        raise core.QTIUnimplementedError("matapplet")
 
 
 class MatApplication(core.QTIElement, MatThingMixin):
@@ -810,16 +828,16 @@ class MatApplication(core.QTIElement, MatThingMixin):
         self.uri = None
         self.embedded = 'base64'
 
-    def IsInline(self):
+    def is_inline(self):
         return True
 
-    def ExtractText(self):
+    def extract_text(self):
         """We cannot extract text from matapplication so we return a simple
         string."""
         return "[application]"
 
-    def MigrateV2Content(self, parent, childType, log):
-        raise QTIUnimplementedError("matapplication")
+    def migrate_content_to_v2(self, parent, child_type, log):
+        raise core.QTIUnimplementedError("matapplication")
 
 
 class MatRef(MatThingMixin, core.QTIElement):
@@ -842,23 +860,23 @@ class MatRef(MatThingMixin, core.QTIElement):
         MatThingMixin.__init__(self)
         self.linkRefID = None
 
-    def FindMatThing(self):
-        matThing = None
+    def find_mat_thing(self):
+        mat_thing = None
         doc = self.get_document()
         if doc:
-            matThing = doc.FindMatThing(self.linkRefID)
-        if matThing is None:
+            mat_thing = doc.find_mat_thing(self.linkRefID)
+        if mat_thing is None:
             raise core.QTIError("Bad matref: %s" % str(self.linkRefID))
-        return matThing
+        return mat_thing
 
-    def IsInline(self):
-        return self.FindMatThing().IsInline()
+    def is_inline(self):
+        return self.find_mat_thing().is_inline()
 
-    def ExtractText(self):
-        return self.FindMatThing().ExtractText()
+    def extract_text(self):
+        return self.find_mat_thing().extract_text()
 
-    def MigrateV2Content(self, parent, childType, log):
-        self.FindMatThing().MigrateV2Content(parent, childType, log)
+    def migrate_content_to_v2(self, parent, child_type, log):
+        self.find_mat_thing().migrate_content_to_v2(parent, child_type, log)
 
 
 class MatExtension(core.QTIElement, MatThingMixin):
@@ -871,7 +889,7 @@ class MatExtension(core.QTIElement, MatThingMixin):
     XMLCONTENT = xml.XMLMixedContent
 
 
-class FlowMixin:
+class FlowMixin(object):
 
     """Mix-in class to identify all flow elements::
 
@@ -879,7 +897,7 @@ class FlowMixin:
     pass
 
 
-class FlowMatContainer(QTICommentContainer, ContentMixin):
+class FlowMatContainer(ContentMixin, QTICommentContainer):
 
     """Abstract class used to represent objects that contain flow_mat::
 
@@ -889,16 +907,13 @@ class FlowMatContainer(QTICommentContainer, ContentMixin):
         QTICommentContainer.__init__(self, parent)
         ContentMixin.__init__(self)
 
-    def ContentMixin(self, childClass):
-        if issubclass(childClass, (Material, FlowMat)):
-            return ContentMixin.ContentMixin(self, childClass)
-        else:
-            raise TypeError
+    def content_child(self, child_class):
+        return issubclass(child_class, (Material, FlowMat))
 
     def get_children(self):
         return itertools.chain(
             QTICommentContainer.get_children(self),
-            ContentMixin.GetContentChildren(self))
+            ContentMixin.get_content_children(self))
 
 
 class FlowMat(FlowMatContainer, FlowMixin):
@@ -917,44 +932,42 @@ class FlowMat(FlowMatContainer, FlowMixin):
     def __init__(self, parent):
         FlowMatContainer.__init__(self, parent)
 
-    def ContentMixin(self, childClass):
-        if issubclass(childClass, MaterialRef):
-            # We add material_ref to the basic definition
-            return ContentMixin.ContentMixin(self, childClass)
-        else:
-            return FlowMatContainer.ContentMixin(self, childClass)
+    def content_child(self, child_class):
+        return issubclass(child_class, MaterialRef) or \
+            FlowMatContainer.content_child(self, child_class)
 
-    def IsInline(self):
+    def is_inline(self):
         """flowmat is always treated as a block if flow_class is specified, otherwise
         it is treated as a block unless it is an only child."""
         if not self.flow_class:
-            return self.InlineChildren()
+            return self.inline_children()
         else:
             return False
 
-    def MigrateV2Content(self, parent, childType, log):
+    def migrate_content_to_v2(self, parent, child_type, log):
         """flow typically maps to a div element.
 
         A flow with a specified class always becomes a div."""
         if self.flow_class:
-            if childType in (html.BlockMixin, html.FlowMixin):
+            if child_type in (html.BlockMixin, html.FlowMixin):
                 div = parent.add_child(
                     html.Div, (qtiv2.core.IMSQTI_NAMESPACE, 'div'))
                 div.style_class = self.flow_class
-                FlowMatContainer.MigrateV2Content(
+                FlowMatContainer.migrate_content_to_v2(
                     self, div, html.FlowMixin, log)
             else:
                 span = parent.add_child(
                     html.Span, (qtiv2.core.IMSQTI_NAMESPACE, 'span'))
                 span.style_class = self.flow_class
-                FlowMatContainer.MigrateV2Content(
+                FlowMatContainer.migrate_content_to_v2(
                     self, span, html.InlineMixin, log)
         else:
             # ignore the flow, br handling is done automatically by the parent
-            FlowMatContainer.MigrateV2Content(self, parent, childType, log)
+            FlowMatContainer.migrate_content_to_v2(self, parent, child_type,
+                                                   log)
 
 
-class MetadataContainerMixin:
+class MetadataContainerMixin(object):
 
     """A mix-in class used to hold dictionaries of metadata.
 
@@ -966,7 +979,7 @@ class MetadataContainerMixin:
     def __init__(self):
         self.metadata = {}
 
-    def DeclareMetadata(self, label, entry, definition=None):
+    def declare_metadata(self, label, entry, definition=None):
         label = label.lower()
         if label[:4] == "qmd_":
             label = label[4:]
@@ -1013,7 +1026,7 @@ class Vocabulary(core.QTIElement):
     XMLATTR_vocab_type = 'vocabType'
 
     def __init__(self, parent):
-        QTIElement.__init__(self, parent)
+        core.QTIElement.__init__(self, parent)
         self.uri = None
         self.entityRef = None
         self.vocabType = None
@@ -1051,7 +1064,7 @@ class QTIMetadataField(core.QTIElement):
                  'qmd_layoutstatus': 'status',
                  'layoutstatus': 'status'}.get(label, label)
         # Still need to handle creator and owner
-        self.DeclareMetadata(label, self.FieldEntry.get_value(), self)
+        self.declare_metadata(label, self.FieldEntry.get_value(), self)
 
 
 class FieldLabel(core.QTIElement):
@@ -1094,10 +1107,10 @@ class Objectives(FlowMatContainer):
         FlowMatContainer.__init__(self, parent)
         self.view = core.View.DEFAULT
 
-    def MigrateV2(self, v2Item, log):
+    def migrate_to_v2(self, v2_item, log):
         """Adds rubric representing these objectives to the given item's
         body"""
-        rubric = v2Item.add_child(
+        rubric = v2_item.add_child(
             qtiv2.content.ItemBody).add_child(qtiv2.content.RubricBlock)
         rubric.set_attribute(
             'view',
@@ -1106,14 +1119,14 @@ class Objectives(FlowMatContainer):
                     self.view,
                     log)))
         # rubric is not a flow-container so we force inlines to be p-wrapped
-        self.MigrateV2Content(rubric, html.BlockMixin, log)
+        self.migrate_content_to_v2(rubric, html.BlockMixin, log)
 
-    def LRMMigrateObjectives(self, lom, log):
+    def migrate_objectives_to_lrm(self, lom, log):
         """Adds educational description from these objectives."""
-        description, lang = self.ExtractText()
-        eduDescription = lom.add_child(
+        description, lang = self.extract_text()
+        edu_description = lom.add_child(
             imsmd.LOMEducational).add_child(imsmd.Description)
-        eduDescription.AddString(lang, description)
+        edu_description.AddString(lang, description)
 
 
 class Rubric(FlowMatContainer):
@@ -1137,16 +1150,17 @@ class Rubric(FlowMatContainer):
         FlowMatContainer.__init__(self, parent)
         self.view = core.View.DEFAULT
 
-    def MigrateV2(self, v2Item, log):
+    def migrate_to_v2(self, v2_item, log):
         if self.view == core.View.All:
             log.append(
                 'Warning: rubric with view="All" replaced by <div> with'
                 ' class="rubric"')
-            rubric = v2Item.get_or_add_child(qtiv2.content.ItemBody).add_child(
-                html.Div, (qtiv2.core.IMSQTI_NAMESPACE, 'div'))
+            rubric = v2_item.get_or_add_child(
+                qtiv2.content.ItemBody).add_child(
+                    html.Div, (qtiv2.core.IMSQTI_NAMESPACE, 'div'))
             rubric.style_class = ['rubric']
         else:
-            rubric = v2Item.get_or_add_child(
+            rubric = v2_item.get_or_add_child(
                 qtiv2.content.ItemBody).add_child(qtiv2.content.RubricBlock)
             rubric.set_attribute(
                 'view',
@@ -1155,7 +1169,7 @@ class Rubric(FlowMatContainer):
                         self.view,
                         log)))
         # rubric is not a flow-container so we force inlines to be p-wrapped
-        self.MigrateV2Content(rubric, html.BlockMixin, log)
+        self.migrate_content_to_v2(rubric, html.BlockMixin, log)
 
 
 class DecVar(core.QTIElement):
@@ -1193,19 +1207,19 @@ class DecVar(core.QTIElement):
         self.members = None
         self.cutValue = None
 
-    def MigrateV2(self, v2Item, log):
-        d = v2Item.add_child(qtiv2.variables.OutcomeDeclaration)
-        v2Type = core.MigrateV2VarType(self.varType, log)
+    def migrate_to_v2(self, v2_item, log):
+        d = v2_item.add_child(qtiv2.variables.OutcomeDeclaration)
+        v2type = core.MigrateV2VarType(self.varType, log)
         if self.varType == core.VarType.Set:
             log.append(
                 'Warning: treating vartype="Set" as equivalent to'
                 ' "Enumerated"')
-        elif v2Type is None:
+        elif v2type is None:
             log.append(
                 'Error: bad vartype for decvar "%s"; defaulting to integer' %
                 self.varName)
-            v2Type = qtiv2.variables.BaseType.integer
-        d.baseType = v2Type
+            v2type = qtiv2.variables.BaseType.integer
+        d.baseType = v2type
         d.cardinality = qtiv2.variables.Cardinality.single
         d.identifier = qtiv2.core.ValidateIdentifier(self.varName)
         if self.defaultValue is not None:
@@ -1224,12 +1238,12 @@ class DecVar(core.QTIElement):
                 'Warning: enumerated members no longer supported,'
                 ' ignoring "%s"' %
                 self.members)
-        if v2Type in (qtiv2.variables.BaseType.integer,
+        if v2type in (qtiv2.variables.BaseType.integer,
                       qtiv2.variables.BaseType.float):
             # we need to adjust minValue/maxValue later
             if self.cutValue is not None:
                 d.masteryValue = float(self.cutValue)
-        v2Item.RegisterDeclaration(d)
+        v2_item.RegisterDeclaration(d)
 
     def content_changed(self):
         """The decvar element is supposed to be empty but QTI v1 content is all
@@ -1243,7 +1257,7 @@ class DecVar(core.QTIElement):
             pass
 
 
-class InterpretVar(core.QTIElement, ContentMixin):
+class InterpretVar(ContentMixin, core.QTIElement):
 
     """The <interpretvar> element is used to provide statistical interpretation
     information about the associated variables::
@@ -1265,16 +1279,13 @@ class InterpretVar(core.QTIElement, ContentMixin):
         self.view = core.View.DEFAULT
         self.varName = 'SCORE'
 
-    def ContentMixin(self, childClass):
-        if issubclass(childClass, (Material, MaterialRef)):
-            return ContentMixin.ContentMixin(self, childClass)
-        else:
-            raise TypeError
+    def content_child(self, child_class):
+        return issubclass(child_class, (Material, MaterialRef))
 
     def get_children(self):
-        return ContentMixin.GetContentChildren(self)
+        return ContentMixin.get_content_children(self)
 
-    def MigrateV2(self, v2Item, log):
+    def migrate_to_v2(self, v2_item, log):
         identifier = qtiv2.core.ValidateIdentifier(self.varName)
         if self.view != core.View.All:
             log.append(
@@ -1282,8 +1293,8 @@ class InterpretVar(core.QTIElement, ContentMixin):
                 ' supported (%s)' %
                 core.View.to_str(
                     self.view))
-        d = v2Item.declarations.get(identifier)
-        di, lang = self.ExtractText()
+        d = v2_item.declarations.get(identifier)
+        di, lang = self.extract_text()
         di = xsi.white_space_collapse(di)
         if d.interpretation:
             d.interpretation = d.interpretation + "; " + di
@@ -1312,16 +1323,16 @@ class SetVar(core.QTIElement):
         self.varName = 'SCORE'
         self.action = core.Action.DEFAULT
 
-    def MigrateV2Rule(self, parent, log):
-        v2Item = parent.find_parent(qtiv2.items.AssessmentItem)
+    def migrate_rule_to_v2(self, parent, log):
+        v2_item = parent.find_parent(qtiv2.items.AssessmentItem)
         identifier = qtiv2.core.ValidateIdentifier(self.varName)
-        outcome = v2Item.declarations.get(identifier, None)
+        outcome = v2_item.declarations.get(identifier, None)
         if outcome is None:
-            raise QTIUnimplementedError("Auto-declared outcomes")
-        setValue = parent.add_child(qtiv2.processing.SetOutcomeValue)
-        setValue.identifier = identifier
+            raise core.QTIUnimplementedError("Auto-declared outcomes")
+        set_value = parent.add_child(qtiv2.processing.SetOutcomeValue)
+        set_value.identifier = identifier
         if outcome.cardinality != qtiv2.variables.Cardinality.single:
-            raise QTIUnimplementedError(
+            raise core.QTIUnimplementedError(
                 "setvar for '%s' with cardinality %s" %
                 (identifier,
                  qtiv2.variables.Cardinality.encode[
@@ -1329,16 +1340,16 @@ class SetVar(core.QTIElement):
         value = None
         variable = None
         if not self.action or self.action == core.Action.Set:
-            value = setValue.add_child(qtiv2.expressions.BaseValue)
+            value = set_value.add_child(qtiv2.expressions.BaseValue)
         else:
             if self.action == core.Action.Add:
-                op = setValue.add_child(qtiv2.expressions.Sum)
+                op = set_value.add_child(qtiv2.expressions.Sum)
             elif self.action == core.Action.Subtract:
-                op = setValue.add_child(qtiv2.expressions.Subtract)
+                op = set_value.add_child(qtiv2.expressions.Subtract)
             elif self.action == core.Action.Multiply:
-                op = setValue.add_child(qtiv2.expressions.Product)
+                op = set_value.add_child(qtiv2.expressions.Product)
             elif self.action == core.Action.Divide:
-                op = setValue.add_child(qtiv2.expressions.Divide)
+                op = set_value.add_child(qtiv2.expressions.Divide)
             variable = op.add_child(qtiv2.expressions.Variable)
             variable.identifier = identifier
             value = op.add_child(qtiv2.expressions.BaseValue)
@@ -1369,19 +1380,19 @@ class DisplayFeedback(core.QTIElement):
         self.feedbackType = core.FeedbackType.DEFAULT
         self.linkRefID = None
 
-    def MigrateV2Rule(self, parent, log):
-        v2Item = parent.find_parent(qtiv2.items.AssessmentItem)
-        identifier = qtiv2.core.ValidateIdentifier(self.linkRefID, 'FEEDBACK_')
-        outcome = v2Item.declarations.get('FEEDBACK', None)
+    def migrate_rule_to_v2(self, parent, log):
+        v2_item = parent.find_parent(qtiv2.items.AssessmentItem)
+        qtiv2.core.ValidateIdentifier(self.linkRefID, 'FEEDBACK_')
+        outcome = v2_item.declarations.get('FEEDBACK', None)
         if outcome is None:
-            d = v2Item.add_child(qtiv2.variables.OutcomeDeclaration)
+            d = v2_item.add_child(qtiv2.variables.OutcomeDeclaration)
             d.baseType = qtiv2.variables.BaseType.identifier
             d.cardinality = qtiv2.variables.Cardinality.multiple
             d.identifier = 'FEEDBACK'
-            v2Item.RegisterDeclaration(d)
-        setValue = parent.add_child(qtiv2.processing.SetOutcomeValue)
-        setValue.identifier = 'FEEDBACK'
-        multiple = setValue.add_child(qtiv2.expressions.Multiple)
+            v2_item.RegisterDeclaration(d)
+        set_value = parent.add_child(qtiv2.processing.SetOutcomeValue)
+        set_value.identifier = 'FEEDBACK'
+        multiple = set_value.add_child(qtiv2.expressions.Multiple)
         variable = multiple.add_child(qtiv2.expressions.Variable)
         variable.identifier = 'FEEDBACK'
         value = multiple.add_child(qtiv2.expressions.BaseValue)
@@ -1408,14 +1419,15 @@ class ConditionVar(core.QTIElement):
     def get_children(self):
         return iter(self.ExtendableExpressionMixin)
 
-    def MigrateV2Expression(self, parent, log):
+    def migrate_expression_to_v2(self, parent, log):
         if len(self.ExtendableExpressionMixin) > 1:
             # implicit and
-            eAnd = parent.add_child(qtiv2.expressions.And)
+            eand = parent.add_child(qtiv2.expressions.And)
             for ie in self.ExtendableExpressionMixin:
-                ie.MigrateV2Expression(eAnd, log)
+                ie.migrate_expression_to_v2(eand, log)
         elif self.ExtendableExpressionMixin:
-            self.ExtendableExpressionMixin[0].MigrateV2Expression(parent, log)
+            self.ExtendableExpressionMixin[0].migrate_expression_to_v2(
+                parent, log)
         else:
             log.append("Warning: empty condition replaced with null operator")
             parent.add_child(qtiv2.expressions.Null)
@@ -1426,8 +1438,8 @@ class ExtendableExpressionMixin:
     """Abstract mixin class to indicate an expression, including
     var_extension"""
 
-    def MigrateV2Expression(self, parent, log):
-        raise QTIUnimplementedError(
+    def migrate_expression_to_v2(self, parent, log):
+        raise core.QTIUnimplementedError(
             "Expression element: %s" % self.__class__.__name__)
 
 
@@ -1455,14 +1467,14 @@ class VarThing(core.QTIElement, ExpressionMixin):
         self.responseIdentifier = ''
         self.index = None
 
-    def MigrateV2Missing(self, identifier, parent, log):
+    def migrate_missing_to_v2(self, identifier, parent, log):
         log.append(
             "Warning: test of undeclared response (%s)"
             " replaced with Null operator" %
             identifier)
         parent.add_child(qtiv2.expressions.Null)
 
-    def MigrateV2Variable(self, d, parent, log):
+    def migrate_variable_to_v2(self, d, parent, log):
         if self.index:
             if d.cardinality == qtiv2.variables.Cardinality.multiple:
                 log.append(
@@ -1475,10 +1487,10 @@ class VarThing(core.QTIElement, ExpressionMixin):
             else:
                 parent = parent.add_child(qtiv2.expressions.Index)
                 parent.n = self.index
-        varExpression = parent.add_child(qtiv2.expressions.Variable)
-        varExpression.identifier = d.identifier
+        var_expression = parent.add_child(qtiv2.expressions.Variable)
+        var_expression.identifier = d.identifier
 
-    def MigrateV2Value(self, d, parent, log):
+    def migrate_value_to_v2(self, d, parent, log):
         value = self.get_value().strip()
         if d.baseType in (qtiv2.variables.BaseType.pair,
                           qtiv2.variables.BaseType.directedPair,
@@ -1510,12 +1522,12 @@ class VarEqual(VarThing):
         VarThing.__init__(self, parent)
         self.case = False
 
-    def MigrateV2Expression(self, parent, log):
-        v2Item = parent.find_parent(qtiv2.items.AssessmentItem)
+    def migrate_expression_to_v2(self, parent, log):
+        v2_item = parent.find_parent(qtiv2.items.AssessmentItem)
         identifier = qtiv2.core.ValidateIdentifier(self.responseIdentifier)
-        d = v2Item.declarations.get(identifier, None)
+        d = v2_item.declarations.get(identifier, None)
         if d is None:
-            self.MigrateV2Missing(identifier, parent, log)
+            self.migrate_missing_to_v2(identifier, parent, log)
         elif d.cardinality == qtiv2.variables.Cardinality.single:
             # simple test of equality
             if (d.baseType == qtiv2.variables.BaseType.identifier or
@@ -1540,8 +1552,8 @@ class VarEqual(VarThing):
                     "varequal(%s)" %
                     qtiv2.variables.BaseType.Encode(
                         d.baseType))
-            self.MigrateV2Variable(d, expression, log)
-            self.MigrateV2Value(d, expression, log)
+            self.migrate_variable_to_v2(d, expression, log)
+            self.migrate_value_to_v2(d, expression, log)
         else:
             # This test simply becomes a member-test operation
             if (d.baseType == qtiv2.variables.BaseType.identifier or
@@ -1565,37 +1577,37 @@ class VarEqual(VarThing):
                     qtiv2.variables.BaseType.Encode(
                         d.baseType))
             expression = parent.add_child(qtiv2.expressions.Member)
-            self.MigrateV2Value(d, expression, log)
-            self.MigrateV2Variable(d, expression, log)
+            self.migrate_value_to_v2(d, expression, log)
+            self.migrate_variable_to_v2(d, expression, log)
 
 
 class VarInequality(VarThing):
 
     """Abstract class for varlt, varlte, vargt and vargte."""
 
-    def MigrateV2Inequality(self):
+    def migrate_inequality_to_v2(self):
         """Returns the class to use in qtiv2"""
         raise QTIUnimplementedOperator(self.xmlname)
 
-    def MigrateV2Expression(self, parent, log):
-        v2Item = parent.find_parent(qtiv2.items.AssessmentItem)
+    def migrate_expression_to_v2(self, parent, log):
+        v2_item = parent.find_parent(qtiv2.items.AssessmentItem)
         identifier = qtiv2.core.ValidateIdentifier(self.responseIdentifier)
-        d = v2Item.declarations.get(identifier, None)
+        d = v2_item.declarations.get(identifier, None)
         if d is None:
-            self.MigrateV2Missing(identifier, parent, log)
+            self.migrate_missing_to_v2(identifier, parent, log)
         elif d.cardinality == qtiv2.variables.Cardinality.single:
             # simple inequality
             if (d.baseType == qtiv2.variables.BaseType.integer or
                     d.baseType == qtiv2.variables.BaseType.float):
-                expression = parent.add_child(self.MigrateV2Inequality())
+                expression = parent.add_child(self.migrate_inequality_to_v2())
             else:
                 raise QTIUnimplementedOperator(
                     "%s(%s)" %
                     (self.xmlname,
                      qtiv2.variables.BaseType.Encode(
                          d.baseType)))
-            self.MigrateV2Variable(d, expression, log)
-            self.MigrateV2Value(d, expression, log)
+            self.migrate_variable_to_v2(d, expression, log)
+            self.migrate_value_to_v2(d, expression, log)
         else:
             raise QTIUnimplementedOperator(
                 "%s(%s:%s)" %
@@ -1617,7 +1629,7 @@ class VarLT(VarInequality):
     XMLNAME = "varlt"
     XMLCONTENT = xml.XMLMixedContent
 
-    def MigrateV2Inequality(self):
+    def migrate_inequality_to_v2(self):
         return qtiv2.expressions.LT
 
 
@@ -1634,7 +1646,7 @@ class VarLTE(VarInequality):
     XMLNAME = "varlte"
     XMLCONTENT = xml.XMLMixedContent
 
-    def MigrateV2Inequality(self):
+    def migrate_inequality_to_v2(self):
         return qtiv2.expressions.LTE
 
 
@@ -1651,7 +1663,7 @@ class VarGT(VarInequality):
     XMLNAME = "vargt"
     XMLCONTENT = xml.XMLMixedContent
 
-    def MigrateV2Inequality(self):
+    def migrate_inequality_to_v2(self):
         return qtiv2.expressions.GT
 
 
@@ -1668,7 +1680,7 @@ class VarGTE(VarInequality):
     XMLNAME = "vargte"
     XMLCONTENT = xml.XMLMixedContent
 
-    def MigrateV2Inequality(self):
+    def migrate_inequality_to_v2(self):
         return qtiv2.expressions.GTE
 
 
@@ -1721,26 +1733,26 @@ class VarInside(VarThing):
         VarThing.__init__(self, parent)
         self.areaType = None
 
-    def MigrateV2Expression(self, parent, log):
-        v2Item = parent.find_parent(qtiv2.items.AssessmentItem)
+    def migrate_expression_to_v2(self, parent, log):
+        v2_item = parent.find_parent(qtiv2.items.AssessmentItem)
         identifier = qtiv2.core.ValidateIdentifier(self.responseIdentifier)
-        d = v2Item.declarations.get(identifier, None)
+        d = v2_item.declarations.get(identifier, None)
         if d is None:
-            self.MigrateV2Missing(identifier, parent, log)
+            self.migrate_missing_to_v2(identifier, parent, log)
         elif d.cardinality == qtiv2.variables.Cardinality.single:
             # is the point in the area?
             if d.baseType == qtiv2.variables.BaseType.point:
                 expression = parent.add_child(qtiv2.expressions.Inside)
                 expression.shape, expression.coords = core.MigrateV2AreaCoords(
                     self.areaType, self.get_value(), log)
-                self.MigrateV2Variable(d, expression, log)
+                self.migrate_variable_to_v2(d, expression, log)
             else:
-                raise QTIUnimplementedError(
+                raise core.QTIUnimplementedError(
                     "varinside(%s)" %
                     qtiv2.variables.BaseType.to_str(
                         d.baseType))
         else:
-            raise QTIUnimplementedError(
+            raise core.QTIUnimplementedError(
                 "varinside with multiple/orderd variable")
 
 
@@ -1829,14 +1841,14 @@ class Not(core.QTIElement, ExpressionMixin):
         if self.ExpressionMixin:
             yield self.ExpressionMixin
 
-    def MigrateV2Expression(self, parent, log):
+    def migrate_expression_to_v2(self, parent, log):
         if self.ExpressionMixin is None:
             log.append(
                 "Warning: empty not condition replaced with null operator")
             parent.add_child(qtiv2.expressions.Null)
         else:
-            eNot = parent.add_child(qtiv2.expressions.Not)
-            self.ExpressionMixin.MigrateV2Expression(eNot, log)
+            enot = parent.add_child(qtiv2.expressions.Not)
+            self.ExpressionMixin.migrate_expression_to_v2(enot, log)
 
 
 class And(core.QTIElement, ExpressionMixin):
@@ -1859,11 +1871,11 @@ class And(core.QTIElement, ExpressionMixin):
     def get_children(self):
         return iter(self.ExpressionMixin)
 
-    def MigrateV2Expression(self, parent, log):
+    def migrate_expression_to_v2(self, parent, log):
         if len(self.ExpressionMixin):
-            eAnd = parent.add_child(qtiv2.expressions.And)
+            eand = parent.add_child(qtiv2.expressions.And)
             for e in self.ExpressionMixin:
-                e.MigrateV2Expression(eAnd, log)
+                e.migrate_expression_to_v2(eand, log)
         else:
             log.append(
                 "Warning: empty and condition replaced with null operator")
@@ -1890,11 +1902,11 @@ class Or(core.QTIElement, ExpressionMixin):
     def get_children(self):
         return iter(self.ExpressionMixin)
 
-    def MigrateV2Expression(self, parent, log):
+    def migrate_expression_to_v2(self, parent, log):
         if len(self.ExpressionMixin):
-            eOr = parent.add_child(qtiv2.expressions.Or)
+            eor = parent.add_child(qtiv2.expressions.Or)
             for e in self.ExpressionMixin:
-                e.MigrateV2Expression(eOr, log)
+                e.migrate_expression_to_v2(eor, log)
         else:
             log.append(
                 "Warning: empty or condition replaced with null operator")
@@ -1921,7 +1933,7 @@ class Other(core.QTIElement, ExpressionMixin):
     XMLNAME = "other"
     XMLCONTENT = xml.XMLMixedContent
 
-    def MigrateV2Expression(self, parent, log):
+    def migrate_expression_to_v2(self, parent, log):
         log.append(
             "Warning: replacing <other/> with the base value true"
             " - what did you want me to do??")
@@ -1962,29 +1974,25 @@ class PresentationMaterial(FlowMatContainer):
     XMLCONTENT = xml.ElementContent
 
 
-class Reference(QTICommentContainer, ContentMixin):
+class Reference(ContentMixin, QTICommentContainer):
 
-    """The container for all of the materials that can be referenced by other
-    structures e.g. feedback material, presentation material etc. The
-    presentation of this material is under the control of the structure that is
-    referencing the material. There is no implied relationship between any of
-    the contained material components::
+    """The container for all of the materials that can be referenced by
+    other structures e.g. feedback material, presentation material etc.
+    The presentation of this material is under the control of the
+    structure that is referencing the material. There is no implied
+    relationship between any of the contained material components::
 
-            <!ELEMENT reference (qticomment? , (material | mattext |
-                    matemtext | matimage | mataudio | matvideo | matapplet |
-                    matapplication | matbreak | mat_extension)+)>"""
+        <!ELEMENT reference (qticomment? , (material | mattext |
+            matemtext | matimage | mataudio | matvideo | matapplet |
+            matapplication | matbreak | mat_extension)+)>"""
     XMLNAME = "reference"
     XMLCONTENT = xml.ElementContent
 
-    def ContentMixin(self, childClass):
-        """We override this method to prevent references from being
-        included."""
-        if issubclass(childClass, (Material, MatText, MatEmText, MatImage,
-                                   MatAudio, MatVideo, MatApplet,
-                                   MatApplication, MatBreak, MatExtension)):
-            return ContentMixin.ContentMixin(self, childClass)
-        else:
-            raise TypeError
+    def content_child(self, child_class):
+        return issubclass(
+            child_class,
+            (Material, MatText, MatEmText, MatImage, MatAudio, MatVideo,
+             MatApplet, MatApplication, MatBreak, MatExtension))
 
 
 class MaterialRef(core.QTIElement):
@@ -2004,20 +2012,20 @@ class MaterialRef(core.QTIElement):
         core.QTIElement.__init__(self, parent)
         self.linkRefID = None
 
-    def FindMaterial(self):
+    def find_material(self):
         material = None
         doc = self.get_document()
         if doc:
-            material = doc.FindMaterial(self.linkRefID)
+            material = doc.find_material(self.linkRefID)
         if material is None:
             raise core.QTIError("Bad material_ref: %s" % str(self.linkRefID))
         return material
 
-    def IsInline(self):
-        return self.FindMaterial().IsInline()
+    def is_inline(self):
+        return self.find_material().is_inline()
 
-    def ExtractText(self):
-        return self.FindMaterial().ExtractText()
+    def extract_text(self):
+        return self.find_material().extract_text()
 
-    def MigrateV2Content(self, parent, childType, log):
-        self.FindMaterial().MigrateV2Content(parent, childType, log)
+    def migrate_content_to_v2(self, parent, child_type, log):
+        self.find_material().migrate_content_to_v2(parent, child_type, log)

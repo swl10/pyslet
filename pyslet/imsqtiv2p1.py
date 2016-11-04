@@ -4,7 +4,7 @@
 
 import warnings
 
-from pyslet.qtiv2 import (      # noqa
+from .qtiv2 import (      # noqa
     core,
     variables,
     expressions,

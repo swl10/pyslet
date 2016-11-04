@@ -9,10 +9,11 @@ This module contains a number core classes used to support the standard.
 Enumerations
 ~~~~~~~~~~~~
 
-Where the DTD defines enumerated attribute values we define special enumeration classes.
-These follow a common pattern in which the values are represented by constant members of
-the class.  The classes are not designed to be instantiated but they do define class
-methods for decoding and encoding from and to text strings.
+Where the DTD defines enumerated attribute values we define special
+enumeration classes. These follow a common pattern in which the values
+are represented by constant members of the class.  The classes are not
+designed to be instantiated but they do define class methods for
+decoding and encoding from and to text strings.
  
 ..	autoclass::	Action
 	:show-inheritance:
@@ -20,7 +21,7 @@ methods for decoding and encoding from and to text strings.
 ..	autoclass::	Area
 	:show-inheritance:
 
-..	autofunction:: MigrateV2AreaCoords
+..	autofunction:: migrate_area_to_v2
 
 ..	autoclass::	FeedbackStyle
 	:show-inheritance:
@@ -40,7 +41,7 @@ methods for decoding and encoding from and to text strings.
 ..	autoclass::	Orientation
 	:show-inheritance:
 
-..	autofunction:: MigrateV2Orientation
+..	autofunction:: migrate_orientation_to_v2
 
 ..	autoclass::	PromptType
 	:show-inheritance:
@@ -48,29 +49,29 @@ methods for decoding and encoding from and to text strings.
 ..	autoclass::	RCardinality
 	:show-inheritance:
 
-..	autofunction:: MigrateV2Cardinality
+..	autofunction:: migrate_cardinality_to_v2
 
 ..	autodata:: TestOperator
 
 ..	autoclass::	VarType
 	:show-inheritance:
 
-..	autofunction:: MigrateV2VarType
+..	autofunction:: migrate_vartype_to_v2
 
 ..	autoclass::	View
 	:show-inheritance:
 
-..	autofunction:: MigrateV2View
+..	autofunction:: migrate_view_to_v2
 
 
 Utility Functions
 ~~~~~~~~~~~~~~~~~
 
-..	autofunction:: MakeValidName
+..	autofunction:: make_valid_name
 
-..	autofunction:: ParseYesNo
+..	autofunction:: yn_from_str
 
-..	autofunction:: FormatYesNo
+..	autofunction:: yn_to_str
 
 
 Constants

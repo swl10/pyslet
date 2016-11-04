@@ -15,9 +15,9 @@ assessment items in Pyslet (and in the PyAssess package it supersedes) is QTI v2
 and this module simply provides an import capability for legacy data marked up
 as QTI v1 items.
 
-Class methods or functions with names beginning MigrateV2 use a common pattern
-for performing the conversion.  Errors and warnings are logged during conversion
-to a list passed in as the *log* parameter.
+Class methods or functions with names beginning migrate\_... use a common
+pattern for performing the conversion.  Errors and warnings are logged
+during conversion to a list passed in as the *log* parameter.
 
 .. toctree::
    :maxdepth: 2
@@ -25,7 +25,9 @@ to a list passed in as the *log* parameter.
    qtiv1/core
    qtiv1/common
    
-.. py:module:: pyslet.imsqtiv1p2p1
+.. py:module:: pyslet.qtiv1.xml
+
+The starting point for parsing and managing QTI v1 content.
 
 ..	autoclass:: QTIDocument
 	:members:
@@ -40,6 +42,8 @@ QuesTestInterop Elements
 	:show-inheritance:
 
 
+.. py:module:: pyslet.qtiv1.objectbank
+
 Object Bank Elements
 --------------------
 
@@ -47,6 +51,8 @@ Object Bank Elements
 	:members:
 	:show-inheritance:
 
+
+.. py:module:: pyslet.qtiv1.assessment
 
 Assessment Elements
 -------------------

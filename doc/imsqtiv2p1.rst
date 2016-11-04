@@ -28,7 +28,17 @@ of the finalization of the specification by the consortium.
 	
 .. py:module:: pyslet.qtiv2.xml
 
-The starting point for parsing and managing QTI content.
+The starting point for parsing and managing QTI content::
+
+    import pyslet.qtiv2.xml as qti
+
+
+..  warning::   The structure of this module has changed in version
+                Pyslet version 0.7.  You should now include
+                pyslet.qtiv2.xml to get access to QTIDocument as there
+                are now no names exposed directly through the older
+                pyslet.imsqtiv2p1.
+
 
 ..	autoclass:: QTIDocument
 	:members:

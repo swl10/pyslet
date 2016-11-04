@@ -53,6 +53,13 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20161104*
+
+#38 Python 3 compatibility work (ongoing)
+
+QTI v1 modules (including migration code): tests passing in Python 3.
+
+
 *Build 20161103*
 
 #38 Python 3 compatibility work (ongoing)
@@ -145,7 +152,7 @@ Deprecated XML Element construction with name override to improve
 handling of super.
 
 Fixed broken legacy name Expand in OData package.  Bug introduced with
-improvements to method decorators in 20160223 build.
+improvements to method decorators in 20160223 Build.
 
 Fixed a bug in the parsing of HTML content where unexpected elements
 that belong in the <head> were causing any preceding <body> content to

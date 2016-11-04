@@ -1,12 +1,10 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.xsdatatypes as xsi
+import itertools
 
-import core
-import common
-
-import string
+from . import common
+from . import core
+from ..xml import structures as xml
 
 
 class Assessment(common.QTICommentContainer):
@@ -57,19 +55,9 @@ class Assessment(common.QTICommentContainer):
         self.QTIReference = None
         self.SectionMixin = []
 
-    def SectionRef(self):
-        child = SectionRef(self)
-        self.SectionMixin.append(child)
-        return child
-
-    def Section(self):
-        child = Section(self)
-        self.SectionMixin.append(child)
-        return child
-
     def get_children(self):
         for child in itertools.chain(
-                QTIComment.get_children(self),
+                common.QTIComment.get_children(self),
                 self.QTIMetadata,
                 self.Objectives,
                 self.AssessmentControl,
@@ -90,12 +78,12 @@ class Assessment(common.QTICommentContainer):
         for child in self.SectionMixin:
             yield child
 
-    def MigrateV2(self, output):
+    def migrate_to_v2(self, output):
         """Converts this assessment to QTI v2
 
-        For details, see QuesTestInterop.MigrateV2."""
+        For details, see QuesTestInterop.migrate_to_v2."""
         for obj in self.SectionMixin:
-            obj.MigrateV2(output)
+            obj.migrate_to_v2(output)
 
 
 class AssessmentControl(common.QTICommentContainer):
@@ -138,7 +126,7 @@ class AssessProcExtension(core.QTIElement):
     XMLCONTENT = xml.XMLMixedContent
 
 
-class AssessFeedback(common.QTICommentContainer, common.ContentMixin):
+class AssessFeedback(common.ContentMixin, common.QTICommentContainer):
 
     """The container for the Assessment-level feedback that is to be presented
     as a result of Assessment-level processing of the user responses::
@@ -166,10 +154,7 @@ class AssessFeedback(common.QTICommentContainer, common.ContentMixin):
     def get_children(self):
         return itertools.chain(
             common.QTICommentContainer.get_children(self),
-            common.ContentMixin.GetContentChildren(self))
+            common.ContentMixin.get_content_children(self))
 
-    def ContentMixin(self, childClass):
-        if childClass in (common.Material, common.QTIFlowMat):
-            common.ContentMixin.ContentMixin(self, childClass)
-        else:
-            raise TypeError
+    def content_child(self, child_class):
+        return child_class in (common.Material, common.QTIFlowMat)

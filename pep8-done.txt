@@ -51,6 +51,16 @@ pyslet/py26.py
 unittests/test_py26.py
 pyslet/py2.py
 unittests/test_py2.py
+pyslet/qtiv1/assessment.py
+pyslet/qtiv1/common.py
+pyslet/qtiv1/core.py
+pyslet/qtiv1/item.py
+pyslet/qtiv1/objectbank.py
+pyslet/qtiv1/outcomes.py
+pyslet/qtiv1/sao.py
+pyslet/qtiv1/section.py
+pyslet/qtiv1/xml.py
+unittests/test_imsqtiv1p2p1.py
 pyslet/qtiv2/content.py
 pyslet/qtiv2/core.py
 pyslet/qtiv2/expressions.py
@@ -74,6 +84,7 @@ pyslet/streams.py
 unittests/test_streams.py
 pyslet/unicode5.py
 unittests/test_unicode5.py
+pyslet/unicode_apple_symbol.py
 pyslet/urn.py
 unittests/test_urn.py
 pyslet/vfs.py

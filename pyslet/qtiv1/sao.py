@@ -1,13 +1,10 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.qtiv2.xml as qtiv2
+import itertools
 
-import core
-import common
-
-import string
+from . import common
+from . import core
+from ..xml import structures as xml
 
 
 class SelectionOrdering(common.QTICommentContainer):
@@ -44,8 +41,8 @@ class SelectionOrdering(common.QTICommentContainer):
 
 class SequenceParameter(core.QTIElement):
 
-    """This element contains the comments that are relevant to the selection and
-    ordering structure as a whole::
+    """This element contains the comments that are relevant to the
+    selection and ordering structure as a whole::
 
     <!ELEMENT sequence_parameter (#PCDATA)>
     <!ATTLIST sequence_parameter  pname CDATA  #REQUIRED >"""
@@ -156,10 +153,10 @@ class SelectionMetadata(SelectionOperator):
 
 class OrSelection(SelectionOperator, SelectionChildMixin):
 
-    """The <or_selection> element is used to express the selection of the object
-    if at least one of the rules is found to be relevant. It is used to select
-    objects that have particular metadata content or through the parameterized
-    extension mechanism::
+    """The <or_selection> element is used to express the selection of
+    the object if at least one of the rules is found to be relevant. It
+    is used to select objects that have particular metadata content or
+    through the parameterized extension mechanism::
 
     <!ELEMENT or_selection (selection_metadata | and_selection | or_selection |
                             not_selection)+>"""
@@ -176,10 +173,10 @@ class OrSelection(SelectionOperator, SelectionChildMixin):
 
 class AndSelection(SelectionOperator, SelectionChildMixin):
 
-    """The <and_selection> element is used to express the selection of the
-    object if all of the contained rules are found to be 'True'. It is used to
-    select objects that have particular metadata content or through the
-    parameterized extension mechanism::
+    """The <and_selection> element is used to express the selection of
+    the object if all of the contained rules are found to be 'True'. It
+    is used to select objects that have particular metadata content or
+    through the parameterized extension mechanism::
 
     <!ELEMENT and_selection (selection_metadata | and_selection |
                             or_selection | not_selection)+>
@@ -229,8 +226,8 @@ class SelectionExtension(core.QTIElement, SelectionChildMixin):
 
 class Order(core.QTIElement):
 
-    """This element contains the ordering instructions that are to be applied to
-    the objects that have been previously selected::
+    """This element contains the ordering instructions that are to be
+    applied to the objects that have been previously selected::
 
     <!ELEMENT order (order_extension?)>
     <!ATTLIST order  order_type CDATA  #REQUIRED >
@@ -247,9 +244,9 @@ class Order(core.QTIElement):
 
 class OrderExtension(core.QTIElement):
 
-    """This element allows proprietary extensions to be made to the order rules.
-    The nature of these extensions is limited to that of the 'ANY' definition
-    for an element within the XML schema::
+    """This element allows proprietary extensions to be made to the
+    order rules. The nature of these extensions is limited to that of
+    the 'ANY' definition for an element within the XML schema::
 
     <!ELEMENT order_extension ANY>"""
     XMLNAME = "order_extension"

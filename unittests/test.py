@@ -40,9 +40,8 @@ import test_imscpv1p2
 all_tests.addTest(test_imscpv1p2.suite())
 import test_imsmdv1p2p1
 all_tests.addTest(test_imsmdv1p2p1.suite())
-if py2:
-    import test_imsqtiv1p2p1
-    all_tests.addTest(test_imsqtiv1p2p1.suite())
+import test_imsqtiv1p2p1
+all_tests.addTest(test_imsqtiv1p2p1.suite())
 import test_imsqtiv2p1
 all_tests.addTest(test_imsqtiv2p1.suite())
 import test_iso8601

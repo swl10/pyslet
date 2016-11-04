@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.qtiv2.xml as qtiv2
-import pyslet.html401 as html
-
-import string
+from .. import html401 as html
+from ..pep8 import old_function
+from ..py2 import ul, uempty
+from ..xml import structures as xml
+from ..xml import xsdatatypes as xsi
+from ..qtiv2 import xml as qtiv2
 
 
 class QTIError(Exception):
@@ -23,45 +23,55 @@ class QTIUnimplementedError(QTIError):
 QTI_SOURCE = 'QTIv1'  # : Constant used for setting the LOM source value
 
 
-def MakeValidName(name):
+@old_function('MakeValidName')
+def make_valid_name(name):
     """This function takes a string that is supposed to match the
     production for Name in XML and forces it to comply by replacing
     illegal characters with '_'.  If name starts with a valid name
-    character but not a valid name start character, it is prefixed
-    with '_' too."""
+    character but not a valid name start character, it is prefixed with
+    '_' too.
+
+    (Also callable as MakeValidName for backwards compatibility.)"""
     if name:
-        goodName = []
+        good_name = []
         if not xml.is_name_start_char(name[0]):
-            goodName.append(u'_')
+            good_name.append('_')
         for c in name:
             if xml.is_name_char(c):
-                goodName.append(c)
+                good_name.append(c)
             else:
-                goodName.append(u'_')
-        return string.join(goodName, u'')
+                good_name.append('_')
+        return uempty.join(good_name)
     else:
-        return u'_'
+        return ul('_')
 
 
-def ParseYesNo(src):
+YES = ul('Yes')
+NO = ul('Nes')
+YES_MATCH = ul('yes')
+
+
+@old_function('ParseYesNo')
+def yn_from_str(src):
     """Returns a True/False parsed from a "Yes" / "No" string.
 
-    This function is generous in what it accepts, it will accept mixed case and
-    strips surrounding space.  It returns True if the resulting string matches
-    "yes" and False otherwise.
+    This function is generous in what it accepts, it will accept mixed
+    case and strips surrounding space.  It returns True if the resulting
+    string matches "yes" and False otherwise.
 
-    Reverses the transformation defined by :py:func:`FormatYesNo`."""
-    return src.strip().lower() == u'yes'
+    Reverses the transformation defined by :py:func:`yn_to_str`."""
+    return src.strip().lower() == YES_MATCH
 
 
-def FormatYesNo(value):
+@old_function('FormatYesNo')
+def yn_to_str(value):
     """Returns "Yes" if *value* is True, "No" otherwise.
 
-    Reverses the transformation defined by :py:func:`ParseYesNo`."""
+    Reverses the transformation defined by :py:func:`yn_from_str`."""
     if value:
-        return u'Yes'
+        return YES
     else:
-        return u'No'
+        return NO
 
 
 class Action(xsi.Enumeration):
@@ -113,8 +123,11 @@ class Area(xsi.Enumeration):
     }
 
 
-def MigrateV2AreaCoords(area, value, log):
+@old_function('MigrateV2AreaCoords')
+def migrate_area_to_v2(area, value, log):
     """Returns a tuple of (shape,coords object) representing the area.
+
+    (Also callable as MigrateV2AreaCoords for backwards compatibility.)
 
     *	*area* is one of the :py:class:`Area` constants.
 
@@ -150,19 +163,19 @@ def MigrateV2AreaCoords(area, value, log):
 
             ['Warning: ellipse shape is deprecated in version 2']"""
     coords = []
-    vStr = []
+    vstr = []
     sep = 0
     for c in value:
         if c in "0123456789.":
-            if sep and vStr:
-                coords.append(int(float(string.join(vStr, ''))))
+            if sep and vstr:
+                coords.append(int(float(''.join(vstr))))
                 sep = 0
-                vStr = []
-            vStr.append(c)
+                vstr = []
+            vstr.append(c)
         else:
             sep = 1
-    if vStr:
-        coords.append(int(float(string.join(vStr, ''))))
+    if vstr:
+        coords.append(int(float(''.join(vstr))))
     if area == Area.Rectangle:
         if len(coords) < 4:
             log.append(
@@ -175,7 +188,7 @@ def MigrateV2AreaCoords(area, value, log):
             0] + coords[3] - 1, coords[1] + coords[2] - 1]
     elif area == Area.Ellipse:
         if len(coords) < 4:
-            if len(corrds) < 2:
+            if len(coords) < 2:
                 log.append(
                     "Error: not enough coordinates to locate ellipse,"
                     " padding with zero")
@@ -290,12 +303,12 @@ class MDOperator(xsi.EnumerationNoCase):
 
     For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
     decode = {
-        u'EQ': 1,
-        u'NEQ': 2,
-        u'LT': 3,
-        u'LTE': 4,
-        u'GT': 5,
-        u'GTE': 6
+        'EQ': 1,
+        'NEQ': 2,
+        'LT': 3,
+        'LTE': 4,
+        'GT': 5,
+        'GTE': 6
     }
 
 
@@ -348,8 +361,11 @@ class Orientation(xsi.Enumeration):
     }
 
 
-def MigrateV2Orientation(orientation):
+@old_function('MigrateV2Orientation')
+def migrate_orientation_to_v2(orientation):
     """Maps a v1 orientation onto the corresponding v2 constant.
+
+    (Also callable as MigrateV2Orientation for backwards compatibility.)
 
     Raises KeyError if *orientation* is not one of the :py:class:`Orientation`
     constants."""
@@ -400,16 +416,19 @@ class RCardinality(xsi.Enumeration):
     }
 
 
-def MigrateV2Cardinality(rCardinality):
+@old_function('MigrateV2Cardinality')
+def migrate_cardinality_to_v2(rcardinality):
     """Maps a v1 cardinality onto the corresponding v2 constant.
 
-    Raises KeyError if *rCardinality* is not one of the
+    (Also callable as MigrateV2Cardinality for backwards compatiblity.)
+
+    Raises KeyError if *rcardinality* is not one of the
     :py:class:`RCardinality` constants."""
     return {
         RCardinality.Single: qtiv2.variables.Cardinality.single,
         RCardinality.Multiple: qtiv2.variables.Cardinality.multiple,
         RCardinality.Ordered: qtiv2.variables.Cardinality.ordered
-    }[rCardinality]
+    }[rcardinality]
 
 
 TestOperator = MDOperator
@@ -444,8 +463,11 @@ class VarType(xsi.Enumeration):
     }
 
 
-def MigrateV2VarType(vartype, log):
+@old_function('MigrateV2VarType')
+def migrate_vartype_to_v2(vartype, log):
     """Returns the v2 BaseType representing the v1 *vartype*.
+
+    (Also callable as MigrateV2VarType for backwards compatibility.)
 
     Note that we reduce both Decimal and Scientific to the float types.  In
     version 2 the BaseType values were chosen to map onto the typical types
@@ -517,8 +539,11 @@ class View(xsi.EnumerationNoCase):
     }
 
 
-def MigrateV2View(view, log):
+@old_function('MigrateV2View')
+def migrate_view_to_v2(view, log):
     """Returns a list of v2 view values representing the v1 *view*.
+
+    (Also callable as MigrateV2View for backwards compatibility.)
 
     The use of a list as the return type enables mapping of the special value
     'All', which has no direct equivalent in version 2 other than providing all
@@ -558,7 +583,7 @@ class QTIElement(xml.Element):
 
     """Base class for all elements defined by the QTI specification"""
 
-    def DeclareMetadata(self, label, entry, definition=None):
+    def declare_metadata(self, label, entry, definition=None):
         """Declares a piece of metadata to be associated with the element.
 
         Most QTIElements will be contained by some type of metadata container
@@ -569,7 +594,7 @@ class QTIElement(xml.Element):
 
         For more information see :py:class:`MetadataContainer`."""
         if isinstance(self.parent, QTIElement):
-            self.parent.DeclareMetadata(label, entry, definition)
+            self.parent.declare_metadata(label, entry, definition)
         else:
             pass
 

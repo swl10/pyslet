@@ -69,6 +69,7 @@ the compatibility modules described elsewhere on this page)::
     pyslet.info
     pyslet.iso8601
     pyslet.odata2.*
+    pyslet.qtiv1.*
     pyslet.qtiv2.*
     pyslet.rfc2396
     pyslet.rfc4287

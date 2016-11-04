@@ -1,13 +1,10 @@
 #! /usr/bin/env python
 
-import pyslet.xml.structures as xml
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.qtiv2.xml as qtiv2
+import itertools
 
-import core
-import common
-
-import string
+from . import common
+from . import core
+from ..xml import structures as xml
 
 
 class Section(core.ObjectMixin, core.SectionMixin, common.QTICommentContainer):
@@ -85,12 +82,13 @@ class Section(core.ObjectMixin, core.SectionMixin, common.QTICommentContainer):
         for child in self.SectionItemMixin:
             yield child
 
-    def MigrateV2(self, output):
+    def migrate_to_v2(self, output):
         """Converts this section to QTI v2
 
-        For details, see :py:class:`pyslet.qtiv1.QuesTestInterop.MigrateV2`."""
+        For details, see
+        :py:class:`pyslet.qtiv1.QuesTestInterop.migrate_to_v2`."""
         for obj in self.SectionItemMixin:
-            obj.MigrateV2(output)
+            obj.migrate_to_v2(output)
 
 
 class SectionPrecondition(core.QTIElement):
@@ -152,7 +150,7 @@ class SectionProcExtension(core.QTIElement):
     XMLCONTENT = xml.XMLMixedContent
 
 
-class SectionFeedback(common.QTICommentContainer, common.ContentMixin):
+class SectionFeedback(common.ContentMixin, common.QTICommentContainer):
 
     """The container for the Section-level feedback that is to be presented as a
     result of Section-level processing of the user's responses::
@@ -180,13 +178,10 @@ class SectionFeedback(common.QTICommentContainer, common.ContentMixin):
     def get_children(self):
         return itertools.chain(
             common.QTICommentContainer.get_children(self),
-            common.ContentMixin.GetContentChildren(self))
+            common.ContentMixin.get_content_children(self))
 
-    def ContentMixin(self, childClass):
-        if childClass in (common.Material, common.FlowMat):
-            common.ContentMixin.ContentMixin(self, childClass)
-        else:
-            raise TypeError
+    def content_child(self, child_class):
+        return child_class in (common.Material, common.FlowMat)
 
 
 class SectionRef(core.SectionMixin, core.QTIElement):
@@ -203,7 +198,7 @@ class SectionRef(core.SectionMixin, core.QTIElement):
         core.QTIElement.__init__(self, parent)
         self.linkrefid = None
 
-    def MigrateV2(self, output):
+    def migrate_to_v2(self, output):
         """Converts this sectionref to QTI v2
 
         Currently does nothing."""
@@ -226,7 +221,7 @@ class ItemRef(core.QTIElement, core.SectionItemMixin):
         core.QTIElement.__init__(self, parent)
         self.linkrefid = None
 
-    def MigrateV2(self, output):
+    def migrate_to_v2(self, output):
         """Converts this itemref to QTI v2
 
         Currently does nothing."""
