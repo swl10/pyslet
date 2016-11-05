@@ -20,11 +20,12 @@ from .py2 import (
     join_bytes,
     py2,
     range3,
+    SortableMixin,
     to_text,
     ul)
 
 
-class VirtualFilePath(object):
+class VirtualFilePath(SortableMixin):
 
     """Abstract class representing a virtual file system
 
@@ -213,6 +214,10 @@ class VirtualFilePath(object):
             return self.path
         else:
             return self.path.decode(self.codec)
+
+    def sortkey(self):
+        """Instances are sortable using character strings."""
+        return to_text(self)
 
     def join(self, *components):
         """Returns a new instance by joining path components

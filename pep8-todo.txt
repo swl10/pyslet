@@ -1,8 +1,1 @@
-unittests/test_imscc_profilev1p0.py
-pyslet/imscc_1p0.py
-unittests/test_imscc_profilev1p1.py
-pyslet/imscc_1p1.py
-unittests/test_qml420.py
-pyslet/qml.py
-unittests/test_rtf_1p6.py
 pyslet/rtf.py

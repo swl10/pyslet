@@ -24,11 +24,11 @@ class QTIDocument(xmlns.XMLNSDocument):
 
     """Used to represent all documents representing information from the
     QTI v2 specification.
-    
+
     Simple recipe to get started::
-    
+
         import pyslet.qtiv2.xml as qti
-        
+
         doc = qti.QTIDocument()
         with open('myqti.xml', 'rb') as f:
             doc.read(src=f)

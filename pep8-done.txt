@@ -20,6 +20,10 @@ pyslet/http/server.py
 unittests/test_http_server.py
 pyslet/imsbltiv1p0.py
 unittests/test_imsbltiv1p0.py
+pyslet/imscc_profilev1p0.py
+unittests/test_imscc_profilev1p0.py
+pyslet/imscc_profilev1p1.py
+unittests/test_imscc_profilev1p1.py
 pyslet/imscpv1p2.py
 unittests/test_imscpv1p2.py
 pyslet/imsmdv1p2p1.py
@@ -51,6 +55,8 @@ pyslet/py26.py
 unittests/test_py26.py
 pyslet/py2.py
 unittests/test_py2.py
+pyslet/qml420.py
+unittests/test_qml420.py
 pyslet/qtiv1/assessment.py
 pyslet/qtiv1/common.py
 pyslet/qtiv1/core.py
@@ -80,6 +86,7 @@ pyslet/rfc4287.py
 unittests/test_rfc4287.py
 pyslet/rfc5023.py
 unittests/test_rfc5023.py
+unittests/test_rtf_1p6.py
 pyslet/streams.py
 unittests/test_streams.py
 pyslet/unicode5.py

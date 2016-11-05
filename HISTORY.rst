@@ -53,6 +53,14 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20161105*
+
+IMS CC modules, qml and rtf (placeholder) modules: tests passing in
+Python 3.
+
+vfs: VirtualFilePath objects are now sortable.
+
+
 *Build 20161104*
 
 #38 Python 3 compatibility work (ongoing)

@@ -2,13 +2,11 @@
 """This module implements test to check against the IMSCC Profile 1.1
 specification defined by IMS GLC"""
 
-from types import StringTypes
-import string
+from . import imscc_profilev1p0 as v1p0
+from . import imscpv1p2 as imscp
+from .xml import namespace as xmlns
+from .xml import xsdatatypes as xsi
 
-import pyslet.xml.namespace as xmlns
-import pyslet.xml.xsdatatypes as xsi
-import pyslet.imscpv1p2 as imscp
-import pyslet.imscc_profilev1p0 as v1p0
 
 IMSCC_CP_NAMESPACE = "http://www.imsglobal.org/xsd/imsccv1p1/imscp_v1p1"
 IMSCC_CP_SCHEMALOCATION = ("http://www.imsglobal.org/profile/cc/ccv1p2/"
@@ -86,21 +84,21 @@ class ManifestDocument(xmlns.XMLNSDocument):
         self.make_prefix(xsi.XMLSCHEMA_NAMESPACE, 'xsi')
         self.make_prefix(IMSCC_LOMMANIFEST_NAMESPACE, 'lomimscc')
         self.make_prefix(IMSCC_LOMRESOURCE_NAMESPACE, 'lom')
-        schemaLocation = [IMSCC_CP_NAMESPACE, IMSCC_CP_SCHEMALOCATION,
-                          IMSCC_LOMMANIFEST_NAMESPACE,
-                          IMSCC_LOMMANIFEST_SCHEMALOCATION,
-                          IMSCC_LOMRESOURCE_NAMESPACE,
-                          IMSCC_LOMRESOURCE_SCHEMALOCATION]
+        schema_location = [IMSCC_CP_NAMESPACE, IMSCC_CP_SCHEMALOCATION,
+                           IMSCC_LOMMANIFEST_NAMESPACE,
+                           IMSCC_LOMMANIFEST_SCHEMALOCATION,
+                           IMSCC_LOMRESOURCE_NAMESPACE,
+                           IMSCC_LOMRESOURCE_SCHEMALOCATION]
         if isinstance(self.root, imscp.CPElement):
             self.root.set_attribute(
                 (xsi.XMLSCHEMA_NAMESPACE, 'schemaLocation'),
-                string.join(schemaLocation, ' '))
+                ' '.join(schema_location))
 
     def get_element_class(self, name):
-        eClass = ManifestDocument.classMap.get(
+        eclass = ManifestDocument.classMap.get(
             name, ManifestDocument.classMap.get((name[0], None),
                                                 xmlns.XMLNSElement))
-        return eClass
+        return eclass
 
 xmlns.map_class_elements(ManifestDocument.classMap, globals())
 # xmlns.map_class_elements(ManifestDocument.classMap,imsmd)

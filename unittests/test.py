@@ -30,12 +30,10 @@ all_tests.addTest(test_http_server.suite())
 if py2:
     import test_imsbltiv1p0
     all_tests.addTest(test_imsbltiv1p0.suite())
-if py2:
-    import test_imscc_profilev1p0
-    all_tests.addTest(test_imscc_profilev1p0.suite())
-if py2:
-    import test_imscc_profilev1p1
-    all_tests.addTest(test_imscc_profilev1p1.suite())
+import test_imscc_profilev1p0
+all_tests.addTest(test_imscc_profilev1p0.suite())
+import test_imscc_profilev1p1
+all_tests.addTest(test_imscc_profilev1p1.suite())
 import test_imscpv1p2
 all_tests.addTest(test_imscpv1p2.suite())
 import test_imsmdv1p2p1
@@ -68,18 +66,16 @@ import test_py2
 all_tests.addTest(test_py2.suite())
 import test_py26
 all_tests.addTest(test_py26.suite())
-if py2:
-    import test_qml420
-    all_tests.addTest(test_qml420.suite())
+import test_qml420
+all_tests.addTest(test_qml420.suite())
 import test_rfc2396
 all_tests.addTest(test_rfc2396.suite())
 import test_rfc4287
 all_tests.addTest(test_rfc4287.suite())
 import test_rfc5023
 all_tests.addTest(test_rfc5023.suite())
-if py2:
-    import test_rtf_1p6
-    all_tests.addTest(test_rtf_1p6.suite())
+import test_rtf_1p6
+all_tests.addTest(test_rtf_1p6.suite())
 import test_streams
 all_tests.addTest(test_streams.suite())
 import test_unicode5
