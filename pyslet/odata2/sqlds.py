@@ -25,7 +25,8 @@ from ..py2 import (
     dict_values,
     is_text,
     range3,
-    to_text)
+    to_text,
+    ul)
 from ..vfs import OSFilePath
 
 from . import core
@@ -4431,7 +4432,7 @@ class SQLEntityContainer(object):
                 else:
                     query, params = collection.create_table_query()
                     out.write(query)
-                    out.write(";\n\n")
+                    out.write(ul(";\n\n"))
                     if params.params:
                         logging.warning("Ignoring params to CREATE TABLE: %s",
                                         to_text(params.params))
@@ -4443,7 +4444,7 @@ class SQLEntityContainer(object):
             else:
                 query, params = nav_class.create_table_query(self, aset_name)
                 out.write(query)
-                out.write(";\n\n")
+                out.write(ul(";\n\n"))
                 if params.params:
                     logging.warning("Ignoring params to CREATE TABLE: %s",
                                     to_text(params.params))
@@ -4501,7 +4502,7 @@ class SQLEntityContainer(object):
             else:
                 query = nav_class.drop_table_query(self, aset_name)
                 out.write(query)
-                out.write(";\n\n")
+                out.write(ul(";\n\n"))
         visited = set()
         drop_list = []
         for es in self.container.EntitySet:
@@ -4518,7 +4519,7 @@ class SQLEntityContainer(object):
                 else:
                     query = collection.drop_table_query()
                     out.write(query)
-                    out.write(";\n\n")
+                    out.write(ul(";\n\n"))
 
     def acquire_connection(self, timeout=None):
         # block on the module for threadsafety==0 case

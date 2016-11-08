@@ -5,21 +5,46 @@ import base64
 import cgi
 import io
 import json
+import logging
 import mimetypes
 import optparse
 import os
 import os.path
+import quopri
 import random
-import string
-import StringIO
 import sys
 import threading
 import time
-import urllib
-import urlparse
 
 from hashlib import sha256
 from wsgiref.simple_server import make_server
+
+from . import iso8601 as iso
+from .http import (
+    cookie,
+    messages,
+    params)
+from .odata2 import (
+    core as odata,
+    csdl as edm,
+    metadata as edmx)
+from .odata2.sqlds import SQLEntityContainer
+from .py2 import (
+    byte_value,
+    dict_items,
+    force_ascii,
+    force_bytes,
+    input3,
+    is_ascii,
+    is_unicode,
+    long2,
+    parse_qs,
+    range3,
+    to_text,
+    urlencode,
+    urlquote)
+from .rfc2396 import URI, FileURL
+from .xml import structures as xml
 
 try:
     from Crypto.Cipher import AES
@@ -28,19 +53,7 @@ try:
 except ImportError:
     got_crypto = False
 
-import pyslet.http.cookie as cookie
-import pyslet.http.messages as messages
-import pyslet.http.params as params
-import pyslet.iso8601 as iso
-import pyslet.odata2.core as odata
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.metadata as edmx
-import pyslet.xml.structures as xml
 
-from pyslet.odata2.sqlds import SQLEntityContainer
-from pyslet.rfc2396 import URI, FileURL
-
-import logging
 logger = logging.getLogger('pyslet.wsgi')
 
 
@@ -89,18 +102,18 @@ def generate_key(key_length=128):
     nfours = (key_length + 15) // 16
     try:
         rbytes = os.urandom(nfours * 2)
-        for i in xrange(nfours):
+        for i in range3(nfours):
             four = "%02X%02X" % (
-                ord(rbytes[2 * i]), ord(rbytes[2 * i + 1]))
+                byte_value(rbytes[2 * i]), byte_value(rbytes[2 * i + 1]))
             key.append(four)
     except NotImplementedError:
-        logger.warn("urandom required for secure key generation")
-        for i in xrange(nfours):
+        logger.warning("urandom required for secure key generation")
+        for i in range3(nfours):
             four = []
-            for j in xrange(4):
+            for j in range3(4):
                 four.append(random.choice('0123456789ABCDEF'))
-            key.append(string.join(four, ''))
-    return string.join(key, '.')
+            key.append(''.join(four))
+    return '.'.join(key)
 
 
 def key60(src):
@@ -119,7 +132,7 @@ def key60(src):
     characters (60-bits) and then converting to long.  Future versions
     of Python promise improvements here, which would allow us to squeeze
     an extra 3 bits using int.from_bytes but alas, not in Python 2.x"""
-    return long(sha256(src).hexdigest()[0:15], 16)
+    return long2(sha256(src).hexdigest()[0:15], 16)
 
 
 class WSGIContext(object):
@@ -239,12 +252,12 @@ class WSGIContext(object):
         else:
             url = [self.environ['wsgi.url_scheme'], '://']
             url.append(self._get_authority())
-        script = urllib.quote(self.environ.get('SCRIPT_NAME', ''))
+        script = urlquote(self.environ.get('SCRIPT_NAME', ''))
         url.append(script)
         # we always add the slash, that's our root URL
         if not script or script[-1] != '/':
             url.append('/')
-        return URI.from_octets(string.join(url, ''))
+        return URI.from_octets(''.join(url))
 
     def get_url(self, authority=None):
         """Returns the URL used in the request
@@ -279,12 +292,12 @@ class WSGIContext(object):
         else:
             url = [self.environ['wsgi.url_scheme'], '://']
             url.append(self._get_authority())
-        url.append(urllib.quote(self.environ.get('SCRIPT_NAME', '')))
-        url.append(urllib.quote(self.environ.get('PATH_INFO', '')))
+        url.append(urlquote(self.environ.get('SCRIPT_NAME', '')))
+        url.append(urlquote(self.environ.get('PATH_INFO', '')))
         query = self.environ.get('QUERY_STRING', '')
         if query:
             url += ['?', query]
-        return URI.from_octets(string.join(url, ''))
+        return URI.from_octets(''.join(url))
 
     def _get_authority(self):
         sflag = (self.environ['wsgi.url_scheme'] == 'https')
@@ -313,17 +326,17 @@ class WSGIContext(object):
         Note that the dictionary does not contain any cookie values or
         form parameters."""
         if self._query is None:
-            self._query = urlparse.parse_qs(
+            self._query = parse_qs(
                 self.environ.get('QUERY_STRING', ''))
-            for n, v in self._query.items():
-                self._query[n] = string.join(v, ',')
+            for n, v in list(dict_items(self._query)):
+                self._query[n] = ','.join(v)
         return self._query
 
     def get_content(self):
         """Returns the content of the request as a string
 
         The content is read from the input, up to CONTENT_LENGTH bytes,
-        and is returned as a string.  If the content exceeds
+        and is returned as a binary string.  If the content exceeds
         :attr:`MAX_CONTENT` (default: 64K) then BadRequest is raised.
 
         This method can be called multiple times, the content is only
@@ -341,7 +354,7 @@ class WSGIContext(object):
                 length = 0
             if length <= self.MAX_CONTENT:
                 input = self.environ['wsgi.input']
-                f = StringIO.StringIO()
+                f = io.BytesIO()
                 while length:
                     part = input.read(length)
                     if not part:
@@ -406,17 +419,26 @@ class WSGIContext(object):
         if name in form:
             result = form[name]
             if isinstance(result, list):
-                return string.join(map(lambda x: x.value, result), ',')
+                return ','.join([x.value for x in result])
             else:
                 if result.file:
                     # could be an ordinary field in multipart/form-data
-                    # this is a bit rubbish
                     fpos = result.file.tell()
                     result.file.seek(0, io.SEEK_END)
                     fsize = result.file.tell()
                     result.file.seek(fpos)
                     if fsize > max_length:
                         raise BadRequest
+                    # result.value could be bytes or (text) str
+                    value = result.value
+                    if isinstance(value, bytes):
+                        charset = 'ascii'
+                        if result.type_options is not None:
+                            charset = result.type_options.get('charset',
+                                                              'ascii')
+                        return value.decode(charset)
+                    else:
+                        return value
                 return result.value
         return ''
 
@@ -431,7 +453,7 @@ class WSGIContext(object):
         :class:`BadRequest` is raised."""
         value = self.get_form_string(name, 256)
         try:
-            return long(value)
+            return long2(value)
         except ValueError as err:
             logging.debug("get_form_long: %s", str(err))
             raise BadRequest
@@ -454,7 +476,7 @@ class WSGIContext(object):
                         # join the items into a single string
                         value = list(value)
                         value.sort()
-                        self._cookies[name] = string.join(value, ',')
+                        self._cookies[name] = b','.join(value)
             else:
                 self._cookies = {}
         return self._cookies
@@ -695,7 +717,7 @@ class WSGIApp(DispatchNode):
             cls.base = URI.from_path(cls.settings_file)
             if os.path.isfile(cls.settings_file):
                 with open(cls.settings_file, 'rb') as f:
-                    cls.settings = json.load(f)
+                    cls.settings = json.loads(f.read().decode('utf-8'))
         settings = cls.settings.setdefault('WSGIApp', {})
         if options and options.logging is not None:
             settings['level'] = (
@@ -844,19 +866,19 @@ class WSGIApp(DispatchNode):
         strings before being passed to the calling framework."""
         # make a closure
         def wrap_response(status, response_headers, exc_info=None):
-            if not isinstance(status, str):
+            if not is_ascii(status):
                 logger.error("Value for status line: %s", repr(status))
-                status = str(status)
+                status = force_ascii(to_text(status))
             logger.debug("*** START RESPONSE ***")
             logger.debug(status)
             new_headers = []
             for h, v in response_headers:
-                if not isinstance(h, str):
+                if not is_ascii(h):
                     logger.error("Header name: %s", repr(h))
-                    h = str(h)
-                if not isinstance(v, str):
+                    h = force_ascii(to_text(h))
+                if not is_ascii(v):
                     logger.error("Header value: %s: %s", h, repr(v))
-                    v = str(v)
+                    v = force_ascii(to_text(v))
                 logger.debug("%s: %s", h, v)
                 new_headers.append((h, v))
             return start_response(status, new_headers, exc_info)
@@ -868,15 +890,15 @@ class WSGIApp(DispatchNode):
             if not blank:
                 logger.debug("")
                 blank = True
-            if not isinstance(data, str):
+            if not isinstance(data, bytes):
                 logger.error("Bad type for response data in %s\n%s",
                              str(environ['PATH_INFO']), repr(data))
-                if isinstance(data, unicode):
+                if is_unicode(data):
                     data = data.encode('utf-8')
                 else:
-                    data = str(data)
+                    data = bytes(data)
             else:
-                logger.debug(data.encode('quoted-printable'))
+                logger.debug(quopri.encodestring(data))
             yield data
 
     def __call__(self, environ, start_response):
@@ -960,7 +982,7 @@ class WSGIApp(DispatchNode):
                 # ldb-label test from the cookie module to ensure we
                 # have a very limited syntax.  Apologies if you wanted
                 # fancy URLs.
-                if not cookie.is_ldh_label(p):
+                if not cookie.is_ldh_label(p.encode('ascii')):
                     raise PageNotFound
                 target_path = os.path.join(target_path, p)
                 if not os.path.isdir(target_path):
@@ -973,8 +995,8 @@ class WSGIApp(DispatchNode):
                 # last component must be a filename.ext form
                 splitp = p.split('.')
                 if (len(splitp) != 2 or
-                        not cookie.is_ldh_label(splitp[0]) or
-                        not cookie.is_ldh_label(splitp[1])):
+                        not cookie.is_ldh_label(splitp[0].encode('ascii')) or
+                        not cookie.is_ldh_label(splitp[1].encode('ascii'))):
                     raise PageNotFound
                 filename = p
                 ext = splitp[1]
@@ -1034,15 +1056,15 @@ class WSGIApp(DispatchNode):
         The Content-Type header is set to text/html (with an explicit
         charset if data is a unicode string).  The status is *not* set and
         must have been set before calling this method."""
-        if isinstance(data, unicode):
+        if is_unicode(data):
             data = data.encode('utf-8')
             context.add_header("Content-Type", "text/html; charset=utf-8")
         else:
             context.add_header("Content-Type", "text/html")
         # catch the odd case where data is a subclass of str - still ok
         # but the default WSGI server uses this stronger test!
-        if type(data) is not str:
-            data = str(data)
+        if not isinstance(data, bytes):
+            data = bytes(data)
         context.add_header("Content-Length", str(len(data)))
         context.start_response()
         return [data]
@@ -1056,10 +1078,10 @@ class WSGIApp(DispatchNode):
 
         The Content-Type is set to "application/json".  The status is
         *not* set and must have been set before calling this method."""
-        if isinstance(data, unicode):
+        if is_unicode(data):
             data = data.encode('utf-8')
-        if type(data) is not str:
-            data = str(data)
+        if not isinstance(data, bytes):
+            data = bytes(data)
         context.add_header("Content-Type", "application/json")
         context.add_header("Content-Length", str(len(data)))
         context.start_response()
@@ -1080,13 +1102,13 @@ class WSGIApp(DispatchNode):
         this method as data, if you do you risk problems with non-ASCII
         characters as the default charset for text/plain is US-ASCII and
         not UTF-8 or ISO8859-1 (latin-1)."""
-        if isinstance(data, unicode):
+        if is_unicode(data):
             data = data.encode('utf-8')
             context.add_header("Content-Type", "text/plain; charset=utf-8")
         else:
             context.add_header("Content-Type", "text/plain")
-        if type(data) is not str:
-            data = str(data)
+        if not isinstance(data, bytes):
+            data = bytes(data)
         context.add_header("Content-Length", str(len(data)))
         context.start_response()
         return [data]
@@ -1120,7 +1142,7 @@ class WSGIApp(DispatchNode):
         context.add_header("Content-Length", str(len(data)))
         context.set_status(code)
         context.start_response()
-        return [str(data)]
+        return [force_bytes(data)]
 
     def error_page(self, context, code=500, msg=None):
         """Generates an error response
@@ -1133,25 +1155,29 @@ class WSGIApp(DispatchNode):
             status line is echoed in the body of the response."""
         context.set_status(code)
         if msg is None:
-            msg = "%i %s" % (code, context.status_message)
+            msg = force_bytes("%i %s" % (code, context.status_message))
             context.add_header("Content-Type", "text/plain")
-        elif isinstance(msg, unicode):
-            msg = msg.encode('utf-8')
-            context.add_header("Content-Type", "text/plain; charset=utf-8")
+        elif is_unicode(msg):
+            try:
+                msg = msg.encode('ascii')
+                context.add_header("Content-Type", "text/plain")
+            except UnicodeError:
+                msg = msg.encode('utf-8')
+                context.add_header("Content-Type", "text/plain; charset=utf-8")
         else:
             context.add_header("Content-Type", "text/plain")
         context.add_header("Content-Length", str(len(msg)))
         context.start_response()
-        return [str(msg)]
+        return [msg]
 
     def internal_error(self, context, err):
         context.set_status(500)
-        data = "%i %s\r\n%s" % (context.status, context.status_message,
-                                str(err))
+        data = force_bytes(
+            "%i %s\r\n%s" % (context.status, context.status_message, str(err)))
         context.add_header("Content-Type", "text/plain")
         context.add_header("Content-Length", str(len(data)))
         context.start_response()
-        return [str(data)]
+        return [data]
 
     def _run_server_thread(self):
         """Starts the web server running"""
@@ -1171,15 +1197,14 @@ class WSGIApp(DispatchNode):
         if self.settings['WSGIApp']['interactive']:
             # loop around getting commands
             while not self.stop:
-                cmd = raw_input('cmd: ')
+                cmd = input3('cmd: ')
                 if cmd.lower() == 'stop':
                     self.stop = True
                 elif cmd:
                     try:
-                        print eval(cmd)
+                        sys.stdout.write((to_text(eval(cmd))))
                     except Exception as err:
-                        print "Error: %s " % str(err)
-                    # print "Unrecognized command: %s" % cmd
+                        sys.stdout.write("Error: %s " % to_text(err))
             sys.exit()
         else:
             t.join()
@@ -1362,9 +1387,9 @@ class WSGIDataApp(WSGIApp):
             raise ValueError("Unknown data source type: %s" % source_type)
         if isinstance(cls.data_source, SQLEntityContainer):
             if options and options.sqlout:
-                out = StringIO.StringIO()
+                out = io.StringIO()
                 cls.data_source.create_all_tables(out=out)
-                print out.getvalue()
+                sys.stdout.write(out.getvalue())
                 sys.exit(0)
             elif create_tables:
                 cls.data_source.create_all_tables()
@@ -1628,7 +1653,8 @@ class AppCipher(object):
             # we can't use the encrypt method here as we want to force
             # use of the new key
             old_key_encrypted = "%i:%s" % (
-                key_num, base64.b64encode(cipher.encrypt(self.old_key)))
+                key_num, force_ascii(base64.b64encode(cipher.encrypt(
+                    self.old_key))))
         with self.key_set.open() as keys:
             e = keys.new_entity()
             e.set_key(self.old_num)
@@ -1643,7 +1669,13 @@ class AppCipher(object):
                 e = keys[self.old_num]
 
     def encrypt(self, data):
-        """Encrypts data with the current key"""
+        """Encrypts data with the current key.
+
+        data
+            A binary input string.
+
+        Returns a character string of ASCII characters suitable for
+        storage."""
         with self.lock:
             if self.old_expires:
                 if time.time() > self.old_expires:
@@ -1654,14 +1686,21 @@ class AppCipher(object):
                 else:
                     # use the old key
                     cipher = self.ciphers[self.old_num]
-                    return "%i:%s" % (self.old_num,
-                                      base64.b64encode(cipher.encrypt(data)))
+                    return "%i:%s" % (
+                        self.old_num, force_ascii(base64.b64encode(
+                            cipher.encrypt(data))))
             cipher = self.ciphers[self.key_num]
-            return "%i:%s" % (self.key_num,
-                              base64.b64encode(cipher.encrypt(data)))
+            return "%i:%s" % (
+                self.key_num, force_ascii(
+                    base64.b64encode(cipher.encrypt(data))))
 
     def decrypt(self, data):
-        """Decrypts data"""
+        """Decrypts data.
+
+        data
+            A character string containing the encrypted data
+
+        Returns a binary string containing the decrypted data."""
         key_num, data = self._split_data(data)
         stack = [(key_num, data, None)]
         while stack:
@@ -1967,8 +2006,10 @@ class SessionApp(WSGIDataApp):
         super(SessionApp, cls).setup(options, args, **kwargs)
         settings = cls.settings.setdefault('SessionApp', {})
         cls._session_timeout = settings.setdefault('timeout', 600)
-        cls._session_cookie = settings.setdefault('cookie', 'sid')
-        cls._test_cookie = settings.setdefault('cookie_test', 'ctest')
+        cls._session_cookie = force_bytes(
+            settings.setdefault('cookie', 'sid'))
+        cls._test_cookie = force_bytes(
+            settings.setdefault('cookie_test', 'ctest'))
         cls.csrf_token = settings.setdefault('crsf_token', 'csrftoken')
         session_set = settings.setdefault('session_set', 'Sessions')
         cls._session_set = cls.container[session_set]
@@ -2010,7 +2051,7 @@ class SessionApp(WSGIDataApp):
         found a new session is created (and an appropriate cookie is
         added to the response headers)."""
         cookies = context.get_cookies()
-        sid = cookies.get(self._session_cookie, '')
+        sid = cookies.get(self._session_cookie, b'').decode('ascii')
         if sid:
             context.session = self._load_session(sid)
         else:
@@ -2123,7 +2164,7 @@ class SessionApp(WSGIDataApp):
                 path=str(context.get_app_root().abs_path),
                 max_age=self.settings['SessionApp']['cookie_test_age'])
             context.add_header('Set-Cookie', str(c))
-            query = urllib.urlencode(
+            query = urlencode(
                 {'return': str(return_path),
                  'sid': context.session.sid()})
             ctest = URI.from_octets('ctest?' + query).resolve(
@@ -2149,11 +2190,12 @@ class SessionApp(WSGIDataApp):
                 # is we compare to the cookie received and not the actual
                 # session key as this may have changed
                 if not token or token != csrf_match:
-                    logger.warn("%s\nSecurity threat intercepted; "
-                                "POST token mismatch, possible CSRF attack\n"
-                                "cookie=%s; token=%s",
-                                context.environ.get('PATH_INFO', ''),
-                                csrf_match, token)
+                    logger.warning(
+                        "%s\nSecurity threat intercepted; "
+                        "POST token mismatch, possible CSRF attack\n"
+                        "cookie=%s; token=%s",
+                        context.environ.get('PATH_INFO', ''),
+                        csrf_match, token)
                     return self.error_page(context, 403)
         return self.session_page(context, page_method, context.get_url())
 
@@ -2188,7 +2230,7 @@ class SessionApp(WSGIDataApp):
         A more sophisticated application might include a JavaScript to
         follow the link automatically if it detects that the page is
         being displayed in a frame."""
-        query = urllib.urlencode({'return': return_url, 'sid': sid})
+        query = urlencode({'return': return_url, 'sid': sid})
         target_url = str(target_url) + '?' + query
         data = """<html>
     <head><title>Cookie Test Page</title></head>
@@ -2208,11 +2250,11 @@ class SessionApp(WSGIDataApp):
         policy for your application to help people make an informed
         decision to turn on cookies, etc."""
         context.set_status(200)
-        data = "Page load failed: blocked cookies"
+        data = b"Page load failed: blocked cookies"
         context.add_header("Content-Type", "text/plain")
         context.add_header("Content-Length", str(len(data)))
         context.start_response()
-        return [str(data)]
+        return [data]
 
     def ctest(self, context):
         """The cookie test handler
@@ -2262,7 +2304,8 @@ class SessionApp(WSGIDataApp):
                 context, str(wlaunch), query['return'], query['sid'])
         sid = query['sid']
         return_path = query['return']
-        user_key = cookies.get(self._session_cookie, 'MISSING')
+        user_key = cookies.get(
+            self._session_cookie, b'MISSING').decode('ascii')
         if user_key != sid:
             # we got a cookie, but not the one we expected.  Possible
             # foul play so remove both sessions and die
@@ -2271,11 +2314,11 @@ class SessionApp(WSGIDataApp):
             if sid:
                 self._delete_session(sid)
             # go to an error page
-            logger.warn("%s\nSecurity threat intercepted; "
-                        "session mismatch, possible fixation attack\n"
-                        "cookie=%s; qparam=%s",
-                        context.environ.get('PATH_INFO', ''),
-                        user_key, sid)
+            logger.warning("%s\nSecurity threat intercepted; "
+                           "session mismatch, possible fixation attack\n"
+                           "cookie=%s; qparam=%s",
+                           context.environ.get('PATH_INFO', ''),
+                           user_key, sid)
             return self.error_page(context, 400)
         if not self.check_redirect(context, return_path):
             return self.error_page(context, 400)
@@ -2325,10 +2368,10 @@ class SessionApp(WSGIDataApp):
             # is a surprising result.  Perhaps an attacker has
             # injected their own established session ID here?
             self._delete_session(sid)
-            logger.warn("Security threat intercepted in wlaunch; "
-                        "unexpected session injected in query, "
-                        "possible fixation attack\n"
-                        "session=%s", sid)
+            logger.warning("Security threat intercepted in wlaunch; "
+                           "unexpected session injected in query, "
+                           "possible fixation attack\n"
+                           "session=%s", sid)
             return self.error_page(context, 400)
         return_path = query['return']
         if not self.check_redirect(context, return_path):
@@ -2349,7 +2392,7 @@ class SessionApp(WSGIDataApp):
                 path=str(context.get_app_root().abs_path),
                 max_age=self.settings['SessionApp']['cookie_test_age'])
             context.add_header('Set-Cookie', str(c))
-            query = urllib.urlencode(
+            query = urlencode(
                 {'return': return_path,
                  'sid': context.session.sid(),
                  'framed': '1'})
@@ -2386,10 +2429,10 @@ class SessionApp(WSGIDataApp):
             if (target_path.get_canonical_root() !=
                     context.get_app_root().get_canonical_root()):
                 # catch the open redirect here, nice try!
-                logger.warn("%s\nSecurity threat intercepted; "
-                            "external redirect, possible phishing attack\n"
-                            "requested redirect to %s",
-                            str(context.get_url()), str(target_path))
+                logger.warning("%s\nSecurity threat intercepted; "
+                               "external redirect, possible phishing attack\n"
+                               "requested redirect to %s",
+                               str(context.get_url()), str(target_path))
                 return False
             else:
                 return True

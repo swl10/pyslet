@@ -184,6 +184,17 @@ Text Functions
     evaluated.  
 
 
+..  function::  is_ascii(arg)
+
+    Returns True if arg is of type str in both Python 2 and Python 3.
+    The only difference is that in Python 3 unicode errors will be
+    raised if arg contains non-ascii characters.  If arg is not of str
+    type then False is returned.
+    
+    This function is used to check a value in situations where unicode
+    is not expected in Python 2.
+    
+    
 ..  function::  force_ascii(arg)
 
     Returns *arg* as ascii text, converting it if necessary.  The result
@@ -236,6 +247,25 @@ Text Functions
 
 Bytes
 ~~~~~
+
+..  function::  to_bytes(arg)
+
+    Returns *arg* as bytes, converting it if necessary.  In Python 2 this
+    always returns a plain string and is in fact just an alias for the
+    builtin str.  In Python 3, this function is more complex.  If arg
+    is an object with a __bytes__ attribute then this is called, otherwise
+    the object is converted to a string (using str) and then encoded using
+    the 'ascii' codec.
+    
+    The behaviour of to_bytes in Python 3 may appear similar to the built
+    in bytes function but there is an important exception::
+    
+        x = 2
+        str(x) == '2'               # in python 2 and 3
+        bytes(x) == b'2'            # in python 2
+        bytes(x) == b'\x00\x00'     # in python 3
+        to_bytes(x) == b'2'         # in python 2 and 3
+
 
 ..  function::  force_bytes(arg)
 
@@ -356,5 +386,19 @@ of having to guess between __builtin__ (Python 2) and builtins (Python 3).
     
     Imported from urllib.request in Python 3, from urlib in Python 2.
 
+
+..  function::  urlencode(*args, **kwargs)
+
+    Imported from urllib.parse in Python 3, from urlib in Python 2.
+
+
+..  function::  urlquote(*args, **kwargs)
+
+    Imported from urllib.parse.quote in Python 3, from urlib.quote in
+    Python 2.
+
+..  function::  parse_qs(*args, **kwargs)
+
+    Imported from urllib.parse in Python 3, from urlparse in Python 2.
 
 

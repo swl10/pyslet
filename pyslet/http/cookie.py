@@ -11,7 +11,8 @@ from ..py2 import (
     byte_value,
     dict_values,
     is_unicode,
-    join_bytes)
+    join_bytes,
+    to_bytes)
 
 from . import grammar
 from . import params
@@ -862,9 +863,9 @@ class Cookie(params.Parameter):
             components.append(b"Domain=%s" %
                               encode_domain(self.domain).encode('ascii'))
         if self.expires is not None:
-            components.append(b"Expires=%s" % bytes(self.expires))
+            components.append(b"Expires=%s" % to_bytes(self.expires))
         if self.max_age is not None:
-            components.append(b"Max-Age=%s" % bytes(self.max_age))
+            components.append(b"Max-Age=%s" % to_bytes(self.max_age))
         if self.secure:
             components.append(b"Secure")
         if self.http_only:

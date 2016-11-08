@@ -84,9 +84,8 @@ import test_urn
 all_tests.addTest(test_urn.suite())
 import test_vfs
 all_tests.addTest(test_vfs.suite())
-if py2:
-    import test_wsgi
-    all_tests.addTest(test_wsgi.suite())
+import test_wsgi
+all_tests.addTest(test_wsgi.suite())
 import test_xml_namespace
 all_tests.addTest(test_xml_namespace.suite())
 import test_xml_parser

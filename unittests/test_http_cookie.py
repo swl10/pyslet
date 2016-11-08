@@ -157,6 +157,8 @@ class CookieTests(unittest.TestCase):
         self.assertFalse(c.expired())
         expire_time = time.time()+300
         self.assertTrue(c.expired(expire_time))
+        # check the string representation
+        self.assertTrue(str(c) == "SID=31d4d96e407aad42; Max-Age=60")
         c = cookie.Cookie(
             'SID', '31d4d96e407aad42', max_age=60,
             expires=iso.TimePoint.from_str('2014-11-14T20:32:39Z'))
