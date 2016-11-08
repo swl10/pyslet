@@ -1,10 +1,10 @@
 #! /usr/bin/env python
 
+import io
 import logging
 import optparse
 import time
 import shutil
-import StringIO
 import tempfile
 import unittest
 
@@ -13,29 +13,36 @@ try:
 except ImportError:
     pkg_resources = None
 
-import pyslet.imsbltiv1p0 as lti
-import pyslet.iso8601 as iso
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.sqlds as sql
-import pyslet.wsgi as wsgi
-
+from pyslet import imsbltiv1p0 as lti
+from pyslet import iso8601 as iso
+from pyslet import wsgi
+from pyslet.odata2 import csdl as edm
+from pyslet.odata2 import sqlds as sql
+from pyslet.py2 import (
+    range3,
+    ul
+    )
 from pyslet.rfc2396 import URI
 from pyslet.urn import URN
+
 
 from test_wsgi import MockRequest
 
 
 if not lti.got_oauth:
-    print "Basic LTI tests skipped"
-    print "\tTry installing oathlib from https://pypi.python.org/pypi/oauthlib"
+    logging.warning(
+        "Basic LTI tests skipped\n"
+        "\tTry installing oathlib from https://pypi.python.org/pypi/oauthlib")
 else:
     if pkg_resources:
         v = pkg_resources.get_distribution("oauthlib").version
         if v != "0.7.2":
-            print "\tDesigned for oauthlib-0.7.2, testing with version %s" % v
+            logging.warning(
+                "\tDesigned for oauthlib-0.7.2, testing with version %s", v)
     else:
-        print "\tCannot determine oauthlib installed package version; "\
-            "install setuptools to remove this message"
+        logging.warning(
+            "\tCannot determine oauthlib installed package version; "
+            "install setuptools to remove this message")
 
 
 def suite():
@@ -156,7 +163,7 @@ class LTIConsumerTests(unittest.TestCase):
         self.cipher = wsgi.AppCipher(0, 'secret', self.container['AppKeys'])
         with self.container['Silos'].open() as collection:
             self.silo = collection.new_entity()
-            self.silo['ID'].set_from_value(wsgi.key60('testing'))
+            self.silo['ID'].set_from_value(wsgi.key60(b'testing'))
             self.silo['Slug'].set_from_value('testing')
             collection.insert_entity(self.silo)
 
@@ -167,13 +174,14 @@ class LTIConsumerTests(unittest.TestCase):
         with self.silo['Consumers'].open() as collection:
             entity = collection.new_entity()
             consumer = lti.ToolConsumer.new_from_values(
-                entity, self.cipher, 'default', key="12345", secret="secret")
+                entity, self.cipher, 'default', key="12345",
+                secret=ul("secret"))
             self.assertTrue(consumer.entity is entity)
             self.assertTrue(isinstance(consumer, lti.ToolConsumer))
             self.assertTrue(consumer.entity['Handle'].value == 'default')
             self.assertTrue(consumer.entity['Key'].value == '12345')
             self.assertTrue(consumer.entity['Secret'].value ==
-                            self.cipher.encrypt('secret'))
+                            self.cipher.encrypt(b'secret'))
             # at this stage the entity has not been persisted but
             # the local attributes should be set...
             self.assertTrue(consumer.key == '12345')
@@ -189,7 +197,7 @@ class LTIConsumerTests(unittest.TestCase):
             self.assertTrue(check_consuemr.entity['Key'].value ==
                             '12345')
             self.assertTrue(check_consuemr.entity['Secret'].value ==
-                            self.cipher.encrypt('secret'))
+                            self.cipher.encrypt(b'secret'))
             self.assertTrue(check_consuemr.key == '12345')
             self.assertTrue(check_consuemr.secret == 'secret')
             # now check the update process
@@ -197,7 +205,7 @@ class LTIConsumerTests(unittest.TestCase):
             self.assertTrue(consumer.entity['Handle'].value == 'updated')
             self.assertTrue(consumer.entity['Key'].value == '12345')
             self.assertTrue(consumer.entity['Secret'].value ==
-                            self.cipher.encrypt('password'))
+                            self.cipher.encrypt(b'password'))
             self.assertTrue(consumer.key == '12345')
             self.assertTrue(consumer.secret == 'password')
             self.assertTrue(len(collection) == 1)
@@ -208,7 +216,7 @@ class LTIConsumerTests(unittest.TestCase):
             self.assertTrue(check_consuemr.entity['Key'].value ==
                             '12345')
             self.assertTrue(check_consuemr.entity['Secret'].value ==
-                            self.cipher.encrypt('password'))
+                            self.cipher.encrypt(b'password'))
             self.assertTrue(check_consuemr.key == '12345')
             self.assertTrue(check_consuemr.secret == 'password')
 
@@ -238,14 +246,14 @@ class LTIConsumerTests(unittest.TestCase):
         with self.silo['Consumers'].open() as collection:
             entity = collection.new_entity()
             consumer = lti.ToolConsumer.new_from_values(
-                entity, self.cipher, 'default', secret="secret")
+                entity, self.cipher, 'default', secret=ul("secret"))
             # we can default the key
             self.assertTrue(consumer.key)
             self.assertTrue(consumer.secret == 'secret')
             collection.insert_entity(entity)
             consumer2 = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default',
-                secret="secret")
+                secret=ul("secret"))
             # secret need not be unique
             self.assertTrue(consumer2.key != consumer.key)
             self.assertTrue(consumer2.secret == 'secret')
@@ -445,7 +453,7 @@ class LTIProviderTests(unittest.TestCase):
         self.cipher = wsgi.AppCipher(0, 'secret', self.container['AppKeys'])
         with self.container['Silos'].open() as collection:
             self.silo = collection.new_entity()
-            self.silo['ID'].set_from_value(wsgi.key60('testing'))
+            self.silo['ID'].set_from_value(wsgi.key60(b'testing'))
             self.silo['Slug'].set_from_value('testing')
             collection.insert_entity(self.silo)
         self.save_time = time.time
@@ -469,7 +477,7 @@ class LTIProviderTests(unittest.TestCase):
         with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default', key="12345",
-                secret="secret")
+                secret=ul("secret"))
             collection.insert_entity(consumer.entity)
         try:
             consumer = provider.lookup_consumer('12345')
@@ -482,7 +490,7 @@ class LTIProviderTests(unittest.TestCase):
         with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default', key="12345",
-                secret="secret")
+                secret=ul("secret"))
             collection.insert_entity(consumer.entity)
         provider = lti.ToolProvider(
             self.container['Consumers'], self.container['Nonces'],
@@ -547,7 +555,7 @@ class LTIProviderTests(unittest.TestCase):
         with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default', key="12345",
-                secret="secret")
+                secret=ul("secret"))
             collection.insert_entity(consumer.entity)
         provider = lti.ToolProvider(
             self.container['Consumers'], self.container['Nonces'],
@@ -607,7 +615,7 @@ class LTIProviderTests(unittest.TestCase):
         with self.silo['Consumers'].open() as collection:
             consumer = lti.ToolConsumer.new_from_values(
                 collection.new_entity(), self.cipher, 'default', key="54321",
-                secret="secret")
+                secret=ul("secret"))
             collection.insert_entity(consumer.entity)
         provider = lti.ToolProvider(
             self.container['Consumers'], self.container['Nonces'],
@@ -646,7 +654,7 @@ class ToolProviderSessionTests(unittest.TestCase):
         self.cipher = wsgi.AppCipher(0, 'secret', self.container['AppKeys'])
         with self.container['Silos'].open() as collection:
             self.silo = collection.new_entity()
-            self.silo['ID'].set_from_value(wsgi.key60('ToolProviderSession'))
+            self.silo['ID'].set_from_value(wsgi.key60(b'ToolProviderSession'))
             self.silo['Slug'].set_from_value('ToolProviderSession')
             collection.insert_entity(self.silo)
         # create a consumer
@@ -761,7 +769,7 @@ class ToolProviderSessionTests(unittest.TestCase):
             self.assertTrue(1 in collection)
 
 
-EXAMPLE_CONSUMERS = """www.example.com Secret
+EXAMPLE_CONSUMERS = b"""www.example.com Secret
 www.questionmark.com password
 """
 
@@ -775,7 +783,7 @@ class BLTIProviderTests(unittest.TestCase):
         tp = lti.BLTIToolProvider()
         keys = {}
         secrets = {}
-        for i in xrange(100):
+        for i in range3(100):
             key, secret = tp.new_consumer()
             self.assertFalse(key in keys, "Repeated key from TP")
             keys[key] = secret
@@ -797,15 +805,15 @@ class BLTIProviderTests(unittest.TestCase):
 
     def test_load_save(self):
         tp = lti.BLTIToolProvider()
-        tp.load_from_file(StringIO.StringIO(EXAMPLE_CONSUMERS))
+        tp.load_from_file(io.BytesIO(EXAMPLE_CONSUMERS))
         consumer = tp.lookup_consumer('www.example.com')
         self.assertTrue(consumer.secret == "Secret")
         try:
-            tp.load_from_file(StringIO.StringIO(EXAMPLE_CONSUMERS))
+            tp.load_from_file(io.BytesIO(EXAMPLE_CONSUMERS))
             self.fail("Faiure to spot duplicate key on reload")
         except lti.BLTIDuplicateKeyError:
             pass
-        f = StringIO.StringIO()
+        f = io.BytesIO()
         tp.save_to_file(f)
         self.assertTrue(f.getvalue() == EXAMPLE_CONSUMERS,
                         "Got \n%s\nExpected: \n%s" %
@@ -813,7 +821,7 @@ class BLTIProviderTests(unittest.TestCase):
 
     def test_launch(self):
         tp = lti.BLTIToolProvider()
-        tp.load_from_file(StringIO.StringIO(EXAMPLE_CONSUMERS))
+        tp.load_from_file(io.BytesIO(EXAMPLE_CONSUMERS))
 
 
 class ToolProviderAppTests(unittest.TestCase):

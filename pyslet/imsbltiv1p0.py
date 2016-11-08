@@ -8,22 +8,30 @@ releases.  Use with caution.
 import logging
 import os
 import random
-import string
 import time
-import urlparse
 
 from hashlib import sha256
 
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.core as odata
-import pyslet.odata2.metadata as edmx
-import pyslet.odata2.sqlds as sql
-import pyslet.wsgi as wsgi
-import pyslet.xml.structures as xml
-
+from pyslet import wsgi
+from pyslet.odata2 import csdl as edm
+from pyslet.odata2 import core as odata
+from pyslet.odata2 import metadata as edmx
+from pyslet.odata2 import sqlds as sql
+from pyslet.py2 import (
+    byte_value,
+    dict_items,
+    dict_keys,
+    force_bytes,
+    long2,
+    parse_qs,
+    range3,
+    ul
+    )
 from pyslet.pep8 import MigratedClass, old_method
 from pyslet.rfc2396 import URI
 from pyslet.urn import URN
+from pyslet.xml import structures as xml
+
 
 try:
     from oauthlib import oauth1 as oauth
@@ -384,11 +392,11 @@ class ToolConsumer(object):
             A string
 
         key (optional)
-            A string, defaults to a string generated with
+            A text string, defaults to a string generated with
             :func:`~pyslet.wsgi.generate_key`
 
         secret (optional)
-            A string, defaults to a string generated with
+            A text string, defaults to a string generated with
             :func:`~pyslet.wsgi.generate_key`
 
         The fields of the entity are set from the passed in parameters
@@ -399,10 +407,10 @@ class ToolConsumer(object):
             secret = wsgi.generate_key()
         if key is None:
             key = wsgi.generate_key()
-        entity['ID'].set_from_value(wsgi.key60(key))
+        entity['ID'].set_from_value(wsgi.key60(key.encode('utf-8')))
         entity['Handle'].set_from_value(handle)
         entity['Key'].set_from_value(key)
-        entity['Secret'].set_from_value(cipher.encrypt(secret))
+        entity['Secret'].set_from_value(cipher.encrypt(secret.encode('utf-8')))
         return cls(entity, cipher)
 
     def update_from_values(self, handle, secret):
@@ -432,13 +440,14 @@ class ToolConsumer(object):
             A string received as a nonce during an LTI launch.
 
         This method hashes the nonce, along with the consumer entity's
-        *ID*, to return a hex digest string that can be used as a key
+        *Key*, to return a hex digest string that can be used as a key
         for comparing against the nonces used in previous launches.
 
-        Mixing the consumer entity's *ID* into the hash reduces the
+        Mixing the consumer entity's *Key* into the hash reduces the
         chance of a collision between two nonces from separate
         consumers."""
-        return sha256(str(self.entity['ID'].value) + nonce).hexdigest()
+        return sha256(
+            (self.entity['Key'].value + nonce).encode('utf-8')).hexdigest()
 
     def get_context(self, context_id, title=None, label=None, ctypes=None):
         """Returns a context entity
@@ -464,7 +473,8 @@ class ToolConsumer(object):
         information (if supplied) is compared and updated as
         necessary."""
         with self.entity['Contexts'].open() as collection:
-            key = wsgi.key60(self.entity['Key'].value + context_id)
+            key = wsgi.key60(
+                (self.entity['Key'].value + context_id).encode('utf-8'))
             try:
                 context = collection[key]
                 update = False
@@ -476,7 +486,7 @@ class ToolConsumer(object):
                     update = True
                 if ctypes:
                     ctypes.sort()
-                    ctypes = string.join(map(str, ctypes), ' ')
+                    ctypes = ' '.join([str(x) for x in ctypes])
                     if context['Types'].value != ctypes:
                         context['Types'].set_from_value(ctypes)
                         update = True
@@ -491,9 +501,8 @@ class ToolConsumer(object):
                 context['Label'].set_from_value(label)
                 if ctypes:
                     ctypes.sort()
-                    ctypes = string.join(map(str, ctypes), ' ')
-                    context['Types'].set_from_value(
-                        string.join(map(str, ctypes), ' '))
+                    ctypes = ' '.join([str(x) for x in ctypes])
+                    context['Types'].set_from_value(ctypes)
                 collection.insert_entity(context)
         return context
 
@@ -667,7 +676,7 @@ class ToolProvider(oauth.RequestValidator, MigratedClass):
     def validate_timestamp_and_nonce(self, client_key, timestamp, nonce,
                                      request, request_token=None,
                                      access_token=None):
-        key = sha256(str(wsgi.key60(client_key)) + nonce).hexdigest()
+        key = sha256((client_key + nonce).encode('utf-8')).hexdigest()
         with self.nonces.open() as collection:
             now = time.time()
             try:
@@ -688,10 +697,11 @@ class ToolProvider(oauth.RequestValidator, MigratedClass):
                 collection.insert_entity(e)
                 return True
 
-    dummy_client = u'dummy_'\
-        '6c877d7e0a8d52d3ea51155c0ce5bd75ceaf7bdd1d2041f9fb3703a207278ab9'
+    dummy_client = ul(
+        'dummy_'
+        '6c877d7e0a8d52d3ea51155c0ce5bd75ceaf7bdd1d2041f9fb3703a207278ab9')
 
-    dummy_secret = u'secret'
+    dummy_secret = ul('secret')
 
     def get_client_secret(self, client_key, request):
         try:
@@ -706,7 +716,8 @@ class ToolProvider(oauth.RequestValidator, MigratedClass):
         Returns a :class:`ToolConsumer` instance or raises a KeyError if
         key is not the key of any known consumer."""
         with self.consumers.open() as collection:
-            return ToolConsumer(collection[wsgi.key60(key)], self.cipher)
+            return ToolConsumer(collection[wsgi.key60(force_bytes(key))],
+                                self.cipher)
 
     @old_method('Launch')
     def launch(self, command, url, headers, body_string):
@@ -742,9 +753,9 @@ class ToolProvider(oauth.RequestValidator, MigratedClass):
             if not result:
                 raise LTIAuthenticationError
             # grab the parameters as a dictionary from body_string
-            parameters = urlparse.parse_qs(body_string)
-            for n, v in parameters.items():
-                parameters[n] = string.join(v, ',')
+            parameters = parse_qs(body_string)
+            for n, v in dict_items(parameters):
+                parameters[n] = ','.join(v)
             # the consumer key is in the oauth_consumer_key param
             consumer = self.lookup_consumer(parameters['oauth_consumer_key'])
             message_type = parameters.get('lti_message_type', '')
@@ -931,8 +942,7 @@ class ToolProviderApp(wsgi.SessionApp):
         if not group_id:
             # optional parameter, but recommended
             return None
-        group_types = string.split(context.parameters.get('context_type', ''),
-                                   ',')
+        group_types = context.parameters.get('context_type', '').split(',')
         gtypes = []
         for group_type in group_types:
             stype = group_type.strip()
@@ -979,9 +989,9 @@ class ToolProviderApp(wsgi.SessionApp):
 
     def set_launch_permissions(self, context):
         """Sets the permissions in the context from the launch params"""
-        permissions = 0L
+        permissions = long2(0)
         if 'roles' in context.parameters:
-            roles = string.split(context.parameters['roles'], ',')
+            roles = context.parameters['roles'].split(',')
             for role in roles:
                 srole = role.strip()
                 role_uri = URI.from_octets(srole)
@@ -1260,7 +1270,7 @@ class BLTIToolProvider(ToolProvider):
         cipher = wsgi.AppCipher(0, 'secret', self.container['AppKeys'])
         with self.container['Silos'].open() as collection:
             self.silo = collection.new_entity()
-            self.silo['ID'].set_from_value(wsgi.key60('BLTIToolProvider'))
+            self.silo['ID'].set_from_value(wsgi.key60(b'BLTIToolProvider'))
             self.silo['Slug'].set_from_value('BLTIToolProvider')
             collection.insert_entity(self.silo)
         ToolProvider.__init__(self, self.container['Consumers'],
@@ -1284,17 +1294,17 @@ class BLTIToolProvider(ToolProvider):
         nfours = (key_length + 1) // 16
         try:
             rbytes = os.urandom(nfours * 2)
-            for i in xrange(nfours):
+            for i in range3(nfours):
                 four = "%02X%02X" % (
-                    ord(rbytes[2 * i]), ord(rbytes[2 * i + 1]))
+                    byte_value(rbytes[2 * i]), byte_value(rbytes[2 * i + 1]))
                 key.append(four)
         except NotImplementedError:
-            for i in xrange(nfours):
+            for i in range3(nfours):
                 four = []
-                for j in xrange(4):
+                for j in range3(4):
                     four.append(random.choice('0123456789ABCDEFG'))
-                key.append(string.join(four, ''))
-        return string.join(key, '.')
+                key.append(''.join(four))
+        return '.'.join(key)
 
     @old_method('NewConsumer')
     def new_consumer(self, key=None, secret=None):
@@ -1338,11 +1348,13 @@ class BLTIToolProvider(ToolProvider):
                 continue
             fields = line.split()
             if len(fields) >= 2:
+                key = fields[0].decode('utf-8')
+                secret = fields[1].decode('utf-8')
                 try:
-                    self.lookup_consumer(fields[0])
-                    raise BLTIDuplicateKeyError(fields[0])
+                    self.lookup_consumer(key)
+                    raise BLTIDuplicateKeyError(key)
                 except KeyError:
-                    self.new_consumer(fields[0], fields[1])
+                    self.new_consumer(key, secret)
 
     @old_method('SaveToFile')
     def save_to_file(self, f):
@@ -1357,7 +1369,6 @@ class BLTIToolProvider(ToolProvider):
             for c in collection.itervalues():
                 consumer = ToolConsumer(c, self.cipher)
                 consumers[consumer.key] = consumer.secret
-            keys = consumers.keys()
-            keys.sort()
+            keys = sorted(dict_keys(consumers))
             for key in keys:
-                f.write("%s %s\n" % (key, consumers[key]))
+                f.write(("%s %s\n" % (key, consumers[key])).encode('ascii'))

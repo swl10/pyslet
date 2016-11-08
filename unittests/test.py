@@ -27,9 +27,8 @@ import test_http_params
 all_tests.addTest(test_http_params.suite())
 import test_http_server
 all_tests.addTest(test_http_server.suite())
-if py2:
-    import test_imsbltiv1p0
-    all_tests.addTest(test_imsbltiv1p0.suite())
+import test_imsbltiv1p0
+all_tests.addTest(test_imsbltiv1p0.suite())
 import test_imscc_profilev1p0
 all_tests.addTest(test_imscc_profilev1p0.suite())
 import test_imscc_profilev1p1

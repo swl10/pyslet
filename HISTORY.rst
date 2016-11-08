@@ -53,6 +53,12 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20161108*
+
+IMS LTI module tests passing in Python 3, setup.py install and all unit
+tests also now succeed making this build the first version workable in
+Python 3.
+
 *Build 20161106*
 
 IMS CC modules, qml, rtf (placeholder) and wsgi modules: tests passing
