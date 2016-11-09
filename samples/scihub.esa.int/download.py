@@ -2,7 +2,6 @@
 
 import getpass
 import logging
-import ssl
 import sys
 
 from optparse import OptionParser

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import io
 import logging
 import sys
 import types
@@ -549,6 +550,23 @@ class Python2Tests(unittest.TestCase):
 
     def test_builtins(self):
         self.assertTrue(isinstance(py2.builtins, types.ModuleType))
+
+    def test_output(self):
+        txt_out = io.StringIO()
+        save_stdout = sys.stdout
+        try:
+            sys.stdout = txt_out
+            py2.output(py2.ul("Going to the\nCaf\xe9"))
+        finally:
+            sys.stdout = save_stdout
+        self.assertTrue(txt_out.getvalue() == py2.ul("Going to the\nCaf\xe9"))
+        bin_out = io.BytesIO()
+        try:
+            sys.stdout = bin_out
+            py2.output(py2.ul("Going to the\nCaf\xe9"))
+        finally:
+            sys.stdout = save_stdout
+        self.assertTrue(bin_out.getvalue() == b"Going to the\nCaf\xc3\xa9")
 
 
 if __name__ == "__main__":

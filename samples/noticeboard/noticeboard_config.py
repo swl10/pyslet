@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 import logging
-import os.path
 
 # The service root of the weather service
 SERVICE_ROOT = "http://localhost:8080/"

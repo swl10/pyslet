@@ -7,6 +7,7 @@ similar role to the six module but the idea is to minimise the number of
 required fixes by making the Pyslet code as Python3 native as
 possible."""
 
+import io
 import sys
 import types
 
@@ -463,3 +464,15 @@ class BoolMixin(object):
 
     def __nonzero__(self):
         return self.__bool__()
+
+
+def output(txt):
+
+    """Simple function for writing to stdout
+
+    Not as sophisticated as Python 3's print function but designed to be
+    more of a companion to the built in input."""
+    if isinstance(sys.stdout, io.TextIOBase):
+        sys.stdout.write(txt)
+    else:
+        sys.stdout.write(txt.encode('utf-8'))

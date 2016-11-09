@@ -53,12 +53,12 @@ file when our script starts up.  Here's the source code::
 
 	import pyslet.odata2.metadata as edmx
 
-	def load_metadata():
-		"""Loads the metadata file from the current directory."""
-		doc=edmx.Document()
-		with open('MemCacheSchema.xml','rb') as f:
-			doc.read(f)
-		return doc
+    def load_metadata():
+        """Loads the metadata file from the current directory."""
+        doc = edmx.Document()
+        with open('MemCacheSchema.xml', 'rb') as f:
+            doc.read(f)
+        return doc
 
 The metadata module contains a Document object and the definitions of
 the elements in the edmx namespace that enable us to read the XML file.
@@ -68,24 +68,27 @@ Step 2: Test the Model
 
 Let's write a simple test function to test our model::
 
-	def TestData(memCache):
-		with memCache.open() as collection:
-			for i in xrange(26):
-				e=collection.new_entity()
-				e.set_key(str(i))
-				e['Value'].set_from_value(unichr(0x41+i))
-				e['Expires'].set_from_value(iso.TimePoint.from_unix_time(time.time()+10*i))
-				collection.insert_entity(e)
+    def test_data(mem_cache):
+        with mem_cache.open() as collection:
+            for i in range3(26):
+                e = collection.new_entity()
+                e.set_key(str(i))
+                e['Value'].set_from_value(character(0x41 + i))
+                e['Expires'].set_from_value(
+                    iso.TimePoint.from_unix_time(time.time() + 10 * i))
+                collection.insert_entity(e)
 
-	def test_model():
-		"""Read and write some key value pairs"""
-		doc=load_metadata()
-		container=InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
-		memCache=doc.root.DataServices['MemCacheSchema.MemCache.KeyValuePairs']
-		TestData(memCache)
-		with memCache.open() as collection:
-			for e in collection.itervalues():
-				print "%s: %s (expires %s)"%(e['Key'].value,e['Value'].value,str(e['Expires'].value))
+
+    def test_model():
+        """Read and write some key value pairs"""
+        doc = load_metadata()
+        InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
+        mem_cache = doc.root.DataServices['MemCacheSchema.MemCache.KeyValuePairs']
+        test_data(mem_cache)
+        with mem_cache.open() as collection:
+            for e in collection.itervalues():
+                output("%s: %s (expires %s)\n" %
+                       (e['Key'].value, e['Value'].value, str(e['Expires'].value)))
 
 Our function comes in two parts (for reasons that will become clear
 later).  The first function takes an EntitySet object and creates 26
@@ -94,7 +97,10 @@ key-value pairs with increasing expiry times.
 The main function loads the metadata model, creates the
 InMemoryEntityContainer object, calls the first function to create the
 test data and then opens the *KeyValuePairs* collection itself to check
-that everything is in order.  Here's the output from a sample run::
+that everything is in order.  The function :func:`~pyslet.py2.output` is
+just a Python 3 compatibility function (contrast with the builtin
+'input') that allows us to write text to standard output.  Here's the
+output from a sample run::
 
 	>>> import memcache
 	>>> memcache.test_model()
@@ -131,11 +137,10 @@ it creates all the necessary storage for the EntitySets (and
 AssociationSets, if required) that it contains.  It also binds internal
 implementations of the EntityCollection object to the model so that, in
 future, the EntitySet can be opened using the same API described
-previously in
-:doc:`consumer`.  From this point on we don't need to refer to
-the container again as we can just open the EntitySet directly from the
-model.  That object is the heart of our application, blink and you've
-missed it.
+previously in :doc:`consumer`.  From this point on we don't need to
+refer to the container again as we can just open the EntitySet directly
+from the model.  That object is the heart of our application, blink and
+you've missed it.
 
 
 Step 4: Link the Data Source to the OData Server
@@ -144,8 +149,8 @@ Step 4: Link the Data Source to the OData Server
 OData runs over HTTP so we need to assign a service root URL for the
 server to run on.  We define a couple of constants to help with this::
 
-	SERVICE_PORT=8080
-	SERVICE_ROOT="http://localhost:%i/"%SERVICE_PORT
+    SERVICE_PORT = 8080
+    SERVICE_ROOT = "http://localhost:%i/" % SERVICE_PORT
 
 We're also going to use a separate thread to run the server, a global
 variable helps here.  We're using Pythons wsgi interface for the server
@@ -156,34 +161,34 @@ behaviour to enable this::
 	import logging, threading
 	from wsgiref.simple_server import make_server
 
-	cacheApp=None		#: our Server instance
+	cache_app = None		#: our Server instance
 
-	def runCacheServer():
-		"""Starts the web server running"""
-		server=make_server('',SERVICE_PORT,cacheApp)
-		logging.info("Starting HTTP server on port %i..."%SERVICE_PORT)
-		# Respond to requests until process is killed
-		server.serve_forever()
+    def run_cache_server():
+        """Starts the web server running"""
+        server = make_server('', SERVICE_PORT, cache_app)
+        logging.info("Starting HTTP server on port %i..." % SERVICE_PORT)
+        # Respond to requests until process is killed
+        server.serve_forever()
 
 The final part of server implementation involves loading the model,
 creating the server object and then spawning the server thread::
 
-	def main():
-		"""Executed when we are launched"""
-		doc=load_metadata()
-		container=InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
-		server=Server(serviceRoot=SERVICE_ROOT)
-		server.SetModel(doc)
-		# The server is now ready to serve forever
-		global cacheApp
-		cacheApp=server
-		t=threading.Thread(target=runCacheServer)
-		t.setDaemon(True)
-		t.start()
-		logging.info("MemCache starting HTTP server on %s"%SERVICE_ROOT)
+    def main():
+        """Executed when we are launched"""
+        doc = load_metadata()
+        InMemoryEntityContainer(doc.root.DataServices['MemCacheSchema.MemCache'])
+        server = Server(serviceRoot=SERVICE_ROOT)
+        server.set_model(doc)
+        # The server is now ready to serve forever
+        global cache_app
+        cache_app = server
+        t = threading.Thread(target=run_cache_server)
+        t.setDaemon(True)
+        t.start()
+        logging.info("MemCache starting HTTP server on %s" % SERVICE_ROOT)
 
 The Server object just takes the serviceRoot as a parameter on
-construction and has a :py:meth:`~pyslet.odata2.server.Server.SetModel`
+construction and has a :py:meth:`~pyslet.odata2.server.Server.set_model`
 method which is used to assign the metadata document to it.  That's all
 you need to do to create it, it uses the same API described in
 :doc:`consumer` to consume the data source and expose it via the
@@ -225,27 +230,28 @@ add one last function to our code::
 
 	CLEANUP_SLEEP=10
 
-	def CleanupForever(memCache):
-		"""Runs a loop continuously cleaning up expired items"""
-		expires=core.PropertyExpression(u"Expires")
-		now=edm.DateTimeValue()
-		t=core.LiteralExpression(now)
-		filter=core.BinaryExpression(core.Operator.lt)
-		filter.operands.append(expires)
-		filter.operands.append(t)
-		while True:
-			now.set_from_value(iso.TimePoint.from_now_utc())
-			logging.info("Cleanup thread running at %s",str(now.value))
-			with memCache.open() as cacheEntries:
-				cacheEntries.set_filter(filter)
-				expiredList=list(cacheEntries)
-				if expiredList:
-					logging.info("Cleaning %i cache entries",len(expiredList))
-					for expired in expiredList:
-						del cacheEntries[expired]
-				cacheEntries.set_filter(None)
-				logging.info("Cleanup complete, %i cache entries remain",len(cacheEntries))			
-			time.sleep(CLEANUP_SLEEP)
+    def cleanup_forever(mem_cache):
+        """Runs a loop continuously cleaning up expired items"""
+        now = edm.DateTimeValue()
+        expires = core.PropertyExpression("Expires")
+        t = core.LiteralExpression(now)
+        filter = core.BinaryExpression(core.Operator.lt)
+        filter.operands.append(expires)
+        filter.operands.append(t)
+        while True:
+            now.set_from_value(iso.TimePoint.from_now_utc())
+            logging.info("Cleanup thread running at %s", str(now.value))
+            with mem_cache.open() as cacheEntries:
+                cacheEntries.set_filter(filter)
+                expired_list = list(cacheEntries)
+                if expired_list:
+                    logging.info("Cleaning %i cache entries", len(expired_list))
+                    for expired in expired_list:
+                        del cacheEntries[expired]
+                cacheEntries.set_filter(None)
+                logging.info(
+                    "Cleanup complete, %i cache entries remain", len(cacheEntries))
+            time.sleep(CLEANUP_SLEEP)
 
 This function starts by building a filter expression manually.  Filter
 expressions are just simple trees of expression objects.  We start with
@@ -305,10 +311,10 @@ As soon as we start the client our server registers hits::
 Entering the data manually would be tedious but we already wrote a
 suitable function for adding test data.  Because both the data source
 and the OData client adhere to the same API we can simply pass the
-EntitySet to our TestData function::
+EntitySet to our test_data function::
 
 	>>> import memcache
-	>>> memcache.TestData(c.feeds['KeyValuePairs'])
+	>>> memcache.test_data(c.feeds['KeyValuePairs'])
 	
 As we do this, the server window goes crazy as each of the POST requests
 comes through::
@@ -344,7 +350,7 @@ The result is::
 	","type":"MemCacheSchema.KeyValuePair"},"Key":"25","Value":"Z","
 	Expires":"/Date(1392679105162)/"}}
 
-We can pick the value our directly with a URL like::
+We can pick the value out directly with a URL like::
 
 	http://localhost:8080/KeyValuePairs('25')/Value/$value
 

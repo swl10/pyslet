@@ -1,97 +1,98 @@
 #! /usr/bin/env python
 """Runs unit tests on all pyslet modules"""
 
-from pyslet.py2 import py2
-from pyslet.py26 import py26
-
 import unittest
 import logging
 import sys
 
-all_tests = unittest.TestSuite()
+from pyslet.py26 import py26
+
 import test_blockstore
-all_tests.addTest(test_blockstore.suite())
 import test_html401
-all_tests.addTest(test_html401.suite())
 import test_http_auth
-all_tests.addTest(test_http_auth.suite())
 import test_http_client
-all_tests.addTest(test_http_client.suite())
 import test_http_cookie
-all_tests.addTest(test_http_cookie.suite())
 import test_http_grammar
-all_tests.addTest(test_http_grammar.suite())
 import test_http_messages
-all_tests.addTest(test_http_messages.suite())
 import test_http_params
-all_tests.addTest(test_http_params.suite())
 import test_http_server
-all_tests.addTest(test_http_server.suite())
 import test_imsbltiv1p0
-all_tests.addTest(test_imsbltiv1p0.suite())
 import test_imscc_profilev1p0
-all_tests.addTest(test_imscc_profilev1p0.suite())
 import test_imscc_profilev1p1
-all_tests.addTest(test_imscc_profilev1p1.suite())
 import test_imscpv1p2
-all_tests.addTest(test_imscpv1p2.suite())
 import test_imsmdv1p2p1
-all_tests.addTest(test_imsmdv1p2p1.suite())
 import test_imsqtiv1p2p1
-all_tests.addTest(test_imsqtiv1p2p1.suite())
 import test_imsqtiv2p1
-all_tests.addTest(test_imsqtiv2p1.suite())
 import test_iso8601
-all_tests.addTest(test_iso8601.suite())
 import test_odata2_core
-all_tests.addTest(test_odata2_core.suite())
 import test_odata2_client
-all_tests.addTest(test_odata2_client.suite())
 import test_odata2_csdl
-all_tests.addTest(test_odata2_csdl.suite())
 import test_odata2_edmx
-all_tests.addTest(test_odata2_edmx.suite())
 import test_odata2_memds
-all_tests.addTest(test_odata2_memds.suite())
 import test_odata2_metadata
-all_tests.addTest(test_odata2_metadata.suite())
 import test_odata2_server
-all_tests.addTest(test_odata2_server.suite())
 import test_odata2_sqlds
-all_tests.addTest(test_odata2_sqlds.suite())
 import test_pep8
-all_tests.addTest(test_pep8.suite())
 import test_py2
-all_tests.addTest(test_py2.suite())
 import test_py26
-all_tests.addTest(test_py26.suite())
 import test_qml420
-all_tests.addTest(test_qml420.suite())
 import test_rfc2396
-all_tests.addTest(test_rfc2396.suite())
 import test_rfc4287
-all_tests.addTest(test_rfc4287.suite())
 import test_rfc5023
-all_tests.addTest(test_rfc5023.suite())
 import test_rtf_1p6
-all_tests.addTest(test_rtf_1p6.suite())
 import test_streams
-all_tests.addTest(test_streams.suite())
 import test_unicode5
-all_tests.addTest(test_unicode5.suite())
 import test_urn
-all_tests.addTest(test_urn.suite())
 import test_vfs
-all_tests.addTest(test_vfs.suite())
 import test_wsgi
-all_tests.addTest(test_wsgi.suite())
 import test_xml_namespace
-all_tests.addTest(test_xml_namespace.suite())
 import test_xml_parser
-all_tests.addTest(test_xml_parser.suite())
 import test_xml_structures
-all_tests.addTest(test_xml_structures.suite())
 import test_xml_xsdatatypes
+
+
+all_tests = unittest.TestSuite()
+all_tests.addTest(test_blockstore.suite())
+all_tests.addTest(test_html401.suite())
+all_tests.addTest(test_http_auth.suite())
+all_tests.addTest(test_http_client.suite())
+all_tests.addTest(test_http_cookie.suite())
+all_tests.addTest(test_http_grammar.suite())
+all_tests.addTest(test_http_messages.suite())
+all_tests.addTest(test_http_params.suite())
+all_tests.addTest(test_http_server.suite())
+all_tests.addTest(test_imsbltiv1p0.suite())
+all_tests.addTest(test_imscc_profilev1p0.suite())
+all_tests.addTest(test_imscc_profilev1p1.suite())
+all_tests.addTest(test_imscpv1p2.suite())
+all_tests.addTest(test_imsmdv1p2p1.suite())
+all_tests.addTest(test_imsqtiv1p2p1.suite())
+all_tests.addTest(test_imsqtiv2p1.suite())
+all_tests.addTest(test_iso8601.suite())
+all_tests.addTest(test_odata2_core.suite())
+all_tests.addTest(test_odata2_client.suite())
+all_tests.addTest(test_odata2_csdl.suite())
+all_tests.addTest(test_odata2_edmx.suite())
+all_tests.addTest(test_odata2_memds.suite())
+all_tests.addTest(test_odata2_metadata.suite())
+all_tests.addTest(test_odata2_server.suite())
+all_tests.addTest(test_odata2_sqlds.suite())
+all_tests.addTest(test_pep8.suite())
+all_tests.addTest(test_py2.suite())
+all_tests.addTest(test_py26.suite())
+all_tests.addTest(test_qml420.suite())
+all_tests.addTest(test_rfc2396.suite())
+all_tests.addTest(test_rfc4287.suite())
+all_tests.addTest(test_rfc5023.suite())
+all_tests.addTest(test_rtf_1p6.suite())
+all_tests.addTest(test_streams.suite())
+all_tests.addTest(test_unicode5.suite())
+all_tests.addTest(test_urn.suite())
+all_tests.addTest(test_vfs.suite())
+all_tests.addTest(test_wsgi.suite())
+all_tests.addTest(test_xml_namespace.suite())
+all_tests.addTest(test_xml_parser.suite())
+all_tests.addTest(test_xml_structures.suite())
 all_tests.addTest(test_xml_xsdatatypes.suite())
 
 

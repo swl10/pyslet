@@ -335,6 +335,12 @@ Bytes
     the same as the above.
 
 
+Printing to stdout
+------------------
+
+..	autofunction:: output
+
+
 Numeric Definitions
 -------------------
 

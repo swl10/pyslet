@@ -2334,7 +2334,7 @@ class Element(Node):
                 <data>This is <em>the</em> value</data>
 
                 # to behave like this:
-                data.get_value(True)==u"This is  value" """
+                data.get_value(True) == "This is  value" """
         return join_characters(self.generate_value(ignore_elements))
 
     @old_method('SetValue')

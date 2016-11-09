@@ -41,66 +41,53 @@ if you are using Decimal types in OData models.
 Python 3
 ~~~~~~~~
 
-Pyslet is not currently compatible with Python 3, though some work has
-been done towards a Python 3 version and the unittests are regularly run
-with the -3 flag to check for issues.  Try running your own code that
-uses Pyslet with python options -3Wd to expose any issues that you are
-likely to need to fix on any future transition.
+Pyslet support in Python 3 is at an alpha stage.  All unittests are now
+running under Python 3 and the setup script can be used to install
+Pyslet in Python 3 without errors.  Try running your own code that uses
+Pyslet with python options -3Wd to expose any issues that you are likely
+to need to fix on any future transition.
 
-Work has now started on porting the core modules to be compatible with
-Python 3.3 (Pyslet may require use of the 'u' on unicode strings for
-some time so compatibility with Python 3 versions earlier than 3.3 is
-unlikely).  Rather than just fix up the existing code using a module
-like six Pyslet now includes it's own module containing compatibility
-definitions that target the particular idioms I've used in the package.
+Support is currently limited to Python 3.3 and higher as some modules
+continue to require use of the 'u' prefix on unicode strings.  There
+are only a handful of instances where this is a problem and these could
+be resolved if desired - please open an issue on GitHub if you need
+earlier Python 3 support.
+
+Pyslet includes it's own module containing compatibility definitions
+that target the particular idioms I've used in the package.  You are
+obviously free to use these definitions yourself to help you create code
+that also targets both Python 2 and 3 from the same source.
 
 :doc:`py2`
 
-Although the package can't be built for distribution or installed using
-pip or setup.py (yet), if you use the source distribution you can
-successfully import the following modules in Python 3 (in addition to
-the compatibility modules described elsewhere on this page)::
-
-    pyslet.blockstore
-    pyslet.html401
-    pyslet.http.*
-    pyslet.imscpv1p2
-    pyslet.imsmdv1p2p1
-    pyslet.info
-    pyslet.iso8601
-    pyslet.odata2.*
-    pyslet.qtiv1.*
-    pyslet.qtiv2.*
-    pyslet.rfc2396
-    pyslet.rfc4287
-    pyslet.rfc5023
-    pyslet.streams    
-    pyslet.unicode5
-    pyslet.urn
-    pyslet.vfs
-    pyslet.xml.*
-
-The unittest script (and the tox configuration) has been modified to
-enable Python3 compatibility to be checked with::
+The tox configuration has been modified to enable Python3 compatibility
+to be checked with::
 
     tox -e py35
     
 which shoud now succeed if you have Python 3.5 and tox installed on your
 system.
 
+..  warning::   Due to the dictionary-like approach taken by Pyslet in
+                the OData modules the standard 2to3 script will suggest
+                changing calls like itervalues() to values() on
+                collections of entities.  If you are using OData in
+                Pyslet you are likely to need to use "-x dict" to
+                prevent these automatic transformations.
 
 PEP-8
 ~~~~~
 
-The code is not currently PEP-8 compliant but it is slowly being
-refactored for compliance as modules are touched during development,
-particularly during Python 3 conversion work. Where critical, methods
-are renamed from CamelCase to PEP-8 compliant lower_case_form then the
-old names are defined as wrappers which raise deprecation warnings.
+The code has been widely refactored for PEP-8 compliant. Where critical,
+methods are renamed from CamelCase to PEP-8 compliant lower_case_form
+and the old names are defined as wrappers which raise deprecation
+warnings.
 
 You can test your code with the -Wd option to python to check the
 warning messages in case you are relying on the old-style names.
 
-For more information see:
+Pyslet uses a special module that defines decorators and other code to
+help with method renaming.  The purpose of the module is to ensure that
+the old names can be used with minimal impact on existing code.
 
 :doc:`pep8`

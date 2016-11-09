@@ -53,16 +53,38 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20161109*
+
+#3 PEP-8 driven refactoring (complete)
+
+Updated pep8-regression checker to walk all source files (including
+unittests and samples) - implemented final fixes to files previously
+missed.
+
+#38 Python 3 compatibility work (ongoing)
+
+Added output function to py2 module to assist with examples.
+
+Updated memcache.py sample code and documentation and tested in Python 3.
+
+
 *Build 20161108*
+
+#38 Python 3 compatibility work (ongoing)
 
 IMS LTI module tests passing in Python 3, setup.py install and all unit
 tests also now succeed making this build the first version workable in
 Python 3.
 
+
 *Build 20161106*
+
+#38 Python 3 compatibility work (ongoing)
 
 IMS CC modules, qml, rtf (placeholder) and wsgi modules: tests passing
 in Python 3.
+
+Untracked fixes:
 
 vfs: VirtualFilePath objects are now sortable.
 

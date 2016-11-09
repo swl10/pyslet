@@ -5,7 +5,6 @@ import json
 import os
 import sys
 
-import pyslet.rfc2396 as uri
 
 if __name__ == '__main__':
     input = sys.argv[1]
