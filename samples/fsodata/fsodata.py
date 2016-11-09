@@ -6,12 +6,11 @@ import os
 import os.path
 import threading
 import logging
-import string
 from wsgiref.simple_server import make_server
 
-import pyslet.http.params as params
-import pyslet.odata2.metadata as edmx
-import pyslet.odata2.core as odata
+from pyslet.http import params
+from pyslet.odata2 import metadata as edmx
+from pyslet.odata2 import core as odata
 from pyslet.odata2.server import ReadOnlyServer
 
 #: the port on which we'll listen for requests
@@ -84,7 +83,7 @@ def fspath_to_path(fspath):
         # at this point fspath must match BASE_PATH exactly
         if fspath == BASE_PATH:
             path[0:0] = ['']
-            return string.join(path, '/')
+            return '/'.join(path)
     raise ValueError
 
 
@@ -276,7 +275,7 @@ class FSParent(odata.NavigationCollection):
         if path == '/':
             # special case, no parent
             return
-        parent_path = string.join(path.split('/')[:-1], '/')
+        parent_path = '/'.join(path.split('/')[:-1])
         if not parent_path:
             # special case!
             parent_path = '/'
@@ -295,7 +294,7 @@ class FSParent(odata.NavigationCollection):
         path = self.from_entity['path'].value
         if path == '/':
             raise KeyError("'/' has no parent path")
-        if parent_path == string.join(path.split('/')[:-1], '/'):
+        if parent_path == '/'.join(path.split('/')[:-1]):
             parent_fspath = path_to_fspath(parent_path)
             try:
                 e = self.new_entity()

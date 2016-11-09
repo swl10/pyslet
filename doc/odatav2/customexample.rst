@@ -1,8 +1,8 @@
 Sample Project: Custom Data Service
 ===================================
 
-The sample code for this service is in the samples directory in the
-Pyslet distribution: fsodata.py
+The sample code for this service is in the samples/fsodata directory in
+the Pyslet distribution: fsodata.py
 
 This project demonstrates how to construct a simple OData service based
 on a custom EntityContainer class.  It also demonstrates how to handle
@@ -498,11 +498,12 @@ Testing our model is fairly easy, I loaded a couple of files and a
 directory into the BASE_PATH and then ran this session from the
 interpreter::
 
+    >>> from pyslet.py2 import output
     >>> import fsodata
     >>> doc = fsodata.load_metadata()
     >>> container = doc.root.DataServices['FSSchema.FS']
     >>> collection = container['Files'].open()
-    >>> for path in collection: print path
+    >>> for path in collection: output(str(path) + "\n")
     ... 
     /
     /dtest
@@ -520,7 +521,7 @@ interpreter::
     6
     >>> str(info.type)
     'text/plain'
-    >>> for data in gen: print data
+    >>> for data in gen: output(data.decode('ascii'))
     ... 
     Hello
 
