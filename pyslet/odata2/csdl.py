@@ -707,8 +707,9 @@ class Parser(xsi.BasicParser):
                     self.require(":")
                     zm = self.require_production(self.parse_integer(0, 24),
                                                  "zminute")
-                    logging.warn("DateTime ignored zone offset: %s%.2i:%.2i",
-                                 z, zh, zm)
+                    logging.warning(
+                        "DateTime ignored zone offset: %s%.2i:%.2i",
+                        z, zh, zm)
             except ValueError:
                 self.setpos(zpos)
                 pass
@@ -4158,7 +4159,7 @@ class EntityType(Type):
             if len(plist) > 1:
                 # these are all duplicates!
                 for p in plist:
-                    logging.warn(
+                    logging.warning(
                         "Ambiguous navigation: %s.%s", self.name, p.name)
                     p.mark_as_ambiguous()
         self.Key.update_type_refs(scope, stop_on_errors)
@@ -4592,8 +4593,8 @@ class EntitySet(CSDLElement):
                 raise
 
     def set_unbound_principal(self, aset_end):
-        logging.warn("Entity set %s has an unbound principal: %s",
-                     self.name, aset_end.otherEnd.entity_set.name)
+        logging.warning("Entity set %s has an unbound principal: %s",
+                        self.name, aset_end.otherEnd.entity_set.name)
         if not self.bad_principal and self.unboundPrincipal is None:
             self.unboundPrincipal = aset_end
         else:

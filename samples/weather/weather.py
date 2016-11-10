@@ -1,23 +1,24 @@
 #! /usr/bin/env python
 """Creates an OData service from weather data"""
 
+import io
 import logging
+import os
+import os.path
 import threading
 import time
-import string
-import os
-import StringIO
-import os.path
+
 from wsgiref.simple_server import make_server
 
-import pyslet.iso8601 as iso
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.core as core
-import pyslet.odata2.metadata as edmx
+from pyslet import iso8601 as iso
+from pyslet.http import client as http
+from pyslet.odata2 import csdl as edm
+from pyslet.odata2 import core as core
+from pyslet.odata2 import metadata as edmx
+from pyslet.odata2.memds import InMemoryEntityContainer
 from pyslet.odata2.server import ReadOnlyServer
 from pyslet.odata2.sqlds import SQLiteEntityContainer
-from pyslet.odata2.memds import InMemoryEntityContainer
-import pyslet.http.client as http
+from pyslet.py2 import output, to_text
 
 
 # SAMPLE_DIR='small-sample'
@@ -121,7 +122,7 @@ def is_bst(t):
 def load_data_from_file(weather_data, f, year, month, day):
     with weather_data.open() as collection:
         while True:
-            line = f.readline()
+            line = f.readline().decode('ascii')
             if len(line) == 0 or line.startswith('Date unknown.'):
                 break
             elif line[0] == '#':
@@ -143,9 +144,9 @@ def load_data_from_file(weather_data, f, year, month, day):
                     data[i] = None
             data[6] = data[6].strip()
             data_point = collection.new_entity()
-            hour, min = map(int, data[0].split(':'))
+            hour, min = [int(i) for i in data[0].split(':')]
             tvalue = iso.TimePoint(
-                date=iso.Date(century=year / 100, year=year %
+                date=iso.Date(century=year // 100, year=year %
                               100, month=month, day=day),
                 time=iso.Time(hour=hour, minute=min, second=0))
             bst = is_bst(tvalue)
@@ -162,7 +163,7 @@ def load_data_from_file(weather_data, f, year, month, day):
             data_point['WindDirection'].set_from_value(data[6])
             data_point['Sun'].set_from_value(data[7])
             data_point['Rain'].set_from_value(data[8])
-            shour, smin = map(int, data[9].split(':'))
+            shour, smin = [int(i) for i in data[9].split(':')]
             data_point['SunRainStart'].set_from_value(
                 iso.Time(hour=shour, minute=smin, second=0))
             data_point['WindSpeedMax'].set_from_value(data[10])
@@ -196,7 +197,7 @@ def load_data(weather_data, dir_name):
             continue
         logging.info(
             "Loading data from file %s", os.path.join(dir_name, file_name))
-        year, month, day = map(int, file_name.split('_'))
+        year, month, day = [int(np) for np in file_name.split('_')]
         with open(os.path.join(dir_name, file_name), 'r') as f:
             load_data_from_file(weather_data, f, year, month, day)
 
@@ -226,14 +227,14 @@ def load_notes(weather_notes, file_name, weather_data):
                             time=iso.Time(hour=0, minute=0, second=0))
                         note['EndDate'].set_from_value(end)
                         note['Details'].set_from_value(
-                            string.join(note_words[2:], ' '))
+                            ' '.join(note_words[2:]))
                         collection.insert_entity(note)
                         # now find the data points that match
                         data.set_filter(
                             core.CommonExpression.from_str(
                                 "TimePoint ge datetime'%s' and "
                                 "TimePoint lt datetime'%s'" %
-                                (unicode(start), unicode(end))))
+                                (to_text(start), to_text(end))))
                         for data_point in data.values():
                             # use values, not itervalues to avoid this bug
                             # in Python 2.7 http://bugs.python.org/issue10513
@@ -245,9 +246,11 @@ def load_notes(weather_notes, file_name, weather_data):
             core.CommonExpression.orderby_from_str('StartDate desc'))
         for e in collection.itervalues():
             with e['DataPoints'].open() as affectedData:
-                print "%s-%s: %s (%i data points affected)" % (
-                    unicode(e['StartDate'].value), unicode(e['EndDate'].value),
-                    e['Details'].value, len(affectedData))
+                output(
+                    "%s-%s: %s (%i data points affected)" %
+                    (to_text(e['StartDate'].value),
+                     to_text(e['EndDate'].value),
+                     e['Details'].value, len(affectedData)))
 
 
 def dry_run():
@@ -281,12 +284,13 @@ def test_model(drop=False):
         for e in collection.iterpage():
             note = e['Note'].get_entity()
             if e['WindSpeedMax'] and e['Pressure']:
-                print "%s: Pressure %imb, max wind speed %0.1f knots "\
+                output(
+                    "%s: Pressure %imb, max wind speed %0.1f knots "
                     "(%0.1f mph); %s" % (
-                        unicode(e['TimePoint'].value), e['Pressure'].value,
+                        to_text(e['TimePoint'].value), e['Pressure'].value,
                         e['WindSpeedMax'].value,
                         e['WindSpeedMax'].value * 1.15078,
-                        note['Details'] if note is not None else "")
+                        note['Details'] if note is not None else ""))
 
 
 def run_weather_server(weather_app=None):
@@ -350,7 +354,7 @@ def run_weather_loader(container=None, max_load=30,
                 client.process_request(request)
                 if request.status == 200:
                     # process this file and move on to the next day
-                    f = StringIO.StringIO(request.res_body)
+                    f = io.BytesIO(request.res_body)
                     load_data_from_file(
                         weather_data, f, century * 100 + year, month, day)
                     n_loaded += 1

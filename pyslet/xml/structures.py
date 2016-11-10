@@ -3587,7 +3587,7 @@ class XMLEntity(MigratedClass):
             src_file.seek(0)
             return
         while len(magic) < 4:
-            magic = magic + 'Q'
+            magic = magic + b'Q'
         if magic[:2] == b'\xff\xfe' or magic[:2] == b'\xfe\xff':
             if magic[2:] != b'\x00\x00':
                 magic = magic[:2]

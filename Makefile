@@ -7,13 +7,11 @@ help:
 	@echo "clean-cov - remove coverage report"
 	@echo "test - run tests with the default Python"
 	@echo "test27 - run tests with python2.7"
-	@echo "test3 - run tests with default python and "-3 -Wd -W module -t" options
+	@echo "test3 - run tests with default python and -3Wd options"
 	@echo "docs - generate Sphinx HTML documentation"
 	@echo "dist - package"
-	@echo "pep8 - PEP-8 compliance check using pep8"
-	@echo "pep8s - PEP-8 compliance statistics using pep8"
-	@echo "flake8 - PEP-8 compliance check using flake8"
-	@echo "flake8s - PEP-8 compliance statistics using flake8"
+	@echo "pep8 - PEP-8 compliance check using flake8"
+	@echo "flake8 - same as pep8"
 	@echo "coverage - run coverage to check test coverage"
 	 
 clean: clean-build clean-pyc clean-docs clean-cov
@@ -51,24 +49,9 @@ dist: clean
 	ls -l dist
 
 pep8:
-	touch pep8-count.txt
-	date >> pep8-count.txt
-	-pep8 --count -qq pyslet >> pep8-count.txt 2>&1
-	tail -n 4 pep8-count.txt
-
-pep8s: pep8
-	pep8 --statistics -qq pyslet
-	
-flake8:
-	autopep8 -i -r pyslet
-	touch flake8-count.txt
-	date >> flake8-count.txt
-	-flake8 --count -qq pyslet >> flake8-count.txt 2>&1
 	./pep8-regression.py
-	tail -n 4 flake8-count.txt
-
-flake8s: flake8
-	flake8 --statistics -qq pyslet
+	
+flake8: pep8
 
 coverage:
 	coverage run --source pyslet unittests/test.py

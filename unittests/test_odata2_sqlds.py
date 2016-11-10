@@ -78,6 +78,19 @@ class ParamTests(unittest.TestCase):
                                   'p6', 'p7', 'p8'], self.testparams)),
             repr(params.params))
 
+    def test_pynamed(self):
+        params = sqlds.PyFormatParams()
+        query = []
+        for p in self.testparams:
+            query.append(params.add_param(p))
+        query = ' '.join(query)
+        self.assertTrue(query == '%(p0)s %(p1)s %(p2)s %(p3)s %(p4)s '
+                        '%(p5)s %(p6)s %(p7)s %(p8)s', query)
+        self.assertTrue(
+            params.params == dict(zip(['p0', 'p1', 'p2', 'p3', 'p4', 'p5',
+                                  'p6', 'p7', 'p8'], self.testparams)),
+            repr(params.params))
+
 
 class MockCursor(object):
 

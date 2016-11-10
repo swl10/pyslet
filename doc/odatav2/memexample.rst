@@ -1,8 +1,8 @@
 Sample Project: InMemory Data Service
 =====================================
 
-The sample code for this service is in the samples directory in the
-Pyslet distribution.
+The sample code for this service is in the samples/memcache directory in
+the Pyslet distribution.
 
 This project demonstrates how to construct a simple OData service based
 on the :py:class:`~pyslet.odata2.memds.InMemoryEntityContainer` class. 

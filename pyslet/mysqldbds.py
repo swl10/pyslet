@@ -1,8 +1,8 @@
 #! /usr/bin/env python
 """DAL implementation for MySQLdb"""
 
+import logging
 import os
-import string
 import math
 import datetime
 
@@ -11,7 +11,12 @@ import pyslet.odata2.metadata as edmx
 import pyslet.odata2.sqlds as sqlds
 import pyslet.blockstore as blockstore
 
-import MySQLdb
+try:
+    import MySQLdb as dbapi
+except ImportError:
+    dbapi = None
+    logging.warning("MySQLdb not found, will try PyMySQL instead")
+    import pymysql as dbapi
 
 
 class MySQLEntityContainer(sqlds.SQLEntityContainer):
@@ -52,7 +57,7 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
     def __init__(self, db, host=None, user=None, passwd=None,
                  prefix=None, mysql_options={}, **kwargs):
         self.prefix = prefix
-        super(MySQLEntityContainer, self).__init__(dbapi=MySQLdb, **kwargs)
+        super(MySQLEntityContainer, self).__init__(dbapi=dbapi, **kwargs)
         self.dbname = db
         self.host = host
         self.user = user
@@ -96,9 +101,9 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
 
         By default we replace backtick with a single quote and then use
         backticks to quote the identifier. E.g., if the string
-        u'Employee_Name' is passed then the string u'`Employee_Name`' is
+        'Employee_Name' is passed then the string '`Employee_Name`' is
         returned."""
-        return u'`%s`' % identifier.replace('`', '')
+        return '`%s`' % identifier.replace('`', '')
 
     def prepare_sql_type(self, simple_value, params, nullable=None):
         """Performs MySQL custom mappings
@@ -119,7 +124,7 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
         explicit_default = None
         if isinstance(simple_value, edm.BinaryValue):
             if p is None or (p.fixedLength is None and p.maxLength is None):
-                column_def.append(u"BLOB")
+                column_def.append("BLOB")
             else:
                 max = 0
                 if p.fixedLength:
@@ -127,10 +132,10 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
                 if p.maxLength:
                     max = p.maxLength
                 if max > 1024:
-                    column_def.append(u"BLOB")
+                    column_def.append("BLOB")
         elif isinstance(simple_value, edm.StringValue):
             if p is None or (p.fixedLength is None and p.maxLength is None):
-                column_def.append(u"TEXT")
+                column_def.append("TEXT")
         elif isinstance(simple_value, edm.DateTimeValue):
             if p is None or p.precision is None:
                 precision = 0
@@ -140,9 +145,9 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
                 # maximum precision
                 precision = 6
             if precision:
-                column_def.append(u"DATETIME(%i)" % precision)
+                column_def.append("DATETIME(%i)" % precision)
             else:
-                column_def.append(u"DATETIME")
+                column_def.append("DATETIME")
             explicit_null = True
             explicit_default = '0'
         elif isinstance(simple_value, edm.TimeValue):
@@ -154,25 +159,25 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
                 # maximum precision
                 precision = 6
             if precision:
-                column_def.append(u"TIME(%i)" % precision)
+                column_def.append("TIME(%i)" % precision)
             else:
-                column_def.append(u"TIME")
+                column_def.append("TIME")
         if column_def:
             if ((nullable is not None and not nullable) or
                     (nullable is None and p is not None and not p.nullable)):
-                column_def.append(u' NOT NULL')
+                column_def.append(' NOT NULL')
                 # use the explicit default
                 if explicit_default and not simple_value:
-                    column_def.append(u' DEFAULT ')
+                    column_def.append(' DEFAULT ')
                     column_def.append(explicit_default)
             elif explicit_null:
-                column_def.append(u' NULL')
+                column_def.append(' NULL')
             if simple_value:
                 # Format the default
-                column_def.append(u' DEFAULT ')
+                column_def.append(' DEFAULT ')
                 column_def.append(
                     params.add_param(self.prepare_sql_value(simple_value)))
-            return string.join(column_def, '')
+            return ''.join(column_def)
         else:
             return super(
                 MySQLEntityContainer,
@@ -221,7 +226,7 @@ class MySQLEntityContainer(sqlds.SQLEntityContainer):
         if skip:
             clause.append('OFFSET %i ' % skip)
             skip = 0
-        return skip, string.join(clause, '')
+        return skip, ''.join(clause)
 
 
 class MySQLStreamStore(blockstore.StreamStore):
@@ -253,7 +258,7 @@ class MySQLStreamStore(blockstore.StreamStore):
         :py:class:`pyslet.blockstore.StreamStore`
         respectively."""
         doc = edmx.Document()
-        with file(os.path.join(os.path.dirname(__file__),
+        with open(os.path.join(os.path.dirname(__file__),
                                'odata2', 'streamstore.xml'), 'r') as f:
             doc.read(f)
         return doc.root.DataServices['StreamStoreSchema.Container']

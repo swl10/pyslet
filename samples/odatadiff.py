@@ -1,20 +1,19 @@
 #! /usr/bin/env python
 """Compares two OData metadata documents"""
 
-import sys
-import os
-import io
-import string
-import logging
-import traceback
-from optparse import OptionParser
 import getpass
+import logging
+import os
+import sys
+import traceback
 
-import pyslet.rfc2396 as uri
-import pyslet.rfc2617 as auth
-import pyslet.http.client as http
-import pyslet.odata2.csdl as edm
-import pyslet.odata2.metadata as edmx
+from optparse import OptionParser
+
+from pyslet import rfc2396 as uri
+from pyslet import rfc2617 as auth
+from pyslet.http import client as http
+from pyslet.odata2 import csdl as edm
+from pyslet.odata2 import metadata as edmx
 
 
 def fetch_url(url, username=None, password=None):
@@ -46,10 +45,8 @@ def load_file(filename):
 
 def save_file(doc, filename):
     # check the base of the doc's root element
-    with io.FileIO(filename, "w") as f:
-        with io.BufferedWriter(f) as bf:
-            with io.TextIOWrapper(bf, encoding="utf-8") as tf:
-                doc.create(tf)
+    with open(filename, 'wb') as f:
+        doc.create(f)
 
 
 def splitlists(old_list, new_list):
@@ -81,8 +78,8 @@ def odatadiff(old_doc, new_doc, backlinks=False):
         return "No DataServices document found - check service URL"
     oldds = old_doc.root.DataServices
     newds = new_doc.root.DataServices
-    oldschemas = map(lambda x: x.name, oldds.Schema)
-    newschemas = map(lambda x: x.name, newds.Schema)
+    oldschemas = [x.name for x in oldds.Schema]
+    newschemas = [x.name for x in newds.Schema]
     common, added, removed = splitlists(oldschemas, newschemas)
     for name in added:
         logging.info("%s new Schema Namespace", name)
@@ -95,8 +92,8 @@ def odatadiff(old_doc, new_doc, backlinks=False):
 
 
 def schemadiff(oldds, newds, backlinks=False):
-    oldtypes = map(lambda x: x.name, oldds.EntityType)
-    newtypes = map(lambda x: x.name, newds.EntityType)
+    oldtypes = [x.name for x in oldds.EntityType]
+    newtypes = [x.name for x in newds.EntityType]
     common, added, removed = splitlists(oldtypes, newtypes)
     for name in added:
         logging.info("%s.%s new EntityType", oldds.name, name)
@@ -106,20 +103,11 @@ def schemadiff(oldds, newds, backlinks=False):
         logging.debug("%s.%s checking EntityType...", oldds.name, name)
         entitydiff(oldds[name], newds[name], backlinks=backlinks)
         logging.debug("%s done", name)
-#     oldassoc = map(lambda x: x.name, oldds.Association)
-#     newassoc = map(lambda x:x.name, newds.Association)
-#     common, added, removed = splitlists(oldassoc, newassoc)
-#     for name in added:
-#         logging.info("%s.%s new Association",oldds.name,name)
-#     for name in removed:
-#         logging.info("%s.%s Association removed",oldds.name,name)
-#     for name in common:
-#         logging.debug("%s.%s checking Association...",oldds.name,name)
 
 
 def entitydiff(oldet, newet, backlinks=False):
-    oldprops = map(lambda x: x.name, oldet.Property)
-    newprops = map(lambda x: x.name, newet.Property)
+    oldprops = [x.name for x in oldet.Property]
+    newprops = [x.name for x in newet.Property]
     common, added, removed = splitlists(oldprops, newprops)
     for name in added:
         logging.info("%s.%s new Property", oldet.name, name)
@@ -129,15 +117,15 @@ def entitydiff(oldet, newet, backlinks=False):
         logging.debug("%s.%s checking Property...", oldet.name, name)
         propdiff(oldet[name], newet[name])
         logging.debug("%s done", name)
-    oldkeys = map(lambda x: x.name, oldet.Key.PropertyRef)
-    newkeys = map(lambda x: x.name, newet.Key.PropertyRef)
+    oldkeys = [x.name for x in oldet.Key.PropertyRef]
+    newkeys = [x.name for x in newet.Key.PropertyRef]
     common, added, removed = splitlists(oldkeys, newkeys)
     for name in added:
         logging.info("%s.%s new Key Property", oldet.name, name)
     for name in removed:
         logging.info("%s.%s Key Property removed", oldet.name, name)
-    oldnav = map(lambda x: x.name, oldet.NavigationProperty)
-    newnav = map(lambda x: x.name, newet.NavigationProperty)
+    oldnav = [x.name for x in oldet.NavigationProperty]
+    newnav = [x.name for x in newet.NavigationProperty]
     common, added, removed = splitlists(oldnav, newnav)
     for name in added:
         logging.info("%s.%s new NavigationProperty", oldet.name, name)
@@ -233,7 +221,7 @@ if __name__ == '__main__':
                          "to fetch metadata for the first time" % args[0])
             old_doc = fetch_url(options.url, username, password)
             save_file(old_doc, args[0])
-    except Exception, e:
-        logging.debug(string.join(traceback.format_exception(*sys.exc_info(),
-                                                             limit=10)))
-        print e
+    except Exception as e:
+        logging.debug(
+            '\n'.join(traceback.format_exception(*sys.exc_info(), limit=10)))
+        logging.error(e)

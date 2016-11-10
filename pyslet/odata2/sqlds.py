@@ -196,6 +196,25 @@ class NamedParams(SQLParams):
         return ":" + name
 
 
+class PyFormatParams(SQLParams):
+
+    """A class for building parameter lists using '%(name)s' syntax."""
+
+    def __init__(self):
+        super(PyFormatParams, self).__init__()
+        self.params = {}
+
+    def add_param(self, value):
+        name = "p%i" % len(self.params)
+        self.params[name] = value
+        return "%%(%s)s" % name
+
+    @classmethod
+    def escape_literal(cls, literal):
+        """Doubles any % characters to prevent formatting errors"""
+        return literal.replace("%", "%%")
+
+
 def retry_decorator(tmethod):
     """Decorates a transaction method with retry handling"""
 
@@ -4073,11 +4092,13 @@ class SQLEntityContainer(object):
             self.ParamsClass = NamedParams
         elif self.dbapi.paramstyle == "format":
             self.ParamsClass = FormatParams
+        elif self.dbapi.paramstyle == "pyformat":
+            self.ParamsClass = PyFormatParams
         else:
             # will fail later when we try and add parameters
-            logging.warn("Unsupported DBAPI params style: %s\n"
-                         "setting to qmark",
-                         self.dbapi.paramstyle)
+            logging.warning("Unsupported DBAPI params style: %s\n"
+                            "setting to qmark",
+                            self.dbapi.paramstyle)
             self.ParamsClass = SQLParams
         self.fk_table = {}
         """A mapping from an entity set name to a FK mapping of the form::
@@ -4498,7 +4519,7 @@ class SQLEntityContainer(object):
                 try:
                     nav_class.drop_table(self, aset_name)
                 except SQLError as e:
-                    logging.warn("Ignoring : %s", str(e))
+                    logging.warning("Ignoring : %s", str(e))
             else:
                 query = nav_class.drop_table_query(self, aset_name)
                 out.write(query)
@@ -4515,7 +4536,7 @@ class SQLEntityContainer(object):
                     try:
                         collection.drop_table()
                     except SQLError as e:
-                        logging.warn("Ignoring : %s", str(e))
+                        logging.warning("Ignoring : %s", str(e))
                 else:
                     query = collection.drop_table_query()
                     out.write(query)
@@ -4536,7 +4557,7 @@ class SQLEntityContainer(object):
                 self.cpool_lock.wait(timeout)
                 now = time.time()
                 if timeout is not None and now > start + timeout:
-                    logging.warn(
+                    logging.warning(
                         "Thread[%i] timed out waiting for the the database "
                         "module lock", thread_id)
                     return None
@@ -4579,7 +4600,7 @@ class SQLEntityContainer(object):
                 else:
                     now = time.time()
                     if timeout is not None and now > start + timeout:
-                        logging.warn(
+                        logging.warning(
                             "Thread[%i] timed out waiting for a database "
                             "connection", thread_id)
                         break
@@ -4843,7 +4864,7 @@ class SQLEntityContainer(object):
                     # shrinking, wait for locked connections to be
                     # released
                     nlocked = len(self.cpool_locked)
-                    logging.warn(
+                    logging.warning(
                         "Waiting to break unreleased database connections")
                     self.cpool_lock.wait(timeout)
                     continue
@@ -5230,8 +5251,8 @@ class SQLiteEntityContainer(SQLEntityContainer):
             if (('max_connections' in kwargs and
                     kwargs['max_connections'] != 1) or
                     'max_connections' not in kwargs):
-                logging.warn("Forcing max_connections=1 for in-memory "
-                             "SQLite database")
+                logging.warning("Forcing max_connections=1 for in-memory "
+                                "SQLite database")
             kwargs['max_connections'] = 1
             self.sqlite_memdbc = sqlite3.connect(
                 ":memory:", check_same_thread=False, **sqlite_options)

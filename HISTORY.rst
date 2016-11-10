@@ -53,6 +53,20 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20161110*
+
+#12 bug when using numeric or named parameters in DB API
+
+Added support for pyformat in DB APIs as part of enabling support for
+PyMySQL.
+
+#38 Python 3 compatibility work (ongoing)
+
+Updated more samples to work in Python 3, including the weather OData
+service using MySQL connected through PyMySQL as MySQLdb is not
+supported in Python 3.
+
+
 *Build 20161109*
 
 #3 PEP-8 driven refactoring (complete)
