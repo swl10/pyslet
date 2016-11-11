@@ -701,6 +701,7 @@ class Message(PEP8Compatibility, object):
                 if self.body_start is not None:
                     # we've been here before, truncate back
                     self.entity_body.truncate(self.body_start)
+                    self.entity_body.seek(self.body_start)
                 else:
                     raise HTTPException("Can't truncate "
                                         "non-seekable message body")
