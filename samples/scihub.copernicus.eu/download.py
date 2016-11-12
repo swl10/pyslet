@@ -6,15 +6,19 @@ import sys
 
 from optparse import OptionParser
 
-from pyslet.odata2.client import Client
 from pyslet.http.auth import BasicCredentials
+from pyslet.odata2.client import Client
+from pyslet.py2 import output
 from pyslet.rfc2396 import URI
 
+
 # The URL of the OData service
-SERVICE = 'https://scihub.esa.int/dhus/odata/v1/'
+SERVICE = 'https://scihub.copernicus.eu/apihub/odata/v1'
 
 # The file name to read/write the site certificate to
-CERTIFICATE = 'scihub.esa.int.crt'
+CERTIFICATE = 'scihub.copernicus.eu.crt'
+
+MAX_LIST = 100
 
 # Example product ids:
 # a large one: e9b57d8d-7675-433c-9733-d3ad0996576d
@@ -31,24 +35,35 @@ def get_cert():
 
 def main(user, password, product_list):
     metadata = URI.from_path('metadata.xml')
+    service = URI.from_path('scihub.copernicus.eu.xml')
     credentials = BasicCredentials()
     credentials.userid = user
     credentials.password = password
     credentials.protectionSpace = URI.from_octets(SERVICE).get_canonical_root()
-    # the full link of odata is https://scihub.esa.int/dhus/odata/v1
+    # the full link of odata is https://scihub.copernicus.eu/apihub/odata/v1
     # this is for the authentication
     c = Client(ca_certs=CERTIFICATE)
     c.add_credentials(credentials)
-    c.LoadService(SERVICE, metadata=metadata)
-
+    c.load_service(service_root=service, metadata=metadata)
     with c.feeds['Products'].open() as products:
         for pid in product_list:
             p = products[pid]
             name = p['Name'].value
             size = p['ContentLength'].value
-            print name, size
+            output("Product: %s [%i]\n" % (name, size))
             with open('%s.zip' % name, 'wb') as f:
                 products.read_stream(p.key(), f)
+        if not product_list:
+            i = 0
+            for p in products.itervalues():
+                name = p['Name'].value
+                type = p['ContentType'].value
+                size = p['ContentLength'].value
+                output("%s\n" % str(p.get_location()))
+                output("    %s %s[%i]\n" % (name, type, size))
+                i += 1
+                if i > MAX_LIST:
+                    break
 
 
 if __name__ == '__main__':

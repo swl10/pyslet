@@ -22,7 +22,7 @@ htmlcov
 # misc
 local
 samples/noticeboard/data/google_certs.pem
-samples/scihub.esa.int/scihub.esa.int.crt
+samples/scihub.copernicus.eu/scihub.copernicus.eu.crt
 unittests/pyslet
 samples/pyslet
 samples/noticeboard/pyslet

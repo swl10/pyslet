@@ -246,10 +246,11 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(str(root) == 'http://localhost/')
         req = MockRequest()
         req.environ['HTTP_HOST'] = "www.evil.com"
-        context = wsgi.WSGIContext(req.environ, req.start_response)
-        root = context.get_app_root("https://www.good.com:8443")
+        # canonical_root passed as a parameter always takes precedence
+        context = wsgi.WSGIContext(req.environ, req.start_response,
+                                   canonical_root="https://www.good.com:8443")
+        root = context.get_app_root()
         self.assertTrue(isinstance(root, URI))
-        # authority passed as a parameter always takes precedence
         self.assertTrue(str(root) == 'https://www.good.com:8443/')
         # test https
         req = MockRequest(secure=True, port=443)
@@ -304,10 +305,11 @@ class ContextTests(unittest.TestCase):
         context = wsgi.WSGIContext(req.environ, req.start_response)
         url = context.get_url()
         self.assertTrue(str(url) == 'https://localhost:8443/')
-        # check that authority trumps the port
+        # check that canonical_root trumps the port
         req = MockRequest(port=8080)
-        context = wsgi.WSGIContext(req.environ, req.start_response)
-        url = context.get_url("http://www.example.com")
+        context = wsgi.WSGIContext(req.environ, req.start_response,
+                                   canonical_root="http://www.example.com")
+        url = context.get_url()
         self.assertTrue(str(url) == 'http://www.example.com/')
         # now check the path, with empty SCRIPT_NAME
         req = MockRequest(path="/script.py/index.html")
@@ -776,7 +778,7 @@ class AppTests(unittest.TestCase):
         self.assertTrue("WSGIApp" in SettingsApp.settings)
         self.assertTrue("level" in SettingsApp.settings['WSGIApp'])
         self.assertTrue(SettingsApp.settings['WSGIApp']['level'] is None)
-        self.assertTrue(SettingsApp.settings['WSGIApp']['authority'] ==
+        self.assertTrue(SettingsApp.settings['WSGIApp']['canonical_root'] ==
                         "http://localhost:8080")
         self.assertTrue(SettingsApp.settings['WSGIApp']['port'] == 8080)
         self.assertTrue(SettingsApp.settings['WSGIApp']['interactive'] is
@@ -790,7 +792,7 @@ class AppTests(unittest.TestCase):
         SettingsApp.settings_file = path
         SettingsApp.setup()
         self.assertTrue(SettingsApp.settings['WSGIApp']['level'] == 20)
-        self.assertTrue(SettingsApp.settings['WSGIApp']['authority'] ==
+        self.assertTrue(SettingsApp.settings['WSGIApp']['canonical_root'] ==
                         "https://www.example.com:8443")
         self.assertTrue(SettingsApp.settings['WSGIApp']['port'] == 8081)
         self.assertTrue(SettingsApp.settings['WSGIApp']['interactive'] is True)
@@ -902,6 +904,7 @@ class AppTests(unittest.TestCase):
         self.assertTrue(req.output.getvalue() == b"0123456789")
 
     def test_static(self):
+        MockApp.setup()
         app = MockApp()
         app.set_method('/*', app.static_page)
         req = MockRequest(path="/res/public.txt")
@@ -1602,8 +1605,8 @@ class FullAppTests(unittest.TestCase):
         target = req.headers['location']
         self.assertTrue(len(target) == 1)
         target = URI.from_octets(target[0])
-        self.assertTrue(target.get_addr() == ('localhost', 80))
-        self.assertTrue(isinstance(target, params.HTTPURL))
+        self.assertTrue(target.get_addr() == ('www.example.com', 8443))
+        self.assertTrue(isinstance(target, params.HTTPSURL))
         # and we expect a warning cookie
         self.assertTrue(self.app._test_cookie in req.cookies)
         # and we expect a session cookie
@@ -1620,8 +1623,8 @@ class FullAppTests(unittest.TestCase):
         target = req.headers['location']
         self.assertTrue(len(target) == 1)
         target = URI.from_octets(target[0])
-        self.assertTrue(target.get_addr() == ('localhost', 80))
-        self.assertTrue(isinstance(target, params.HTTPURL))
+        self.assertTrue(target.get_addr() == ('www.example.com', 8443))
+        self.assertTrue(isinstance(target, params.HTTPSURL))
         self.assertTrue(target.abs_path == '/')
         # and an updated sid!
         self.assertTrue(self.app._session_cookie in req.cookies)
@@ -1657,8 +1660,8 @@ class FullAppTests(unittest.TestCase):
         if isinstance(form, html.Form):
             self.assertTrue(form.action is not None)
             target = form.action
-            self.assertTrue(target.get_addr() == ('localhost', 80))
-            self.assertTrue(isinstance(target, params.HTTPURL))
+            self.assertTrue(target.get_addr() == ('www.example.com', 8443))
+            self.assertTrue(isinstance(target, params.HTTPSURL))
             # get the input fields
             query = {}
             for input in form.find_children_depth_first(html.Input):
@@ -1682,8 +1685,8 @@ class FullAppTests(unittest.TestCase):
         target = req.headers['location']
         self.assertTrue(len(target) == 1)
         target = URI.from_octets(target[0])
-        self.assertTrue(target.get_addr() == ('localhost', 80))
-        self.assertTrue(isinstance(target, params.HTTPURL))
+        self.assertTrue(target.get_addr() == ('www.example.com', 8443))
+        self.assertTrue(isinstance(target, params.HTTPSURL))
         # and we expect a warning cookie
         self.assertTrue(self.app._test_cookie in req.cookies)
         # and we expect a session cookie
@@ -1700,8 +1703,8 @@ class FullAppTests(unittest.TestCase):
         target = req.headers['location']
         self.assertTrue(len(target) == 1)
         target = URI.from_octets(target[0])
-        self.assertTrue(target.get_addr() == ('localhost', 80))
-        self.assertTrue(isinstance(target, params.HTTPURL))
+        self.assertTrue(target.get_addr() == ('www.example.com', 8443))
+        self.assertTrue(isinstance(target, params.HTTPSURL))
         self.assertTrue(target.abs_path == '/')
         # and an updated sid!
         self.assertTrue(self.app._session_cookie in req.cookies)
@@ -1755,8 +1758,8 @@ class FullAppTests(unittest.TestCase):
         target = req.headers['location']
         self.assertTrue(len(target) == 1)
         target = URI.from_octets(target[0])
-        self.assertTrue(target.get_addr() == ('localhost', 80))
-        self.assertTrue(isinstance(target, params.HTTPURL))
+        self.assertTrue(target.get_addr() == ('www.example.com', 8443))
+        self.assertTrue(isinstance(target, params.HTTPSURL))
         self.assertTrue(target.abs_path == '/')
         # our session should be merged in, so we have the existing sid
         # and therefore no cookie need be set

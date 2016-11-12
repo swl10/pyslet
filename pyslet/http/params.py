@@ -891,7 +891,7 @@ class ParameterParser(WordParser):
             year = year % 100
         else:
             token = self.require_token("GMT").upper()
-            if token != b"GMT":
+            if token != b"UTC" and token != b"GMT":
                 self.parser_error("timezone")
         if century is None:
             if year < 90:

@@ -15,6 +15,7 @@ import random
 import sys
 import threading
 import time
+import traceback
 
 from hashlib import sha256
 from wsgiref.simple_server import make_server
@@ -154,7 +155,7 @@ class WSGIContext(object):
     #: The maximum amount of content we'll read into memory (64K)
     MAX_CONTENT = 64 * 1024
 
-    def __init__(self, environ, start_response):
+    def __init__(self, environ, start_response, canonical_root=None):
         #: the WSGI environ
         self.environ = environ
         #: the WSGI start_response callable
@@ -166,6 +167,10 @@ class WSGIContext(object):
         #: a *list* of (name, value) tuples containing the headers to
         #: return to the client.  name and value must be strings
         self.headers = []
+        if canonical_root is None:
+            self._canonical_root = self._get_canonical_root()
+        else:
+            self._canonical_root = canonical_root
         self._query = None
         self._content = None
         self._form = None
@@ -215,14 +220,8 @@ class WSGIContext(object):
         return self.start_response_method(
             "%i %s" % (self.status, self.status_message), self.headers)
 
-    def get_app_root(self, authority=None):
+    def get_app_root(self):
         """Returns the root of this application
-
-        authority
-            The URL scheme and authority (including optional port) that
-            should be used instead of the information obtained from the
-            WSGI environment (e.g., the SERVER_NAME and SERVER_PORT
-            variables).
 
         The result is a :class:`pyslet.rfc2396.URI` instance, It is
         calculated from the environment in the same way as
@@ -247,23 +246,19 @@ class WSGIContext(object):
 
         for the above example.  This is preferable to using absolute
         paths which would strip away the SCRIPT_NAME prefix when used."""
-        if authority:
-            url = [authority]
-        else:
-            url = [self.environ['wsgi.url_scheme'], '://']
-            url.append(self._get_authority())
+        url = [self._canonical_root]
         script = urlquote(self.environ.get('SCRIPT_NAME', ''))
-        url.append(script)
-        # we always add the slash, that's our root URL
-        if not script or script[-1] != '/':
+        if not script:
             url.append('/')
+        else:
+            url.append(script)
+            # we always add the slash, that's our root URL
+            if script[-1] != '/':
+                url.append('/')
         return URI.from_octets(''.join(url))
 
-    def get_url(self, authority=None):
+    def get_url(self):
         """Returns the URL used in the request
-
-        authority
-            See :meth:`get_app_root`
 
         The result is a :class:`pyslet.rfc2396.URI` instance, It is
         calculated from the environment using the algorithm described in
@@ -287,11 +282,7 @@ class WSGIContext(object):
         This causes particular pain in OData services which frequently
         respond on the service script's URL without a slash but generate
         incorrect relative links to the contained feeds as a result."""
-        if authority:
-            url = [authority]
-        else:
-            url = [self.environ['wsgi.url_scheme'], '://']
-            url.append(self._get_authority())
+        url = [self._canonical_root]
         url.append(urlquote(self.environ.get('SCRIPT_NAME', '')))
         url.append(urlquote(self.environ.get('PATH_INFO', '')))
         query = self.environ.get('QUERY_STRING', '')
@@ -299,16 +290,21 @@ class WSGIContext(object):
             url += ['?', query]
         return URI.from_octets(''.join(url))
 
-    def _get_authority(self):
+    def _get_canonical_root(self):
+        url = [self.environ['wsgi.url_scheme'], '://']
         sflag = (self.environ['wsgi.url_scheme'] == 'https')
         authority = self.environ['SERVER_NAME']
         port = self.environ['SERVER_PORT']
         if sflag:
             if port != '443':
-                return "%s:%s" % (authority, port)
+                url.append("%s:%s" % (authority, port))
+            else:
+                url.append(authority)
         elif port != '80':
-            return "%s:%s" % (authority, port)
-        return authority
+            url.append("%s:%s" % (authority, port))
+        else:
+            url.append(authority)
+        return ''.join(url)
 
     def get_query(self):
         """Returns a dictionary of query parameters
@@ -536,20 +532,22 @@ class WSGIApp(DispatchNode):
         between 0 (NOTSET) and 50 (CRITICAL).  For more information see
         python's logging module.
 
-    authority ("http://localhost")
+    port (8080)
+        The port number used by :meth:`run_server`
+
+    canonical_root ("http://localhost" or "http://localhost:<port>")
         The canonical URL scheme, host (and port if required) for the
-        application.  This value is passed to
-        :meth:`WSGIContext.get_url` and similar methods and is used in
-        preference to the SERVER_NAME and SEVER_PORT to construct
-        absolute URLs returned or recorded by the application.  Note
-        that the Host header is always ignored to prevent related
-        `security attacks`__.
+        application.  This value is passed to the context and used by
+        :meth:`WSGIContext.get_url` and similar methods in preference to
+        the SERVER_NAME and SEVER_PORT to construct absolute URLs
+        returned or recorded by the application.  Note that the Host
+        header is always ignored to prevent related `security attacks`__.
 
         ..  __:
             http://www.skeletonscribe.net/2013/05/practical-http-host-header-attacks.html
 
-    port (8080)
-        The port number used by :meth:`run_server`
+        If no value is given then the default is calculated taking in to
+        consideration the port setting.
 
     interactive (False)
         Sets the behaviour of :meth:`run_server`, if specified the main
@@ -726,11 +724,13 @@ class WSGIApp(DispatchNode):
         level = settings.setdefault('level', None)
         if level is not None:
             logging.basicConfig(level=settings['level'])
-        settings.setdefault('authority', "http://localhost:8080")
         if options and options.port is not None:
             settings['port'] = int(options.port)
         else:
             settings.setdefault('port', 8080)
+        settings.setdefault(
+            'canonical_root', "http://localhost%s" %
+            ("" if settings['port'] == 80 else (":%i" % settings['port'])))
         if options and options.interactive is not None:
             settings['interactive'] = options.interactive
         else:
@@ -902,7 +902,9 @@ class WSGIApp(DispatchNode):
             yield data
 
     def __call__(self, environ, start_response):
-        context = self.ContextClass(environ, start_response)
+        context = self.ContextClass(
+            environ, start_response,
+            self.settings['WSGIApp']['canonical_root'])
         try:
             path = context.environ['PATH_INFO'].split('/')
             if not path:
@@ -1176,7 +1178,13 @@ class WSGIApp(DispatchNode):
             "%i %s\r\n%s" % (context.status, context.status_message, str(err)))
         context.add_header("Content-Type", "text/plain")
         context.add_header("Content-Length", str(len(data)))
-        context.start_response()
+        try:
+            context.start_response()
+        except Exception:
+            # log this error and move on as we're already returning a 500
+            logging.error(
+                "Error raised by WSGIApp.internal_error: %s",
+                "".join(traceback.format_exception(*sys.exc_info())))
         return [data]
 
     def _run_server_thread(self):
@@ -1394,7 +1402,7 @@ class WSGIDataApp(WSGIApp):
             elif create_tables:
                 cls.data_source.create_all_tables()
         settings.setdefault('keynum', 0)
-        if options and options.in_memory:
+        if options and options.in_memory and 'AppKeys' in cls.container:
             settings.setdefault('secret', 'secret')
             settings.setdefault('cipher', 'plaintext')
         else:
@@ -1940,8 +1948,8 @@ class SessionContext(WSGIContext):
 
     """Extends the base class with a session object."""
 
-    def __init__(self, environ, start_response):
-        WSGIContext.__init__(self, environ, start_response)
+    def __init__(self, environ, start_response, canonical_root=None):
+        WSGIContext.__init__(self, environ, start_response, canonical_root)
         #: a session object, or None if no session available
         self.session = None
 
@@ -1953,7 +1961,12 @@ class SessionContext(WSGIContext):
         them to the data store."""
         if self.session:
             # save any changes to the session to the database
-            self.session.commit()
+            try:
+                self.session.commit()
+            except Exception:
+                logging.error(
+                    "Session.commit failed: \n%s",
+                    "".join(traceback.format_exception(*sys.exc_info())))
         return super(SessionContext, self).start_response()
 
 
@@ -2180,7 +2193,8 @@ class SessionApp(WSGIDataApp):
         object.  If this request is a POST then the form is parsed and
         the CSRF token checked for validity."""
         if context.session is None:
-            csrf_match = context.get_cookies().get(self._session_cookie, '')
+            csrf_match = context.get_cookies().get(
+                self._session_cookie, b'').decode('ascii')
             self.set_session(context)
             if context.environ['REQUEST_METHOD'].upper() == 'POST':
                 # check the CSRF token

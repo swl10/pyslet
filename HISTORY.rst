@@ -53,6 +53,45 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20161112*
+
+#38 Python 3 compatibility work (ongoing)
+
+Possible breaking change to wsgi module to refactor authority setting to
+"canonical_root", modified WSGIContext object to accept an optional
+canonical_root argument and removed the optional authority argument from
+get_app_root and get_url.  The authority setting was previously a
+misnomer and the wsgi sammples were not working properly with localhost.
+
+scihub.esa.int has been renamed to scihub.copernicus.eu and the sample
+code has been updated accordingly with the latest metadata-fixes and
+tested using Python 3.
+
+#56 Bug when handling 401 responses in HTTP client
+
+Reported as "Garbage received when server delays response" - the issue
+affected any response that was received as a result of a resend (after a
+redirect or 401 response). The stream used to receive the data in the
+follow-up request was not being reset correctly and this resulted in a
+chunk of 0x00 bytes being written before the actual content.
+
+This bug was discovered following changes in the 20160209 build when
+StringIO was replaced with BytesIO for Python 3 compatibility.
+StringIO.truncate moves the stream pointer, BytesIO.truncate does not.
+As a result all resends where the 3xx or 401 response had a non-zero
+length body were being affected.  Previously the bug only affected the
+rarer use case of resends of streamed downloads to real files, i.e.,
+requests created by passing an open file in the res_body argument of
+ClientRequest.
+
+With thanks to @karurosu for reporting.
+
+Untracked:
+
+Added compatibility in HTTP client for parsing dates from headers where
+the server uses the zone designator "UTC" instead of the required "GMT".
+
+
 *Build 20161110*
 
 #12 bug when using numeric or named parameters in DB API
@@ -65,6 +104,11 @@ PyMySQL.
 Updated more samples to work in Python 3, including the weather OData
 service using MySQL connected through PyMySQL as MySQLdb is not
 supported in Python 3.
+
+Untracked:
+
+Caught bug in autodetection of character set in XML parser when running
+under Python 3 and attempting to parse empty files.
 
 
 *Build 20161109*

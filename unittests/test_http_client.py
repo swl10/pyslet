@@ -265,7 +265,11 @@ class ClientTests(unittest.TestCase):
             req = sock.recv_request()
             if req is None:
                 break
-            if req.method in ("HEAD", "GET"):
+            if req.method == "GET":
+                response = messages.Response(req, entity_body=b"Not here")
+                response.set_status(301, "Moved")
+                response.set_location("http://www.domain1.com/")
+            elif req.method == "HEAD":
                 response = messages.Response(req, entity_body=None)
                 response.set_status(301, "Moved")
                 response.set_location("http://www.domain1.com/")
@@ -444,6 +448,25 @@ class ClientTests(unittest.TestCase):
                         "Reason in response2: %s" % response2.reason)
         self.assertTrue(request2.res_body == b"",
                         "Data in response2: %s" % request2.res_body)
+
+    def test_redirect(self):
+        request = http.ClientRequest("http://www.domain2.com/")
+        self.client.queue_request(request)
+        self.client.thread_loop(timeout=5)
+        response = request.response
+        self.assertTrue(
+            str(response.protocol) == "HTTP/1.1",
+            "Protocol in response1: %s" % response.protocol)
+        self.assertTrue(
+            response.status == 200,
+            "Status in response: %i" %
+            response.status)
+        self.assertTrue(response.reason == "You got it!",
+                        "Reason in response: %s" % response.reason)
+        self.assertTrue(
+            request.res_body == TEST_STRING,
+            "Data in response: %s" %
+            repr(request.res_body))
 
     def test_continue(self):
         """RFC2616:
@@ -867,5 +890,5 @@ class SecureTests(unittest.TestCase):
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
+        level=logging.INFO, format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()

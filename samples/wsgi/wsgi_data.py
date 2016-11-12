@@ -1,8 +1,7 @@
 #! /usr/bin/env python
 import time
 
-import pyslet.odata2.csdl as edm
-
+from pyslet.odata2 import csdl as edm
 from pyslet.wsgi import WSGIDataApp
 
 

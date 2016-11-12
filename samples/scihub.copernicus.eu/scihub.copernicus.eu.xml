@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<service xml:base="https://scihub.copernicus.eu/apihub/odata/v1/" xmlns="http://www.w3.org/2007/app"
+    xmlns:atom="http://www.w3.org/2005/Atom">
+    <workspace>
+        <atom:title>Default</atom:title>
+        <collection href="Users">
+            <atom:title>Users</atom:title>
+        </collection>
+        <collection href="Products">
+            <atom:title>Products</atom:title>
+        </collection>
+        <collection href="Classes">
+            <atom:title>Classes</atom:title>
+        </collection>
+        <collection href="Collections">
+            <atom:title>Collections</atom:title>
+        </collection>
+    </workspace>
+</service>

@@ -131,6 +131,21 @@ class ProtocolParameterTests(unittest.TestCase):
             str(timestamp_822) == "Sun, 06 Nov 1994 08:49:37 GMT",
             "All-in-one parser")
 
+    def test_utc_date(self):
+        """UTC variant of date format
+
+        Seen in the wild::
+
+            Server: Apache-Coyote/1.1
+            Date: Sat, 12 Nov 2016 16:22:58 GMT
+            Expires: Sat, 19 Nov 2016 16:22:58 UTC
+            Last-Modified: Mon, 16 Nov 2015 01:26:00 UTC
+        """
+        timestamp_822 = FullDate.from_http_str("Sat, 19 Nov 2016 16:22:58 UTC")
+        self.assertTrue(timestamp_822.get_zone()[0] == 0)
+        self.assertTrue(
+            timestamp_822 == iso.TimePoint.from_str("2016-11-19T16:22:58Z"))
+
     def test_transfer_encoding(self):
         te = TransferEncoding()
         self.assertTrue(te.token == "chunked", "Default not chunked")
