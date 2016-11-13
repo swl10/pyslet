@@ -37,7 +37,7 @@ URN
 Translating to and from Text
 ----------------------------
 
-..	autofunction::	translate_to_urnchar
+..	autofunction::	translate_to_urnchar(src, reserved_test=is_reserved)
 
 ..	autofunction::	translate_from_urnchar
 
@@ -54,21 +54,53 @@ take a single character as an argument and return True if the character
 matches the class.  They will also accept None and return False in that
 case.
 
-..	autofunction::	is_upper
+..	function::	is_upper(c)
 
-..	autofunction::	is_lower
+    Returns True if c matches upper
 
-..	autofunction::	is_number
+..	function::	is_lower(c)
 
-..	autofunction::	is_letnum
+    Returns True if c matches lower
 
-..	autofunction::	is_letnumhyp
+..	function::	is_number(c)
 
-..	autofunction::	is_reserved
+    Returns True if c matches number
 
-..	autofunction::	is_other
+..	function::	is_letnum(c)
 
-..	autofunction::	is_trans
+    Returns True if c matches letnum
+    
+..	autofunction::	is_letnumhyp(c)
 
-..	autofunction::	is_hex
+    Returns True if c matches letnumhyp
+    
+..	function::	is_reserved(c)
+
+    Returns True if c matches reserved
+
+    The reserved characters are::
+
+        "%" | "/" | "?" | "#"
+    
+..	function::	is_other(c)
+
+    Returns True if c matches other
+
+    The other characters are::
+
+        "(" | ")" | "+" | "," | "-" | "." | ":" | "=" | "@" | ";" | "$" |
+        "_" | "!" | "*" | "'"
+
+..	function::	is_trans(c)
+
+    Returns True if c matches trans
+
+    Note that translated characters include reserved characters, even though
+    they should normally be escaped (and in the case of '%' MUST be
+    escaped).  The effect is that URNs consist of runs of characters that
+    match the production for trans.
+
+..	function::	is_hex(c)
+
+    Returns True if c matches hex
 

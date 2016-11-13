@@ -13,56 +13,26 @@ from .unicode5 import CharClass
 
 
 is_upper = uri.is_upalpha
-"""Returns True if c matches upper"""
 
 is_lower = uri.is_lowalpha
-"""Returns True if c matches lower"""
 
 is_number = uri.is_digit
-"""Returns True if c matches number"""
 
 is_letnum = uri.is_alphanum
-"""Returns True if c matches letnum"""
 
 letnumhyp = CharClass(uri.alphanum, '-')
-
 is_letnumhyp = letnumhyp.test
-"""Returns True if c matches letnumhyp"""
 
 reserved = CharClass("%/?#")
-
 is_reserved = reserved.test
-"""Returns True if c matches reserved
-
-The reserved characters are::
-
-    "%" | "/" | "?" | "#"
-"""
 
 other = CharClass("()+,-.:=@;$_!*'")
-
 is_other = other.test
-"""Returns True if c matches other
-
-The other characters are::
-
-    "(" | ")" | "+" | "," | "-" | "." | ":" | "=" | "@" | ";" | "$" |
-    "_" | "!" | "*" | "'"
-"""
 
 trans = CharClass(uri.alphanum, other, reserved)
-
 is_trans = trans.test
-"""Returns True if c matches trans
-
-Note that translated characters include reserved characters, even though
-they should normally be escaped (and in the case of '%' MUST be
-escaped).  The effect is that URNs consist of runs of characters that
-match the production for trans."""
-
 
 is_hex = uri.is_hex
-"""Returns True if c matches hex"""
 
 
 def translate_to_urnchar(src, reserved_test=is_reserved):

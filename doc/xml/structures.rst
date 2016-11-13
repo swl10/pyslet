@@ -122,9 +122,13 @@ White Space Handling
 Names
 ~~~~~
 
-..	autofunction:: is_name_start_char
+..	function:: is_name_start_char(c)
 
-..	autofunction:: is_name_char
+    Tests if the character *c* matches production [4] NameStartChar.
+    
+..	function:: is_name_char(c)
+
+    Tests production [4a] NameChar
 
 ..	autofunction:: is_valid_name
 

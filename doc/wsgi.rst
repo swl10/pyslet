@@ -269,7 +269,7 @@ have at least the following fields::
             MaxLength="256" Unicode="false"/>
     </EntityType>
 
-A decorator, :func:`session_decoratr` is defined to make it easy to
+A decorator, :func:`session_decorator` is defined to make it easy to
 write (page) methods that depend on the existence of an active session. 
 The session initiation logic is a little convoluted and is likely to
 involve at least one redirect when a protected page is first requested,

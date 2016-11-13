@@ -38,153 +38,58 @@ path_sep = ul('/')
 """Constant for "/" character."""
 
 upalpha = CharClass(('A', 'Z'))
-
 is_upalpha = upalpha.test
-"""Tests production: upalpha"""
 
 lowalpha = CharClass(('a', 'z'))
-
 is_lowalpha = lowalpha.test
-"""Tests production: lowalpha"""
 
 alpha = CharClass(upalpha, lowalpha)
-
 is_alpha = alpha.test
-"""Tests production: alpha"""
 
 digit = CharClass(('0', '9'))
-
 is_digit = digit.test
-"""Tests production: digit"""
 
 alphanum = CharClass(upalpha, lowalpha, digit)
-
 is_alphanum = alphanum.test
-"""Tests production: alphanum"""
 
 reserved_1738 = CharClass(";/?:@&=")
-
 is_reserved_1738 = reserved_1738.test
-"""Tests production: reserved
-
-The reserved characters are::
-
-    ";" | "/" | "?" | ":" | "@" | "&" | "="
-
-This function enables parsing according to the earlier RFC1738."""
 
 reserved_2396 = CharClass(";/?:@&=+$,")
-
 is_reserved_2396 = reserved_2396.test
-"""Tests production: reserved
-
-The reserved characters are::
-
-    ";" | "/" | "?" | ":" | "@" | "&" | "=" | "+" | "$" | ","
-
-This function enables strict parsing according to RFC2396, for general
-use you should use :func:`is_reserved` which takes into consideration
-the update in RFC2732 to accommodate IPv6 literals."""
 
 reserved = CharClass(";/?:@&=+$,[]")
-
 is_reserved = reserved.test
-"""Tests production: reserved
-
-The reserved characters are::
-
-    ";" | "/" | "?" | ":" | "@" | "&" | "=" | "+" | "$" | "," | "[" | "]"
-
-This function uses the larger reserved set defined by the update in
-RFC2732.  The additional reserved characters are "[" and "]" which were
-not originally part of the character set allowed in URI by RFC2396."""
 
 safe_1738 = CharClass("$-_.+")
-
 is_safe_1738 = safe_1738.test
-"""Test production: safe (RFC 1738 only)
-
-The safe characters are::
-
-    "$" | "-" | "_" | "." | "+"
-"""
 
 extra_1738 = CharClass("!*'(),")
 is_extra_1738 = extra_1738.test
-"""Test production: safe (RFC 1738 only)
-
-The safe characters are::
-
-    "!" | "*" | "'" | "(" | ")" | ","
-"""
 
 unreserved_1738 = CharClass(alphanum, safe_1738, extra_1738)
 is_unreserved_1738 = unreserved_1738.test
-"""Tests production: unreserved
-
-Tests the definition of unreserved from the earlier RFC1738.  The
-following characters were considered 'safe' in RFC1738 (and so are
-unreserved there) but were later classified as reserved in RFC2396::
-
-    "$" | "+" | ","
-
-The "~" is considered unreserved in RFC2396 but is neither reserved nor
-unreserved in RFC1738 and so therefore must be escaped for compatibility
-with early URL parsing systems."""
 
 mark = CharClass("-_.!~*'()")
-
 is_mark = mark.test
-"""Tests production: mark
-
-The mark characters are::
-
-    "-" | "_" | "." | "!" | "~" | "*" | "'" | "(" | ")"
-"""
 
 unreserved = CharClass(alphanum, mark)
 is_unreserved = unreserved.test
-"""Tests production: unreserved
-
-Despite the name, some characters are neither reserved nor unreserved."""
-
 
 allowed_1738 = CharClass(reserved_1738, unreserved_1738)
-
 is_allowed_1738 = allowed_1738.test
-"""Convenience function for testing allowed characters
-
-Returns True if c is a character allowed in a URI according to the older
-definitions in RFC1738, False otherwise. A character is allowed
-(unescaped) in a URI if it is either reserved or unreserved."""
 
 allowed_2396 = CharClass(reserved_2396, unreserved)
 is_allowed_2396 = allowed_2396.test
-"""Convenience function for testing allowed characters
-
-Returns True if c is a character allowed in a URI according to the
-stricter definitions in RFC2396, False otherwise. A character is allowed
-(unescaped) in a URI if it is either reserved or unreserved."""
 
 allowed = CharClass(reserved, unreserved)
 is_allowed = allowed.test
-"""Convenience function for testing allowed characters
-
-Returns True if c is a character allowed in a URI according to the
-looser definitions of RFC2732, False otherwise. A character is allowed
-(unescaped) in a URI if it is either reserved or unreserved."""
 
 hex_char = CharClass(digit, ('a', 'f'), ('A', 'F'))
-
 is_hex = hex_char.test
-"""Tests production: hex
-
-Accepts upper or lower case forms."""
 
 control = CharClass((character(0), character(0x1f)), character(0x7f))
-
 is_control = control.test
-"""Tests production: control"""
 
 
 def is_space(c):
@@ -193,53 +98,18 @@ def is_space(c):
 
 delims = CharClass('<>#%"')
 is_delims = delims.test
-"""Tests production: delims
-
-The delims characters are::
-
-    "<" | ">" | "#" | "%" | <">
-"""
 
 unwise_2396 = CharClass("{}|\^[]`")
 is_unwise_2396 = unwise_2396.test
-"""Tests production: unwise
-
-The unwise characters are::
-
-    "{" | "}" | "|" | "\" | "^" | "[" | "]" | "`"
-
-This function enables strict parsing according to RFC2396, the
-definition of unwise characters was updated in RFC2732 to exclude "["
-and "]"."""
 
 unwise = CharClass("{}|\^`")
-
 is_unwise = unwise.test
-"""Tests production: unwise
-
-The unwise characters are::
-
-    "{" | "}" | "|" | "\" | "^" | "`"
-
-This function uses the smaller unwise set defined by the update in
-RFC2732.  The characters "[" and "]" were removed from this set
-in order to support IPv6 literals.
-
-This function is provided for completeness and is not used
-internally for parsing URLs."""
 
 scheme_char = CharClass(alphanum, "+-.")
 _is_scheme_char = scheme_char.test
 
-
 authority_reserved = CharClass(";:@?/")
 is_authority_reserved = authority_reserved.test
-"""Convenience function for parsing production authority
-
-Quoting the specification of production authority:
-
-    Within the authority component, the characters ";", ":", "@",
-    "?", and "/" are reserved"""
 
 
 @old_function('ParseURIC')
@@ -572,12 +442,6 @@ def split_server(authority):
 
 path_segment_reserved = CharClass("/;=?")
 is_path_segment_reserved = path_segment_reserved.test
-"""Convenience function for escaping path segments
-
-From RFC2396:
-
-    Within a path segment, the characters "/", ";", "=", and "?" are
-    reserved."""
 
 
 def split_path(path, abs_path=True):
@@ -741,12 +605,6 @@ def is_query_reserved(c):
     return query_reserved.test(c)
 
 is_query_reserved = query_reserved.test     # noqa (old_function in use)
-"""Convenience function for escaping query strings
-
-From RFC2396:
-
-    Within a query component, the characters ";", "/", "?", ":", "@",
-    "&", "=", "+", ",", and "$" are reserved"""
 
 
 @old_function('EncodeUnicodeURI')

@@ -32,27 +32,49 @@ take a single character as an argument and return True if the character
 matches the class.  They will also accept None and return False in that
 case.
 
-..	autofunction:: is_char
+..	function:: is_char(c)
+
+    Tests production for [2] Char
+
+    This test will be limited on systems with narrow python builds.
 
 ..	autofunction:: is_discouraged
 
-..	autofunction:: is_pubid_char
+..	function:: is_pubid_char(c)
 
-..	autofunction:: is_enc_name
+    Tests production for [13] PubidChar.
 
-..	autofunction:: is_enc_name_start
+..	function:: is_enc_name(c)
 
-..	autofunction:: is_letter
+    Tests the second part of production [81] EncName
 
-..	autofunction:: is_base_char
+..	function:: is_enc_name_start(c)
 
-..	autofunction:: is_ideographic
+    Tests the first character of production [81] EncName
 
-..	autofunction:: is_combining_char
+..	function:: is_letter(c)
 
-..	autofunction:: is_digit
+    Tests production [84] Letter.
 
-..	autofunction:: is_extender
+..	function:: is_base_char(c)
+
+    Tests production [85] BaseChar.
+
+..	function:: is_ideographic(c)
+
+    Tests production [86] Ideographic.
+
+..	function:: is_combining_char(c)
+
+    Tests production [87] CombiningChar.
+
+..	function:: is_digit(c)
+
+    Tests production [88] Digit.
+    
+..	function:: is_extender(c)
+
+    Tests production [89] Extender.
 
 
 Misc Functions

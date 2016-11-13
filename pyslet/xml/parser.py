@@ -43,9 +43,6 @@ else:
                      (character(0x00010000), character(0x0010FFFF)))
 
 is_char = char.test
-"""Tests production for [2] Char
-
-This test will be limited on systems with narrow python builds."""
 
 
 if maxunicode < 0x10FFFF:
@@ -151,9 +148,7 @@ def is_valid_nmtoken(nm_token):
 
 pubid_char = CharClass(' ', character(0x0D), character(0x0A), ('0', '9'),
                        ('A', 'Z'), ('a', 'z'), "-'()+,./:=?;!*#@$_%")
-
 is_pubid_char = pubid_char.test
-"""Tests production for [13] PubidChar."""
 
 
 base_char = CharClass(
@@ -318,16 +313,11 @@ ideographic = CharClass(
     (character(0x3021), character(0x3029)))
 
 letter = CharClass(base_char, ideographic)
-
-
 is_letter = letter.test
-"""Tests production [84] Letter."""
 
 is_base_char = base_char.test
-"""Tests production [85] BaseChar."""
 
 is_ideographic = ideographic.test
-"""Tests production [86] Ideographic."""
 
 
 combining_char = CharClass(
@@ -399,9 +389,7 @@ combining_char = CharClass(
     (character(0x20D0), character(0x20DC)), character(0x20E1),
     (character(0x302A), character(0x302F)),
     (character(0x3099), character(0x309A)))
-
 is_combining_char = combining_char.test
-"""Tests production [87] CombiningChar."""
 
 digit = CharClass(
     ('0', '9'), (character(0x0660), character(0x0669)),
@@ -418,10 +406,7 @@ digit = CharClass(
     (character(0x0E50), character(0x0E59)),
     (character(0x0ED0), character(0x0ED9)),
     (character(0x0F20), character(0x0F29)))
-
 is_digit = digit.test
-"""Tests production [88] Digit."""
-
 
 extender = CharClass(
     character(0xB7), (character(0x02D0), character(0x02D1)), character(0x0387),
@@ -429,20 +414,14 @@ extender = CharClass(
     (character(0x3031), character(0x3035)),
     (character(0x309D), character(0x309E)),
     (character(0x30FC), character(0x30FE)))
-
 is_extender = extender.test
-"""Tests production [89] Extender."""
 
 
 enc_name = CharClass('-', '.', ('0', '9'), ('A', 'Z'), '_', ('a', 'z'))
-
 is_enc_name = enc_name.test
-"""Tests the second part of production [81] EncName"""
 
 enc_name_start = CharClass(('A', 'Z'), ('a', 'z'))
-
 is_enc_name_start = enc_name_start.test
-"""Tests the first character of production [81] EncName"""
 
 
 @old_function('RegisterDocumentClass')

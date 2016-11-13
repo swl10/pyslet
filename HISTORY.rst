@@ -53,6 +53,12 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20161113*
+
+#47 Improve CharClass-derived doc strings
+
+Fixed - no functional changes.
+
 *Build 20161112*
 
 #38 Python 3 compatibility work (ongoing)

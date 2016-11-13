@@ -195,9 +195,7 @@ name_start_char = CharClass(
 def is_name_start_char(c):
     return name_start_char.test(c)
 
-
 is_name_start_char = name_start_char.test   # noqa (def used by decorator)
-"""Tests if the character *c* matches production [4] NameStartChar."""
 
 
 name_char = CharClass(name_start_char, '-', '.', ('0', '9'), character(0xb7),
@@ -210,7 +208,6 @@ def is_name_char(c):
     return name_char.test(c)
 
 is_name_char = name_char.test   # noqa (def used by decorator)
-"""Tests production [4a] NameChar"""
 
 
 @old_function('IsValidName')
