@@ -2,6 +2,7 @@
 """Binds the OData API to the Python DB API."""
 
 
+import binascii
 import decimal
 import hashlib
 import io
@@ -396,6 +397,18 @@ class SQLCollectionBase(core.EntityCollection):
     may prevent other threads from using the database until the lock is
     released by the :py:meth:`close` method."""
 
+    DEFAULT_VALUE = True
+    """A boolean indicating whether or not the collection supports the
+    syntax::
+
+        UPDATE "MyTable" SET "MyField"=DEFAULT
+
+    Most databases do support this syntax but SQLite does not.  In cases
+    where this is False, default values are set explicitly as they are
+    defined in the metadata model instead.  If True then the default
+    values defined in the metadata model are ignored by the
+    collection object."""
+
     def __init__(self, container, **kwargs):
         super(SQLCollectionBase, self).__init__(**kwargs)
         #: the parent container (database) for this collection
@@ -717,6 +730,10 @@ class SQLCollectionBase(core.EntityCollection):
             entity.expand(self.expand, self.select)
             transaction.commit()
             return entity
+        except KeyError:
+            # no need to do a rollback for a KeyError, will still
+            # close the transaction of course
+            raise
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -1358,9 +1375,18 @@ class SQLCollectionBase(core.EntityCollection):
         The yielded values are tuples of (mangled field name,
         :py:class:`~pyslet.odata2.csdl.SimpleValue` instance).
 
-        Neither read only fields nor key are generated.  All other
-        fields are yielded but unselected fields are set to NULL before
-        being yielded. This implements OData's PUT semantics.  See
+        Neither read only fields nor key fields are generated.
+
+        For SQL variants that support default values on columns natively
+        unselected items are suppressed and are returned instead in
+        name-only form by :meth:`default_fields`.
+
+        For SQL variants that don't support defaut values, unselected
+        items are yielded here but with either the default value
+        specified in the metadata schema definition of the corresponding
+        property or as NULL.
+
+        This method is used to implement OData's PUT semantics.  See
         :py:meth:`merge_fields` for an alternative."""
         keys = entity.entity_set.keys
         for k, v in entity.data_items():
@@ -1368,7 +1394,10 @@ class SQLCollectionBase(core.EntityCollection):
             if k in keys or source_path in self.container.ro_names:
                 continue
             if not entity.is_selected(k):
-                v.set_null()
+                if self.DEFAULT_VALUE:
+                    continue
+                else:
+                    v.set_default_value()
             if isinstance(v, edm.SimpleValue):
                 yield self._mangle_name(source_path, prefix=False), v
             else:
@@ -1398,12 +1427,39 @@ class SQLCollectionBase(core.EntityCollection):
                     not entity.is_selected(k)):
                 continue
             if isinstance(v, edm.SimpleValue):
-                yield self._mangle_name(source_path), v
+                yield self._mangle_name(source_path, prefix=False), v
             else:
                 for sub_path, fv in self._complex_field_generator(v):
                     source_path = tuple([self.entity_set.name, k] +
                                         sub_path)
-                    yield self._mangle_name(source_path), fv
+                    yield self._mangle_name(source_path, prefix=False), fv
+
+    def default_fields(self, entity):
+        """A generator for mangled property names.
+
+        entity
+            Any instance of :py:class:`~pyslet.odata2.csdl.Entity`
+
+        The yielded values are the mangled field names that should be
+        set to default values.  Neither read only fields, keys nor
+        selected fields are generated."""
+        if not self.DEFAULT_VALUE:
+            # don't yield anything
+            return
+        keys = entity.entity_set.keys
+        for k, v in entity.data_items():
+            source_path = (self.entity_set.name, k)
+            if (k in keys or
+                    source_path in self.container.ro_names or
+                    entity.is_selected(k)):
+                continue
+            if isinstance(v, edm.SimpleValue):
+                yield self._mangle_name(source_path, prefix=False)
+            else:
+                for sub_path, fv in self._complex_field_generator(v):
+                    source_path = tuple([self.entity_set.name, k] +
+                                        sub_path)
+                    yield self._mangle_name(source_path, prefix=False)
 
     def _complex_field_generator(self, ct):
         for k, v in ct.iteritems():
@@ -2274,7 +2330,8 @@ class SQLEntityCollection(SQLCollectionBase):
                                         binding, transaction)
                             dv.bindings = dv.bindings[1:]
             transaction.commit()
-        except self.container.dbapi.IntegrityError as e:
+        except (self.container.dbapi.IntegrityError,
+                self.container.dbapi.InternalError) as e:
             # we might need to distinguish between a failure due to
             # fk_values or a missing key
             transaction.rollback(e, swallow=True)
@@ -2284,9 +2341,7 @@ class SQLEntityCollection(SQLCollectionBase):
             # moment.
             raise edm.ConstraintError(
                 "insert_entity failed for %s : %s" %
-                (str(
-                    entity.get_location()),
-                    str(e)))
+                (str(entity.get_location()), str(e)))
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -2362,7 +2417,7 @@ class SQLEntityCollection(SQLCollectionBase):
     def where_last(self, entity, params):
         raise NotImplementedError("Automatic keys not supported")
 
-    def update_entity(self, entity):
+    def update_entity(self, entity, merge=True):
         """Updates *entity*
 
         This method follows a very similar pattern to :py:meth:`InsertMethod`,
@@ -2452,7 +2507,12 @@ class SQLEntityCollection(SQLCollectionBase):
                         (self.entity_set.name, k)],
                         self.container.prepare_sql_value(v)))
             key_len = len(constraints)
-            cv_list = list(self.update_fields(entity))
+            def_list = []
+            if merge:
+                cv_list = list(self.merge_fields(entity))
+            else:
+                cv_list = list(self.update_fields(entity))
+                def_list = list(self.default_fields(entity))
             for cname, v in cv_list:
                 # concurrency tokens get added as if they were part of the key
                 if v.p_def.concurrencyMode == edm.ConcurrencyMode.Fixed:
@@ -2469,6 +2529,8 @@ class SQLEntityCollection(SQLCollectionBase):
                     '%s=%s' %
                     (cname,
                      params.add_param(self.container.prepare_sql_value(v))))
+            for cname in def_list:
+                updates.append('%s=DEFAULT' % cname)
             if updates:
                 query.append(', '.join(updates))
                 query.append(' WHERE ')
@@ -2569,15 +2631,14 @@ class SQLEntityCollection(SQLCollectionBase):
                                             binding, transaction)
                             dv.bindings = dv.bindings[1:]
             transaction.commit()
-        except self.container.dbapi.IntegrityError as e:
+        except (self.container.dbapi.IntegrityError,
+                self.container.dbapi.InternalError) as e:
             # we might need to distinguish between a failure due to
             # fk_values or a missing key
             transaction.rollback(e, swallow=True)
             raise edm.ConstraintError(
                 "Update failed for %s : %s" %
-                (str(
-                    entity.get_location()),
-                    str(e)))
+                (str(entity.get_location()), str(e)))
         except Exception as e:
             transaction.rollback(e)
         finally:
@@ -2938,6 +2999,11 @@ class SQLEntityCollection(SQLCollectionBase):
         cols = []
         cnames = {}
         for c, v in self.select_fields(entity, prefix=False):
+            try:
+                v.set_default_value()
+            except edm.ConstraintError:
+                # non-nullable, no default
+                pass
             if c in cnames:
                 continue
             else:
@@ -2968,6 +3034,11 @@ class SQLEntityCollection(SQLCollectionBase):
                 # create a dummy value to catch the unusual case where
                 # there is a default
                 v = target_set.entityType[key_name]()
+                try:
+                    v.set_default_value()
+                except edm.ConstraintError:
+                    # non-nullable, no default
+                    pass
                 cname = self.container.mangled_names[
                     (self.entity_set.name, aset_name, key_name)]
                 fk_names.append(cname)
@@ -3875,6 +3946,11 @@ class SQLAssociationCollection(SQLNavigationCollection):
                 # create a dummy value to catch the unusual case where
                 # there is a default
                 v = es.entityType[key_name]()
+                try:
+                    v.set_default_value()
+                except edm.ConstraintError:
+                    # non-nullable, no default
+                    pass
                 cname = container.mangled_names[
                     (aset_name, es.name, prefix, key_name)]
                 fk_names.append(cname)
@@ -4901,16 +4977,16 @@ class SQLEntityContainer(object):
             :py:class:`pyslet.odata2.csdl.Property` definition.
 
         params
-            A :py:class:`SQLParams` object.  If simple_value is non-NULL, a
-            DEFAULT value is added as part of the type definition.
+            A :py:class:`SQLParams` object.  Not used, see
+            :meth:`prepare_sql_literal`
 
         nullable
             Optional Boolean that can be used to override the nullable status
             of the associated property definition.
 
         For example, if the value was created from an Int32 non-nullable
-        property and has value 0 then this might return the string
-        'INTEGER NOT NULL DEFAULT ?' with 0 being added to *params*
+        property and has default value 0 then this might return the
+        string 'INTEGER NOT NULL DEFAULT 0'.
 
         You should override this implementation if your database
         platform requires special handling of certain datatypes.  The
@@ -5024,9 +5100,8 @@ class SQLEntityContainer(object):
             column_def.append(' NOT NULL')
         if simple_value:
             # Format the default
-            column_def.append(' DEFAULT ')
-            column_def.append(
-                params.add_param(self.prepare_sql_value(simple_value)))
+            column_def.append(' DEFAULT %s' %
+                              self.prepare_sql_literal(simple_value))
         return ''.join(column_def)
 
     def prepare_sql_value(self, simple_value):
@@ -5143,6 +5218,41 @@ class SQLEntityContainer(object):
         You may need to override this method to identify the appropriate
         value type."""
         return edm.EDMValue.from_value(sql_value)
+
+    def prepare_sql_literal(self, value):
+        """Formats a simple value as a SQL literal
+
+        Although SQL containers use parameterised queries for all
+        INSERT, SELECT, UPDATE and DELETE queries, CREATE TABLE queries
+        are generally only created when the data model has been designed
+        using the OData data model and are intended to be exported as
+        SQL scripts for review (and perhaps modification) by a DBA prior
+        to being run on a real database server as part of initially
+        provisioning a running system.  In this case, default values in
+        the data model must be inserted into the CREATE TABLE query
+        itself and so a method is provided for transforming values
+        accordingly."""
+        if not value:
+            return "NULL"
+        elif isinstance(value, edm.BinaryValue):
+            return "X'%s'" % str(value)
+        elif isinstance(value, edm.BooleanValue):
+            return "TRUE" if value.value else "FALSE"
+        elif isinstance(value, (edm.ByteValue, edm.DecimalValue,
+                                edm.DoubleValue, edm.Int16Value,
+                                edm.Int32Value, edm.Int64Value,
+                                edm.SingleValue, edm.SByteValue, )):
+            return str(value.value)
+        elif isinstance(value, (edm.DateTimeValue, edm.DateTimeOffsetValue,
+                                edm.TimeValue)):
+            return "'%s'" % str(value.value)
+        elif isinstance(value, edm.GuidValue):
+            return "X'%s'" % binascii.hexlify(
+                value.value.bytes).decode('ascii')
+        elif isinstance(value, edm.StringValue):
+            return "'%s'" % value.value.replace("'", "''")
+        else:
+            raise NotImplementedError
 
     def select_limit_clause(self, skip, top):
         """Returns a SELECT modifier to limit a query
@@ -5352,9 +5462,8 @@ class SQLiteEntityContainer(SQLEntityContainer):
             column_def.append(' NOT NULL')
         if simple_value:
             # Format the default
-            column_def.append(' DEFAULT ')
-            column_def.append(
-                params.add_param(self.prepare_sql_value(simple_value)))
+            column_def.append(' DEFAULT %s' %
+                              self.prepare_sql_literal(simple_value))
         return ''.join(column_def)
 
     def prepare_sql_value(self, simple_value):
@@ -5424,6 +5533,20 @@ class SQLiteEntityContainer(SQLEntityContainer):
             return super(SQLiteEntityContainer, self).new_from_sql_value(
                 sql_value)
 
+    def prepare_sql_literal(self, value):
+        """Formats a simple value as a SQL literal
+
+        Overridden for custom SQLite mappings."""
+        if not value:
+            return "NULL"
+        elif isinstance(value, edm.BooleanValue):
+            return "1" if value.value else "0"
+        elif isinstance(value, edm.TimeValue):
+            return str(value.value.get_total_seconds())
+        else:
+            return super(SQLiteEntityContainer, self).prepare_sql_literal(
+                value)
+
     def limit_clause(self, skip, top):
         clause = []
         if top:
@@ -5441,6 +5564,9 @@ class SQLiteEntityCollectionBase(SQLCollectionBase):
     This class provides some SQLite specific mappings for certain
     functions to improve compatibility with the OData expression
     language."""
+
+    DEFAULT_VALUE = False
+    """SQLite does not support setting a value =DEFAULT"""
 
     def sql_expression_length(self, expression, params, context):
         """Converts the length method: maps to length( op[0] )"""

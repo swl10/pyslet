@@ -2,6 +2,7 @@
 """Utilities for writing applications based on wsgi"""
 
 import base64
+import binascii
 import cgi
 import io
 import json
@@ -42,9 +43,14 @@ from .py2 import (
     parse_qs,
     range3,
     to_text,
+    UnicodeMixin,
     urlencode,
     urlquote)
-from .rfc2396 import URI, FileURL
+from .rfc2396 import (
+    escape_data,
+    FileURL,
+    unescape_data,
+    URI)
 from .xml import structures as xml
 
 try:
@@ -145,6 +151,10 @@ class WSGIContext(object):
 
     start_response
         The WSGI call-back
+
+    canonical_root
+        A URL that overrides the automatically derived canonical root,
+        see :class:`WSGIApp` for more details.
 
     This class acts as a holding place for information specific to each
     request being handled by a WSGI-based application.  In some
@@ -1263,9 +1273,9 @@ class WSGIDataApp(WSGIApp):
     secret (None)
         The key corresponding to keynum.  The key is read in plain text
         from the settings file and must be provided in order to use the
-        :attr:`app_cipher` for managing encrypted data.  Derived classes
-        could use an alternative mechanism for reading the key, for
-        example, using the keyring_ python module.
+        :attr:`app_cipher` for managing encrypted data and secure
+        hashing.  Derived classes could use an alternative mechanism for
+        reading the key, for example, using the keyring_ python module.
 
     cipher ('aes')
         The type of cipher to use.  By default :class:`AESAppCipher` is
@@ -1403,7 +1413,7 @@ class WSGIDataApp(WSGIApp):
                 cls.data_source.create_all_tables()
         settings.setdefault('keynum', 0)
         if options and options.in_memory and 'AppKeys' in cls.container:
-            settings.setdefault('secret', 'secret')
+            settings.setdefault('secret', generate_key())
             settings.setdefault('cipher', 'plaintext')
         else:
             settings.setdefault('secret', None)
@@ -1452,7 +1462,7 @@ class WSGIDataApp(WSGIApp):
             time a newer key should be used for encrypting data though
             this key may of course still be used for decrypting data."""
         keynum = cls.settings['WSGIDataApp']['keynum']
-        secret = cls.settings['WSGIDataApp']['secret']
+        secret = cls.settings['WSGIDataApp']['secret'].encode('utf-8')
         cipher = cls.settings['WSGIDataApp']['cipher']
         when = cls.settings['WSGIDataApp']['when']
         if when:
@@ -1477,11 +1487,17 @@ class WSGIDataApp(WSGIApp):
 
 class PlainTextCipher(object):
 
+    def __init__(self, key):
+        self.key = key
+
     def encrypt(self, data):
         return data
 
     def decrypt(self, data):
         return data
+
+    def hash(self, data):
+        return sha256(data + self.key).digest()
 
 
 class AESCipher(object):
@@ -1577,8 +1593,9 @@ class AppCipher(object):
         """Returns a new cipher object with the given key
 
         The default implementation creates a plain-text 'cipher' and is
-        not suitable for secure use."""
-        return PlainTextCipher()
+        not suitable for secure use of encrypt/decrypt but, with a
+        sufficiently good key, may still be used for hashing."""
+        return PlainTextCipher(key)
 
     def change_key(self, key_num, key, when):
         """Changes the key of this application.
@@ -1676,46 +1693,25 @@ class AppCipher(object):
                 # key number to raise KeyError if not
                 e = keys[self.old_num]
 
-    def encrypt(self, data):
-        """Encrypts data with the current key.
+    def _get_current_cipher(self):
+        if self.old_expires:
+            if time.time() > self.old_expires:
+                # the old key has finally expired
+                self.old_num = None
+                self.old_key = None
+                self.old_expires = None
+            else:
+                # use the old key
+                return self.old_num, self.ciphers[self.old_num]
+        return self.key_num, self.ciphers[self.key_num]
 
-        data
-            A binary input string.
-
-        Returns a character string of ASCII characters suitable for
-        storage."""
-        with self.lock:
-            if self.old_expires:
-                if time.time() > self.old_expires:
-                    # the old key has finally expired
-                    self.old_num = None
-                    self.old_key = None
-                    self.old_expires = None
-                else:
-                    # use the old key
-                    cipher = self.ciphers[self.old_num]
-                    return "%i:%s" % (
-                        self.old_num, force_ascii(base64.b64encode(
-                            cipher.encrypt(data))))
-            cipher = self.ciphers[self.key_num]
-            return "%i:%s" % (
-                self.key_num, force_ascii(
-                    base64.b64encode(cipher.encrypt(data))))
-
-    def decrypt(self, data):
-        """Decrypts data.
-
-        data
-            A character string containing the encrypted data
-
-        Returns a binary string containing the decrypted data."""
-        key_num, data = self._split_data(data)
-        stack = [(key_num, data, None)]
+    def _get_cipher(self, num):
+        stack = [(num, None, None)]
         while stack:
-            key_num, data, cipher_num = stack.pop()
+            key_num, key_data, cipher_num = stack.pop()
             cipher = self.ciphers.get(key_num, None)
             if cipher is None:
-                stack.append((key_num, data, cipher_num))
+                stack.append((key_num, key_data, cipher_num))
                 with self.key_set.open() as collection:
                     try:
                         e = collection[key_num]
@@ -1725,15 +1721,109 @@ class AppCipher(object):
                             raise KeyError
                         stack.append((old_key_num, old_key_data, key_num))
                     except KeyError:
-                        raise RuntimeError("AppCipher.decript: key too old")
-            else:
+                        raise RuntimeError("AppCipher: key too old")
+            elif key_data:
                 with self.lock:
-                    new_data = cipher.decrypt(data)
+                    new_data = cipher.decrypt(key_data)
                     if cipher_num is not None:
                         self.ciphers[cipher_num] = self.new_cipher(new_data)
-                    else:
-                        # this is the data we want
-                        return new_data
+            else:
+                return cipher
+
+    def encrypt(self, data):
+        """Encrypts data with the current key.
+
+        data
+            A binary input string.
+
+        Returns a character string of ASCII characters suitable for
+        storage."""
+        with self.lock:
+            num, cipher = self._get_current_cipher()
+            return "%i:%s" % (
+                num, force_ascii(base64.b64encode(cipher.encrypt(data))))
+
+    def decrypt(self, data):
+        """Decrypts data.
+
+        data
+            A character string containing the encrypted data
+
+        Returns a binary string containing the decrypted data."""
+        key_num, data = self._split_data(data)
+        cipher = self._get_cipher(key_num)
+        return cipher.decrypt(data)
+
+    def sign(self, message):
+        """Signs a message with the current key.
+
+        message
+            A binary message string.
+
+        Returns a character string of ASCII characters containing a
+        signature of the message.  It is recommended that character
+        strings are encoded using UTF-8 before signing."""
+        with self.lock:
+            num, cipher = self._get_current_cipher()
+            salt = os.urandom(4)
+            hash = cipher.hash(salt + message)
+            return "%i-%s-%s" % (num, force_ascii(binascii.hexlify(salt)),
+                                 force_ascii(binascii.hexlify(hash)))
+
+    def check_signature(self, signature, message=None):
+        """Checks a signature returned by sign
+
+        signature
+            The ASCII signature to be checked for validity.
+
+        message
+            A binary message string.  This is optional, if None then the
+            message will be extracted from the signature string
+            (reversing ascii_sign).
+
+        On success the method returns the validated message (a binary
+        string) and on failure it raises ValueError."""
+        num, salt, hash, smessage = self._split_signature(signature)
+        try:
+            num = int(num)
+            salt = binascii.unhexlify(salt)
+            hash = binascii.unhexlify(hash)
+            if smessage:
+                smessage = unescape_data(smessage)
+                if message:
+                    # must match exactly!
+                    if message != smessage:
+                        raise ValueError
+                else:
+                    message = smessage
+            with self.lock:
+                cipher = self._get_cipher(num)
+                if cipher is None:
+                    return ValueError
+                if cipher.hash(salt + message) == hash:
+                    return message
+                else:
+                    raise ValueError
+        except TypeError:
+            raise ValueError
+
+    def ascii_sign(self, message):
+        """Signs a message with the current key
+
+        message
+            A binary message string
+
+        The difference between ascii_sign and sign is that ascii_sign
+        returns the entire message, including the signature, as a
+        URI-encoded character string suitable for storage and/or
+        transmission.
+
+        The message is %-encoded (as implemented by
+        :func:`pyslet.rfc2396.escape_data`).  You may apply the
+        corresponding unescape data function to the entire string to get
+        a binary string that *contains* an exact copy of the original
+        data."""
+        return "%s-%s" % (self.sign(message), escape_data(message))
 
     def _split_data(self, data):
         data = data.split(':')
@@ -1745,6 +1835,22 @@ class AppCipher(object):
         except TypeError:
             raise ValueError
         return key_num, data
+
+    def _split_signature(self, signature):
+        result = []
+        pos = 0
+        while True:
+            if len(result) == 3:
+                result.append(signature[pos:])
+                return result
+            new_pos = signature.find('-', pos)
+            if new_pos < 0:
+                result.append(signature[pos:])
+                while len(result) < 4:
+                    result.append('')
+                return result
+            result.append(signature[pos:new_pos])
+            pos = new_pos + 1
 
 
 class AESAppCipher(AppCipher):
@@ -1762,166 +1868,95 @@ class AESAppCipher(AppCipher):
         return AESCipher(key)
 
 
-class Session(object):
+class CookieSession(UnicodeMixin):
 
     """A session object
 
-    A light wrapper for the entity object that is used to persist
-    information on the server to make the user's browser session
-    stateful.  The session is persisted in a data store using a single
-    entity passed on construction which must have the following required
-    properties:
+    Used to persist a small amount of information in the user's browser
+    making the session stateful.  The purpose of the session cookie is
+    to hold information that does not need to be kept secret from the
+    user's browser but which can be verified through cookie signing
+    (outside the scope of this class).
 
-    ID: Int32
-        A database key for the session, this value is never exposed
-        to the client.
+    Bear in mind that, when serialised and signed the session data must
+    fit comfortably into a cookie.  Space in cookies is severely
+    restricted so we only store information in the session that can't be
+    looked up quickly in an external data store.  Although this class
+    can be extended to add additional information in most cases you
+    won't need to do this and can instead use the session id as a key
+    for loading any additional information.
 
-    Established: Boolean
-        A flag indicating that the session has been established.  A
-        session is established when we have successfully read the
-        session id from a cookie sent by the browser.  Tracking
-        whether or not a session is established helps us defeat
-        session fixation attacks.
+    The session can be initialised from an optional character string
+    which, if provided, is parsed for the session information.
+    Otherwise the session object is generated with a new randomly
+    selected ID.
 
-    UserKey: String
-        This is the string used to set the cookie value
+    Session lifecycle
 
-    ServerKey: String
-        This is a random string that can be used as a server-side secret
-        specific to this session.  It is never revealed to the browser
+    When a session is first created it is in an unestablished state. In
+    this state the session ID is not fixed and the session data may be
+    exposed in a URL.  Once established, the session ID will be fixed
+    and it must not be exposed in a URL.  Strict limits are placed on
+    the allowable age of an unestablished session and, as an additional
+    security measure, they are tied to a fixed User-Agent string.
 
-    FirstSeen: DateTime
-        The UTC time when the session started.
+    The :class:`SessionApp` class and the associated decorator take care
+    of most of the complexity and they allow you to create pages that
+    will only be returned to the user once a session has been
+    established.  At that point you can read/write protected information
+    indexed using the session id.
 
-    LastSeen: DateTime
-        The UTC time of the last request issued in this session.
+    If you need to store protected information before the session is
+    established (only necessary when users might initiate your
+    application using an authenticated POST request from a third party
+    system) then you will need to:
 
-    UserAgent: String
-        The user agent string from the browser, if given.
+        1   Create the protected information record and index it using
+            the unestablished session id.
+        2   When the session is established you'll need to update the
+            session id used to index any protected information thereby
+            isolating the unestablished session id.  This can be done by
+            overriding :meth:`SessionApp.establish_session`
 
-    Derived classes may add optional properties to the basic definition,
-    including optional navigation properties, for their own data.
+    Merging Sessions
 
-    Changes to the entity are not written back to the database until the
-    :meth:`commit` method is called.  This is done automatically by
-    :meth:`SessionContext.start_response`."""
+    In some unusual cases a new session may need to be merged into an
+    existing one (e.g., when cookies are blocked in frames but not when
+    the user opens a new window from the frame).  In cases like this you
+    may want to override :meth:`SessionApp.merge_session` to reconcile
+    the two sessions prior to the newer session being discarded."""
 
-    def __init__(self, entity):
-        #: the session's entity
-        self.entity = entity
-        self.touched = False
-
-    def new_from_context(self, context):
-        """Initialises the entity's fields from a context
-
-        Generates new keys for UserKey and ServerKey.. The session is
-        *not* marked as Established.  The UserAgent is read from the
-        context and FirstSeen and LastSeen values are set from the
-        current time."""
-        user_key = generate_key()
-        server_key = generate_key()
-        self.entity['UserKey'].set_from_value(user_key)
-        self.entity['ServerKey'].set_from_value(server_key)
-        self.entity['Established'].set_from_value(False)
-        self.entity['FirstSeen'].set_from_value(
-            iso.TimePoint.from_now_utc())
-        self.entity['LastSeen'].set_from_value(
-            self.entity['FirstSeen'].value)
-        if 'HTTP_USER_AGENT' in context.environ:
-            user_agent = context.environ['HTTP_USER_AGENT']
-            if len(user_agent) > 255:
-                user_agent = user_agent[0:255]
-            self.entity['UserAgent'].set_from_value(user_agent)
-        self.touched = True
-
-    def touch(self):
-        """Indicates the session entity needs to be updated
-
-        If you change any of the entity field values directly you must
-        call this method to ensure the entity is written out correctly
-        before the response is returned."""
-        self.touched = True
-
-    def sid(self):
-        """Returns the UserKey field value"""
-        return self.entity['UserKey'].value
-
-    def update_sid(self):
-        """Generates a new UserKey value, and returns it."""
-        self.entity['UserKey'].set_from_value(generate_key())
-        self.touched = True
-        return self.entity['UserKey'].value
-
-    def seen(self):
-        """Updates the LastSeen field with the current time."""
-        self.entity['LastSeen'].set_from_value(iso.TimePoint.from_now_utc())
-        self.touched = True
-
-    def expired(self, timeout):
-        """Tests for session expiry.
-
-        timeout
-            The maximum number of seconds that may have elapsed since
-            the session was 'LastSeen'."""
-        return (self.entity['LastSeen'].value.with_zone(0).get_unixtime() +
-                timeout < time.time())
-
-    def established(self):
-        """Return True if this session is Established."""
-        if self.entity['Established'].value:
-            return True
+    def __init__(self, src=None):
+        if src:
+            fields = src.split('-')
+            if len(fields) >= 3:
+                self.sid = fields[0]
+                self.established = (fields[1] == '1')
+                self.last_seen = iso.TimePoint.from_str(fields[2])
+            else:
+                raise ValueError("Bad CookieSession: %s" % src)
         else:
-            return False
+            self.sid = generate_key()
+            self.established = False
+            self.last_seen = iso.TimePoint.from_now_utc()
+
+    def __unicode__(self):
+        return "%s-%s-%s" % (self.sid, '1' if self.established else '0',
+                             self.last_seen.get_calendar_string(basic=True))
 
     def establish(self):
-        """Marks this session as Established."""
-        if not self.entity['Established'].value:
-            self.entity['Established'].set_from_value(True)
-            self.touched = True
+        if self.established:
+            raise ValueError("Session already established: %s" % self.sid)
+        self.sid = generate_key()
+        self.established = True
+        return self.sid
 
-    def match_environ(self, context):
-        """Compares the session environment with context
+    def seen_now(self):
+        self.last_seen = iso.TimePoint.from_now_utc()
 
-        context
-            The current context
-
-        The default implementation compares the user agent string
-        to ensure that it is identical.
-
-        The purpose behind this check is to make it that little bit
-        harder to carry out session hijacking or fixation.  It doesn't
-        add a lot to the security and is here because we might as well
-        check the things we can - we do not rely on it to defeat this
-        type of attack!"""
-        user_agent = context.environ.get('HTTP_USER_AGENT', None)
-        if user_agent and len(user_agent) > 255:
-            user_agent = user_agent[0:255]
-        if self.entity['UserAgent'].value != user_agent:
-            return False
-        return True
-
-    def absorb(self, new_session):
-        """Merge a session into this one.
-
-        new_session
-            A session which was started in the same browser session as
-            this one but (presumably) in a mode where cookies were
-            blocked.
-
-        The purpose of this method is to merge information from the new
-        session into this one.  The default implementation simply
-        deletes the new session."""
-        new_session.entity.delete()
-
-    def commit(self):
-        """Saves any changes back to the data store"""
-        if self.touched:
-            with self.entity.entity_set.open() as collection:
-                if self.entity.exists:
-                    collection.update_entity(self.entity)
-                else:
-                    collection.insert_entity(self.entity)
-            self.touched = False
+    def age(self):
+        return iso.TimePoint.from_now_utc().get_unixtime() - \
+            self.last_seen.get_unixtime()
 
 
 def session_decorator(page_method):
@@ -1952,21 +1987,13 @@ class SessionContext(WSGIContext):
         WSGIContext.__init__(self, environ, start_response, canonical_root)
         #: a session object, or None if no session available
         self.session = None
+        self.session_cookie = None
 
     def start_response(self):
-        """Commits changes to the session object.
-
-        If you call start_response with unsaved changes in the session
-        the session's :meth:`Session.commit` method is called to save
-        them to the data store."""
-        if self.session:
-            # save any changes to the session to the database
-            try:
-                self.session.commit()
-            except Exception:
-                logging.error(
-                    "Session.commit failed: \n%s",
-                    "".join(traceback.format_exception(*sys.exc_info())))
+        """Saves the session cookie."""
+        if self.session_cookie:
+            # update the browser cookie
+            self.add_header('Set-Cookie', str(self.session_cookie))
         return super(SessionContext, self).start_response()
 
 
@@ -2002,16 +2029,11 @@ class SessionApp(WSGIDataApp):
         set the value you use a reasonable lifespan.
 
     csrftoken ('csrftoken')
-        The name of the form field containing the CSRF token
-
-    session_set ('Sessions')
-        The name of the entity set to use for persisting session
-        entities."""
+        The name of the form field containing the CSRF token"""
 
     _session_timeout = None
     _session_cookie = None
     _test_cookie = None
-    _session_set = None
 
     @classmethod
     def setup(cls, options=None, args=None, **kwargs):
@@ -2024,8 +2046,6 @@ class SessionApp(WSGIDataApp):
         cls._test_cookie = force_bytes(
             settings.setdefault('cookie_test', 'ctest'))
         cls.csrf_token = settings.setdefault('crsf_token', 'csrftoken')
-        session_set = settings.setdefault('session_set', 'Sessions')
-        cls._session_set = cls.container[session_set]
         settings.setdefault('cookie_test_age', 8640000)
 
     @classmethod
@@ -2045,7 +2065,7 @@ class SessionApp(WSGIDataApp):
     ContextClass = SessionContext
 
     #: The session class to use, must be (derived from) :class:`Session`
-    SessionClass = Session
+    SessionClass = CookieSession
 
     def init_dispatcher(self):
         """Adds pre-defined pages for this application
@@ -2057,30 +2077,84 @@ class SessionApp(WSGIDataApp):
         self.set_method('/ctest', self.ctest)
         self.set_method('/wlaunch', self.wlaunch)
 
+    def session_wrapper(self, context, page_method):
+        """Called by the session_decorator
+
+        Uses :meth:`set_session` to ensure the context has a session
+        object.  If this request is a POST then the form is parsed and
+        the CSRF token checked for validity."""
+        if context.session is None:
+            cookies = context.get_cookies()
+            csrf_match = ""
+            s_signed = cookies.get(self._session_cookie, b'').decode('ascii')
+            self.set_session(context)
+            if context.environ['REQUEST_METHOD'].upper() == 'POST':
+                # check the CSRF token
+                if s_signed:
+                    try:
+                        s_msg = self.app_cipher.check_signature(s_signed)
+                        csrf_match = self.SessionClass(
+                            s_msg.decode('utf-8')).sid
+                    except ValueError:
+                        # we'll warn about this in a moment anyway
+                        pass
+                token = context.get_form_string(self.csrf_token)
+                # we accept a token even if the session expired but this
+                # form is unlikely to do much with a new session.  The
+                # point is we compare to the cookie received and not the
+                # actual session key as this may have changed
+                if not token or token != csrf_match:
+                    logger.warning(
+                        "%s\nSecurity threat intercepted; "
+                        "POST token mismatch, possible CSRF attack\n"
+                        "cookie=%s; token=%s",
+                        context.environ.get('PATH_INFO', ''),
+                        csrf_match, token)
+                    return self.error_page(context, 403)
+        return self.session_page(context, page_method, context.get_url())
+
     def set_session(self, context):
         """Sets the session object in the context
 
-        The session id is read from the session cookie, if no cookie is
-        found a new session is created (and an appropriate cookie is
-        added to the response headers)."""
+        The session is read from the session cookie, established and
+        marked as being seen now.  If no cookie is found a new session
+        is created.  In both cases a cookie header is set to update the
+        cookie in the browser."""
+        context.session = None
         cookies = context.get_cookies()
-        sid = cookies.get(self._session_cookie, b'').decode('ascii')
-        if sid:
-            context.session = self._load_session(sid)
-        else:
-            context.session = None
+        s_signed = cookies.get(self._session_cookie, b'').decode('ascii')
+        if s_signed and self._test_cookie in cookies:
+            try:
+                s_msg = self.app_cipher.check_signature(s_signed)
+                context.session = self.SessionClass(s_msg.decode('utf-8'))
+                if context.session.established:
+                    if context.session.age() > self._session_timeout:
+                        context.session = None
+                elif context.session.age() > 120:
+                    # You have 2 minutes to establish a session
+                    context.session = None
+                if context.session:
+                    # successfully read a session from the cookie this
+                    # session can now be established
+                    if not context.session.established:
+                        self.establish_session(context)
+                    context.session.seen_now()
+                    self.set_session_cookie(context)
+            except ValueError:
+                # start a new session
+                logger.warning(
+                    "%s\nSecurity threat intercepted; "
+                    "session tampering detected\n"
+                    "cookie=%s",
+                    context.environ.get('PATH_INFO', ''),
+                    s_signed)
+                pass
         if context.session is None:
-            with self._session_set.open() as collection:
-                # generate a new user_key
-                entity = collection.new_entity()
-                context.session = self.SessionClass(entity)
-                context.session.new_from_context(context)
-        if context.session.sid() != sid:
-            # set the cookie to keep the client up-to-date
+            context.session = self.SessionClass()
             self.set_session_cookie(context)
 
     def set_session_cookie(self, context):
-        """Adds the session ID cookie to the response headers
+        """Adds the session cookie to the response headers
 
         The cookie is bound to the path returned by
         :meth:`WSGIContext.get_app_root` and is marked as being
@@ -2091,55 +2165,48 @@ class SessionApp(WSGIDataApp):
         override it if your application wishes to override the cookie
         settings."""
         root = context.get_app_root()
-        c = cookie.Section4Cookie(
-            self._session_cookie, context.session.sid(),
+        msg = to_text(context.session).encode('utf-8')
+        context.session_cookie = cookie.Section4Cookie(
+            self._session_cookie,
+            self.app_cipher.ascii_sign(msg).encode('ascii'),
             path=str(root.abs_path), http_only=True,
             secure=root.scheme.lower() == 'https')
+
+    def clear_session_cookie(self, context):
+        """Removes the session cookie"""
+        root = context.get_app_root()
+        context.session_cookie = cookie.Section4Cookie(
+            self._session_cookie,
+            b'', path=str(root.abs_path), http_only=True,
+            secure=root.scheme.lower() == 'https', max_age=0)
+
+    def set_test_cookie(self, context, value="0"):
+        """Adds the test cookie"""
+        c = cookie.Section4Cookie(
+            self._test_cookie, value,
+            path=str(context.get_app_root().abs_path),
+            max_age=self.settings['SessionApp']['cookie_test_age'])
         context.add_header('Set-Cookie', str(c))
 
-    def _update_session_key(self, context):
-        context.session.update_sid()
-        self.set_session_cookie(context)
+    def establish_session(self, context):
+        """Mark the session as established
 
-    def _delete_session(self, sid):
-        with self._session_set.open() as collection:
-            param = edm.EDMValue.from_type(edm.SimpleType.String)
-            param.set_from_value(sid)
-            params = {'sid': param}
-            filter = odata.CommonExpression.from_str(
-                "UserKey eq :sid", params)
-            collection.set_filter(filter)
-            slist = collection.values()
-            collection.set_filter(None)
-            if len(slist):
-                for entity in slist:
-                    del collection[entity.key()]
+        This will update the session ID, override this method to update
+        any data store accordingly if you are already associating
+        protected information with the session to prevent it becoming
+        orphaned."""
+        context.session.establish()
 
-    def _load_session(self, sid):
-        with self._session_set.open() as collection:
-            # load the session
-            param = edm.EDMValue.from_type(edm.SimpleType.String)
-            param.set_from_value(sid)
-            params = {'user_key': param}
-            filter = odata.CommonExpression.from_str(
-                "UserKey eq :user_key", params)
-            collection.set_filter(filter)
-            slist = collection.values()
-            collection.set_filter(None)
-            if len(slist) > 1:
-                # that's an internal error
-                raise SessionError(
-                    "Duplicate user_key in Sessions: %s" % sid)
-            elif len(slist) == 1:
-                session = self.SessionClass(slist[0])
-                if session.expired(self._session_timeout):
-                    self._delete_session(sid)
-                    return None
-                else:
-                    session.seen()
-                    return session
-            else:
-                return None
+    def merge_session(self, context, merge_session):
+        """Merges a session into the session in the context
+
+        Override this method to update any data store.  If you are
+        already associating protected information with merge_session you
+        need to transfer it to the context session.
+
+        The default implementation does nothing and merge_session is
+        simply discarded."""
+        pass
 
     def session_page(self, context, page_method, return_path):
         """Returns a session protected page
@@ -2177,98 +2244,20 @@ class SessionApp(WSGIDataApp):
                 path=str(context.get_app_root().abs_path),
                 max_age=self.settings['SessionApp']['cookie_test_age'])
             context.add_header('Set-Cookie', str(c))
+            # add in the User-Agent and return path to the signature
+            # when in the query to help prevent an open redirect
+            # (strength in depth - first line of defence)
+            return_path_str = str(return_path)
+            s = to_text(context.session)
+            msg = s + return_path_str + context.environ.get(
+                'HTTP_USER_AGENT', '')
+            sig = self.app_cipher.sign(msg.encode('utf-8'))
             query = urlencode(
-                {'return': str(return_path),
-                 'sid': context.session.sid()})
+                {'return': return_path_str, 's': s, 'sig': sig})
             ctest = URI.from_octets('ctest?' + query).resolve(
                 context.get_app_root())
             return self.redirect_page(context, ctest)
-        context.session.establish()
         return page_method(context)
-
-    def session_wrapper(self, context, page_method):
-        """Called by the session_decorator
-
-        Uses :meth:`set_session` to ensure the context has a session
-        object.  If this request is a POST then the form is parsed and
-        the CSRF token checked for validity."""
-        if context.session is None:
-            csrf_match = context.get_cookies().get(
-                self._session_cookie, b'').decode('ascii')
-            self.set_session(context)
-            if context.environ['REQUEST_METHOD'].upper() == 'POST':
-                # check the CSRF token
-                token = context.get_form_string(self.csrf_token)
-                # we accept a token even if the session expired but this
-                # form is unlikely to do much with a new session.  The point
-                # is we compare to the cookie received and not the actual
-                # session key as this may have changed
-                if not token or token != csrf_match:
-                    logger.warning(
-                        "%s\nSecurity threat intercepted; "
-                        "POST token mismatch, possible CSRF attack\n"
-                        "cookie=%s; token=%s",
-                        context.environ.get('PATH_INFO', ''),
-                        csrf_match, token)
-                    return self.error_page(context, 403)
-        return self.session_page(context, page_method, context.get_url())
-
-    def ctest_page(self, context, target_url, return_url, sid):
-        """Returns the cookie test page
-
-        Called when cookies are blocked (perhaps in a frame).
-
-        context
-            The request context
-
-        target_url
-            A string containing the base link to the wlaunch page.  This
-            page can opened in a new window (which may get around the
-            cookie restrictions).  You must pass the return_url and the
-            sid values as the 'return' and 'sid' query parameters
-            respectively.
-
-        return_url
-            A string containing the URL the user originally requested,
-            and the location they should be returned to when the session
-            is established.
-
-        sid
-            The session id.
-
-        You may want to override this implementation to provide a more
-        sophisticated page.  The default simply constructs the URL to
-        the wlaunch page and presents it as a simple hypertext link
-        that will open in a new window.
-
-        A more sophisticated application might include a JavaScript to
-        follow the link automatically if it detects that the page is
-        being displayed in a frame."""
-        query = urlencode({'return': return_url, 'sid': sid})
-        target_url = str(target_url) + '?' + query
-        data = """<html>
-    <head><title>Cookie Test Page</title></head>
-    <body>
-    <p>Cookie test failed: try opening in a <a href=%s
-    target="_blank" id="wlaunch">new window</a></p></body>
-</html>""" % xml.escape_char_data7(str(target_url), True)
-        context.set_status(200)
-        return self.html_response(context, data)
-
-    def cfail_page(self, context):
-        """Called when cookies are blocked completely.
-
-        The default simply returns a plain text message stating that
-        cookies are blocked.  You may want to include a page here with
-        information about how to enable cookies, a link to the privacy
-        policy for your application to help people make an informed
-        decision to turn on cookies, etc."""
-        context.set_status(200)
-        data = b"Page load failed: blocked cookies"
-        context.add_header("Content-Type", "text/plain")
-        context.add_header("Content-Length", str(len(data)))
-        context.start_response()
-        return [data]
 
     def ctest(self, context):
         """The cookie test handler
@@ -2278,8 +2267,12 @@ class SessionApp(WSGIDataApp):
         return
             The return URL the user originally requested
 
-        sid
-            The session ID that should be received in a cookie
+        s
+            The session that should be received in a cookie
+
+        sig
+            The session signature which includes the the User-Agent at
+            the end of the message.
 
         framed (optional)
             An optional parameter, if present and equal to '1' it means
@@ -2303,9 +2296,12 @@ class SessionApp(WSGIDataApp):
         logger.debug("cookies: %s", repr(cookies))
         query = context.get_query()
         logger.debug("query: %s", repr(query))
-        if 'return' not in query or 'sid' not in query:
+        if 'return' not in query or 's' not in query or 'sig' not in query:
             # missing required parameters
             return self.error_page(context, 400)
+        qmsg = query['s']
+        qsig = query['sig']
+        return_path = query['return']
         if self._test_cookie not in cookies:
             # cookies are blocked
             if query.get('framed', '0') == '1':
@@ -2315,100 +2311,160 @@ class SessionApp(WSGIDataApp):
             wlaunch = URI.from_octets('wlaunch').resolve(
                 context.get_app_root())
             return self.ctest_page(
-                context, str(wlaunch), query['return'], query['sid'])
-        sid = query['sid']
-        return_path = query['return']
-        user_key = cookies.get(
-            self._session_cookie, b'MISSING').decode('ascii')
-        if user_key != sid:
-            # we got a cookie, but not the one we expected.  Possible
-            # foul play so remove both sessions and die
-            if user_key:
-                self._delete_session(user_key)
-            if sid:
-                self._delete_session(sid)
-            # go to an error page
-            logger.warning("%s\nSecurity threat intercepted; "
-                           "session mismatch, possible fixation attack\n"
-                           "cookie=%s; qparam=%s",
+                context, str(wlaunch), return_path, qmsg, qsig)
+        ua = context.environ.get('HTTP_USER_AGENT', '')
+        try:
+            self.app_cipher.check_signature(
+                qsig, (qmsg + return_path + ua).encode('utf-8'))
+            qsession = self.SessionClass(qmsg)
+            if qsession.established:
+                raise ValueError
+        except ValueError:
+            logger.warning("%s\nSecurity threat intercepted in ctest; "
+                           "query tampering detected\n"
+                           "s=%s; sig=%s;\nUserAgent: %s",
                            context.environ.get('PATH_INFO', ''),
-                           user_key, sid)
+                           qmsg, qsig, ua)
+            self.clear_session_cookie(context)
+            return self.error_page(context, 400)
+        cmsg_signed = cookies.get(
+            self._session_cookie, b'MISSING').decode('ascii')
+        try:
+            cmsg = self.app_cipher.check_signature(cmsg_signed)
+            csession = self.SessionClass(cmsg.decode('utf-8'))
+            if csession.established:
+                raise ValueError
+        except ValueError:
+            logger.warning("%s\nSecurity threat intercepted in ctest; "
+                           "cookie tampering detected\n"
+                           "cookie=%s\nUserAgent: %s",
+                           context.environ.get('PATH_INFO', ''),
+                           cmsg, ua)
+            self.clear_session_cookie(context)
+            return self.error_page(context, 400)
+        if csession.sid != qsession.sid or csession.established:
+            # we got a cookie, but not the one we expected.  Possible
+            # foul play so kill the session.  Established sessions must
+            # never make it to this page as they've been exposed in the
+            # URL.
+            logger.warning("%s\nSecurity threat intercepted in ctest; "
+                           "session mismatch, possible fixation attack\n"
+                           "cookie=%s; query=%s",
+                           context.environ.get('PATH_INFO', ''),
+                           cmsg, qmsg)
+            self.clear_session_cookie(context)
             return self.error_page(context, 400)
         if not self.check_redirect(context, return_path):
+            self.clear_session_cookie(context)
             return self.error_page(context, 400)
-        # we have matching session ids and the redirect checks out
+        # we have matching session ids and the redirect checks out, we
+        # now load the session from the cookie for real.  This repeats
+        # the validity check but also adds the session timeout checks.
+        # This will result in an established session or, if the test
+        # page sequence was too slow, a new session that will be
+        # established when the return_path calls set_session.
         self.set_session(context)
-        if context.session.sid() == sid:
-            # but we've exposed the user_key in the URL which is bad.
-            # Let's rewrite that now for safety (without changing
-            # the actual session).
-            self._update_session_key(context)
         return self.redirect_page(context, return_path)
+
+    def ctest_page(self, context, target_url, return_url, s, sig):
+        """Returns the cookie test page
+
+        Called when cookies are blocked (perhaps in a frame).
+
+        context
+            The request context
+
+        target_url
+            A string containing the base link to the wlaunch page.  This
+            page can opened in a new window (which may get around the
+            cookie restrictions).  You must pass the return_url and the
+            sid values as the 'return' and 'sid' query parameters
+            respectively.
+
+        return_url
+            A string containing the URL the user originally requested,
+            and the location they should be returned to when the session
+            is established.
+
+        s
+            The session
+
+        sig
+            The session signature
+
+        You may want to override this implementation to provide a more
+        sophisticated page.  The default simply presents the target_url
+        with added "return", "s" and "sig" parameters as a simple
+        hypertext link that will open in a new window.
+
+        A more sophisticated application might render a button or a form
+        but bear in mind that browsers that cause this page to load are
+        likely to prevent automated ways of opening this link."""
+        query = urlencode({'return': return_url, 's': s, 'sig': sig})
+        target_url = str(target_url) + '?' + query
+        data = """<html>
+    <head><title>Cookie Test Page</title></head>
+    <body>
+    <p>Cookie test failed: try opening in a <a href=%s
+    target="_blank" id="wlaunch">new window</a></p></body>
+</html>""" % xml.escape_char_data7(str(target_url), True)
+        context.set_status(200)
+        return self.html_response(context, data)
 
     def wlaunch(self, context):
         """Handles redirection to a new window
-
-        The redirection may be manual (by the user clicking a link) or
-        it may have been automated using JavaScript - though this latter
-        technique is liable to fall foul of pop-up blockers so should not
-        be relied upon as the only method.
 
         The query parameters must contain:
 
         return
             The return URL the user originally requested
 
-        sid
-            The session ID that should be received in a cookie
+        s
+            The session that should also be received in a cookie
 
-        Typically, this page initiates the redirect sequence again, but
-        this time setting the framed query parameter to prevent infinite
+        sig
+            The signature of the session, return URL and User-Agent
+
+        This page initiates the redirect sequence again, but this time
+        setting the framed query parameter to prevent infinite
         redirection loops."""
-        context.get_app_root()
         cookies = context.get_cookies()
         logger.debug("cookies: %s", repr(cookies))
         query = context.get_query()
-        if 'return' not in query or 'sid' not in query:
+        if 'return' not in query or 's' not in query or 'sig' not in query:
             # missing required parameters
             return self.error_page(context, 400)
         logger.debug("query: %s", repr(query))
-        # load the session from the query initially
-        sid = query['sid']
-        qsession = self._load_session(sid)
-        if (qsession is not None and
-                (qsession.established() or
-                 not qsession.match_environ(context))):
-            # we're still trying to establish a session here so this
-            # is a surprising result.  Perhaps an attacker has
-            # injected their own established session ID here?
-            self._delete_session(sid)
-            logger.warning("Security threat intercepted in wlaunch; "
-                           "unexpected session injected in query, "
-                           "possible fixation attack\n"
-                           "session=%s", sid)
-            return self.error_page(context, 400)
+        qmsg = query['s']
+        qsig = query['sig']
         return_path = query['return']
+        ua = context.environ.get('HTTP_USER_AGENT', '')
+        # load the session from the query initially
+        try:
+            self.app_cipher.check_signature(
+                qsig, (qmsg + return_path + ua).encode('utf-8'))
+            qsession = self.SessionClass(qmsg)
+            if qsession.established:
+                raise ValueError
+        except ValueError:
+            logger.warning("%s\nSecurity threat intercepted in wlaunch; "
+                           "query tampering detected\n"
+                           "s=%s; sig=%s;\nUserAgent: %s",
+                           context.environ.get('PATH_INFO', ''),
+                           qmsg, qsig, ua)
+            self.clear_session_cookie(context)
+            return self.error_page(context, 400)
         if not self.check_redirect(context, return_path):
             return self.error_page(context, 400)
         if self._test_cookie not in cookies:
             # no cookies, either the user has never been here before or
-            # cookies are blocked completely, test again
-            if qsession is not None:
-                # reuse the unestablished session from the query
-                # BTW, if you delete the test cookie it could kill your
-                # session!
-                context.session = qsession
-                self.set_session_cookie(context)
-            else:
-                self.set_session(context)
-            c = cookie.Section4Cookie(
-                self._test_cookie, "0",
-                path=str(context.get_app_root().abs_path),
-                max_age=self.settings['SessionApp']['cookie_test_age'])
-            context.add_header('Set-Cookie', str(c))
+            # cookies are blocked completely, reuse the unestablished
+            # session from the query and go back to the test page
+            context.session = qsession
+            self.set_session_cookie(context)
+            self.set_test_cookie(context)
             query = urlencode(
-                {'return': return_path,
-                 'sid': context.session.sid(),
+                {'return': return_path, 's': qmsg, 'sig': qsig,
                  'framed': '1'})
             ctest = URI.from_octets('ctest?' + query).resolve(
                 context.get_app_root())
@@ -2417,14 +2473,25 @@ class SessionApp(WSGIDataApp):
         # window, suddenly, they appear.  Merge our new session into the
         # old one if the old one was already established
         self.set_session(context)
-        if (context.session.established() and qsession is not None):
-            # established, matching session.  Merge!
-            context.session.absorb(qsession)
-        # now we finally have a session
-        if context.session.sid() == sid:
-            # this session id was exposed in the query, change it
-            self._update_session_key(context)
+        # merge qsession into the one found in the older cookie (no need
+        # to establish it)
+        self.merge_session(context, qsession)
         return self.redirect_page(context, return_path)
+
+    def cfail_page(self, context):
+        """Called when cookies are blocked completely.
+
+        The default simply returns a plain text message stating that
+        cookies are blocked.  You may want to include a page here with
+        information about how to enable cookies, a link to the privacy
+        policy for your application to help people make an informed
+        decision to turn on cookies, etc."""
+        context.set_status(200)
+        data = b"Page load failed: blocked cookies"
+        context.add_header("Content-Type", "text/plain")
+        context.add_header("Content-Length", str(len(data)))
+        context.start_response()
+        return [data]
 
     def check_redirect(self, context, target_path):
         """Checks a target path for an open redirect

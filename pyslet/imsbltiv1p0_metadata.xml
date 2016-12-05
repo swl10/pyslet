@@ -15,7 +15,6 @@
                 <EntitySet Name="Users" EntityType="LTISchema.User"/>
                 <EntitySet Name="Resources" EntityType="LTISchema.Resource"/>
                 <EntitySet Name="Visits" EntityType="LTISchema.Visit"/>
-                <EntitySet Name="Sessions" EntityType="LTISchema.Session"/>
                 <AssociationSet Name="Silos_Consumers"
                         Association="LTISchema.Silo_Consumer">
                     <End Role="Silo" EntitySet="Silos"/>
@@ -50,11 +49,6 @@
                     Association="LTISchema.Visit_User">
                     <End Role="Visit" EntitySet="Visits"/>
                     <End Role="User" EntitySet="Users"/>
-                </AssociationSet>
-                <AssociationSet Name="Visits_Sessions"
-                    Association="LTISchema.Visit_Session">
-                    <End Role="Visit" EntitySet="Visits"/>
-                    <End Role="Session" EntitySet="Sessions"/>
                 </AssociationSet>
             </EntityContainer>
             <EntityType Name="AppKey">
@@ -170,7 +164,7 @@
                 <NavigationProperty Name="Consumer"
                     Relationship="LTISchema.User_Consumer" FromRole="User"
                     ToRole="Consumer"/>
-                <NavigationProperty Name="Visit"
+                <NavigationProperty Name="Visits"
                     Relationship="LTISchema.Visit_User" FromRole="User"
                     ToRole="Visit"/>
             </EntityType>
@@ -181,36 +175,18 @@
                 <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
                 <Property Name="Permissions" Type="Edm.Int64"
                     Nullable="false"/>
+                <Property Name="Session" Type="String" MaxLength="50"
+                    Unicode="false"/>
+                <Property Name="WhenLaunched" Type="Edm.DateTime"
+                    Nullable="false"/>
+                <Property Name="UserAgent" Type="Edm.String"
+                    Nullable="true" MaxLength="256" Unicode="false"/>
                 <NavigationProperty Name="Resource"
                     Relationship="LTISchema.Visit_Resource" FromRole="Visit"
                     ToRole="Resource"/>
                 <NavigationProperty Name="User"
                     Relationship="LTISchema.Visit_User" FromRole="Visit"
                     ToRole="User"/>
-                <NavigationProperty Name="Session"
-                    Relationship="LTISchema.Visit_Session" FromRole="Visit"
-                    ToRole="Session"/>
-            </EntityType>
-            <EntityType Name="Session">
-                <Key>
-                    <PropertyRef Name="ID"/>
-                </Key>
-                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-                <Property Name="Established" Type="Edm.Boolean"
-                    Nullable="false"/>
-                <Property Name="UserKey" Type="Edm.String"
-                    Nullable="false" MaxLength="64" Unicode="false"/>
-                <Property Name="ServerKey" Type="Edm.String"
-                    Nullable="false" MaxLength="64" Unicode="false"/>
-                <Property Name="FirstSeen" Type="Edm.DateTime"
-                    Nullable="false"/>
-                <Property Name="LastSeen" Type="Edm.DateTime"
-                    Nullable="false"/>
-                <Property Name="UserAgent" Type="Edm.String"
-                    Nullable="true" MaxLength="256" Unicode="false"/>
-                <NavigationProperty Name="Visits"
-                    Relationship="LTISchema.Visit_Session"
-                    FromRole="Session" ToRole="Visit"/>
             </EntityType>
             <Association Name="Silo_Consumer">
                 <End Role="Silo" Type="LTISchema.Silo" Multiplicity="1"/>
@@ -248,11 +224,6 @@
             <Association Name="Visit_User">
                 <End Role="Visit" Type="LTISchema.Visit" Multiplicity="*"/>
                 <End Role="User" Type="LTISchema.User" Multiplicity="0..1"/>
-            </Association>
-            <Association Name="Visit_Session">
-                <End Role="Visit" Type="LTISchema.Visit" Multiplicity="*"/>
-                <End Role="Session" Type="LTISchema.Session"
-                    Multiplicity="0..1"/>
             </Association>
         </Schema>
     </edmx:DataServices>

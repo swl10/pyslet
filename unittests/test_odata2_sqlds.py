@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import decimal
 import logging
 import random
 import sqlite3
@@ -7,6 +8,7 @@ import threading
 import uuid
 import unittest
 
+from pyslet import iso8601 as iso
 from pyslet.http import params
 from pyslet.odata2 import core
 from pyslet.odata2 import csdl as edm
@@ -31,7 +33,7 @@ def suite():
     loader.testMethodPrefix = 'test'
     return unittest.TestSuite((
         loader.loadTestsFromTestCase(ParamTests),
-        loader.loadTestsFromTestCase(ThreadTests),
+        loader.loadTestsFromTestCase(ContainerTests),
         loader.loadTestsFromTestCase(SQLDSTests),
         loader.loadTestsFromTestCase(AutoFieldTests),
         loader.loadTestsFromTestCase(RegressionTests),
@@ -187,7 +189,7 @@ def deep_runner(container):
         container.release_connection(connections[i])
 
 
-class ThreadTests(unittest.TestCase):
+class ContainerTests(unittest.TestCase):
 
     def setUp(self):  # noqa
         self.doc = edmx.Document()
@@ -199,6 +201,64 @@ class ThreadTests(unittest.TestCase):
 
     def tearDown(self):  # noqa
         pass
+
+    def test_literals(self):
+        container = MockContainer(container=self.container,
+                                  dbapi=MockAPI(0), max_connections=5)
+        # format each type of literal
+        v = edm.SimpleValue.from_type(edm.SimpleType.Binary)
+        v.set_from_value(b'1234')
+        self.assertTrue(container.prepare_sql_literal(v) == "X'31323334'")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Boolean)
+        v.set_from_value(True)
+        self.assertTrue(container.prepare_sql_literal(v) == "TRUE")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Byte)
+        v.set_from_value(3)
+        self.assertTrue(container.prepare_sql_literal(v) == "3")
+        v = edm.SimpleValue.from_type(edm.SimpleType.DateTime)
+        v.set_from_value(iso.TimePoint.from_str('1972-03-03T09:45:00.000'))
+        # discard fractional seconds
+        self.assertTrue(container.prepare_sql_literal(v) ==
+                        "'1972-03-03T09:45:00'")
+        v = edm.SimpleValue.from_type(edm.SimpleType.DateTimeOffset)
+        v.set_from_value(iso.TimePoint.from_str('1972-03-03T09:45:00.000Z'))
+        # discard fractional seconds
+        self.assertTrue(container.prepare_sql_literal(v) ==
+                        "'1972-03-03T09:45:00Z'")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Time)
+        v.set_from_value(iso.Time.from_str('09:45:00.000'))
+        # discard fractional seconds
+        self.assertTrue(container.prepare_sql_literal(v) ==
+                        "'09:45:00'")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Decimal)
+        v.set_from_value(decimal.Decimal('3.14'))
+        self.assertTrue(container.prepare_sql_literal(v) == "3.14")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Double)
+        v.set_from_value(3.14)
+        self.assertTrue(container.prepare_sql_literal(v) == "3.14")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Single)
+        v.set_from_value(3.14)
+        self.assertTrue(container.prepare_sql_literal(v) == "3.14")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Guid)
+        v.set_from_value(uuid.UUID(int=3))
+        self.assertTrue(container.prepare_sql_literal(v) ==
+                        "X'00000000000000000000000000000003'")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Int16)
+        v.set_from_value(3)
+        self.assertTrue(container.prepare_sql_literal(v) == "3")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Int32)
+        v.set_from_value(3)
+        self.assertTrue(container.prepare_sql_literal(v) == "3")
+        v = edm.SimpleValue.from_type(edm.SimpleType.Int64)
+        v.set_from_value(3)
+        self.assertTrue(container.prepare_sql_literal(v) == "3")
+        v = edm.SimpleValue.from_type(edm.SimpleType.String)
+        v.set_from_value(ul("Dave's Caf\xe9"))
+        self.assertTrue(container.prepare_sql_literal(v) ==
+                        ul("'Dave''s Caf\xe9'"))
+        v = edm.SimpleValue.from_type(edm.SimpleType.SByte)
+        v.set_from_value(-3)
+        self.assertTrue(container.prepare_sql_literal(v) == "-3")
 
     def test_level0(self):
         # we ask for 5 connections, but should only get one due to level 0

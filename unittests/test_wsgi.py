@@ -26,6 +26,7 @@ from pyslet.odata2 import (
 from pyslet.py2 import (
     dict_items,
     is_ascii,
+    is_text,
     long2,
     range3,
     ul,
@@ -43,7 +44,7 @@ def suite(prefix='test'):
         loader.loadTestsFromTestCase(AppTests),
         loader.loadTestsFromTestCase(WSGIDataAppTests),
         loader.loadTestsFromTestCase(AppCipherTests),
-        loader.loadTestsFromTestCase(SessionTests),
+        loader.loadTestsFromTestCase(CookieSessionTests),
         loader.loadTestsFromTestCase(FullAppTests),
     ))
 
@@ -1439,7 +1440,7 @@ class AppCipherTests(unittest.TestCase):
         self.dbcontainer.create_all_tables()
         self.key_set = self.container['AppKeys']
 
-    def test_constructor(self):
+    def test_plaintext(self):
         ac = wsgi.AppCipher(0, b'password', self.key_set)
         # we don't create an records initially
         with self.key_set.open() as collection:
@@ -1448,6 +1449,45 @@ class AppCipherTests(unittest.TestCase):
         self.assertTrue(is_ascii(data0))
         self.assertFalse(data0 == "Hello")
         self.assertTrue(ac.decrypt(data0) == b"Hello")
+        # check signing
+        msg = b"Hello Caf\xc3\xa9"
+        sdata0 = ac.sign(msg)
+        self.assertTrue(is_ascii(sdata0))
+        try:
+            self.assertTrue(ac.check_signature(sdata0, msg) == msg)
+        except ValueError:
+            self.fail("Failed to validate signed message")
+        sdata0 = ac.ascii_sign(msg)
+        pos = sdata0.find("Hello%20Caf%C3%A9")
+        self.assertTrue(pos >= 0, "signed msg not visible")
+        try:
+            self.assertTrue(ac.check_signature(sdata0) == msg)
+        except ValueError:
+            self.fail("Failed to validate ascii signed message")
+        # now try with the message
+        try:
+            self.assertTrue(ac.check_signature(sdata0, msg) == msg)
+        except ValueError:
+            self.fail("Failed to validate ascii signed message")
+        # and now try with mismatched message
+        try:
+            ac.check_signature(sdata0, b"Hello")
+            self.fail("Validated mismatched messages")
+        except ValueError:
+            pass
+        # now corrupt the message by lower-casing the 'H'
+        tampered = sdata0[:pos] + "h" + sdata0[pos + 1:]
+        try:
+            ac.check_signature(tampered)
+            self.fail("Validated tampered message")
+        except ValueError:
+            pass
+        try:
+            ac.check_signature(tampered, msg)
+            self.fail("Validated tampered message")
+        except ValueError:
+            pass
+        # now change the key
         ac.change_key(1, b"pa$$word",
                       iso.TimePoint.from_unix_time(time.time() - 1))
         with self.key_set.open() as collection:
@@ -1468,8 +1508,13 @@ class AppCipherTests(unittest.TestCase):
         self.assertTrue(ac.decrypt(data0) == b"Hello")
         ac2 = wsgi.AppCipher(10, b"anotherkey", self.key_set)
         self.assertTrue(ac2.decrypt(data0) == b"Hello")
+        # check we can still validate older hashes
+        try:
+            self.assertTrue(ac.check_signature(sdata0) == msg)
+        except ValueError:
+            self.fail("Failed to validate ascii signed message")
 
-    def test_aes_constructor(self):
+    def test_aes(self):
         if not wsgi.got_crypto:
             logging.warn("Skipping AESAppCipher tests, PyCrypto not installed")
             return
@@ -1502,7 +1547,7 @@ class AppCipherTests(unittest.TestCase):
         self.assertTrue(ac2.decrypt(data0) == "Hello")
 
 
-class SessionTests(unittest.TestCase):
+class CookieSessionTests(unittest.TestCase):
 
     def setUp(self):        # noqa
 
@@ -1514,58 +1559,56 @@ class SessionTests(unittest.TestCase):
         TestSessionApp.setup(options=options, args=args)
         self.app = TestSessionApp()
 
-    def test_sid(self):
-        with self.app.container['Sessions'].open() as collection:
-            entity = collection.new_entity()
-            entity['UserKey'].set_from_value('Hello')
-            s = wsgi.Session(entity)
-            self.assertTrue(s.sid() == 'Hello')
-            entity['UserKey'].set_from_value("Goodbye")
-            self.assertTrue(s.sid() == "Goodbye")
+    def test_constructor(self):
+        s = wsgi.CookieSession()
+        # check basic fields
+        self.assertTrue(is_text(s.sid))
+        self.assertTrue(len(s.sid) >= 32, "expect 128 bits in hex")
+        self.assertFalse(s.established, "not established")
+        self.assertTrue(isinstance(s.last_seen, iso.TimePoint))
+        s2 = wsgi.CookieSession()
+        self.assertFalse(s.sid == s2.sid, "unique sid")
 
-    def test_match(self):
-        req = MockRequest()
-        context = wsgi.WSGIContext(req.environ, req.start_response)
-        # default context has no UserAgent
-        with self.app.container['Sessions'].open() as collection:
-            entity = collection.new_entity()
-            # no UserAgent in environ should match default (NULL)
-            s = wsgi.Session(entity)
-            self.assertTrue(s.match_environ(context))
-            # but an empty UserAgent should not match
-            entity['UserAgent'].set_from_value('')
-            s = wsgi.Session(entity)
-            context.environ['HTTP_USER_AGENT'] = 'Browser/1.0'
-            self.assertFalse(s.match_environ(context))
-            entity['UserAgent'].set_from_value('Browser/1.0')
-            self.assertTrue(s.match_environ(context))
+    def test_establish(self):
+        s = wsgi.CookieSession()
+        self.assertFalse(s.established)
+        old_id = s.sid
+        new_id = s.establish()
+        self.assertTrue(s.established)
+        self.assertFalse(s.sid == old_id)
+        self.assertTrue(s.sid == new_id)
+        try:
+            s.establish()
+            self.fail("establish for established session")
+        except ValueError:
+            pass
 
-    def test_delete(self):
-        with self.app.container['Sessions'].open() as collection:
-            entity = collection.new_entity()
-            entity.set_key(1)
-            entity['Established'].set_from_value(False)
-            entity['UserKey'].set_from_value('Hello')
-            entity['ServerKey'].set_from_value('Hello')
-            entity['FirstSeen'].set_from_value(time.time())
-            entity['LastSeen'].set_from_value(time.time())
-            entity['UserAgent'].set_from_value('Browser/1.0')
-            self.assertFalse(1 in collection)
-            collection.insert_entity(entity)
-            s = wsgi.Session(entity)
-            self.assertTrue(1 in collection)
-            self.assertTrue(entity.exists)
-            entity2 = collection.new_entity()
-            entity2.set_key(2)
-            entity2.merge(entity)
-            collection.insert_entity(entity2)
-            self.assertTrue(2 in collection)
-            s2 = wsgi.Session(entity2)
-            s.absorb(s2)
-            # should delete s2
-            self.assertFalse(2 in collection)
-            self.assertTrue(1 in collection)
-            self.assertFalse(entity2.exists)
+    def test_seen_now(self):
+        s = wsgi.CookieSession()
+        s.established = True
+        s.last_seen = iso.TimePoint.from_str("1986-11-22T08:45:00Z")
+        last_seen = s.last_seen
+        s.seen_now()
+        self.assertFalse(s.last_seen == last_seen)
+
+    def test_age(self):
+        now = iso.TimePoint.from_now_utc().get_unixtime()
+        s = wsgi.CookieSession()
+        # Unless our script is very slow, this should be recent
+        self.assertTrue(s.age() < 10)
+        # now make it older
+        s.last_seen = iso.TimePoint.from_unix_time(now - 20)
+        self.assertTrue(s.age() > 10)
+
+    def test_str(self):
+        s = wsgi.CookieSession()
+        s.established = True
+        s.last_seen = iso.TimePoint.from_str("1986-11-22T08:45:00Z")
+        sdata = str(s)
+        s2 = wsgi.CookieSession(sdata)
+        self.assertTrue(s.sid == s2.sid)
+        self.assertTrue(s2.established)
+        self.assertTrue(s.last_seen == s2.last_seen)
 
 
 class TestSessionApp(wsgi.SessionApp):
@@ -1665,7 +1708,7 @@ class FullAppTests(unittest.TestCase):
             # get the input fields
             query = {}
             for input in form.find_children_depth_first(html.Input):
-                if input.name in ("return", "sid", "submit"):
+                if input.name in ("return", "s", "sig", "submit"):
                     query[input.name] = str(input.value)
             query = urlencode(query)
         elif isinstance(form, html.A):
@@ -1761,9 +1804,6 @@ class FullAppTests(unittest.TestCase):
         self.assertTrue(target.get_addr() == ('www.example.com', 8443))
         self.assertTrue(isinstance(target, params.HTTPSURL))
         self.assertTrue(target.abs_path == '/')
-        # our session should be merged in, so we have the existing sid
-        # and therefore no cookie need be set
-        self.assertFalse(self.app._session_cookie in req.cookies)
         # now we repeat the first request with the cookies again, should
         # not get a redirect anymore
         req = MockRequest()

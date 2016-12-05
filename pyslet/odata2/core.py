@@ -3684,8 +3684,9 @@ class Entry(atom.Entry):
                     self._properties[k].get_value(v)
                     selected.add(k)
                 else:
-                    # Property is not selected!
-                    v.set_from_value(None)
+                    # Property is not selected, make it NULL if not a key
+                    if k not in entity.entity_set.keys:
+                        v.set_null()
                     unselected.add(k)
         # Now set this entity's select property...
         if not unselected:

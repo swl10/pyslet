@@ -2086,6 +2086,165 @@ class DataServiceRegressionTests(unittest.TestCase):
                     self.fail("insert_entity returned a NULL key (%s)" %
                               keytype)
 
+    def check_null(self, entity, exclude=[]):
+        for pname in entity.data_keys():
+            # check each property is NULL
+            if pname in exclude:
+                continue
+            p = entity[pname]
+            if isinstance(p, edm.Complex):
+                for ppname in p.iterkeys():
+                    self.assertFalse(p[ppname])
+            else:
+                self.assertFalse(entity[pname])
+        
+    def runtest_all_type_defaults(self):
+        all_types = self.ds[
+            'RegressionModel.RegressionContainer.AllTypeDefaults']
+        with all_types.open() as coll:
+            e = coll.new_entity()
+            # defaults are informational and should not be set here
+            self.check_null(e)
+            e['ID'].set_from_value(1)
+            e['NoDefaultNotNullable'].set_from_value(1)
+            # insert with all items selected... all NULL that can be
+            coll.insert_entity(e)
+            self.check_null(e, exclude=['ID', 'NoDefaultNotNullable'])
+            # now do a read back
+            e1 = coll[1]
+            self.check_null(e1, exclude=['ID', 'NoDefaultNotNullable'])
+            # PUT semantics, unselected items are set to defaults so
+            # unselect everything and update
+            e1.expand(None, {})
+            try:
+                coll.update_entity(e1, merge=False)
+                self.fail("update: Non-nullable property with no default")
+            except edm.ConstraintError:
+                pass
+            e1 = coll[1]
+            e1.expand(None, {'NoDefaultNotNullable': None})
+            e1['NoDefaultNotNullable'].set_from_value(1)
+            coll.update_entity(e1, merge=False)
+            # we'll have to read back again to load the updated values
+            e1 = coll[1]
+            self.assertTrue(e1['ID'].value == 1, "ID on read")
+            self.assertTrue(e1['BinaryFixed'].value == b'1234567890',
+                            "BinaryFixed on read")
+            self.assertTrue(e1['BinaryVariable'].value == b'1234567',
+                            "BinaryVariable on read")
+            self.assertTrue(e1['BooleanProperty'].value is True,
+                            "BooleanProperty on read")
+            self.assertTrue(isinstance(e1['DateTimeProperty'].value,
+                                       iso.TimePoint),
+                            "DateTimeProperty type on read")
+            self.assertTrue(e1['DateTimeProperty'].value ==
+                            iso.TimePoint.from_str('1972-03-03T09:45:00.000'),
+                            "DateTimeProperty value on read")
+            self.assertTrue(isinstance(
+                e1['TimeProperty'].value, iso.Time),
+                "TimeProperty type on read")
+            self.assertTrue(e1['TimeProperty'].value ==
+                            iso.Time.from_str('09:45:00.000'),
+                            "TimeProperty value on read")
+            self.assertTrue(
+                isinstance(e1['DateTimeOffsetProperty'].value,
+                           iso.TimePoint),
+                "DateTimeOffsetProperty type on read")
+            self.assertTrue(e1['DateTimeOffsetProperty'].value ==
+                            iso.TimePoint.from_str(
+                                '1972-07-03T09:45:00.000+01:00'),
+                            "DateTimeOffsetProperty value on read")
+            self.assertTrue(isinstance(e1['DecimalProperty'].value,
+                                       decimal.Decimal),
+                            "DecimalProperty type on read")
+            self.assertTrue(e1['DecimalProperty'].value ==
+                            decimal.Decimal('3.14'),
+                            "DecimalProperty value on read")
+            self.assertTrue(
+                e1['SingleValue'].value == 3.14, "SingleValue on read")
+            self.assertTrue(
+                e1['DoubleValue'].value == 3.14, "DoubleValue on read")
+            self.assertTrue(
+                isinstance(e1['GuidValue'].value, uuid.UUID),
+                "GuidValue type on read")
+            self.assertTrue(
+                e1['GuidValue'].value == uuid.UUID(int=3),
+                "GuidValue value on read")
+            self.assertTrue(
+                e1['SByteValue'].value == 3, "SByteValue on read")
+            self.assertTrue(
+                e1['Int16Value'].value == 3, "Int16Value on read")
+            self.assertTrue(
+                e1['Int64Value'].value == 3, "Int64Value on read")
+            self.assertTrue(
+                e1['ByteValue'].value == 3, "ByteValue on read")
+            self.assertTrue(
+                e1['UnicodeString'].value == ul("Caf\xe9"),
+                "UnicodeString on read")
+            self.assertTrue(
+                e1['ASCIIString'].value == "Cafe",
+                "ASCIIString on read")
+            self.assertTrue(
+                e1['FixedString'].value == "ALFKI",
+                "FixedString on read")
+            self.assertTrue(
+                e1['Complex']['Data'].value == "GotIt!",
+                "Complex/Data on read")
+            self.assertTrue(
+                e1['Complex']['Index'].value == 3,
+                "Complex/Index on read")
+            # nullable property will default to NULL
+            self.assertFalse(e1['NoDefaultNullable'])            
+            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)            
+            e = coll.new_entity()
+            e['ID'].set_from_value(2)
+            e['UnicodeString'].set_from_value(ul("Caf\xe9s"))
+            # INSERT should use defaults for unselected properties
+            e.expand(None, {'ID': None, 'UnicodeString': None})
+            try:
+                coll.insert_entity(e)
+                self.fail("insert: Non-nullable property with no default")
+            except edm.ConstraintError:
+                pass
+            e = coll.new_entity()
+            e['ID'].set_from_value(2)
+            e['UnicodeString'].set_from_value(ul("Caf\xe9s"))
+            e['NoDefaultNotNullable'].set_from_value(1)
+            e.expand(None, {'ID': None, 'UnicodeString': None,
+                            'NoDefaultNotNullable': None})            
+            coll.insert_entity(e)
+            e2 = coll[2]
+            self.assertTrue(e2['ID'].value == 2, "ID on read")
+            self.assertTrue(e2['BinaryFixed'].value == b'1234567890',
+                            "BinaryFixed on read")
+            self.assertTrue(
+                e2['UnicodeString'].value == ul("Caf\xe9s"),
+                "UnicodeString on read")
+            self.assertTrue(
+                e2['ASCIIString'].value == "Cafe",
+                "ASCIIString on read")
+            self.assertFalse(e1['NoDefaultNullable'])            
+            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)            
+            # MERGE semantics, unselected items are left unchanged
+            # unselect all but one field and update
+            e2['ASCIIString'].set_from_value("Cafes")
+            e2['UnicodeString'].set_from_value("Ignored")
+            e2.expand(None, {'ASCIIString': None})
+            coll.update_entity(e2)
+            # read back
+            e2 = coll[2]
+            self.assertTrue(e2['ID'].value == 2, "ID on read")
+            # check a field we didn't touch
+            self.assertTrue(e2['BinaryFixed'].value == b'1234567890',
+                            "BinaryFixed on read")
+            # check UnicodeString is not reverted to default
+            self.assertTrue(e2['UnicodeString'].value == ul("Caf\xe9s"))
+            # check the field we updated
+            self.assertTrue(e2['ASCIIString'].value == "Cafes")
+            # check fields with no default
+            self.assertFalse(e1['NoDefaultNullable'])            
+            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)            
+
     def runtest_all_types(self):
         all_types = self.ds['RegressionModel.RegressionContainer.AllTypes']
         with all_types.open() as coll:
@@ -5501,6 +5660,7 @@ class DataServiceRegressionTests(unittest.TestCase):
         self.runtest_mediaresource()
         self.runtest_composite_slug()
         self.runtest_all_types()
+        self.runtest_all_type_defaults()
         self.runtest_complex_types()
         self.runtest_only_key()
         self.runtest_compound_key()

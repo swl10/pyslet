@@ -12,6 +12,7 @@ import time
 
 from hashlib import sha256
 
+from pyslet import iso8601 as iso
 from pyslet import wsgi
 from pyslet.odata2 import csdl as edm
 from pyslet.odata2 import core as odata
@@ -773,8 +774,9 @@ class ToolProvider(oauth.RequestValidator, MigratedClass):
 
 class ToolProviderContext(wsgi.SessionContext):
 
-    def __init__(self, environ, start_response):
-        wsgi.SessionContext.__init__(self, environ, start_response)
+    def __init__(self, environ, start_response, canonical_root=None):
+        wsgi.SessionContext.__init__(self, environ, start_response,
+                                     canonical_root)
         #: a :class:`~pyslet.imsbltiv1p0.ToolConsumer` instance
         #: identified from the launch
         self.consumer = None
@@ -790,68 +792,6 @@ class ToolProviderContext(wsgi.SessionContext):
         self.group = None
         #: the effective permissions (an integer for bitwise testing)
         self.permissions = 0
-
-
-class ToolProviderSession(wsgi.Session):
-
-    def add_visit(self, consumer, visit):
-        """Adds a visit entity to this session
-
-        This method creates a link from the current session entity
-        to the visit entity.  If the session entity already exists
-        then the existing collection of linked visits is examined.
-
-        If a visit to the same resource is already associated with the
-        entity is replaced.  This ensures that information about the
-        resource, the user, roles and permissions always corresponds to
-        the most recent launch.
-
-        Any visits from the same consumer but with a different user are
-        also removed.  This handles the case where a previous user of
-        the browser session needs to be logged out of the tool."""
-        resource = visit['Resource'].get_entity()
-        user = visit['User'].get_entity()
-        if self.entity.exists:
-            with self.entity['Visits'].open() as collection:
-                # we want to load the Resource, Resource/Consumer and User
-                collection.set_expand({'Resource': {'Consumer': None},
-                                       'User': None})
-                visits = collection.values()
-                # now compare these visits to the new one
-                for old_visit in visits:
-                    # if the old visit is to the same resource, replace it
-                    old_resource = old_visit['Resource'].get_entity()
-                    if old_resource.key() == resource.key():
-                        # drop this visit from this session
-                        del collection[old_visit.key()]
-                        continue
-                    # if the old visit is to the same consumer but with a
-                    # different user, replace it
-                    old_consumer = old_resource['Consumer'].get_entity()
-                    if old_consumer.key() == consumer.entity.key():
-                        old_user = old_visit['User'].get_entity()
-                        if user != old_user:
-                            # drop this visit too
-                            del collection[old_visit.key()]
-        # add this visit to this collection, linking it to the
-        # session
-        self.entity['Visits'].bind_entity(visit)
-        self.touch()
-
-    def find_visit(self, resource_id):
-        """Finds a visit that matches this resource_id"""
-        if not self.entity.exists:
-            self.commit()
-        with self.entity['Visits'].open() as collection:
-            # we want to load the Resource, Resource/Consumer and User
-            collection.set_expand({'Resource': {'Consumer': None},
-                                   'User': None})
-            visits = collection.values()
-            for visit in visits:
-                resource = visit['Resource'].get_entity()
-                if resource.key() == resource_id:
-                    return visit
-        return None
 
 
 class ToolProviderApp(wsgi.SessionApp):
@@ -874,9 +814,6 @@ class ToolProviderApp(wsgi.SessionApp):
 
     #: We have our own context class
     ContextClass = ToolProviderContext
-
-    #: We have our own LTI-specific Session class
-    SessionClass = ToolProviderSession
 
     @classmethod
     def add_options(cls, parser):
@@ -1075,13 +1012,56 @@ class ToolProviderApp(wsgi.SessionApp):
     def new_visit(self, context):
         """Called during launch to create a new visit entity
 
-        The visit entity is bound to the resource entity referred to in
-        the launch and stores the permissions and a link to the
-        (optional) user entity."""
-        with context.resource.entity_set.get_target(
-                'Visits').open() as collection:
+        A new visit entity is created and bound to the resource entity
+        referred to in the launch.  The visit entity stores the
+        permissions and a link to the (optional) user entity.
+
+        If a visit to the same resource is already associated with the
+        session it is replaced.  This ensures that information about the
+        resource, the user, roles and permissions always corresponds to
+        the most recent launch.
+
+        Any visits from the same consumer but with a different user are
+        also removed.  This handles the case where a previous user of
+        the browser session needs to be logged out of the tool."""
+        with self.container['Visits'].open() as collection:
+            collection.set_expand(
+                {'Resource': {'Consumer': None}, 'User': None})
+            sid = edm.EDMValue.from_type(edm.SimpleType.String)
+            sid.set_from_value(context.session.sid)
+            filter = odata.CommonExpression.from_str(
+                "Session eq :sid", {'sid': sid})
+            collection.set_filter(filter)
+            visits = collection.values()
+            # now compare these visits to the new one
+            for old_visit in visits:
+                # if the old visit is to the same resource, replace it
+                old_resource = old_visit['Resource'].get_entity()
+                if old_resource.key() == context.resource.key():
+                    # drop this visit
+                    old_visit['Session'].set_from_value(None)
+                    old_visit.expand(None, {'Session': None})
+                    collection.update_entity(old_visit)
+                    continue
+                # if the old visit is to the same consumer but with a
+                # different user, replace it
+                old_consumer = old_resource['Consumer'].get_entity()
+                if old_consumer.key() == context.consumer.entity.key():
+                    old_user = old_visit['User'].get_entity()
+                    # one or the other may be None, will compare by key
+                    if context.user != old_user:
+                        # drop this visit too
+                        old_visit['Session'].set_from_value(None)
+                        old_visit.expand(None, {'Session': None})
+                        collection.update_entity(old_visit)
+            collection.set_expand(None)
+            collection.set_filter(None)
             visit = collection.new_entity()
             visit['Permissions'].set_from_value(context.permissions)
+            visit['Session'].set_from_value(context.session.sid)
+            visit['WhenLaunched'].set_from_value(iso.TimePoint.from_now_utc())
+            visit['UserAgent'].set_from_value(
+                context.environ.get('HTTP_USER_AGENT', ''))
             visit['Resource'].bind_entity(context.resource)
             user_value = []
             if context.user is not None:
@@ -1091,6 +1071,85 @@ class ToolProviderApp(wsgi.SessionApp):
             visit['Resource'].set_expansion_values([context.resource])
             visit['User'].set_expansion_values(user_value)
         context.visit = visit
+
+    def find_visit(self, context, resource_id):
+        """Finds a visit that matches this resource_id"""
+        with self.container['Visits'].open() as collection:
+            sid = edm.EDMValue.from_type(edm.SimpleType.String)
+            sid.set_from_value(context.session.sid)
+            filter = odata.CommonExpression.from_str(
+                "Session eq :sid", {'sid': sid})
+            collection.set_filter(filter)
+            # we want to load the Resource, Resource/Consumer and User
+            collection.set_expand({'Resource': {'Consumer': None},
+                                   'User': None})
+            visits = collection.values()
+            for visit in visits:
+                resource = visit['Resource'].get_entity()
+                if resource.key() == resource_id:
+                    return visit
+        return None
+
+    def establish_session(self, context):
+        """Overridden to update the Session ID in the visit"""
+        with self.container['Visits'].open() as collection:
+            sid = edm.EDMValue.from_type(edm.SimpleType.String)
+            sid.set_from_value(context.session.sid)
+            filter = odata.CommonExpression.from_str(
+                "Session eq :sid", {'sid': sid})
+            collection.set_filter(filter)
+            visits = collection.values()
+            context.session.establish()
+            # we don't expect more than one matching visit here
+            for visit in visits:
+                visit['Session'].set_from_value(context.session.sid)
+                # just update the Session field
+                visit.expand(None, {'Session': None})
+                collection.update_entity(visit)
+
+    def merge_session(self, context, merge_session):
+        """Overridden to update the Session ID in any associated visits"""
+        with self.container['Visits'].open() as collection:
+            sid = edm.EDMValue.from_type(edm.SimpleType.String)
+            sid.set_from_value(merge_session.session.sid)
+            filter = odata.CommonExpression.from_str(
+                "Session eq :sid", {'sid': sid})
+            collection.set_filter(filter)
+            collection.set_expand(
+                {'Resource': {'Consumer': None}, 'User': None})
+            merge_visits = collection.values()
+            # there should be only one visit in this session if there
+            # are more then something strange is going on
+            sid.set_from_value(context.session.sid)
+            for merge_visit in merge_visits:
+                merge_resource = merge_visit['Resource'].get_entity()
+                merge_consumer = merge_resource['Consumer'].get_entity()
+                merge_user = merge_visit['User'].get_entity()
+                old_visits = collection.values()
+                for old_visit in old_visits:
+                    # if the old visit is to the same resource, replace it
+                    old_resource = old_visit['Resource'].get_entity()
+                    if old_resource.key() == merge_resource.key():
+                        # drop this visit's session
+                        old_visit['Session'].set_from_value(None)
+                        old_visit.expand(None, {'Session': None})
+                        collection.update_entity(old_visit)
+                        continue
+                    # if the old visit is to the same consumer but with a
+                    # different user, replace it
+                    old_consumer = old_resource['Consumer'].get_entity()
+                    if old_consumer.key() == merge_consumer.key():
+                        old_user = old_visit['User'].get_entity()
+                        # one or the other may be None, will compare by key
+                        if old_user != merge_user:
+                            # drop this visit too
+                            old_visit['Session'].set_from_value(None)
+                            old_visit.expand(None, {'Session': None})
+                            collection.update_entity(old_visit)
+                merge_visit['Session'].set_from_value(context.session.sid)
+                # just update the Session field
+                merge_visit.set_expand(None, {'Session': None})
+                collection.update_entity(merge_visit)
 
     def load_visit(self, context):
         """Loads an existing LTI visit into the context
@@ -1138,7 +1197,7 @@ class ToolProviderApp(wsgi.SessionApp):
                 resource_id = int(resource_id, 16)
             except ValueError:
                 raise wsgi.PageNotFound
-            context.visit = context.session.find_visit(resource_id)
+            context.visit = self.find_visit(context, resource_id)
             if context.visit is None:
                 raise wsgi.PageNotAuthorized
             context.permissions = context.visit['Permissions'].value
@@ -1163,11 +1222,10 @@ class ToolProviderApp(wsgi.SessionApp):
             self.set_launch_resource(context)
             self.set_launch_user(context)
             self.set_launch_permissions(context)
-            self.new_visit(context)
-            # load the session information into the context and add the
-            # visit to this session.
+            # load the session information into the context and add a
+            # new visit to it.
             self.set_session(context)
-            context.session.add_visit(context.consumer, context.visit)
+            self.new_visit(context)
         except LTIProtocolError:
             logging.exception("LTI Protocol Error")
             return self.error_page(context, 400)

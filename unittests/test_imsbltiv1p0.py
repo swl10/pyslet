@@ -664,110 +664,6 @@ class ToolProviderSessionTests(unittest.TestCase):
                 'secret')
             collection.insert_entity(self.consumer.entity)
 
-    def test_add_and_find_visit(self):
-        req = MockRequest()
-        context = lti.ToolProviderContext(req.environ, req.start_response)
-        with self.container['Sessions'].open() as collection:
-            session = lti.ToolProviderSession(collection.new_entity())
-            session.new_from_context(context)
-            session.establish()
-            session.commit()
-        with session.entity['Visits'].open() as collection:
-            self.assertTrue(len(collection) == 0)
-        # add a resource record
-        resource = self.consumer.get_resource(
-            'rlink', 'A Resource', 'About the resource')
-        resource_id = resource['ID'].value
-        # and now a visit
-        with self.container['Visits'].open() as collection:
-            visit = collection.new_entity()
-            visit['ID'].set_from_value(1)
-            visit['Permissions'].set_from_value(context.permissions)
-            visit['Resource'].bind_entity(resource)
-            collection.insert_entity(visit)
-        # now add this visit to the session
-        session.add_visit(self.consumer, visit)
-        session.commit()
-        # Should now be possible to navigate from session to visit
-        with session.entity['Visits'].open() as collection:
-            self.assertTrue(len(collection) == 1)
-            self.assertTrue(list(collection)[0] == 1)
-        # check that a visit to the same resource replaces
-        with self.container['Visits'].open() as collection:
-            visit2 = collection.new_entity()
-            visit2['ID'].set_from_value(2)
-            visit2['Permissions'].set_from_value(context.permissions)
-            visit2['Resource'].bind_entity(resource)
-            collection.insert_entity(visit2)
-        session.add_visit(self.consumer, visit2)
-        session.commit()
-        with session.entity['Visits'].open() as collection:
-            self.assertTrue(len(collection) == 1)
-            self.assertTrue(list(collection)[0] == 2)
-        # check that a login to the same resource with a user replaces
-        # no user
-        context.user = self.consumer.get_user('steve', 'Steve')
-        with self.container['Visits'].open() as collection:
-            visit3 = collection.new_entity()
-            visit3['ID'].set_from_value(3)
-            visit3['Permissions'].set_from_value(context.permissions)
-            visit3['Resource'].bind_entity(resource)
-            visit3['User'].bind_entity(context.user)
-            collection.insert_entity(visit3)
-        session.add_visit(self.consumer, visit3)
-        session.commit()
-        with session.entity['Visits'].open() as collection:
-            self.assertTrue(len(collection) == 1)
-            self.assertTrue(list(collection)[0] == 3)
-        # check that a login to a different resource with a different
-        # user replaces
-        user2 = self.consumer.get_user('dave', 'Dave')
-        resource2 = self.consumer.get_resource(
-            'rlink2', 'Another Resource', 'About the other resource')
-        resource2_id = resource2['ID'].value
-        with self.container['Visits'].open() as collection:
-            visit4 = collection.new_entity()
-            visit4['ID'].set_from_value(4)
-            visit4['Permissions'].set_from_value(context.permissions)
-            visit4['Resource'].bind_entity(resource2)
-            visit4['User'].bind_entity(user2)
-            collection.insert_entity(visit4)
-        session.add_visit(self.consumer, visit4)
-        session.commit()
-        with session.entity['Visits'].open() as collection:
-            self.assertTrue(len(collection) == 1)
-            self.assertTrue(list(collection)[0] == 4)
-        # check that a login to a different resource with the same
-        # user support multiple visits
-        with self.container['Visits'].open() as collection:
-            visit5 = collection.new_entity()
-            visit5['ID'].set_from_value(5)
-            visit5['Permissions'].set_from_value(context.permissions)
-            visit5['Resource'].bind_entity(resource)
-            visit5['User'].bind_entity(user2)
-            collection.insert_entity(visit5)
-        session.add_visit(self.consumer, visit5)
-        session.commit()
-        with session.entity['Visits'].open() as collection:
-            self.assertTrue(len(collection) == 2)
-            self.assertTrue(4 in collection)
-            self.assertTrue(5 in collection)
-        # quick check of find_visit...
-        match_visit = session.find_visit(resource_id)
-        self.assertTrue(match_visit is not None)
-        self.assertTrue(match_visit == visit5)
-        match_visit = session.find_visit(resource2_id)
-        self.assertTrue(match_visit is not None)
-        self.assertTrue(match_visit == visit4)
-        match_visit = session.find_visit(max(resource_id, resource2_id) + 1)
-        self.assertTrue(match_visit is None)
-        # check that a login from the NULL user replaces
-        session.add_visit(self.consumer, visit)
-        session.commit()
-        with session.entity['Visits'].open() as collection:
-            self.assertTrue(len(collection) == 1)
-            self.assertTrue(1 in collection)
-
 
 EXAMPLE_CONSUMERS = b"""www.example.com Secret
 www.questionmark.com password
@@ -862,6 +758,298 @@ class ToolProviderAppTests(unittest.TestCase):
             tc = lti.ToolConsumer(consumer, TPApp.new_app_cipher())
             self.assertTrue(tc.key == '12345', tc.key)
             self.assertTrue(tc.secret == 'secret', tc.secret)
+
+    def test_constructor(self):
+
+        class TPApp(lti.ToolProviderApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        TPApp.add_options(p)
+        options, args = p.parse_args(['-m', '--create_silo'])
+        TPApp.setup(options=options, args=args)
+        with TPApp.container['Silos'].open() as collection:
+            self.assertTrue(len(collection) == 1)
+            silo = collection.values()[0]
+        with silo['Consumers'].open() as collection:
+            consumer = collection.values()[0]
+            lti.ToolConsumer(consumer, TPApp.new_app_cipher())
+        # ready to test the app
+        app = TPApp()
+        self.assertTrue(isinstance(app.provider, lti.ToolProvider))
+        # now test the App logic, initially no visits
+        with TPApp.container['Visits'].open() as collection:
+            self.assertTrue(len(collection) == 0)
+
+    def test_set_launch_group(self):
+
+        class TPApp(lti.ToolProviderApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        TPApp.add_options(p)
+        options, args = p.parse_args(['-m', '--create_silo'])
+        TPApp.setup(options=options, args=args)
+        with TPApp.container['Silos'].open() as collection:
+            silo = collection.values()[0]
+        with silo['Consumers'].open() as collection:
+            consumer = collection.values()[0]
+            tc = lti.ToolConsumer(consumer, TPApp.new_app_cipher())
+        app = TPApp()
+        req = MockRequest()
+        context = lti.ToolProviderContext(req.environ, req.start_response)
+        context.session = wsgi.CookieSession()
+        context.session.establish()
+        context.consumer = tc
+        # parameters will be empty, so no launch group
+        app.set_launch_group(context)
+        self.assertTrue(context.group is None)
+        with TPApp.container['Contexts'].open() as collection:
+            self.assertTrue(len(collection) == 0)
+        # add in group parameters
+        context.parameters['context_id'] = "gid"
+        context.parameters['context_type'] = "Group"
+        context.parameters['context_title'] = "Group101"
+        context.parameters['context_label'] = "G101"
+        app.set_launch_group(context)
+        # now check that we have a group in the data store
+        with TPApp.container['Contexts'].open() as collection:
+            self.assertTrue(len(collection) == 1)
+            group = collection.values()[0]
+            self.assertTrue(group['ContextID'].value == "gid")
+            self.assertTrue(group['Title'].value == "Group101")
+            self.assertTrue(group['Label'].value == "G101")
+            self.assertTrue(
+                group['Types'].value == "urn:lti:context-type:ims/lis/Group")
+            gconsumer = group['Consumer'].get_entity()
+            # check it is associated with the consumer we created
+            self.assertTrue(gconsumer == consumer)
+            # and there are no resources
+            with group['Resources'].open() as rcollection:
+                self.assertTrue(len(rcollection) == 0)
+        self.assertTrue(context.group == group)
+
+    def test_set_launch_resource(self):
+
+        class TPApp(lti.ToolProviderApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        TPApp.add_options(p)
+        options, args = p.parse_args(['-m', '--create_silo'])
+        TPApp.setup(options=options, args=args)
+        with TPApp.container['Silos'].open() as collection:
+            silo = collection.values()[0]
+        with silo['Consumers'].open() as collection:
+            consumer = collection.values()[0]
+            tc = lti.ToolConsumer(consumer, TPApp.new_app_cipher())
+        app = TPApp()
+        req = MockRequest()
+        context = lti.ToolProviderContext(req.environ, req.start_response)
+        context.session = wsgi.CookieSession()
+        context.session.establish()
+        context.consumer = tc
+        # parameters will be empty, so no launch resource: error
+        try:
+            app.set_launch_resource(context)
+            self.fail("resource_link_id is required")
+        except lti.LTIProtocolError:
+            pass
+        with TPApp.container['Resources'].open() as collection:
+            self.assertTrue(len(collection) == 0)
+        # add a resource link to the parameters
+        context.parameters['resource_link_id'] = 'rlink'
+        context.parameters['resource_link_title'] = 'A Resource'
+        context.parameters['resource_link_description'] = 'About the resource'
+        app.set_launch_resource(context)
+        with TPApp.container['Resources'].open() as collection:
+            self.assertTrue(len(collection) == 1)
+            resource = collection.values()[0]
+            self.assertTrue(resource['LinkID'].value == "rlink")
+            self.assertTrue(resource['Title'].value == "A Resource")
+            self.assertTrue(
+                resource['Description'].value == "About the resource")
+            rconsumer = resource['Consumer'].get_entity()
+            # check it is associated with the consumer we created
+            self.assertTrue(rconsumer == consumer)
+            # and there are is no context
+            self.assertTrue(resource['Context'].get_entity() is None)
+            # and no visits
+            with resource['Visits'].open() as vcollection:
+                self.assertTrue(len(vcollection) == 0)
+        self.assertTrue(context.resource == resource)
+        # now check contexts too
+        context.parameters['context_id'] = "gid"
+        context.parameters['context_type'] = "Group"
+        context.parameters['context_title'] = "Group101"
+        context.parameters['context_label'] = "G101"
+        context.parameters['resource_link_id'] = 'rlink2'
+        context.parameters['resource_link_title'] = 'Another Resource'
+        context.parameters['resource_link_description'] = 'Resource & context'
+        app.set_launch_group(context)
+        app.set_launch_resource(context)
+        self.assertTrue(context.resource['LinkID'].value == 'rlink2')
+        self.assertTrue(
+            context.resource['Context'].get_entity() == context.group)
+
+    def test_set_launch_user(self):
+
+        class TPApp(lti.ToolProviderApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        TPApp.add_options(p)
+        options, args = p.parse_args(['-m', '--create_silo'])
+        TPApp.setup(options=options, args=args)
+        with TPApp.container['Silos'].open() as collection:
+            silo = collection.values()[0]
+        with silo['Consumers'].open() as collection:
+            consumer = collection.values()[0]
+            tc = lti.ToolConsumer(consumer, TPApp.new_app_cipher())
+        app = TPApp()
+        req = MockRequest()
+        context = lti.ToolProviderContext(req.environ, req.start_response)
+        context.session = wsgi.CookieSession()
+        context.session.establish()
+        context.consumer = tc
+        # parameters will be empty, so no launch user
+        app.set_launch_user(context)
+        self.assertTrue(context.user is None)
+        with TPApp.container['Users'].open() as collection:
+            self.assertTrue(len(collection) == 0)
+        # add a user to the parameters
+        context.parameters['user_id'] = '123456'
+        context.parameters['lis_person_name_given'] = 'Jane'
+        context.parameters['lis_person_name_family'] = 'Doe'
+        context.parameters['lis_person_name_full'] = 'Jane Doe'
+        context.parameters['lis_person_contact_email_primary'] = \
+            'j.doe@example.com'
+        app.set_launch_user(context)
+        with TPApp.container['Users'].open() as collection:
+            self.assertTrue(len(collection) == 1)
+            user = collection.values()[0]
+            self.assertTrue(user['UserID'].value == "123456")
+            self.assertTrue(user['GivenName'].value == "Jane")
+            self.assertTrue(user['FamilyName'].value == "Doe")
+            self.assertTrue(user['FullName'].value == "Jane Doe")
+            self.assertTrue(user['Email'].value == "j.doe@example.com")
+            uconsumer = user['Consumer'].get_entity()
+            # check it is associated with the consumer we created
+            self.assertTrue(uconsumer == consumer)
+            # and no visits
+            with user['Visits'].open() as vcollection:
+                self.assertTrue(len(vcollection) == 0)
+        self.assertTrue(context.user == user)
+
+    def test_new_visit(self):
+
+        class TPApp(lti.ToolProviderApp):
+            private_files = self.d
+        p = optparse.OptionParser()
+        TPApp.add_options(p)
+        options, args = p.parse_args(['-m', '--create_silo'])
+        TPApp.setup(options=options, args=args)
+        with TPApp.container['Silos'].open() as collection:
+            silo = collection.values()[0]
+        with silo['Consumers'].open() as collection:
+            consumer = collection.values()[0]
+            tc = lti.ToolConsumer(consumer, TPApp.new_app_cipher())
+        app = TPApp()
+        req = MockRequest()
+        context = lti.ToolProviderContext(req.environ, req.start_response)
+        context.session = wsgi.CookieSession()
+        unestablished_id = context.session.sid
+        context.consumer = tc
+        context.parameters['resource_link_id'] = 'rlink'
+        context.parameters['resource_link_title'] = 'A Resource'
+        context.parameters['resource_link_description'] = 'About the resource'
+        app.set_launch_resource(context)
+        # create a new visit in this unestablished session
+        app.new_visit(context)
+        with TPApp.container['Visits'].open() as collection:
+            self.assertTrue(len(collection) == 1)
+            visit = collection.values()[0]
+            self.assertTrue(visit['Session'].value == unestablished_id)
+        self.assertTrue(visit == context.visit)
+        # now check that when we establish the session we're updated
+        app.establish_session(context)
+        self.assertTrue(context.session.established)
+        established_id = context.session.sid
+        self.assertTrue(unestablished_id != established_id)
+        with TPApp.container['Visits'].open() as collection:
+            self.assertTrue(len(collection) == 1)
+            visit = collection.values()[0]
+            self.assertTrue(visit['Session'].value == established_id)
+        # but it should still be the same visit
+        self.assertTrue(visit == context.visit)
+        # now check that a new visit replaces an old one
+        first_visit = visit
+        context.parameters['user_id'] = '123456'
+        context.parameters['lis_person_name_given'] = 'Jane'
+        context.parameters['lis_person_name_family'] = 'Doe'
+        context.parameters['lis_person_name_full'] = 'Jane Doe'
+        context.parameters['lis_person_contact_email_primary'] = \
+            'j.doe@example.com'
+        app.set_launch_user(context)
+        app.new_visit(context)
+        self.assertFalse(first_visit == context.visit)
+        self.assertTrue(context.visit['Session'].value == established_id)
+        with TPApp.container['Visits'].open() as collection:
+            self.assertTrue(len(collection) == 2)
+            # reload the first visit
+            first_visit = collection[first_visit.key()]
+            # this visit should no longer be associated with a session
+            self.assertTrue(first_visit['Session'].value is None)
+        # now check that a new visit with a different user orphans
+        # visits from the old user (even when resource doesn't match)
+        janes_visit = context.visit
+        context.parameters['resource_link_id'] = 'rlink2'
+        context.parameters['resource_link_title'] = 'Another Resource'
+        context.parameters['resource_link_description'] = 'Details'
+        app.set_launch_resource(context)
+        context.parameters['user_id'] = '123457'
+        context.parameters['lis_person_name_given'] = 'John'
+        context.parameters['lis_person_name_family'] = 'Doe'
+        context.parameters['lis_person_name_full'] = 'John Doe'
+        context.parameters['lis_person_contact_email_primary'] = \
+            'j.doe2@example.com'
+        app.set_launch_user(context)
+        app.new_visit(context)
+        self.assertFalse(janes_visit == context.visit)
+        with TPApp.container['Visits'].open() as collection:
+            self.assertTrue(len(collection) == 3)
+            # reload jane's visit
+            janes_visit = collection[janes_visit.key()]
+            # this visit should no longer be associated with a session
+            self.assertTrue(janes_visit['Session'].value is None)
+        # check that a login to a different resource with the same
+        # user support multiple visits
+        johns_first_visit = context.visit
+        context.parameters['resource_link_id'] = 'rlink3'
+        context.parameters['resource_link_title'] = 'Yet Another Resource'
+        context.parameters['resource_link_description'] = 'More Details'
+        app.set_launch_resource(context)
+        app.new_visit(context)
+        self.assertFalse(johns_first_visit == context.visit)
+        with TPApp.container['Visits'].open() as collection:
+            self.assertTrue(len(collection) == 4)
+            # reload john's first visit
+            johns_first_visit = collection[johns_first_visit.key()]
+            # this visit should still be associated with the session
+            self.assertTrue(
+                johns_first_visit['Session'].value == established_id)
+
+#         # quick check of find_visit...
+#         match_visit = session.find_visit(resource_id)
+#         self.assertTrue(match_visit is not None)
+#         self.assertTrue(match_visit == visit5)
+#         match_visit = session.find_visit(resource2_id)
+#         self.assertTrue(match_visit is not None)
+#         self.assertTrue(match_visit == visit4)
+#         match_visit = session.find_visit(max(resource_id, resource2_id) + 1)
+#         self.assertTrue(match_visit is None)
+#         # check that a login from the NULL user replaces
+#         session.add_visit(self.consumer, visit)
+#         session.commit()
+#         with session.entity['Visits'].open() as collection:
+#             self.assertTrue(len(collection) == 1)
+#             self.assertTrue(1 in collection)
 
 
 if __name__ == "__main__":

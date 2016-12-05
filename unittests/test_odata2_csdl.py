@@ -383,6 +383,13 @@ class ValueTests(unittest.TestCase):
         self.assertTrue(v.p_def.name == "flag",
                         "SimpleValue property definition set on constructor")
         self.assertTrue(v.value is None, "Null value on construction")
+        v.set_default_value()
+        self.assertTrue(v.value is None, "No default value")
+        p.defaultValue = "true"
+        v = edm.SimpleValue.from_property(p)
+        self.assertTrue(v.value is None, "Null value on construction")
+        v.set_default_value()
+        self.assertTrue(v.value is True, "explicit default value")
 
     def test_binary_value(self):
         """Test the BinaryValue class."""

@@ -698,7 +698,21 @@ class Server(app.Server):
                     else:
                         # update the entity from the request
                         self.read_entity(resource, environ)
-                        resource.commit()
+                        with resource.entity_set.open() as collection:
+                            collection.update_entity(resource, merge=False)
+                        # now we've updated the entity it is safe to calculate
+                        # the ETag
+                        self.set_etag(resource, response_headers)
+                        return self.return_empty(
+                            start_response, response_headers)
+                elif method == "MERGE":
+                    if request.path_option == core.PathOption.value:
+                        raise core.BadURISegment(
+                            "$value cannot be used with MERGE")
+                    else:
+                        self.read_entity(resource, environ)
+                        with resource.entity_set.open() as collection:
+                            collection.update_entity(resource, merge=True)
                         # now we've updated the entity it is safe to calculate
                         # the ETag
                         self.set_etag(resource, response_headers)

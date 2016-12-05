@@ -4,19 +4,17 @@ import logging
 import os.path
 import time
 
-
 from optparse import OptionParser
 
-import pyslet.imsbltiv1p0 as lti
-import pyslet.xml.structures as xml
-import pyslet.odata2.core as odata
-import pyslet.wsgi as wsgi
-
+from pyslet import imsbltiv1p0 as lti
+from pyslet import wsgi
+from pyslet.odata2 import core as odata
 from pyslet.rfc2396 import URI
-from pyslet.wsgi_django import DjangoApp
+from pyslet.wsgi_jinja import JinjaApp
+from pyslet.xml import structures as xml
 
 
-class NoticeBoard(DjangoApp, lti.ToolProviderApp):
+class NoticeBoard(JinjaApp, lti.ToolProviderApp):
 
     def init_dispatcher(self):
         super(NoticeBoard, self).init_dispatcher()
@@ -30,29 +28,29 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
         self.set_method('/resource/*/delete_action', self.delete_action)
         self.set_method('/', self.home)
 
-    def new_page_context(self, context):
-        page_context = super(NoticeBoard, self).new_page_context(context)
+    def new_context_dictionary(self, context):
+        context_dict = super(NoticeBoard, self).new_context_dictionary(context)
         app_root = str(context.get_app_root())
-        page_context['css_attr'] = xml.escape_char_data7(
+        context_dict['css_attr'] = xml.escape_char_data7(
             app_root + 'css/base.css', True)
-        page_context['favicon_attr'] = xml.escape_char_data7(
+        context_dict['favicon_attr'] = xml.escape_char_data7(
             app_root + 'images/favicon.ico', True)
-        return page_context
+        return context_dict
 
     def home(self, context):
-        page_context = self.new_page_context(context)
-        data = self.render_template(context, 'home.html', page_context)
+        context_dict = self.new_context_dictionary(context)
+        data = self.render_template(context, 'home.html', context_dict)
         context.set_status(200)
         return self.html_response(context, data)
 
     @wsgi.session_decorator
     def resource_page(self, context):
         self.load_visit(context)
-        page_context = self.new_page_context(context)
+        context_dict = self.new_context_dictionary(context)
         if context.group is None:
             # we require a group
             data = self.render_template(context, 'notices/no_context.html',
-                                        page_context)
+                                        context_dict)
             context.set_status(200)
             return self.html_response(context, data)
         notices = []
@@ -89,25 +87,25 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
                 notice['delete_link_attr'] = (
                     'delete?id=%s' % odata.FormatURILiteral(entity['ID']))
                 notices.append(notice)
-        page_context['notices'] = notices
+        context_dict['notices'] = notices
         title = "this page"
         if context.group is not None:
             title = context.group['Title'].value
-        page_context['course_name'] = title
+        context_dict['course_name'] = title
         data = self.render_template(context, 'notices/index.html',
-                                    page_context)
+                                    context_dict)
         context.set_status(200)
         return self.html_response(context, data)
 
     @wsgi.session_decorator
     def add_page(self, context):
         self.load_visit(context)
-        page_context = self.new_page_context(context)
-        page_context['title_attr'] = xml.escape_char_data7('', True)
-        page_context['description'] = ''
-        page_context[self.csrf_token] = context.session.sid()
+        context_dict = self.new_context_dictionary(context)
+        context_dict['title_attr'] = xml.escape_char_data7('', True)
+        context_dict['description'] = ''
+        context_dict[self.csrf_token] = context.session.sid
         data = self.render_template(context, 'notices/add_form.html',
-                                    page_context)
+                                    context_dict)
         context.set_status(200)
         return self.html_response(context, data)
 
@@ -141,7 +139,7 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
     @wsgi.session_decorator
     def edit_page(self, context):
         self.load_visit(context)
-        page_context = self.new_page_context(context)
+        context_dict = self.new_context_dictionary(context)
         if context.group is None:
             raise wsgi.PageNotAuthorized
         try:
@@ -156,18 +154,18 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
                 if not (context.user and context.user == user):
                     # only the owner can edit their post
                     raise wsgi.PageNotAuthorized
-                page_context['id_attr'] = xml.escape_char_data7(
+                context_dict['id_attr'] = xml.escape_char_data7(
                     odata.FormatURILiteral(entity['ID']), True)
-                page_context['title_attr'] = xml.escape_char_data7(
+                context_dict['title_attr'] = xml.escape_char_data7(
                     entity['Title'].value, True)
-                page_context['description'] = entity['Description'].value
-                page_context[self.csrf_token] = context.session.sid()
+                context_dict['description'] = entity['Description'].value
+                context_dict[self.csrf_token] = context.session.sid
         except ValueError:
             raise wsgi.BadRequest
         except KeyError:
             raise wsgi.PageNotFound
         data = self.render_template(context, 'notices/edit_form.html',
-                                    page_context)
+                                    context_dict)
         context.set_status(200)
         return self.html_response(context, data)
 
@@ -207,7 +205,7 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
     @wsgi.session_decorator
     def delete_page(self, context):
         self.load_visit(context)
-        page_context = self.new_page_context(context)
+        context_dict = self.new_context_dictionary(context)
         if context.group is None:
             raise wsgi.PageNotAuthorized
         try:
@@ -222,17 +220,17 @@ class NoticeBoard(DjangoApp, lti.ToolProviderApp):
                         not (context.permissions & self.WRITE_PERMISSION)):
                     # only the owner or user with write permissions can delete
                     raise wsgi.PageNotAuthorized
-                page_context['id_attr'] = xml.escape_char_data7(
+                context_dict['id_attr'] = xml.escape_char_data7(
                     odata.FormatURILiteral(entity['ID']), True)
-                page_context['title'] = entity['Title'].value
-                page_context['description'] = entity['Description'].value
-                page_context[self.csrf_token] = context.session.sid()
+                context_dict['title'] = entity['Title'].value
+                context_dict['description'] = entity['Description'].value
+                context_dict[self.csrf_token] = context.session.sid
         except ValueError:
             raise wsgi.BadRequest
         except KeyError:
             raise wsgi.PageNotFound
         data = self.render_template(context, 'notices/del_form.html',
-                                    page_context)
+                                    context_dict)
         context.set_status(200)
         return self.html_response(context, data)
 

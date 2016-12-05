@@ -1,9 +1,9 @@
 #! /usr/bin/env python
 
-import unittest
 import logging
+import unittest
 
-import pyslet.mysqldbds as mysql
+from pyslet import mysqldbds as mysql
 
 from test_odata2_core import DataServiceRegressionTests
 
@@ -63,5 +63,5 @@ class RegressionTests(DataServiceRegressionTests):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     unittest.main()

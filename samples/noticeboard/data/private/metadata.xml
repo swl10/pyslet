@@ -12,7 +12,6 @@
                 <EntitySet Name="Users" EntityType="NBSchema.User"/>
                 <EntitySet Name="Resources" EntityType="NBSchema.Resource"/>
                 <EntitySet Name="Visits" EntityType="NBSchema.Visit"/>
-                <EntitySet Name="Sessions" EntityType="NBSchema.Session"/>
                 <EntitySet Name="Notices" EntityType="NBSchema.Notice"/>
                 <EntitySet Name="Owners" EntityType="NBSchema.Owner"/>
                 <AssociationSet Name="Silos_Consumers" Association="NBSchema.Silo_Consumer">
@@ -43,10 +42,6 @@
                     <End Role="Visit" EntitySet="Visits"/>
                     <End Role="User" EntitySet="Users"/>
                 </AssociationSet>
-                <AssociationSet Name="Visits_Sessions" Association="NBSchema.Visit_Session">
-                    <End Role="Visit" EntitySet="Visits"/>
-                    <End Role="Session" EntitySet="Sessions"/>
-                </AssociationSet>
                 <AssociationSet Name="Notices_Contexts" Association="NBSchema.Notice_Context">
                     <End Role="Notice" EntitySet="Notices"/>
                     <End Role="Context" EntitySet="Contexts"/>
@@ -57,10 +52,6 @@
                 </AssociationSet>
                 <AssociationSet Name="Silos_Owners" Association="NBSchema.Silo_Owner">
                     <End Role="Silo" EntitySet="Silos"/>
-                    <End Role="Owner" EntitySet="Owners"/>
-                </AssociationSet>
-                <AssociationSet Name="Owners_Sessions" Association="NBSchema.Owner_Session">
-                    <End Role="Session" EntitySet="Sessions"/>
                     <End Role="Owner" EntitySet="Owners"/>
                 </AssociationSet>
             </EntityContainer>
@@ -180,33 +171,16 @@
                 </Key>
                 <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
                 <Property Name="Permissions" Type="Edm.Int64" Nullable="false"/>
+                <Property Name="Session" Type="String" MaxLength="50"
+                    Unicode="false"/>
+                <Property Name="WhenLaunched" Type="Edm.DateTime"
+                    Nullable="false"/>
+                <Property Name="UserAgent" Type="Edm.String"
+                    Nullable="true" MaxLength="256" Unicode="false"/>
                 <NavigationProperty Name="Resource" Relationship="NBSchema.Visit_Resource"
                     FromRole="Visit" ToRole="Resource"/>
                 <NavigationProperty Name="User" Relationship="NBSchema.Visit_User" FromRole="Visit"
                     ToRole="User"/>
-                <NavigationProperty Name="Session" Relationship="NBSchema.Visit_Session"
-                    FromRole="Visit" ToRole="Session"/>
-            </EntityType>
-            <EntityType Name="Session">
-                <Key>
-                    <PropertyRef Name="ID"/>
-                </Key>
-                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-                <Property Name="Established" Type="Edm.Boolean" Nullable="false"/>
-                <Property Name="UserKey" Type="Edm.String" Nullable="false" MaxLength="64"
-                    Unicode="false"/>
-                <Property Name="ServerKey" Type="Edm.String"
-                    Nullable="false" MaxLength="64" Unicode="false"/>
-                <Property Name="FirstSeen" Type="Edm.DateTime"
-                    Nullable="false"/>
-                <Property Name="LastSeen" Type="Edm.DateTime"
-                    Nullable="false"/>
-                <Property Name="UserAgent" Type="Edm.String"
-                    Nullable="true" MaxLength="256" Unicode="false"/>
-                <NavigationProperty Name="Visits" Relationship="NBSchema.Visit_Session"
-                    FromRole="Session" ToRole="Visit"/>
-                <NavigationProperty Name="Owner" Relationship="NBSchema.Owner_Session"
-                    FromRole="Session" ToRole="Owner"/>
             </EntityType>
             <EntityType Name="Notice">
                 <Key>
@@ -243,8 +217,6 @@
                     Unicode="false"/>
                 <NavigationProperty Name="Silo" Relationship="NBSchema.Silo_Owner"
                     FromRole="Owner" ToRole="Silo"/>
-                <NavigationProperty Name="Session" Relationship="NBSchema.Owner_Session"
-                    FromRole="Owner" ToRole="Session"/>
             </EntityType>
             <Association Name="Silo_Consumer">
                 <End Role="Silo" Type="NBSchema.Silo" Multiplicity="1"/>
@@ -274,10 +246,6 @@
                 <End Role="Visit" Type="NBSchema.Visit" Multiplicity="*"/>
                 <End Role="User" Type="NBSchema.User" Multiplicity="0..1"/>
             </Association>
-            <Association Name="Visit_Session">
-                <End Role="Visit" Type="NBSchema.Visit" Multiplicity="*"/>
-                <End Role="Session" Type="NBSchema.Session" Multiplicity="0..1"/>
-            </Association>
             <Association Name="Notice_Context">
                 <End Role="Notice" Type="NBSchema.Notice" Multiplicity="*"/>
                 <End Role="Context" Type="NBSchema.Context" Multiplicity="1"/>
@@ -289,10 +257,6 @@
             <Association Name="Silo_Owner">
                 <End Role="Silo" Type="NBSchema.Silo" Multiplicity="1"/>
                 <End Role="Owner" Type="NBSchema.Owner" Multiplicity="0..1"/>
-            </Association>
-            <Association Name="Owner_Session">
-                <End Role="Owner" Type="NBSchema.Owner" Multiplicity="0..1"/>
-                <End Role="Session" Type="NBSchema.Session" Multiplicity="*"/>
             </Association>
         </Schema>
     </edmx:DataServices>

@@ -8,6 +8,7 @@
                 <EntitySet Name="AutoKeysInt64" EntityType="RegressionModel.AutoKeyInt64"/>
                 <EntitySet Name="AutoKeysString" EntityType="RegressionModel.AutoKeyString"/>
                 <EntitySet Name="AllTypes" EntityType="RegressionModel.AllTypes"/>
+                <EntitySet Name="AllTypeDefaults" EntityType="RegressionModel.AllTypeDefaults"/>
                 <EntitySet Name="ComplexTypes" EntityType="RegressionModel.ComplexTypes"/>
                 <EntitySet Name="OnlyKeys" EntityType="RegressionModel.OnlyKey"/>
                 <EntitySet Name="CompoundKeys" EntityType="RegressionModel.CompoundKey"/>
@@ -170,6 +171,38 @@
                     MaxLength="10"/>
                 <Property Name="FixedString" Type="Edm.String" FixedLength="true" MaxLength="5"/>
             </EntityType>
+            <EntityType Name="AllTypeDefaults">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="BinaryFixed" Type="Edm.Binary" MaxLength="10" FixedLength="true" DefaultValue="31323334353637383930"/>
+                <Property Name="BinaryVariable" Type="Edm.Binary" MaxLength="10" FixedLength="false" DefaultValue="31323334353637"/>
+                <Property Name="BooleanProperty" Type="Edm.Boolean" DefaultValue="True"/>
+                <Property Name="DateTimeProperty" Type="Edm.DateTime" Precision="3" DefaultValue="1972-03-03T09:45:00.000"/>
+                <Property Name="TimeProperty" Type="Edm.Time" Precision="3" DefaultValue="09:45:00.000"/>
+                <Property Name="DateTimeOffsetProperty" Type="Edm.DateTimeOffset" Precision="3" DefaultValue="1972-07-03T09:45:00.000+01:00"/>
+                <Property Name="DecimalProperty" Type="Edm.Decimal" Precision="10" Scale="2" DefaultValue="3.14"/>
+                <Property Name="SingleValue" Type="Edm.Single" DefaultValue="3.14"/>
+                <Property Name="DoubleValue" Type="Edm.Double" DefaultValue="3.14"/>
+                <Property Name="GuidValue" Type="Edm.Guid" DefaultValue="00000000-0000-0000-0000-000000000003"/>
+                <Property Name="SByteValue" Type="Edm.SByte" DefaultValue="3"/>
+                <Property Name="Int16Value" Type="Edm.Int16" DefaultValue="3"/>
+                <Property Name="Int64Value" Type="Edm.Int64" DefaultValue="3"/>
+                <Property Name="ByteValue" Type="Edm.Byte" DefaultValue="3"/>
+                <Property Name="UnicodeString" Type="Edm.String" Unicode="true" FixedLength="false"
+                    MaxLength="10" DefaultValue="Caf&#xe9;"/>
+                <Property Name="ASCIIString" Type="Edm.String" Unicode="false" FixedLength="false"
+                    MaxLength="10" DefaultValue="Cafe"/>
+                <Property Name="FixedString" Type="Edm.String" FixedLength="true" MaxLength="5" DefaultValue="ALFKI"/>
+                <Property Name="Complex" Type="RegressionModel.ComplexDefault"/>
+                <Property Name="NoDefaultNullable" Type="Edm.Int32" Nullable="true"/>
+                <Property Name="NoDefaultNotNullable" Type="Edm.Int32" Nullable="false"/>                
+            </EntityType>
+            <ComplexType Name="ComplexDefault">
+                <Property Name="Data" Type="Edm.String" MaxLength="32" FixedLength="false" DefaultValue="GotIt!"/>
+                <Property Name="Index" Type="Edm.Int32" DefaultValue="3"/>
+            </ComplexType>
             <EntityType Name="ComplexTypes">
                 <Key>
                     <PropertyRef Name="ID"/>

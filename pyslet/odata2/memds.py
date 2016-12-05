@@ -71,14 +71,24 @@ class InMemoryEntityStore(object):
     def add_entity(self, e):
         key = e.key()
         value = []
-        for pName in e.data_keys():
-            if not e.is_selected(pName):
-                continue
-            p = e[pName]
-            if isinstance(p, edm.Complex):
+        for pname in e.data_keys():
+            p = e[pname]
+            if not e.is_selected(pname) and pname not in e.entity_set.keys:
+                # need to insert the default value
+                if isinstance(p, edm.Complex):
+                    value.append(self.get_tuple_from_complex_default(p))
+                elif isinstance(p, edm.SimpleValue):
+                    v = p.p_def()
+                    v.set_default_value()
+                    value.append(v.value)
+                else:
+                    raise RuntimeError("property not simple or complex")
+            elif isinstance(p, edm.Complex):
                 value.append(self.get_tuple_from_complex(p))
             elif isinstance(p, edm.SimpleValue):
                 value.append(p.value)
+            else:
+                raise RuntimeError("property not simple or complex")
         with self.container.lock:
             if key in self.data:
                 raise edm.ConstraintError("Duplicate key: %s", str(key))
@@ -113,16 +123,16 @@ class InMemoryEntityStore(object):
             e = Entity(self.entity_set, self)
             if select is not None:
                 e.expand(None, select)
-            for pName, pValue in zip(e.data_keys(), value):
-                p = e[pName]
-                if (select is None or e.is_selected(pName) or
-                        pName in self.entity_set.keys):
+            for pname, pvalue in zip(e.data_keys(), value):
+                p = e[pname]
+                if (select is None or e.is_selected(pname) or
+                        pname in self.entity_set.keys):
                     # for speed, check if selection is an issue first
                     # we always include the keys
                     if isinstance(p, edm.Complex):
-                        self.set_complex_from_tuple(p, pValue)
+                        self.set_complex_from_tuple(p, pvalue)
                     else:
-                        p.set_from_value(pValue)
+                        p.set_from_value(pvalue)
                 else:
                     if isinstance(p, edm.Complex):
                         p.set_null()
@@ -132,12 +142,12 @@ class InMemoryEntityStore(object):
         return e
 
     def set_complex_from_tuple(self, complex_value, t):
-        for pName, pValue in zip(complex_value.iterkeys(), t):
-            p = complex_value[pName]
+        for pname, pvalue in zip(complex_value.iterkeys(), t):
+            p = complex_value[pname]
             if isinstance(p, edm.Complex):
-                self.set_complex_from_tuple(p, pValue)
+                self.set_complex_from_tuple(p, pvalue)
             else:
-                p.set_from_value(pValue)
+                p.set_from_value(pvalue)
 
     def read_stream(self, key):
         """Returns a tuple of the entity's media stream
@@ -152,19 +162,31 @@ class InMemoryEntityStore(object):
             else:
                 return '', odata.StreamInfo(size=0)
 
-    def update_entity(self, e):
+    def update_entity(self, e, merge=True):
         # e is an EntityTypeInstance, we need to convert it to a tuple
         key = e.key()
         with self.container.lock:
             value = list(self.data[key])
             i = 0
-            for pName in e.data_keys():
-                if e.is_selected(pName):
-                    p = e[pName]
+            for pname in e.data_keys():
+                if pname in e.entity_set.keys:
+                    # always merge for key properties (no change)
+                    pass
+                elif e.is_selected(pname):
+                    p = e[pname]
                     if isinstance(p, edm.Complex):
                         value[i] = self.get_tuple_from_complex(p)
                     elif isinstance(p, edm.SimpleValue):
                         value[i] = p.value
+                elif not merge:
+                    # replace semantics, use the default value
+                    p = e[pname]
+                    if isinstance(p, edm.Complex):
+                        value[i] = self.get_tuple_from_complex_default(p)
+                    elif isinstance(p, edm.SimpleValue):
+                        v = p.p_def()
+                        v.set_default_value()
+                        value[i] = v.value
                 i = i + 1
             self.data[key] = tuple(value)
 
@@ -174,12 +196,24 @@ class InMemoryEntityStore(object):
 
     def get_tuple_from_complex(self, complex_value):
         value = []
-        for pName in complex_value.iterkeys():
-            p = complex_value[pName]
+        for pname in complex_value.iterkeys():
+            p = complex_value[pname]
             if isinstance(p, edm.Complex):
                 value.append(self.get_tuple_from_complex(p))
             else:
                 value.append(p.value)
+        return tuple(value)
+
+    def get_tuple_from_complex_default(self, complex_value):
+        value = []
+        for pname in complex_value.iterkeys():
+            p = complex_value[pname]
+            if isinstance(p, edm.Complex):
+                value.append(self.get_tuple_from_complex_default(p))
+            else:
+                v = p.p_def()
+                v.set_default_value()
+                value.append(v.value)
         return tuple(value)
 
     def start_deleting_entity(self, key):
@@ -439,10 +473,10 @@ class EntityCollection(odata.EntityCollection):
         else:
             raise KeyError
 
-    def update_entity(self, entity):
+    def update_entity(self, entity, merge=True):
         # force an error if we don't have a key
         with self.entity_store.container.lock:
-            self.entity_store.update_entity(entity)
+            self.entity_store.update_entity(entity, merge)
             # now process any bindings
             self.update_bindings(entity)
 

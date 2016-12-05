@@ -19,11 +19,15 @@ class MyApp(SessionApp):
             <h1>Session Page</h1>
             %s
             </body></html>"""
-        if context.session.entity['UserName']:
+        with self.container['Sessions'].open() as collection:
+            try:
+                entity = collection[context.session.sid]
+                user_name = entity['UserName'].value
+            except KeyError:
+                user_name = None
+        if user_name:
             noform = """<p>Welcome: %s</p>"""
-            page = page % (
-                noform % xml.EscapeCharData(
-                    context.session.entity['UserName'].value))
+            page = page % (noform % xml.EscapeCharData(user_name))
         else:
             form = """<form method="POST" action="setname">
                 <p>Please enter your name: <input type="text" name="name"/>
@@ -32,8 +36,7 @@ class MyApp(SessionApp):
                 </form>"""
             page = page % (
                 form % (xml.EscapeCharData(self.csrf_token, True),
-                        xml.EscapeCharData(context.session.sid(),
-                                           True)))
+                        xml.EscapeCharData(context.session.sid, True)))
         context.set_status(200)
         return self.html_response(context, page)
 
@@ -41,8 +44,16 @@ class MyApp(SessionApp):
     def setname(self, context):
         user_name = context.get_form_string('name')
         if user_name:
-            context.session.entity['UserName'].set_from_value(user_name)
-            context.session.touch()
+            with self.container['Sessions'].open() as collection:
+                try:
+                    entity = collection[context.session.sid]
+                    entity['UserName'].set_from_value(user_name)
+                    collection.update_entity(entity)
+                except KeyError:
+                    entity = collection.new_entity()
+                    entity['SessionID'].set_from_value(context.session.sid)
+                    entity['UserName'].set_from_value(user_name)
+                    collection.insert_entity(entity)
         return self.redirect_page(context, context.get_app_root())
 
 

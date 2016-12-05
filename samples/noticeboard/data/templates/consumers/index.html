@@ -56,8 +56,8 @@ function toggleSecrets(obj) {
         <th>Actions</th></tr>
 {% for c in consumers %}
     <tr>
-        <td>{{ c.consumer.entity.Handle.value }}</td>
-        <td>{{ c.consumer.entity.Key.value }}</td>
+        <td>{{ c.consumer.entity['Handle'].value }}</td>
+        <td>{{ c.consumer.entity['Key'].value|default("undefined key") }}</td>
         <td><span name="secrets" class="hidepass">{{ c.consumer.secret }}</span></td>
         <td><a href={{ c.cedit_link|safe }}>Edit</a>
             <a href={{ c.cdel_link|safe }}>Delete</a></td>

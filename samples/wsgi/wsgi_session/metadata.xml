@@ -6,25 +6,23 @@
         <Schema Namespace="SessionSchema"
             xmlns="http://schemas.microsoft.com/ado/2006/04/edm">
             <EntityContainer Name="SessionDB" m:IsDefaultEntityContainer="true">
+                <EntitySet Name="AppKeys" EntityType="SessionSchema.AppKey"/>
                 <EntitySet Name="Sessions" EntityType="SessionSchema.Session"/>                
             </EntityContainer>
+            <EntityType Name="AppKey">
+                <Key>
+                    <PropertyRef Name="KeyNum"/>
+                </Key>
+                <Property Name="KeyNum" Nullable="false" Type="Edm.Int32"/>
+                <Property Name="KeyString" Nullable="false"
+                    Type="Edm.String" MaxLength="256" Unicode="false"/>
+            </EntityType>
             <EntityType Name="Session">
                 <Key>
-                    <PropertyRef Name="ID"/>
+                    <PropertyRef Name="SessionID"/>
                 </Key>
-                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-                <Property Name="Established" Type="Edm.Boolean"
-                    Nullable="false"/>
-                <Property Name="UserKey" Type="Edm.String"
-                    Nullable="false" MaxLength="64" Unicode="false"/>
-                <Property Name="ServerKey" Type="Edm.String"
-                    Nullable="false" MaxLength="64" Unicode="false"/>
-                <Property Name="FirstSeen" Type="Edm.DateTime"
-                    Nullable="false"/>
-                <Property Name="LastSeen" Type="Edm.DateTime"
-                    Nullable="false"/>
-                <Property Name="UserAgent" Type="Edm.String"
-                    Nullable="true" MaxLength="256" Unicode="false"/>
+                <Property Name="SessionID" Type="Edm.String"
+                    MaxLength="64" Nullable="false"/>
                 <Property Name="UserName" Type="Edm.String"
                     Nullable="true" MaxLength="256" Unicode="true"/>
             </EntityType>

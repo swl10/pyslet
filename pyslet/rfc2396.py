@@ -1527,10 +1527,9 @@ class FileURL(ServerBasedURL):
 
     """Represents the file URL scheme defined by RFC1738
 
-    The initialisation string is optional, if omitted the URL will
-    represent the root of the default file system::
+    Do not create instances directly, instead use (for example)::
 
-        file:///"""
+        furl = URI.from_octets('file:///...')"""
 
     def __init__(self, octets='file:///'):
         super(FileURL, self).__init__(octets)

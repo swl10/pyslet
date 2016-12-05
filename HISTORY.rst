@@ -53,6 +53,41 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20161205*
+
+#23 Framework for WSGI-basd LTI Applications
+
+Re-engineered Session support in the wsgi module to reduce database
+load, replacing the Session table completely with signed cookies.  If
+you have used the wsgi.SessionApp class directly this will be a breaking
+change but these classes will remain experimental until this item is
+closed out.  The database schema required to support LTI has changed
+slightly as a result.
+
+Changed from Django templates to use Jinja2 (this requires almost no
+changes to the actual sample code templates and makes the intention of
+the samples much clearer).  Thanks to Christopher Lee for recommending
+this change.
+
+#58 OData default values (PUT/PATCH/MERGE)
+
+Warning: if you use Pyslet for an OData server please check that PUTs
+are still working as required.
+
+Changed the SQL data stores to use DEFAULT values from the metadata file
+as part of the CREATE TABLE queries.  Modified update_entity in memds,
+and SQL storage layers to use MERGE semantics by default, added option
+to enable replace (PUT) semantics using column defaults. This differs
+from the previous (incorrect behaviour) where unselected properties were
+set to NULL.
+
+Updated OData server to support MERGE and ensured that PUT now uses the
+correct semantics (set to default instead of NULL) for values missing
+from the incoming request.
+
+Improved error handling to reduce log noise in SQL layer.
+
+
 *Build 20161113*
 
 #47 Improve CharClass-derived doc strings

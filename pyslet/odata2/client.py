@@ -542,14 +542,18 @@ class EntityCollection(ClientCollection, core.EntityCollection):
     """An entity collection that provides access to entities stored
     remotely and accessed through *client*."""
 
-    def update_entity(self, entity):
+    def update_entity(self, entity, merge=True):
         if not entity.exists:
             raise edm.NonExistentEntity(str(entity.get_location()))
         doc = core.Document(root=core.Entry)
+        if entity.selected is None:
+            # a merge with all properties selected is a replace
+            merge = False
         doc.root.set_value(entity, True)
         data = str(doc).encode('utf-8')
         request = http.ClientRequest(
-            str(entity.get_location()), 'PUT', entity_body=data)
+            str(entity.get_location()), 'MERGE' if merge else 'PUT',
+            entity_body=data)
         request.set_content_type(
             params.MediaType.from_str(core.ODATA_RELATED_ENTRY_TYPE))
         self.client.process_request(request)
