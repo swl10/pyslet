@@ -3,7 +3,7 @@
 
 title_name = u"Pyslet"
 name = "pyslet"
-copyright = u"\xA92008-2016, Steve Lay"
+copyright = u"\xA92008-2017, Steve Lay"
 
 major_version = "0.7"
 build_date = "20170417"
