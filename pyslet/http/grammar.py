@@ -683,6 +683,17 @@ class WordParser(ParserMixin):
             self.the_word = None
         return result
 
+    def parse_word_as_bstr(self):
+        """Parses any word from the list
+
+        Returns a binary string representing the word.  In cases where
+        the next work is a separator it converts the word to a binary
+        string (in Python 2 this is a noop) before returning it."""
+        w = self.parse_word()
+        if w is not None and not isinstance(w, bytes):
+            w = byte_to_bstr(w)
+        return w
+
     def is_token(self):
         """Returns True if the current word is a token"""
         # words are never empty!

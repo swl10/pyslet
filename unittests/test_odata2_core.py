@@ -2097,7 +2097,7 @@ class DataServiceRegressionTests(unittest.TestCase):
                     self.assertFalse(p[ppname])
             else:
                 self.assertFalse(entity[pname])
-        
+
     def runtest_all_type_defaults(self):
         all_types = self.ds[
             'RegressionModel.RegressionContainer.AllTypeDefaults']
@@ -2194,8 +2194,8 @@ class DataServiceRegressionTests(unittest.TestCase):
                 e1['Complex']['Index'].value == 3,
                 "Complex/Index on read")
             # nullable property will default to NULL
-            self.assertFalse(e1['NoDefaultNullable'])            
-            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)            
+            self.assertFalse(e1['NoDefaultNullable'])
+            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)
             e = coll.new_entity()
             e['ID'].set_from_value(2)
             e['UnicodeString'].set_from_value(ul("Caf\xe9s"))
@@ -2211,7 +2211,7 @@ class DataServiceRegressionTests(unittest.TestCase):
             e['UnicodeString'].set_from_value(ul("Caf\xe9s"))
             e['NoDefaultNotNullable'].set_from_value(1)
             e.expand(None, {'ID': None, 'UnicodeString': None,
-                            'NoDefaultNotNullable': None})            
+                            'NoDefaultNotNullable': None})
             coll.insert_entity(e)
             e2 = coll[2]
             self.assertTrue(e2['ID'].value == 2, "ID on read")
@@ -2223,8 +2223,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             self.assertTrue(
                 e2['ASCIIString'].value == "Cafe",
                 "ASCIIString on read")
-            self.assertFalse(e1['NoDefaultNullable'])            
-            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)            
+            self.assertFalse(e1['NoDefaultNullable'])
+            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)
             # MERGE semantics, unselected items are left unchanged
             # unselect all but one field and update
             e2['ASCIIString'].set_from_value("Cafes")
@@ -2242,8 +2242,8 @@ class DataServiceRegressionTests(unittest.TestCase):
             # check the field we updated
             self.assertTrue(e2['ASCIIString'].value == "Cafes")
             # check fields with no default
-            self.assertFalse(e1['NoDefaultNullable'])            
-            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)            
+            self.assertFalse(e1['NoDefaultNullable'])
+            self.assertTrue(e1['NoDefaultNotNullable'].value == 1)
 
     def runtest_all_types(self):
         all_types = self.ds['RegressionModel.RegressionContainer.AllTypes']

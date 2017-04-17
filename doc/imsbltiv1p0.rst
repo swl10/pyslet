@@ -238,10 +238,6 @@ Reference
 	:members:
 	:show-inheritance:
 
-..	autoclass:: ToolProviderSession
-	:members:
-	:show-inheritance:
-
 ..	autoclass:: ToolProviderContext
 	:members:
 	:show-inheritance:

@@ -247,27 +247,8 @@ The :class:`WSGIDataApp` is further extended by :class:`SessionApp` to
 cover the common use case of needing to track information across
 multiple requests from the same user session.
 
-The approach taken requires server side storage (typically in the form
-of a database) with a single entity set reserved for storing session
-data.  It also requires cookies to be enabled in the user's browser. 
-See `Problems with Cookies`_ below for details.  The entity type must
-have at least the following fields::
-
-    <EntityType Name="Session">
-        <Key>
-            <PropertyRef Name="ID"/>
-        </Key>
-        <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-        <Property Name="Established" Type="Edm.Boolean" Nullable="false"/>
-        <Property Name="UserKey" Type="Edm.String" Nullable="false"
-            MaxLength="64" Unicode="false"/>
-        <Property Name="ServerKey" Type="Edm.String" Nullable="false"
-            MaxLength="64" Unicode="false"/>
-        <Property Name="FirstSeen" Type="Edm.DateTime" Nullable="false"/>
-        <Property Name="LastSeen" Type="Edm.DateTime" Nullable="false"/>
-        <Property Name="UserAgent" Type="Edm.String" Nullable="true"
-            MaxLength="256" Unicode="false"/>
-    </EntityType>
+The approach taken requires cookies to be enabled in the user's browser.
+See `Problems with Cookies`_ below for details.
 
 A decorator, :func:`session_decorator` is defined to make it easy to
 write (page) methods that depend on the existence of an active session. 
@@ -318,11 +299,15 @@ decorator::
             <h1>Session Page</h1>
             %s
             </body></html>"""
-        if context.session.entity['UserName']:
+        with self.container['Sessions'].open() as collection:
+            try:
+                entity = collection[context.session.sid]
+                user_name = entity['UserName'].value
+            except KeyError:
+                user_name = None
+        if user_name:
             noform = """<p>Welcome: %s</p>"""
-            page = page % (
-                noform % xml.EscapeCharData(
-                    context.session.entity['UserName'].value))
+            page = page % (noform % xml.EscapeCharData(user_name))
         else:
             form = """<form method="POST" action="setname">
                 <p>Please enter your name: <input type="text" name="name"/>
@@ -331,22 +316,32 @@ decorator::
                 </form>"""
             page = page % (
                 form % (xml.EscapeCharData(self.csrf_token, True),
-                        xml.EscapeCharData(context.session.sid(), True)))
+                        xml.EscapeCharData(context.session.sid, True)))
         context.set_status(200)
         return self.html_response(context, page)
 
-We've added a nullable property to the basic session entity type::
+We've added a simple database table to store the session data with the
+following entity::
 
-    <Property Name="UserName" Type="Edm.String" Nullable="true"
-        MaxLength="256" Unicode="true"/>
+    <EntityType Name="Session">
+        <Key>
+            <PropertyRef Name="SessionID"/>
+        </Key>
+        <Property Name="SessionID" Type="Edm.String"
+            MaxLength="64" Nullable="false"/>
+        <Property Name="UserName" Type="Edm.String"
+            Nullable="true" MaxLength="256" Unicode="true"/>
+    </EntityType>
 
-Our method reads the value of this property from the session and prints
+Our database must also contain a small table used for key management,
+see below for information about encryption.
+ 
+Our method reads the value of this property from the database and prints
 a welcome message if it is set.  If not, it prints a form allowing you
 to enter your name.  Notice that we must include a hidden field
 containing the CSRF token.  The name of the token parameter is given in
-:attr:`SessionApp.csrf_token` and the value is read from session object
-directly using the :meth:`Session.sid` method.  It's the same value as
-the session ID that is stored in the cookie - the browser should prevent
+:attr:`SessionApp.csrf_token` and the value is read from the session
+object passed in the accompanying cookie - the browser should prevent
 third parties from reading the cookie's value.
 
 The action method that processes the form looks like this::
@@ -355,14 +350,22 @@ The action method that processes the form looks like this::
     def setname(self, context):
         user_name = context.get_form_string('name')
         if user_name:
-            context.session.entity['UserName'].set_from_value(user_name)
-            context.session.touch()
+            with self.container['Sessions'].open() as collection:
+                try:
+                    entity = collection[context.session.sid]
+                    entity['UserName'].set_from_value(user_name)
+                    collection.update_entity(entity)
+                except KeyError:
+                    entity = collection.new_entity()
+                    entity['SessionID'].set_from_value(context.session.sid)
+                    entity['UserName'].set_from_value(user_name)
+                    collection.insert_entity(entity)
         return self.redirect_page(context, context.get_app_root())
 
 A sample application containing this code is provided and can again be
 run from the command line::
 
-    $ python samples/wsgi_session.py --create_tables -ivvp8081
+    $ python samples/wsgi/wsgi_session.py --create_tables -ivvp8081
 
 
 Problems with Cookies
@@ -443,6 +446,23 @@ for storing keys for application use, in the simplest case you might
 read the key from a configuration file that is only available on the
 application server and not to the database administrator, say.
 
+To assist with key management AppCipher will store old keys (suitably
+encrypted) in the data store using an entity with the following
+properties::
+
+    <EntityType Name="AppKey">
+        <Key>
+            <PropertyRef Name="KeyNum"/>
+        </Key>
+        <Property Name="KeyNum" Nullable="false" Type="Edm.Int32"/>
+        <Property Name="KeyString" Nullable="false"
+            Type="Edm.String" MaxLength="256" Unicode="false"/>
+    </EntityType>
+
+SessionApp's require an AppCipher to be specified in the settings and an
+AppKeys entity set in the data store to enable signing of the session
+cookie (to guard against cookie tampering).
+
 The default implementation of AppCipher does not use any encryption (it
 merely obfuscates the input using base64 encoding) so to be useful
 you'll need to use a class derived from AppCipher.  If you have the
@@ -452,6 +472,8 @@ to use the AES algorithm to encrypt the data.
 ..  _Pycrypto: https://pypi.python.org/pypi/pycrypto
 
 For details, see the reference section below.
+
+
 
  
 Reference
@@ -466,10 +488,6 @@ Reference
 	:show-inheritance:
 
 ..	autoclass:: WSGIDataApp
-	:members:
-	:show-inheritance:
-
-..	autoclass:: Session
 	:members:
 	:show-inheritance:
 

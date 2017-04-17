@@ -1462,7 +1462,7 @@ class WSGIDataApp(WSGIApp):
             time a newer key should be used for encrypting data though
             this key may of course still be used for decrypting data."""
         keynum = cls.settings['WSGIDataApp']['keynum']
-        secret = cls.settings['WSGIDataApp']['secret'].encode('utf-8')
+        secret = cls.settings['WSGIDataApp']['secret']
         cipher = cls.settings['WSGIDataApp']['cipher']
         when = cls.settings['WSGIDataApp']['when']
         if when:
@@ -1475,7 +1475,8 @@ class WSGIDataApp(WSGIApp):
             # danger, raise an error
             raise RuntimeError("Unknown cipher: %s" % cipher)
         if secret:
-            return cipher_class(keynum, secret, cls.container['AppKeys'], when)
+            return cipher_class(keynum, secret.encode('utf-8'),
+                                cls.container['AppKeys'], when)
         else:
             return None
 
@@ -1514,6 +1515,9 @@ class AESCipher(object):
         iv = data[:AES.block_size]
         cipher = AES.new(self.key, AES.MODE_CFB, iv)
         return cipher.decrypt(data[AES.block_size:])
+
+    def hash(self, data):
+        return sha256(data + self.key).digest()
 
 
 class AppCipher(object):

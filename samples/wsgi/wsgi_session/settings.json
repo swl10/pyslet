@@ -3,6 +3,8 @@
     "private": "./"
     },
 "WSGIDataApp": {
-    "metadata": "metadata.xml"
+    "metadata": "metadata.xml",
+    "secret": "password",
+    "cipher": "plaintext"
     }
 }

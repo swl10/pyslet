@@ -53,6 +53,33 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20170417*
+
+#23 Framework for WSGI-basd LTI Applications
+
+Documentation and sample code fixes.
+
+#60 HTTP Authentication examples
+
+Added a first cut at a documentation page for HTTP auth.
+
+#61 Experimental support for NTLM authentication
+
+Using the python-ntlm3 module from pip/GitHub which must be installed
+before you can use NTLM.  The module is in pyslet.ntlmauth and it can
+be used in a similar way to Basic auth (see set_ntlm_credentials for
+details.)
+
+Untracked fixes
+
+Fixed an issue with HTTP resends (e.g., when following redirects) that
+meant that the retry algorithm was causing the client to back off when
+more than 1 resend was required.
+
+Fixed a bug where the HTTP client would fail if it received multiple
+WWW-Authenticate headers in the same response (parser bug).
+
+
 *Build 20161205*
 
 #23 Framework for WSGI-basd LTI Applications

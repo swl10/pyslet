@@ -43,7 +43,7 @@ class HTTP2617Tests(unittest.TestCase):
                     response = messages.Response(req, entity_body=TEST_STRING)
                     response.set_status(200, "You got it!")
                 else:
-                    challenge = BasicChallenge(('realm', "RFC2617", True))
+                    challenge = BasicChallenge(('realm', b"RFC2617", True))
                     response = messages.Response(req)
                     response.set_status(401, "Who are you?")
                     # response.set_content_length(0)
@@ -104,6 +104,69 @@ class HTTP2617Tests(unittest.TestCase):
         self.assertTrue(c.password == "Password", "Password: %s" % c.userid)
         self.assertTrue(
             str(c) == 'Basic dXNlcjpQYXNzd29yZA==', "Format credentials")
+
+    def test_basic_session(self):
+        challenge_a = BasicChallenge(("realm", b"TestRealmA", True))
+        challenge_b = BasicChallenge(("realm", b"TestRealmB", True))
+        challenge_unknown = Challenge("Unknown")
+        c = BasicCredentials()
+        # any realm
+        c.user = "user"
+        c.password = "Password"
+        self.assertTrue(c.base is None)
+        # trade base credentials for new credentials (pre-emptive)
+        c1 = c.get_response()
+        self.assertTrue(c1 is not c)
+        self.assertTrue(c1.base is c)
+        # still applies to any realm
+        self.assertTrue(c1.realm is None)
+        self.assertTrue(str(c1) == str(c))
+        # no further challenge returns the same credentials
+        c2 = c1.get_response()
+        self.assertTrue(c2 is c1)
+        self.assertTrue(c1.base is c)
+        self.assertTrue(c1.realm is None)
+        self.assertTrue(str(c1) == str(c))
+        # any further challenge means credentials are rejected
+        self.assertTrue(c1.get_response(challenge_a) is None)
+        self.assertTrue(c1.get_response(challenge_unknown) is None)
+        # trade base credentials for new credentials in response to A
+        c1 = c.get_response(challenge_a)
+        self.assertTrue(c1 is not c)
+        self.assertTrue(c1.base is c)
+        # now applies specifically to the realm of the challenge
+        self.assertTrue(c1.realm == b"TestRealmA", repr(c1.realm))
+        self.assertTrue(str(c1) == str(c))
+        # no further challenge returns the same credentials
+        c2 = c1.get_response()
+        self.assertTrue(c2 is c1)
+        self.assertTrue(c1.base is c)
+        self.assertTrue(c1.realm == b"TestRealmA")
+        self.assertTrue(str(c1) == str(c))
+        # any further challenge means credentials are rejected
+        self.assertTrue(c1.get_response(challenge_a) is None)
+        self.assertTrue(c1.get_response(challenge_b) is None)
+        self.assertTrue(c1.get_response(challenge_unknown) is None)
+        # trade in response to mismatched scheme
+        self.assertTrue(c.get_response(challenge_unknown) is None)
+        # now upgrade our base credentials to be realm-specific
+        c.realm = b"TestRealmA"
+        # trade pre-emptively
+        c1 = c.get_response()
+        self.assertTrue(c1 is not c)
+        self.assertTrue(c1.base is c)
+        self.assertTrue(c1.realm == b"TestRealmA")
+        self.assertTrue(str(c1) == str(c))
+        # trade in response to A
+        c1 = c.get_response(challenge_a)
+        self.assertTrue(c1 is not c)
+        self.assertTrue(c1.base is c)
+        self.assertTrue(c1.realm == b"TestRealmA")
+        self.assertTrue(str(c1) == str(c))
+        # trade in response to mismatched realm
+        self.assertTrue(c.get_response(challenge_b) is None)
+        # trade in response to mismatched scheme
+        self.assertTrue(c.get_response(challenge_unknown) is None)
 
     def test_basicpaths(self):
         c = BasicCredentials()

@@ -6,7 +6,7 @@ from pyslet.wsgi import SessionApp, session_decorator
 
 class MyApp(SessionApp):
 
-    settings_file = 'samples/wsgi_session/settings.json'
+    settings_file = 'samples/wsgi/wsgi_session/settings.json'
 
     def init_dispatcher(self):
         super(MyApp, self).init_dispatcher()

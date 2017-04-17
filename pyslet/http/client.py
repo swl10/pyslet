@@ -642,7 +642,9 @@ class Connection(SortableMixin):
             if err or response.status is None and resend:
                 # terminated by an error or before we read the response
                 if response.request.can_retry():
-                    # resend this request
+                    # retry this request - exactly as before, the retry
+                    # back-off timing strategy ensures we don't annoy
+                    # the server
                     logging.warning("retrying %s",
                                     response.request.get_start())
                     self.queue_request(response.request)
@@ -1561,6 +1563,12 @@ class Client(PEP8Compatibility, object):
         with self.managerLock:
             self.credentials.append(credentials)
 
+    def update_credentials(self, credentials, success_path):
+        if isinstance(credentials, auth.BasicCredentials):
+            # path rule only works for BasicCredentials
+            with self.managerLock:
+                credentials.add_success_path(success_path)
+
     def remove_credentials(self, credentials):
         """Removes credentials from this manager.
 
@@ -1712,24 +1720,27 @@ class ClientRequest(messages.Request):
         self.auto_redirect = auto_redirect
         #: the maximum number of retries we'll attempt
         self.max_retries = max_retries
-        #: the number of retries we've had
-        self.nretries = 0
-        self.retry_time = 0
-        self._rt1 = 0
-        self._rt2 = min_retry_time
+        self.min_retry_time = min_retry_time
+        self._init_retries()
         #: the associated :py:class:`ClientResponse`
         self.response = ClientResponse(request=self)
         # the credentials we're using in this request, this attribute is
-        # used when we are responding to a 401 and the managing Client
-        # has credentials that meet the challenge received in the
-        # response.  We keep track of them here to avoid constantly
-        # looping with the same broken credentials. to set the
-        # Authorization header and
-        self.tried_credentials = None
+        # used both pre-emptively and when we are responding to a 401
+        # and the managing Client has credentials that meet the
+        # challenge received in the response.  We keep track of them
+        # here to avoid constantly looping with the same broken
+        # credentials. to set the Authorization header and
+        self.session_credentials = None
         #: the send pipe to use on upgraded connections
         self.send_pipe = None
         #: the recv pipe to use on upgraded connections
         self.recv_pipe = None
+
+    def _init_retries(self):
+        self.nretries = 0
+        self.retry_time = 0
+        self._rt1 = 0
+        self._rt2 = self.min_retry_time
 
     def set_url(self, url):
         """Sets the URL for this request
@@ -1798,6 +1809,8 @@ class ClientRequest(messages.Request):
         # minute from the cookie store
         self.set_cookie(None)
         logging.info("Resending request to: %s", str(self.url))
+        # clear retries as if this was a new request
+        self._init_retries()
         self.manager.queue_request(self)
 
     def set_client(self, client):
@@ -1833,8 +1846,8 @@ class ClientRequest(messages.Request):
 
             For idempotent methods we lose a life every time.  For
             non-idempotent methods (e.g., POST) we do the same except
-            that if we been (at least partially) sent then we lose all
-            lives to prevent "indeterminate results"."""
+            that if we've been (at least partially) sent then we lose
+            all lives to prevent "indeterminate results"."""
         self.nretries += 1
         if self.is_idempotent() or send_pos <= self._send_pos:
             self.retry_time = (time.time() +
@@ -1852,9 +1865,12 @@ class ClientRequest(messages.Request):
     def send_header(self):
         # Check authorization and add credentials if the manager has them
         if not self.has_header("Authorization"):
-            credentials = self.manager.find_credentials_by_url(self.url)
-            if credentials:
-                self.set_authorization(credentials)
+            base_credentials = self.manager.find_credentials_by_url(self.url)
+            if base_credentials:
+                # try and start a new authentication session
+                self.session_credentials = base_credentials.get_response()
+            if self.session_credentials:
+                self.set_authorization(self.session_credentials)
         if (self.manager.cookie_store is not None and
                 not self.has_header("Cookie")):
             # add some cookies to this request
@@ -1945,18 +1961,33 @@ class ClientRequest(messages.Request):
         make us go away.  Whatever.  The point is that you can't be sure
         that all the data was transmitted just because you got here and
         the server says everything is OK"""
-        if self.tried_credentials is not None:
-            # we were trying out some credentials, if this is not a 401 assume
-            # they're good
+        if self.session_credentials is not None:
+            # handle an existing authentication session
             if self.status == 401:
-                # we must remove these credentials, they matched the challenge
-                # but still resulted in 401
-                self.manager.remove_credentials(self.tried_credentials)
+                challenges = self.response.get_www_authenticate()
+                new_credentials = None
+                for c in challenges:
+                    new_credentials = self.session_credentials.get_response(c)
+                    if new_credentials:
+                        break
+                if new_credentials:
+                    # authentication session continues, can iterate
+                    self.session_credentials = new_credentials
+                    self.set_authorization(self.session_credentials)
+                    self.resend()  # to the same URL
+                    return
+                else:
+                    # we must remove the base credentials, they matched
+                    # the original challenge (or URL) but still resulted
+                    # in a failed authentication session - if we don't
+                    # they'll be found again below
+                    self.manager.remove_credentials(
+                        self.session_credentials.base)
             else:
-                if isinstance(self.tried_credentials, auth.BasicCredentials):
-                    # path rule only works for BasicCredentials
-                    self.tried_credentials.add_success_path(self.url.abs_path)
-            self.tried_credentials = None
+                self.manager.update_credentials(self.session_credentials,
+                                                self.url.abs_path)
+            # we're done, no need to continue sending credentials
+            self.session_credentials = None
         if (self.auto_redirect and self.status >= 300 and
                 self.status <= 399 and
                 (self.status != 302 or
@@ -1975,10 +2006,13 @@ class ClientRequest(messages.Request):
             challenges = self.response.get_www_authenticate()
             for c in challenges:
                 c.protectionSpace = self.url.get_canonical_root()
-                self.tried_credentials = self.manager.find_credentials(c)
-                if self.tried_credentials:
-                    self.set_authorization(self.tried_credentials)
+                base_credentials = self.manager.find_credentials(c)
+                if base_credentials:
+                    self.session_credentials = base_credentials.get_response(c)
+                if self.session_credentials:
+                    self.set_authorization(self.session_credentials)
                     self.resend()  # to the same URL
+                    return
 
 
 class ClientResponse(messages.Response):
