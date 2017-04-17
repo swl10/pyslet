@@ -70,6 +70,11 @@ before you can use NTLM.  The module is in pyslet.ntlmauth and it can
 be used in a similar way to Basic auth (see set_ntlm_credentials for
 details.)
 
+#65 syntax error in sqlds.SQLCollectionBase.sql_expression_substring
+
+Also added an override for SQLite given the lack of support for the
+standard substring syntax.
+
 Untracked fixes
 
 Fixed an issue with HTTP resends (e.g., when following redirects) that

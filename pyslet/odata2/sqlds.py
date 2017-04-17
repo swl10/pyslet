@@ -1843,12 +1843,12 @@ class SQLCollectionBase(core.EntityCollection):
     def sql_expression_substring(self, expression, params, context):
         """Converts the substring method
 
-        maps to SUBSTRING( op[0] FROM op[1] [ FOR op[2] ]"""
+        maps to SUBSTRING( op[0] FROM op[1] [ FOR op[2] ] )"""
         query = ["SUBSTRING("]
         query.append(self.sql_expression(expression.operands[0], params, ','))
         query.append(" FROM ")
         query.append(self.sql_expression(expression.operands[1], params, ','))
-        if len(expression.operands > 2):
+        if len(expression.operands) > 2:
             query.append(" FOR ")
             query.append(
                 self.sql_expression(expression.operands[2], params, ','))
@@ -5567,6 +5567,24 @@ class SQLiteEntityCollectionBase(SQLCollectionBase):
 
     DEFAULT_VALUE = False
     """SQLite does not support setting a value =DEFAULT"""
+
+    def sql_expression_substring(self, expression, params, context):
+        """Converts the substring method
+
+        maps to substr( op[0], op[1] [, op[2] ] )
+
+        Few databases seem to actually support the standard syntax using
+        FROM ... [FOR ...].  SQLite is no exception."""
+        query = ["substr("]
+        query.append(self.sql_expression(expression.operands[0], params, ','))
+        query.append(", ")
+        query.append(self.sql_expression(expression.operands[1], params, ','))
+        if len(expression.operands) > 2:
+            query.append(", ")
+            query.append(
+                self.sql_expression(expression.operands[2], params, ','))
+        query.append(")")
+        return ''.join(query)
 
     def sql_expression_length(self, expression, params, context):
         """Converts the length method: maps to length( op[0] )"""

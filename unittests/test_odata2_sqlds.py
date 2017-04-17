@@ -660,6 +660,10 @@ class SQLDSTests(unittest.TestCase):
             self.assertTrue(len(collection) == 1, "Just one matching employee")
             talent = collection.values()[0]
             self.assertTrue(talent['EmployeeID'].value == '0000D')
+            collection.set_filter(
+                core.CommonExpression.from_str(
+                    "substring(EmployeeName, 8, 3) eq '#13'"))
+            self.assertTrue(len(collection) == 1, "Just one matching employee")
 
     def test_orderby(self):
         es = self.schema['SampleEntities.Employees']
