@@ -440,6 +440,33 @@ Content-range: bytes 7000-7999/8000
         self.assertTrue(response.get_transfer_encoding() is None)
         self.assertTrue("close" in response.get_connection())
 
+    def test_aborted_send(self):
+        body = b"Bad data"
+        request = Request(entity_body=body)
+        request.set_protocol(params.HTTP_1p1)
+        request.set_method("PUT")
+        request.set_request_uri("/resource")
+        request.set_content_type("text/plain")
+        request.set_transfer_encoding("chunked")
+        request.start_sending()
+        request.send_start()
+        request.send_header()
+        # now abort the send, should send a zero length chunk
+        self.assertTrue(request.abort_sending() == 0)
+        self.assertTrue(request.send_body() == b"0\r\n\r\n")
+        request = Request(entity_body=body)
+        request.set_protocol(params.HTTP_1p1)
+        request.set_method("PUT")
+        request.set_request_uri("/resource")
+        request.set_content_type("text/plain")
+        request.set_content_length(len(body))
+        request.start_sending()
+        request.send_start()
+        request.send_header()
+        # now abort the send, should indicate remaining length
+        self.assertTrue(request.abort_sending() == len(body))
+        self.assertTrue(request.send_body() == body)
+
 
 class HeaderTests(unittest.TestCase):
 

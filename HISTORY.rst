@@ -53,6 +53,21 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20170419*
+
+#61 Experimental support for NTLM authentication
+
+Improved handling of error responses (includes a Python 3 bug fix) to
+enable the connection to be kept open more easily during pipelined
+requests that are terminated early by a final response from the server.
+This allows a large POST that generates a 401 response to abort sending
+of chunked bodies and retry without opening a new connection - vital for
+NTLM which is connection based.
+
+Added automated resend after 417 Expectation failed responses as per
+latest HTTP guidance.  (Even for POST requests!)
+
+
 *Build 20170417*
 
 #23 Framework for WSGI-basd LTI Applications

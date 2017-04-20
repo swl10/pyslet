@@ -47,72 +47,101 @@ class MockSocket(MockSocketBase):
 
     """Mocks the socket for the client"""
 
-    def __init__(self, connection):
+    def __init__(self, connection, allow_continue=True, close_on_417=False):
         super(MockSocket, self).__init__()
+        self.allow_continue = allow_continue
+        self.close_on_417 = close_on_417
         # start a thread to mock the server side of the connection
         t = threading.Thread(target=connection.manager.mock_server,
                              args=(connection.host, connection.port, self))
         t.start()
 
     def recv_request(self):
-        request = messages.Request()
-        request.start_receiving()
-        check_continue = False
-        try:
-            while True:
-                if check_continue and request.get_expect_continue():
-                    # push an expect response
-                    self.send_continue()
-                    check_continue = False
-                mode = request.recv_mode()
-                if mode == messages.Message.RECV_LINE:
-                    line = self.send_pipe.readmatch()
-                    if line == b'':
-                        if request.method is None:
-                            # EOF, no more requests
-                            return None
+        while True:
+            responded = False
+            request = messages.Request()
+            request.start_receiving()
+            check_continue = False
+            try:
+                while True:
+                    if check_continue and request.get_expect_continue():
+                        # push an expect response
+                        if self.allow_continue:
+                            logging.debug("Sending 100 Continue")
+                            self.send_continue()
                         else:
+                            logging.debug("Sending 417 Expectation Failed")
+                            self.send_expectation_failed()
+                            if self.close_on_417:
+                                # we're not sending any more data, hangup
+                                self.mock_shutdown(socket.SHUT_RDWR)
+                                return None
+                            else:
+                                # wait for the next request
+                                responded = True
+                        check_continue = False
+                    mode = request.recv_mode()
+                    if mode == messages.Message.RECV_LINE:
+                        line = self.send_pipe.readmatch()
+                        if line == b'':
+                            if request.method is None:
+                                # EOF, no more requests
+                                return None
+                            else:
+                                # EOF, unexpected
+                                raise messages.HTTPException(
+                                    "Unexpected EOF in mock socket")
+                        request.recv(line)
+                    elif mode == messages.Message.RECV_HEADERS:
+                        lines = []
+                        last_line = b''
+                        while last_line != b'\r\n':
+                            last_line = self.send_pipe.readmatch()
+                            lines.append(last_line)
+                        request.recv(lines)
+                        check_continue = True
+                    elif mode is None:
+                        break
+                    elif mode > 0:
+                        data = self.send_pipe.read(mode)
+                        if data == b'':
                             # EOF, unexpected
                             raise messages.HTTPException(
                                 "Unexpected EOF in mock socket")
-                    request.recv(line)
-                elif mode == messages.Message.RECV_HEADERS:
-                    lines = []
-                    last_line = b''
-                    while last_line != b'\r\n':
-                        last_line = self.send_pipe.readmatch()
-                        lines.append(last_line)
-                    request.recv(lines)
-                    check_continue = True
-                elif mode is None:
-                    break
-                elif mode > 0:
-                    data = self.send_pipe.read(mode)
-                    if data == b'':
-                        # EOF, unexpected
-                        raise messages.HTTPException(
-                            "Unexpected EOF in mock socket")
+                        else:
+                            request.recv(data)
+                    elif mode == messages.Message.RECV_ALL:
+                        data = self.send_pipe.read()
+                        if data == b'':
+                            # EOF, expected
+                            break
+                        else:
+                            request.recv(data)
                     else:
-                        request.recv(data)
-                elif mode == messages.Message.RECV_ALL:
-                    data = self.send_pipe.read()
-                    if data == b'':
-                        # EOF, expected
-                        break
-                    else:
-                        request.recv(data)
+                        raise ValueError("unexpected recv_mode!")
+            except IOError as e:
+                if io_timedout(e):
+                    logging.debug(
+                        "mock socket timed out while reading request")
+                    responded = False
+                    request = None
                 else:
-                    raise ValueError("unexpected recv_mode!")
-        except IOError as e:
-            if io_timedout(e):
-                logging.debug("mock socket timed out while reading request")
-                request = None
+                    raise
+            if responded:
+                continue
             else:
-                raise
-        return request
+                return request
 
     def send_continue(self):
         self.recv_pipe.write(b"HTTP/1.1 100 Go on then!\r\n\r\n")
+
+    def send_expectation_failed(self):
+        self.recv_pipe.write(
+            b"HTTP/1.1 417 Expectation Failed\r\n"
+            b"Content-Length: 0\r\n")
+        if self.close_on_417:
+            self.recv_pipe.write(b"Connection: close\r\n")
+        self.recv_pipe.write(b"\r\n")
 
     def send_response(self, response):
         try:
@@ -132,6 +161,20 @@ class MockSocket(MockSocketBase):
             import traceback
             traceback.print_exc()
             raise
+
+
+class MockSocketNoContinue(MockSocket):
+
+    def __init__(self, connection):
+        super(MockSocketNoContinue, self).__init__(connection,
+                                                   allow_continue=False)
+
+
+class MockSocketNoContinueClose(MockSocket):
+
+    def __init__(self, connection):
+        super(MockSocketNoContinueClose, self).__init__(
+            connection, allow_continue=False, close_on_417=True)
 
 
 class MockConnectionWrapper(http.Connection):
@@ -155,6 +198,16 @@ class MockConnectionWrapper(http.Connection):
                 self.socket_file = self.socket
                 self.socket.setblocking(False)
                 self.socketSelect = self.SocketClass.wrap_select
+
+
+class MockConnectionWrapperNoContinue(MockConnectionWrapper):
+
+    SocketClass = MockSocketNoContinue
+
+
+class MockConnectionWrapperNoContinueClose(MockConnectionWrapper):
+
+    SocketClass = MockSocketNoContinueClose
 
 
 class MockClientWrapper(http.Client):
@@ -513,6 +566,62 @@ class ClientTests(unittest.TestCase):
                         "Data in response2: %s" % request2.res_body)
         # How do we test that response2 held back from sending the data before
         # the redirect?
+
+    def test_expectation_failed(self):
+        """RFC7231
+
+        A client that receives a 417 (Expectation Failed) status code in
+        response to a request containing a 100-continue expectation
+        SHOULD repeat that request without a 100-continue expectation
+
+        Try this using the same connection (aborted send)"""
+        # fix up the mock client to force a 417 response
+        self.client.ConnectionClass = MockConnectionWrapperNoContinue
+        request1 = http.ClientRequest(
+            "http://www.domain1.com/file", method="PUT",
+            entity_body=TEST_BODY)
+        request1.set_expect_continue()
+        self.client.queue_request(request1)
+        self.client.thread_loop(timeout=5)
+        response1 = request1.response
+        self.assertTrue(
+            response1.status == 200,
+            "Status in response1: %i" %
+            response1.status)
+        self.assertTrue(
+            response1.reason == "OK",
+            "Reason in response1: %s" %
+            response1.reason)
+        self.assertTrue(request1.res_body == b'',
+                        "Data in response1: %s" % request1.res_body)
+
+    def test_expectation_failed_reconnect(self):
+        """RFC7231
+
+        A client that receives a 417 (Expectation Failed) status code in
+        response to a request containing a 100-continue expectation
+        SHOULD repeat that request without a 100-continue expectation
+
+        Try this using a new connection after server indicates closing"""
+        # fix up the mock client to force a 417 response
+        self.client.ConnectionClass = MockConnectionWrapperNoContinueClose
+        request1 = http.ClientRequest(
+            "http://www.domain1.com/file", method="PUT",
+            entity_body=TEST_BODY)
+        request1.set_expect_continue()
+        self.client.queue_request(request1)
+        self.client.thread_loop(timeout=5)
+        response1 = request1.response
+        self.assertTrue(
+            response1.status == 200,
+            "Status in response1: %i" %
+            response1.status)
+        self.assertTrue(
+            response1.reason == "OK",
+            "Reason in response1: %s" %
+            response1.reason)
+        self.assertTrue(request1.res_body == b'',
+                        "Data in response1: %s" % request1.res_body)
 
     def test_streamed_put(self):
         request = http.ClientRequest(
@@ -890,5 +999,5 @@ class SecureTests(unittest.TestCase):
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.INFO, format="[%(thread)d] %(levelname)s %(message)s")
+        level=logging.DEBUG, format="[%(thread)d] %(levelname)s %(message)s")
     unittest.main()

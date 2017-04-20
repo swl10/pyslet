@@ -520,6 +520,7 @@ class Message(PEP8Compatibility, object):
                     raise HTTPException("Can't resend "
                                         "non-seekable entity body")
             self.send_transferlength()
+            self.transferaborted = False
             self.transferPos = 0
             self.transferDone = False
             if self.transferchunked is False and self.transferlength is None:
@@ -624,6 +625,47 @@ class Message(PEP8Compatibility, object):
             self.transferchunked = True
             self.transferlength = None
 
+    def abort_sending(self):
+        """Aborts sending the message body
+
+        Called after start_sending, this method attempts to abort the
+        sending the message body and returns the (approximate) number of
+        bytes that will be returned by future calls to send_body.
+        (Ignoring chunk boundaries.)
+
+        Messages that are already complete will return 0.
+
+        Messages that are using chunked transfer encoding can be aborted
+        and will return 0 indicating that the next chunk returned by
+        :meth:`send_body` will be the trailing chunk.
+
+        Messages that are not using chunked transfer encoding cannot be
+        aborted and will return the number of bytes remaining or -1 if
+        this cannot be determined (the latter case is only possible when
+        the message body will be terminated by a connection close and so
+        only applies to responses).
+
+        This method has a very special use case.  In cases where a
+        server rejects a request before reading the entire message body
+        the client may attempt to abort the sending of the body without
+        closing the connection.  The only way to do this is to truncate
+        a body being sent with chunked encoding.  You might wonder why a
+        client would go to such lengths to keep the connection open.
+        The answer is NTLM which authenticates a connection, so a large
+        POST that gets an early 401 response must be retried on the same
+        connection.  This can only be done if the message boundaries are
+        well defined.  There's a good discussion of the issue at
+        https://curl.haxx.se/mail/lib-2004-08/0002.html"""
+        if self.transferDone or self.transferbody is None:
+            return 0
+        if self.transferchunked:
+            self.transferaborted = True
+            return 0
+        elif self.transferlength is None:
+            return -1
+        else:
+            return self.transferlength - self.transferPos
+
     def send_body(self):
         """Returns (part of) the message body
 
@@ -638,8 +680,13 @@ class Message(PEP8Compatibility, object):
         else:
             # We're reading from a stream
             if self.transferchunked:
-                data = self.transferbody.read(io.DEFAULT_BUFFER_SIZE)
+                if self.transferaborted:
+                    # simulate end of the body
+                    data = b''
+                else:
+                    data = self.transferbody.read(io.DEFAULT_BUFFER_SIZE)
                 if data is None:
+                    # entity body source is blocked, None => call again
                     return None
                 self.transferPos += len(data)
                 buffer = []

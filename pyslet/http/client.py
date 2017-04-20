@@ -370,7 +370,10 @@ class Connection(SortableMixin):
                                 self.close()
                         # Any data received on the connection could
                         # change the request state, so we loop round
-                        # again
+                        # again - this is critical to ensure that
+                        # resends (of the same request) will use the
+                        # same connection during stateful message
+                        # sequences like those used in NTLM
                         continue
                 break
             elif self.request_queue:
@@ -418,7 +421,6 @@ class Connection(SortableMixin):
         connection will not send the data until instructed to do so by a
         call to this method, or
         :py:attr:`continue_waitmax` seconds have elapsed."""
-        logging.debug("100 Continue received... ready to send request")
         if (request is self.request and
                 self.request_mode == self.REQ_BODY_WAITING):
             self.request_mode = self.REQ_BODY_SENDING
@@ -782,6 +784,8 @@ class Connection(SortableMixin):
                     # we're going to swallow this error, log it
                     logging.error("socket.recv raised %s", str(err))
                     data = None
+                    # but it will result in disconnection...
+                    nbytes = 0
             except IOError as err:
                 if io_blocked(err):
                     # we're blocked on send
@@ -1925,22 +1929,35 @@ class ClientRequest(messages.Request):
                         # bound to this connection until it closes
                         self.response.keep_alive = True
                     else:
+                        logging.debug(
+                            "100 Continue received... ready to send request")
                         self.connection.continue_sending(self)
                         # We're not finished though, wait for the final
                         # response to be sent. No need to reset as the
                         # 100 response should not have a body
             elif self.connection:
                 # The response was received before the connection
-                # finished with us
+                # finished with us (we may still be sending the request)
                 if self.status >= 300:
-                    # Some type of error condition....
-                    if isinstance(self.send_body(), str):
-                        # There was more data to send in the request but we
-                        # don't plan to send it so we have to hang up!
+                    # Some type of error condition.... do we still have
+                    # data to send?
+                    if not self.response.keep_alive:
+                        # we got a connection close, or we're HTTP/1.0
                         self.connection.request_disconnect()
-                    # else, we were finished anyway... the connection will
-                    # discover this itself
-                elif self.response >= 200:
+                    else:
+                        # we may try and keep the connection alive
+                        unsent = self.abort_sending()
+                        if unsent < 0 or unsent > io.DEFAULT_BUFFER_SIZE:
+                            # lots of (or unspecified) data left to send
+                            # we don't plan to send it so we have to
+                            # hang up!
+                            self.connection.request_disconnect()
+                        else:
+                            # we might just be waiting for a 100-continue
+                            self.connection.continue_sending(self)
+                    # else, we were finished (or almost finished)
+                    # anyway... the connection will discover this itself
+                elif self.status >= 200:
                     # For 2xx result codes we let the connection finish
                     # spooling and disconnect from us when it is done
                     pass
@@ -2013,6 +2030,14 @@ class ClientRequest(messages.Request):
                     self.set_authorization(self.session_credentials)
                     self.resend()  # to the same URL
                     return
+        elif self.status == 417:
+            # special handling of expectation failure
+            if self.get_expect_continue():
+                # RFC7231 more clearly states that we should try again
+                # now but with lower expectations!
+                self.set_expect_continue(False)
+                self.resend()
+                return
 
 
 class ClientResponse(messages.Response):
@@ -2039,10 +2064,9 @@ class ClientResponse(messages.Response):
         Override the :py:meth:`Finished` method instead to clean up and
         process the complete response normally."""
         logging.debug(
-            "Request: %s %s %s", self.request.method, self.request.url,
-            str(self.request.protocol))
-        logging.debug(
-            "Got Response: %i %s", self.status, self.reason)
+            "Request: %s %s %s, got Response: %i %s", self.request.method,
+            self.request.url, str(self.request.protocol), self.status,
+            self.reason)
         logging.debug("Response headers: %s", repr(self.headers))
         super(ClientResponse, self).handle_headers()
 

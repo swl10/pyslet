@@ -132,10 +132,10 @@ Some historical information is available on the QTI Migration tool's
 Google Code project:
 https://code.google.com/p/qtimigration/
 
-Some of the code was written almost 20 years ago and it owes a lot to
-the University of Cambridge and, in particular, to the team I worked
-with at UCLES (aka Cambridge Assessment) who were instrumental in
-getting this project started.
+Some of the code was written in the 1990s and it owes a lot to the
+University of Cambridge and, in particular, to the team I worked with at
+UCLES (aka Cambridge Assessment) who were instrumental in getting this
+project started.
 
 
 
