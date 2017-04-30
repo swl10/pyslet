@@ -995,7 +995,7 @@ class ParameterParser(WordParser):
         found."""
         self.parse_sp()
         tag = [t.decode('ascii') for t in
-               self.require_token("languaget-tag").split(b'-')]
+               self.require_token("language-tag").split(b'-')]
         self.parse_sp()
         return LanguageTag(tag[0], *tag[1:])
 

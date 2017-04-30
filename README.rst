@@ -1,13 +1,9 @@
 Welcome to Pyslet
 =================
 
-..  note::
-    You are reading the latest development version of the documentation
-    which corresponds to the master branch of the source on GitHub.  The
-    last release on PyPi was pyslet-0.6.20160201 and the corresponding
-    documentation is here__
-    
-    ..  __: http://pyslet.readthedocs.org/en/pyslet-0.6.20160201/
+..  warning::
+    You are reading a branched version of the documentation which
+    corresponds to the odata4-project branch of the source on GitHub.
 
 Pyslet_ is a Python package for Standards in Learning Education and
 Training (LET). It implements a number of LET-specific standards,
