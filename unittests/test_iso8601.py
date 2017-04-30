@@ -127,6 +127,68 @@ class DateTests(unittest.TestCase):
             self.fail("Year 0")
         except iso.DateTimeError:
             pass
+        # expanded representation
+        try:
+            date = iso.Date(bce=True, century=7, year=52, month=4, day=21)
+            self.fail("Expanded date requires xdigits")
+        except iso.DateTimeError:
+            pass
+        try:
+            date = iso.Date(century=-7, year=52, month=4, day=21, xdigits=0)
+            self.fail("Can't use negative century, requires bce")
+        except iso.DateTimeError:
+            pass
+        date = iso.Date(bce=True, century=7, year=52, month=4, day=21,
+                        xdigits=0)
+        try:
+            date.get_calendar_day()
+            self.fail("bce dates must use get_xcalendar_day()")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 4, 21),
+                        "explicit negative constructor")
+        date = iso.Date(century=119, year=69, month=7, day=20, xdigits=1)
+        try:
+            date.get_calendar_day() == (119, 69, 7, 20)
+            self.fail("explicit large constructor requires get_x...")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(date.get_xcalendar_day() == (False, 119, 69, 7, 20),
+                        "explicit large constructor")
+        date2 = iso.Date(date)
+        self.assertTrue(date2.get_xcalendar_day() == (False, 119, 69, 7, 20),
+                        "explicit large constructor")
+        self.assertTrue(date2.xdigits == 1, "copy constructor xdigits")
+        date2 = iso.Date(src=date)
+        self.assertTrue(date2.get_xcalendar_day() == (False, 119, 69, 7, 20),
+                        "explicit large constructor")
+        self.assertTrue(date2.xdigits == 1, "src constructor xdigits")
+        date = iso.Date.from_str("+119690720", xdigits=1)
+        self.assertTrue(date.get_xcalendar_day() == (False, 119, 69, 7, 20),
+                        "string constructor, large century")
+        date = iso.Date.from_str("-007520421", xdigits=1)
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 4, 21),
+                        "string constructor, negative century")
+        # base is not allowed with xdigits - even if it matches!
+        base = date
+        try:
+            date = iso.Date(year=52, month=4, day=22, base=base, xdigits=1)
+            self.fail("can't use xdigits and base")
+        except iso.DateTimeError:
+            pass
+        # but truncated forms are OK, even when base is expanded
+        date = iso.Date(year=52, month=4, day=22, base=base)
+        self.assertTrue(date.xdigits == 1, "xdigits copied from base")
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 4, 22),
+                        "truncated form, negative year")
+        # finally, Year 0 is OK when using expanded form
+        date = iso.Date(century=0, year=0, month=1, day=1, xdigits=0)
+        self.assertTrue(date.get_xcalendar_day() == (False, 0, 0, 1, 1),
+                        "1 BC (Year 0), expanded representation")
+        date = iso.Date(bce=True, century=0, year=0, month=1, day=1,
+                        xdigits=0)
+        self.assertTrue(date.get_xcalendar_day() == (False, 0, 0, 1, 1),
+                        "1 BC (Year 0), bce is stripped")
 
     def test_repr(self):
         result = repr(iso.Date(century=19, year=69, month=7, day=20))
@@ -142,6 +204,34 @@ class DateTests(unittest.TestCase):
         result = repr(iso.Date(century=19, decade=6, year=9, week=29))
         self.assertTrue(
             result == "Date(century=19, decade=6, year=9, week=29)", result)
+        # expanded forms
+        result = repr(iso.Date(century=119, year=69, month=7, day=20,
+                      xdigits=1))
+        self.assertTrue(
+            result == "Date(century=119, year=69, month=7, day=20, xdigits=1)",
+            result)
+        result = repr(iso.Date(bce=True, century=7, year=52, month=4, day=21,
+                               xdigits=2))
+        self.assertTrue(result == "Date(bce=True, century=7, year=52, "
+                        "month=4, day=21, xdigits=2)", result)
+        result = repr(
+            iso.Date(bce=True, century=7, year=52, month=4, xdigits=1))
+        self.assertTrue(result == "Date(bce=True, century=7, year=52, "
+                        "month=4, day=None, xdigits=1)", result)
+        result = repr(iso.Date(bce=True, century=7, year=52, xdigits=-1))
+        self.assertTrue(result == "Date(bce=True, century=7, year=52, "
+                        "month=None, day=None, xdigits=-1)", result)
+        result = repr(iso.Date(bce=True, century=7, xdigits=0))
+        self.assertTrue(result == "Date(bce=True, century=7, year=None, "
+                        "month=None, day=None, xdigits=0)", result)
+        result = repr(iso.Date(bce=True, century=7, decade=5, year=2, week=17,
+                      weekday=2, xdigits=0))
+        self.assertTrue(result == "Date(bce=True, century=7, year=52, "
+                        "month=4, day=21, xdigits=0)", result)
+        result = repr(iso.Date(bce=True, century=7, decade=5, year=2, week=17,
+                               xdigits=-1))
+        self.assertTrue(result == "Date(bce=True, century=7, decade=5, "
+                        "year=2, week=17, xdigits=-1)", result)
 
     def test_calendar_day(self):
         """Test Get and Set Calendar day"""
@@ -186,12 +276,12 @@ class DateTests(unittest.TestCase):
         try:
             date = iso.Date(base=base)
             self.fail("empty constructor with base")
-        except ValueError:
+        except iso.DateTimeError:
             pass
         try:
             date = iso.Date(day=1, base=base_max)
             self.fail("10001-01-01: illegal date")
-        except ValueError:
+        except iso.DateTimeError:
             pass
         date = iso.Date(century=19, year=69, month=7)
         self.assertTrue(date.get_calendar_day() == (19, 69, 7, None),
@@ -242,6 +332,62 @@ class DateTests(unittest.TestCase):
             self.fail("bad day")
         except iso.DateTimeError:
             pass
+        # expanded forms
+        try:
+            date = iso.Date(year=52, month=4, day=21, xdigits=0)
+            self.fail("truncation not allowed with xdigits")
+        except iso.DateTimeError:
+            pass
+        date = iso.Date(bce=True, century=7, year=52, month=4, xdigits=0)
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 4, None),
+                        "month precision")
+        date = iso.Date(bce=True, century=7, year=52, xdigits=0)
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, None, None),
+                        "year precision")
+        date = iso.Date(bce=True, century=7, xdigits=2)
+        self.assertTrue(date.get_xcalendar_day() ==
+                        (True, 7, None, None, None), "century precision")
+        date = iso.Date(century=119, year=69, month=7, day=20, xdigits=1)
+        try:
+            date = iso.Date(century=119, year=69, month=7, day=20, xdigits=0)
+            self.fail("bad century")
+        except iso.DateTimeError:
+            pass
+        try:
+            date = iso.Date(bce=True, century=7, year=100, month=4, day=21,
+                            xdigits=1)
+            self.fail("bad year")
+        except iso.DateTimeError:
+            pass
+        try:
+            date = iso.Date(bce=True, century=7, year=52, month=13, day=21,
+                            xdigits=0)
+            self.fail("bad month")
+        except iso.DateTimeError:
+            pass
+        try:
+            # 753 BC (-0752) was a leap year so try -0751
+            date = iso.Date(bce=True, century=7, year=51, month=2, day=29,
+                            xdigits=0)
+            self.fail("bad day")
+        except iso.DateTimeError:
+            pass
+        base = iso.Date(bce=True, century=1, year=0, month=4, day=21,
+                        xdigits=0)
+        date = iso.Date(month=4, day=20, base=base)
+        self.assertTrue(date.get_xcalendar_day() == (True, 0, 99, 4, 20))
+        date = iso.Date(month=4, day=19, base=date)
+        self.assertTrue(date.get_xcalendar_day() == (True, 0, 98, 4, 19))
+        base = date
+        date = iso.Date(year=99, month=4, day=19, base=base)
+        self.assertTrue(date.get_xcalendar_day() == (False, 0, 99, 4, 19),
+                        "big jump over year 0")
+        date = iso.Date(year=1, month=4, day=19, base=base)
+        self.assertTrue(date.get_xcalendar_day() == (True, 0, 1, 4, 19))
+        base = date
+        date = iso.Date(year=1, month=4, day=18, base=base)
+        self.assertTrue(date.get_xcalendar_day() == (False, 0, 1, 4, 18),
+                        "small jump over year 0")
 
     def test_ordinal_day(self):
         """Test Get and Set Ordinal day"""
@@ -252,7 +398,9 @@ class DateTests(unittest.TestCase):
         base_overflow = iso.Date(century=19, year=69, month=7, day=21)
         date = iso.Date(century=19, year=69, ordinalDay=201)
         self.assertTrue(date.get_ordinal_day() == (19, 69, 201),
-                        "simple case ")
+                        "simple case ordinal")
+        self.assertTrue(date.get_xordinal_day() == (False, 19, 69, 201),
+                        "simple case of xordinal")
         self.assertTrue(date.get_calendar_day() == (19, 69, 7, 20),
                         "calendar cross check")
         date = iso.Date(century=19, year=69, ordinalDay=1)
@@ -323,6 +471,59 @@ class DateTests(unittest.TestCase):
             pass
         try:
             date = iso.Date(century=19, year=69, ordinalDay=366)
+            self.fail("bad ordinal - non-leap")
+        except iso.DateTimeError:
+            pass
+        # expanded forms
+        date = iso.Date(bce=True, century=7, year=52, ordinal_day=112,
+                        xdigits=0)
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 4, 21),
+                        "simple case")
+        try:
+            date.get_ordinal_day()
+            self.fail("negative ordinal requires get_xcalendar_day")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(date.get_xordinal_day() == (True, 7, 52, 112),
+                        "simple case ordinal")
+        date = iso.Date(bce=True, century=7, year=52, ordinal_day=1, xdigits=1)
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 1, 1),
+                        "calendar cross check Jan 1st")
+        date = iso.Date(bce=True, century=7, year=52, ordinal_day=366,
+                        xdigits=-1)
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 12, 31),
+                        "calendar cross check Dec 31st (leap)")
+        date = iso.Date(bce=True, century=7, year=51, ordinal_day=365,
+                        xdigits=2)
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 51, 12, 31),
+                        "calendar cross check Dec 31st (non-leap)")
+        date = iso.Date(bce=True, century=7, year=52, xdigits=1)
+        self.assertTrue(date.get_xordinal_day() == (True, 7, 52, None),
+                        "negative year precision")
+        date = iso.Date(bce=True, century=7, xdigits=1)
+        self.assertTrue(date.get_xordinal_day() == (True, 7, None, None),
+                        "negative century precision")
+        date = iso.Date(century=10019, year=69, ordinal_day=201, xdigits=3)
+        try:
+            date = iso.Date(century=10019, year=69, ordinal_day=201, xdigits=2)
+            self.fail("bad century")
+        except iso.DateTimeError:
+            pass
+        try:
+            date = iso.Date(bce=True, century=7, year=100, ordinal_day=112,
+                            xdigits=0)
+            self.fail("bad year")
+        except iso.DateTimeError:
+            pass
+        try:
+            date = iso.Date(bce=True, century=7, year=52, ordinal_day=367,
+                            xdigits=0)
+            self.fail("bad ordinal - leap")
+        except iso.DateTimeError:
+            pass
+        try:
+            date = iso.Date(bce=True, century=7, year=51, ordinal_day=366,
+                            xdigits=0)
             self.fail("bad ordinal - non-leap")
         except iso.DateTimeError:
             pass
@@ -476,6 +677,25 @@ class DateTests(unittest.TestCase):
             self.fail("bad day")
         except iso.DateTimeError:
             pass
+        # expanded forms
+        date = iso.Date(bce=True, century=7, decade=5, year=2, week=17,
+                        weekday=2, xdigits=0)
+        try:
+            date.get_week_day()
+            self.fail("get_xweek_day required for negative years")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(date.get_xweek_day() == (True, 7, 5, 2, 17, 2),
+                        "simple negative")
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 4, 21),
+                        "calendar cross check")
+        base = date
+        date = iso.Date(year=3, week=17, weekday=2, base=base)
+        self.assertTrue(date.get_xweek_day() == (True, 7, 4, 3, 17, 2),
+                        "truncated decade with overflow")
+        date = iso.Date(week=17, weekday=1, base=base)
+        self.assertTrue(date.get_xweek_day() == (True, 7, 5, 1, 17, 1),
+                        "truncated year with overflow")
 
     def test_time_tuple(self):
         """Test Get and Set TimeTuple"""
@@ -511,8 +731,8 @@ class DateTests(unittest.TestCase):
     def test_absolute_days(self):
         """Test Get and Set Absolute Day"""
         date = iso.Date()
-        # check the 1st January each from from 0001 (the base day)
-        # through 2049
+        # check the 1st January each from  0001 (the base day) through
+        # 2049
         abs_day = 1
         for year in range3(1, 1740):
             date = iso.Date(absolute_day=abs_day)
@@ -549,6 +769,20 @@ class DateTests(unittest.TestCase):
             self.fail("Expected error on incomplete date")
         except iso.DateTimeError:
             pass
+        # check some expanded dates
+        abs_day = 1
+        for year in range3(1001):
+            # first of Jan for years going backwards
+            abs_day -= 365
+            if (year % 4 == 0 and (not year % 100 == 0 or year % 400 == 0)):
+                abs_day -= 1
+            date = iso.Date(absolute_day=abs_day, xdigits=1)
+            self.assertTrue(
+                date.get_xcalendar_day() ==
+                (True if year else False, year // 100, year % 100, 1, 1),
+                "-%04i-01-01 check" % year)
+            self.assertTrue(date.get_absolute_day() == abs_day,
+                            "-%04i-01-01 symmetry check" % year)
 
     def test_offset(self):
         date = iso.Date(century=20, year=16, month=1, day=1)
@@ -678,6 +912,18 @@ class DateTests(unittest.TestCase):
                         (21, 16, None, None), "simple century offset")
         self.assertTrue(date.offset(centuries=-1).get_calendar_day() ==
                         (19, 16, None, None), "negative century offset")
+        # expanded forms
+        date = iso.Date(bce=True, century=7, year=52, month=1, day=1,
+                        xdigits=0)
+        self.assertTrue(date.offset(days=1).get_xcalendar_day() ==
+                        (True, 7, 52, 1, 2), "BCE simple day offset")
+        self.assertTrue(date.offset(days=-1).get_xcalendar_day() ==
+                        (True, 7, 53, 12, 31),
+                        "BCE negative day offset with underflow")
+        date = iso.Date(bce=True, century=7, year=52, month=1, xdigits=0)
+        self.assertTrue(date.offset(years=800).get_xcalendar_day() ==
+                        (False, 0, 48, 1, None),
+                        "BCE year offset with roll over")
 
     def test_leap(self):
         date = iso.Date(century=20, year=16)
@@ -688,6 +934,8 @@ class DateTests(unittest.TestCase):
         self.assertFalse(date.leap_year(), "1900 is not leap")
         date = iso.Date(century=20, year=00)
         self.assertTrue(date.leap_year(), "2000 is leap")
+        date = iso.Date(bce=True, century=7, year=52, xdigits=0)
+        self.assertTrue(date.leap_year(), "-0752 is leap")
         # and finally...
         date = iso.Date(century=19)
         try:
@@ -721,6 +969,25 @@ class DateTests(unittest.TestCase):
         date = iso.Date.from_julian(2016, 12, 31)
         self.assertTrue(date.get_julian_day() == (2016, 12, 31),
                         "Julian New Year's Eve leap read-back")
+        # D = Y//100 - Y//400 -2
+        date = iso.Date.from_julian(1, 1, 3)
+        self.assertTrue(date.get_calendar_day() == (0, 1, 1, 1))
+        date = iso.Date.from_julian(1701, 1, 1)
+        self.assertTrue(date.get_calendar_day() == (17, 1, 1, 12))
+        # expanded dates
+        date = iso.Date(bce=True, century=0, year=44, month=1, day=1,
+                        xdigits=0)
+        self.assertTrue(date.get_julian_day() == (-44, 1, 3))
+        try:
+            date = iso.Date.from_julian(-44, 1, 3)
+            self.fail("BCE requires xdigits in from_juian")
+        except iso.DateTimeError:
+            pass
+        date = iso.Date.from_julian(-44, 1, 3, xdigits=0)
+        self.assertTrue(date.get_xcalendar_day() == (True, 0, 44, 1, 1))
+        date = iso.Date.from_julian(-752, 4, 21, xdigits=0)
+        # should be 8 days ahead of Gregorian
+        self.assertTrue(date.get_xcalendar_day() == (True, 7, 52, 4, 13))
 
     def test_set_from_string(self):
         date = iso.Date.from_str(ul("19690720"))
@@ -731,6 +998,74 @@ class DateTests(unittest.TestCase):
             date = iso.Date.from_str(iso.Date.from_str(ul("19690720")))
             self.fail("from_str with non-string")
         except TypeError:
+            pass
+        # expanded forms
+        try:
+            date = iso.Date.from_str("119690720")
+            self.fail("expanded form requires xdigits and leading +")
+        except iso.DateTimeError:
+            pass
+        try:
+            date = iso.Date.from_str("119690720", xdigits=1)
+            self.fail("expanded form requires leading +")
+        except ValueError:
+            pass
+        try:
+            date = iso.Date.from_str("+119690720")
+            self.fail("expanded form requires xdigits")
+        except ValueError:
+            pass
+        try:
+            date = iso.Date.from_str("00000101")
+            self.fail("0 counts as expanded form")
+        except iso.DateTimeError:
+            pass
+        date = iso.Date.from_str("+119690720", xdigits=1)
+        try:
+            date.get_calendar_day()
+            self.fail("Expanded date requires get_xcalendar_day")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(date.get_xcalendar_day() == (False, 119, 69, 7, 20))
+        date = iso.Date.from_str("11969-07-20", xdigits=-1)
+        self.assertTrue(date.get_xcalendar_day() == (False, 119, 69, 7, 20))
+        date = iso.Date.from_str("+00000101", xdigits=0)
+        try:
+            date.get_calendar_day()
+            self.fail("Year 0 requires get_xcalendar_day")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(date.get_xcalendar_day() == (False, 0, 0, 1, 1))
+        date = iso.Date.from_str("-00000101", xdigits=0)
+        self.assertTrue(date.get_xcalendar_day() == (False, 0, 0, 1, 1))
+        # odd cases
+        base = iso.Date(century=19, year=70, month=1, day=1)
+        date = iso.Date.from_str("-8504", base=base)
+        # year and month in implied century (straight from ISO8601)
+        self.assertTrue(date.get_xcalendar_day() == (False, 19, 85, 4, None))
+        date = iso.Date.from_str("-8504", xdigits=0)
+        # century and year with reduced precision
+        self.assertTrue(date.get_xcalendar_day() == (True, 85, 4, None, None))
+        date = iso.Date.from_str("-8504", xdigits=-1)
+        # century and year with reduced precision (non conformant but OK)
+        self.assertTrue(date.get_xcalendar_day() == (True, 85, 4, None, None))
+        date = iso.Date.from_str("-850401", xdigits=-1)
+        # century and year with reduced precision (non conformant but OK)
+        self.assertTrue(date.get_xcalendar_day() ==
+                        (True, 8504, 1, None, None))
+        # century, year and month with reduced precision (non conformant)
+        date = iso.Date.from_str("-8504-01", xdigits=-1)
+        self.assertTrue(date.get_xcalendar_day() == (True, 85, 4, 1, None))
+        date = iso.Date.from_str("-8504-01-01", xdigits=-1)
+        self.assertTrue(date.get_xcalendar_day() == (True, 85, 4, 1, 1))
+        date = iso.Date.from_str("+8504-01-01", xdigits=-1)
+        self.assertTrue(date.get_xcalendar_day() == (False, 85, 4, 1, 1))
+        date = iso.Date.from_str("+000000-01-01", xdigits=-1)
+        self.assertTrue(date.get_xcalendar_day() == (False, 0, 0, 1, 1))
+        try:
+            date = iso.Date.from_str("+000-01-01", xdigits=-1)
+            self.fail("xdigits=-1 requires at least 4 digits for year")
+        except ValueError:
             pass
 
     def test_get_precision(self):
@@ -744,6 +1079,9 @@ class DateTests(unittest.TestCase):
         self.assertTrue(date.get_precision() == iso.Precision.Year,
                         "year precision")
         date = iso.Date(century=19)
+        self.assertTrue(date.get_precision() == iso.Precision.Century,
+                        "century precision")
+        date = iso.Date(century=119, xdigits=1)
         self.assertTrue(date.get_precision() == iso.Precision.Century,
                         "century precision")
         date = iso.Date(century=19, decade=6, year=9, week=29, weekday=7)
@@ -773,6 +1111,15 @@ class DateTests(unittest.TestCase):
         self.assertTrue(
             iso.Date.from_str("19690721") > iso.Date.from_str("19690720"),
             "simple inequality")
+        # expanded forms compare as normal
+        self.assertTrue(
+            iso.Date.from_str("19690720") <
+            iso.Date.from_str("+119690720", xdigits=1),
+            "simple inequality with expanded date")
+        self.assertTrue(
+            iso.Date.from_str("19690720") >
+            iso.Date.from_str("-07520421", xdigits=0),
+            "simple inequality with expanded date")
         self.assertTrue(
             iso.Date.from_str("1969W29") == iso.Date.from_str("1969W29"),
             "equality with week precision")
@@ -805,6 +1152,21 @@ class DateTests(unittest.TestCase):
         self.assertTrue(
             iso.Date.from_str("19690720").get_calendar_string() ==
             "1969-07-20", "default test")
+        self.assertTrue(
+            iso.Date.from_str("+119690720", xdigits=1).get_calendar_string() ==
+            "+11969-07-20", "positive test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "-0119690720", xdigits=2).get_calendar_string() ==
+            "-011969-07-20", "negative test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "+0011969-07-20", xdigits=-1).get_calendar_string() ==
+            "11969-07-20", "canonical test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "-00752-04-21", xdigits=-1).get_calendar_string() ==
+            "-0752-04-21", "canonical test expanded negative")
         # default string formatter
         result = to_text(iso.Date.from_str("19690720"))
         self.assertTrue(result == ul("1969-07-20"), "string format")
@@ -937,6 +1299,21 @@ class DateTests(unittest.TestCase):
             iso.Date.from_str("1969-201").get_ordinal_string(0) == "1969-201",
             "extended test")
         self.assertTrue(
+            iso.Date.from_str("+119690720", xdigits=1).get_ordinal_string() ==
+            "+11969-201", "positive test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "-0119690720", xdigits=2).get_ordinal_string() ==
+            "-011969-201", "negative test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "+0011969-07-20", xdigits=-1).get_ordinal_string() ==
+            "11969-201", "canonical test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "-00752-04-21", xdigits=-1).get_ordinal_string() ==
+            "-0752-112", "canonical test expanded negative")
+        self.assertTrue(
             iso.Date.from_str("1969-201").get_ordinal_string(
                 1, iso.NoTruncation) == "1969201", "basic, no truncation")
         self.assertTrue(
@@ -1005,6 +1382,21 @@ class DateTests(unittest.TestCase):
         self.assertTrue(
             iso.Date.from_str("1969-W29-7").get_week_string(0) == "1969-W29-7",
             "extended test")
+        self.assertTrue(
+            iso.Date.from_str("+119690720", xdigits=1).get_week_string() ==
+            "+11969-W29-7", "positive test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "-0119690720", xdigits=2).get_week_string() ==
+            "-011969-W29-7", "negative test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "+0011969-07-20", xdigits=-1).get_week_string() ==
+            "11969-W29-7", "canonical test expanded")
+        self.assertTrue(
+            iso.Date.from_str(
+                "-00752-04-21", xdigits=-1).get_week_string() ==
+            "-0752-W17-2", "canonical test expanded negative")
         self.assertTrue(
             iso.Date.from_str("1969-W29-7").get_week_string(
                 1, iso.NoTruncation) == "1969W297",
@@ -1111,6 +1503,30 @@ class DateTests(unittest.TestCase):
         # This is a weak test
         date = iso.Date.from_now()
         self.assertTrue(date > iso.Date.from_str("20050313"), "now test")
+
+    def test_expand(self):
+        d1 = iso.Date.from_str("19690720")
+        self.assertTrue(d1.xdigits is None)
+        self.assertTrue(str(d1) == "1969-07-20")
+        d2 = iso.Date.from_str("-07520421", xdigits=0)
+        self.assertTrue(d2.xdigits == 0)
+        self.assertTrue(str(d2) == "-0752-04-21")
+        xd = d1.expand(xdigits=0)
+        self.assertTrue(str(xd) == "+1969-07-20")
+        xd = d1.expand(xdigits=1)
+        self.assertTrue(str(xd) == "+01969-07-20")
+        xd = d1.expand(xdigits=5)
+        self.assertTrue(str(xd) == "+000001969-07-20")
+        xd = d1.expand(xdigits=-1)
+        self.assertTrue(str(xd) == "1969-07-20")
+        xd = d2.expand(xdigits=0)
+        self.assertTrue(str(xd) == "-0752-04-21")
+        xd = d2.expand(xdigits=1)
+        self.assertTrue(str(xd) == "-00752-04-21")
+        xd = d2.expand(xdigits=5)
+        self.assertTrue(str(xd) == "-000000752-04-21")
+        xd = d2.expand(xdigits=-1)
+        self.assertTrue(str(xd) == "-0752-04-21")
 
     def test_legacy(self):
         date = iso.Date()
@@ -1625,12 +2041,67 @@ class TimePointTests(unittest.TestCase):
                         t.time.get_zone() == (0, 0) and
                         t.date.get_calendar_day() == (19, 69, 7, 20),
                         "unicode constructor")
-        base = iso.Date(t.date)
         t = iso.TimePoint.from_str("--0720T201740Z", base)
         self.assertTrue(t.time.get_time() == (20, 17, 40) and
                         t.time.get_zone() == (0, 0) and
                         t.date.get_calendar_day() == (19, 69, 7, 20),
                         "truncated year")
+        # expanded forms
+        t = iso.TimePoint(date=iso.Date.from_str("-0007520421", xdigits=2),
+                          time=iso.Time(hour=16, minute=0, second=0,
+                                        zdirection=1, zhour=1))
+        self.assertTrue(t.time.get_time() == (16, 0, 0) and
+                        t.time.get_zone() == (1, 60) and
+                        t.date.get_xcalendar_day() == (True, 7, 52, 4, 21),
+                        "truncated year")
+        try:
+            t.get_calendar_time_point()
+            self.fail("Expanded year requires get_xcalendar_time_point")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(t.get_xcalendar_time_point() ==
+                        (True, 7, 52, 4, 21, 16, 0, 0))
+        try:
+            t.get_ordinal_time_point()
+            self.fail("Expanded year requires get_xordinal_time_point")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(t.get_xordinal_time_point() ==
+                        (True, 7, 52, 112, 16, 0, 0))
+        try:
+            t.get_week_day_time_point()
+            self.fail("Expanded year requires get_xweek_time_point")
+        except iso.DateTimeError:
+            pass
+        self.assertTrue(t.get_xweek_day_time_point() ==
+                        (True, 7, 5, 2, 17, 2, 16, 0, 0))
+        t = iso.TimePoint.from_str("19690720T201740Z", xdigits=None)
+        self.assertTrue(str(t) == "1969-07-20T20:17:40Z")
+        self.assertTrue(str(t) == "1969-07-20T20:17:40Z")
+        t = iso.TimePoint.from_str("+19690720T201740Z", xdigits=0)
+        self.assertTrue(str(t) == "+1969-07-20T20:17:40Z")
+        try:
+            t = iso.TimePoint.from_str("+19690720T201740Z", xdigits=1)
+            self.fail("ordinal overflow")
+        except iso.DateTimeError:
+            pass
+        t = iso.TimePoint.from_str("+019690720T201740Z", xdigits=1)
+        self.assertTrue(str(t) == "+01969-07-20T20:17:40Z")
+        try:
+            t = iso.TimePoint.from_str("119690720T201740Z", xdigits=-1)
+            self.fail("xdigits=-1 requires extended format")
+        except iso.DateTimeError:
+            pass
+        t = iso.TimePoint.from_str("11969-07-20T20:17:40Z", xdigits=-1)
+        self.assertTrue(str(t) == "11969-07-20T20:17:40Z")
+        t = iso.TimePoint.from_str("+119690720T201740Z", xdigits=1)
+        self.assertTrue(str(t) == "+11969-07-20T20:17:40Z")
+        t = iso.TimePoint.from_str("-07520421T160000+0100", xdigits=0)
+        self.assertTrue(str(t) == "-0752-04-21T16:00:00+01:00")
+        t = iso.TimePoint.from_str("-0007520421T160000+0100", xdigits=2)
+        self.assertTrue(str(t) == "-000752-04-21T16:00:00+01:00")
+        t = iso.TimePoint.from_str("-000752-04-21T16:00:00+01:00", xdigits=-1)
+        self.assertTrue(str(t) == "-0752-04-21T16:00:00+01:00")
 
     def test_get_strings(self):
         """get_string tests"""
@@ -1664,6 +2135,25 @@ class TimePointTests(unittest.TestCase):
                 0, iso.NoTruncation, 3, iso.Precision.Hour) ==
             "1969-07-20T21:17:40,000+01",
             "fractional seconds and time zone precision control")
+        # expanded forms
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+119690720T201740Z", xdigits=1).get_calendar_string() ==
+            "+11969-07-20T20:17:40Z", "expanded test")
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+119690720T201740Z", xdigits=1).get_calendar_string(True) ==
+            "+119690720T201740Z", "expanded basic test")
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+11969-07-20T20:17:40Z", xdigits=-1).get_calendar_string() ==
+            "11969-07-20T20:17:40Z", "expanded test - non conformant")
+        d = iso.TimePoint.from_str("+11969-07-20T20:17:40Z", xdigits=-1)
+        try:
+            d.get_calendar_string(True)
+            self.fail("basic incompatible with xdigits=-1")
+        except iso.DateTimeError:
+            pass
         self.assertTrue(
             iso.TimePoint.from_str("19690720T201740Z").get_ordinal_string() ==
             "1969-201T20:17:40Z", "default ordinal test")
@@ -1681,6 +2171,25 @@ class TimePointTests(unittest.TestCase):
             iso.TimePoint.from_str("19690720T201740Z").get_ordinal_string(
                 0, iso.NoTruncation) == "1969-201T20:17:40Z",
             "extended ordinal, no truncation")
+        # expanded forms
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+119690720T201740Z", xdigits=1).get_ordinal_string() ==
+            "+11969-201T20:17:40Z", "expanded test")
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+119690720T201740Z", xdigits=1).get_ordinal_string(True) ==
+            "+11969201T201740Z", "expanded basic test")
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+11969-07-20T20:17:40Z", xdigits=-1).get_ordinal_string() ==
+            "11969-201T20:17:40Z", "expanded test - non conformant")
+        d = iso.TimePoint.from_str("+11969-07-20T20:17:40Z", xdigits=-1)
+        try:
+            d.get_ordinal_string(True)
+            self.fail("basic incompatible with xdigits=-1")
+        except iso.DateTimeError:
+            pass
         self.assertTrue(
             iso.TimePoint.from_str("19690720T201740Z").get_week_string() ==
             "1969-W29-7T20:17:40Z", "default week test")
@@ -1698,6 +2207,25 @@ class TimePointTests(unittest.TestCase):
             iso.TimePoint.from_str("19690720T201740Z").get_week_string(
                 0, iso.NoTruncation) == "1969-W29-7T20:17:40Z",
             "extended week, no truncation")
+        # expanded forms
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+119690720T201740Z", xdigits=1).get_week_string() ==
+            "+11969-W29-7T20:17:40Z", "expanded test")
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+119690720T201740Z", xdigits=1).get_week_string(True) ==
+            "+11969W297T201740Z", "expanded basic test")
+        self.assertTrue(
+            iso.TimePoint.from_str(
+                "+11969-07-20T20:17:40Z", xdigits=-1).get_week_string() ==
+            "11969-W29-7T20:17:40Z", "expanded test - non conformant")
+        d = iso.TimePoint.from_str("+11969-07-20T20:17:40Z", xdigits=-1)
+        try:
+            d.get_week_string(True)
+            self.fail("basic incompatible with xdigits=-1")
+        except iso.DateTimeError:
+            pass
 
     def test_comparisons(self):
         """Test the comparison methods"""
@@ -1752,6 +2280,16 @@ class TimePointTests(unittest.TestCase):
         self.assertTrue(iso.TimePoint.from_str("19690720T151740-0500") in d)
         self.assertFalse(iso.TimePoint.from_str("19690720T201740-0500") in d)
         self.assertFalse(iso.TimePoint.from_str("19690720T201740+0100") in d)
+
+    def test_leap_second(self):
+        t = iso.TimePoint(date=iso.Date(century=20, year=16, month=12, day=31),
+                          time=iso.Time(hour=23, minute=59, second=60,
+                                        zdirection=0))
+        self.assertTrue(t.get_calendar_time_point() ==
+                        (20, 16, 12, 31, 23, 59, 60))
+        t = iso.TimePoint.from_str("20161231T235960Z")
+        self.assertTrue(t.get_calendar_time_point() ==
+                        (20, 16, 12, 31, 23, 59, 60))
 
 
 class DurationTests(unittest.TestCase):

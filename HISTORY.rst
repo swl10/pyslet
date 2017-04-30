@@ -53,6 +53,12 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20170430*
+
+Added support for expanded dates to iso8601 module (merged from OData
+v4 branch).
+
+
 *Build 20170419*
 
 #61 Experimental support for NTLM authentication
