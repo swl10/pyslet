@@ -2258,6 +2258,11 @@ class TimePointTests(unittest.TestCase):
                         "inequality with non matching zone and overflow")
         self.assertFalse(iso.TimePoint.from_str("19690720T201740") ==
                          iso.TimePoint.from_str("19690720T2017"))
+        # The end of one day [2400] coincides with [0000] at the start
+        # of the next day, e.g. 2400 on 1985 April 12 is the same as
+        # 0000 on 1985 April 13.
+        self.assertFalse(iso.TimePoint.from_str("19850412T240000") ==
+                         iso.TimePoint.from_str("19850413T000000"))
         try:
             iso.TimePoint.from_str("19690720T201740Z") < \
                 iso.TimePoint.from_str("19690720T201740")

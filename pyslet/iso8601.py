@@ -29,6 +29,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."""
 
+import decimal
 import time as pytime
 import warnings
 
@@ -1619,7 +1620,7 @@ class Time(PEP8Compatibility, UnicodeMixin, SortableMixin):
     def get_zone(self):
         """Returns a tuple of::
 
-        (zdirection,zoffset)
+        (zdirection, zoffset)
 
         zdirection is defined as per Time's constructor, zoffset is a
         non-negative integer minute offset or None, if the zone is
@@ -3016,7 +3017,7 @@ class Duration(UnicodeMixin, PEP8Compatibility):
         else:
             raise TypeError
 
-    def get_string(self, truncate_zeros=0, ndp=0):
+    def get_string(self, truncate_zeros=0, ndp=0, dp=','):
         if self.weeks is None:
             components = list(self.get_calender_duration())
             while components[-1] is None:
@@ -3034,22 +3035,22 @@ class Duration(UnicodeMixin, PEP8Compatibility):
                     components[i] = ""
                     continue
                 if isinstance(value, float):
-                    fraction, value = modf(value)
-                    value = int(value)
-                    if ndp:
-                        # to prevent truncation being caught out by
-                        # sloppy machine rounding we add a small time to
-                        # the fraction (at most 1ns and typically less)
-                        if ndp > 0:
-                            fraction_str = "%i,%0*i"
-                        else:
-                            fraction_str = "%i.%0*i"
-                            ndp = -ndp
-                        fraction += 2e-13
-                        fraction = int(floor(fraction * float(10 ** ndp)))
-                        components[i] = fraction_str % (value, ndp, fraction)
+                    if ndp is None:
+                        f = decimal.Decimal(str(value)).quantize(
+                            decimal.Decimal('1.' + '0' * 6),
+                            rounding=decimal.ROUND_DOWN)
+                        components[i] = str(f).rstrip('.0')
                     else:
-                        components[i] = str(value)
+                        if ndp < 0:
+                            # shorthand for '.'
+                            dp = '.'
+                            ndp = -ndp
+                        f = decimal.Decimal(str(value)).quantize(
+                            decimal.Decimal('1.' + '0' * ndp),
+                            rounding=decimal.ROUND_DOWN)
+                        components[i] = str(f)
+                    if dp == ',':
+                        components[i] = components[i].replace('.', ',')
                 else:
                     components[i] = str(value)
                 components[i] = components[i] + "YMDHMS"[i]
@@ -3060,7 +3061,14 @@ class Duration(UnicodeMixin, PEP8Compatibility):
             else:
                 return 'P' + date_part
         else:
-            raise NotImplementedError
+            if isinstance(self.weeks, float):
+                f = decimal.Decimal(str(self.weeks)).quantize(
+                    decimal.Decimal('1.' + '0' * ndp),
+                    rounding=decimal.ROUND_DOWN)
+                week_part = str(f) + 'W'
+            else:
+                week_part = str(self.weeks) + 'W'
+            return 'P' + week_part
 
     def set_from_duration(self, src):
         self.years = src.years
