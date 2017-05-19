@@ -53,6 +53,26 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20170519*
+
+Travis now builds and tests Python 2.7 and Python 3.5, I've dropped 2.6
+from the continuous integration testing because the latest Ubuntu images
+have dropped Python2.6 but you can still run tox on your own
+environments as it includes 2.6 in tox.ini.
+
+#70 OData parsing error for "(not false)"
+
+Issue in parser fixed.  Thanks to @torokokill for spotting the issue.
+
+
+#71 OData $filter fails with expressions matching literal types
+
+The names that introduce typed literals such as time, datetime, guid,
+binary, X, etc. can now be used in URL expressions without raising
+parser errors.  The reserved names null, true and false continue to be
+interpreted as literals so properties with any of those names cannot be
+referred to in expressions.  Thanks to @soundstripe for reporting this.
+
 *Build 20170430*
 
 Added support for expanded dates to iso8601 module (merged from OData

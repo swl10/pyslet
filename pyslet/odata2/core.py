@@ -1393,9 +1393,9 @@ class Parser(edm.Parser):
                 else:
                     # no common expression found at all
                     return None
-            # if we already have a (unary) operator, skip the search for a
-            # binary operator
-            if not isinstance(right_op, UnaryExpression):
+            # if we have an unbound unary operator, skip the search for
+            # a binary operator
+            if not isinstance(right_op, UnaryExpression) or right_op.operands:
                 operand = right_op
                 self.parse_wsp()
                 if self.parse("/"):
@@ -1754,7 +1754,7 @@ class Parser(edm.Parser):
             result = edm.EDMValue.from_type(edm.SimpleType.Boolean)
             result.value = False
             return result
-        elif name == "datetimeoffset":
+        elif name == "datetimeoffset" and self.match("'"):
             result = edm.EDMValue.from_type(edm.SimpleType.DateTimeOffset)
             production = "datetimeoffset literal"
             self.require("'", production)
@@ -1762,7 +1762,7 @@ class Parser(edm.Parser):
             self.require("'", production)
             result.set_from_literal(dto_string)
             return result
-        elif name == "datetime":
+        elif name == "datetime" and self.match("'"):
             production = "datetime literal"
             self.require("'", production)
             result = edm.EDMValue.from_type(edm.SimpleType.DateTime)
@@ -1771,7 +1771,7 @@ class Parser(edm.Parser):
             self.require("'", production)
             result.value = value
             return result
-        elif name == "time":
+        elif name == "time" and self.match("'"):
             production = "time literal"
             self.require("'", production)
             result = edm.EDMValue.from_type(edm.SimpleType.Time)
@@ -1780,7 +1780,7 @@ class Parser(edm.Parser):
             self.require("'", production)
             result.value = value
             return result
-        elif name_case == "X" or name == "binary":
+        elif (name_case == "X" or name == "binary") and self.match("'"):
             self.require("'", "binary")
             result = edm.EDMValue.from_type(edm.SimpleType.Binary)
             value = self.parse_binary_literal()
@@ -1805,7 +1805,7 @@ class Parser(edm.Parser):
             result = edm.EDMValue.from_type(edm.SimpleType.Single)
             result.value = float("INF")
             return result
-        elif name == "guid":
+        elif name == "guid" and self.match("'"):
             result = edm.EDMValue.from_type(edm.SimpleType.Guid)
             self.require("'", "guid")
             hex = []
