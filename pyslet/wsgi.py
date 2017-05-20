@@ -10,7 +10,6 @@ import logging
 import mimetypes
 import optparse
 import os
-import os.path
 import quopri
 import random
 import sys
@@ -38,6 +37,7 @@ from .py2 import (
     force_bytes,
     input3,
     is_ascii,
+    is_text,
     is_unicode,
     long2,
     parse_qs,
@@ -52,6 +52,8 @@ from .rfc2396 import (
     unescape_data,
     URI)
 from .xml import structures as xml
+from .vfs import OSFilePath
+
 
 try:
     from Crypto.Cipher import AES
@@ -513,15 +515,17 @@ class WSGIApp(DispatchNode):
     ContextClass = WSGIContext
 
     #: The path to the directory for :attr:`static_files`.  Defaults to
-    #: None.
+    #: None.  An :class:`pyslet.vfs.OSFilePath` instance.
     static_files = None
 
     private_files = None
     """Private data diretory
 
+    An :class:`pyslet.vfs.OSFilePath` instance.
+
     The directory used for storing private data.  The directory is
     partitioned into sub-directories based on the lower-cased class name
-    of the object that owns the data.  For example, if private_file is
+    of the object that owns the data.  For example, if private_files is
     set to '/var/www/data' and you derive a class called 'MyApp' from
     WSGIApp you can assume that it is safe to store and retrieve private
     data files from '/var/www/data/myapp'.
@@ -531,6 +535,8 @@ class WSGIApp(DispatchNode):
 
     settings_file = None
     """The path to the settings file.  Defaults to None.
+
+    An :class:`pyslet.vfs.OSFilePath` instance.
 
     The format of the settings file is a json dictionary.  The
     dictionary's keys are class names that define a scope for
@@ -585,7 +591,10 @@ class WSGIApp(DispatchNode):
     settings = None
 
     #: the base URI of this class, set from the path to the settings
-    #: file itself.  This is a :class:`pyslet.rfc2396.FileURL` instance.
+    #: file itself and is used to locate data files on the server.  This
+    #: is a :class:`pyslet.rfc2396.FileURL` instance. Not to be confused
+    #: with the base URI of resources exposed by the application this
+    #: class implements!
     base = None
 
     #: the base URI of this class' private files.  This is set from the
@@ -715,16 +724,18 @@ class WSGIApp(DispatchNode):
         Derived classes should always use super to call the base
         implementation before their own setup actions are performed."""
         if options and options.static:
-            cls.static_files = os.path.abspath(options.static)
+            cls.static_files = OSFilePath(options.static).abspath()
         if options and options.private:
-            cls.private_files = os.path.abspath(options.private)
+            cls.private_files = OSFilePath(options.private).abspath()
         if options and options.settings:
-            cls.settings_file = os.path.abspath(options.settings)
+            cls.settings_file = OSFilePath(options.settings).abspath()
+        if is_text(cls.settings_file):
+            cls.settings_file = OSFilePath(cls.settings_file)
         cls.settings = {}
         if cls.settings_file:
-            cls.base = URI.from_path(cls.settings_file)
-            if os.path.isfile(cls.settings_file):
-                with open(cls.settings_file, 'rb') as f:
+            cls.base = URI.from_virtual_path(cls.settings_file)
+            if cls.settings_file.isfile():
+                with cls.settings_file.open('rb') as f:
                     cls.settings = json.loads(f.read().decode('utf-8'))
         settings = cls.settings.setdefault('WSGIApp', {})
         if options and options.logging is not None:
@@ -748,40 +759,46 @@ class WSGIApp(DispatchNode):
         url = settings.setdefault('static', None)
         if cls.static_files is None and url:
             cls.static_files = cls.resolve_setup_path(url)
+        if is_text(cls.static_files):
+            # catch older class definitions
+            cls.static_files = OSFilePath(cls.static_files)
         url = settings.setdefault('private', None)
         if cls.private_files is None and url:
             cls.private_files = cls.resolve_setup_path(url)
+        if is_text(cls.private_files):
+            cls.private_files = OSFilePath(cls.private_files)
         if cls.private_files:
-            cls.private_base = URI.from_path(
-                os.path.join(cls.private_files, ''))
+            cls.private_base = URI.from_virtual_path(
+                cls.private_files.join(''))
         # this logging line forces the root logger to be initialised
         # with the default level as a catch all
         logging.debug("Logging configured for %s", cls.__name__)
 
     @classmethod
-    def resolve_setup_path(cls, path, private=False):
+    def resolve_setup_path(cls, uri_path, private=False):
         """Resolves a settings-relative path
 
-        path
+        uri_path
             The relative URI of a file or directory.
 
         private (False)
             Resolve relative to the private files directory
 
-        Returns path as a system file path after resolving relative to
-        the settings file location or to the private files location as
-        indicated by the private flag.  If the required location is not
-        set then path must be an absolute file URL (starting with, e.g.,
-        file:///). On Windows systems the authority component of the URL
-        may be used to specify the host name for a UNC path."""
-        url = URI.from_octets(path)
+        Returns uri_path as an OSFilePath instance after resolving relative
+        to the settings file location or to the private files location
+        as indicated by the private flag.  If the required location is
+        not set then uri_path must be an absolute file URL (starting
+        with, e.g., file:///). On Windows systems the authority
+        component of the URL may be used to specify the host name for a
+        UNC path."""
+        url = URI.from_octets(uri_path)
         if private and cls.private_base:
             url = url.resolve(cls.private_base)
         elif not private and cls.base:
             url = url.resolve(cls.base)
         if not url.is_absolute() and not isinstance(url, FileURL):
-            raise RuntimeError("Can't resolve setup path %s" % path)
-        return url.get_pathname()
+            raise RuntimeError("Can't resolve setup path %s" % uri_path)
+        return url.get_virtual_file_path()
 
     def __init__(self):
         # keyword arguments end here, no more super after WSGIApp
@@ -979,8 +996,8 @@ class WSGIApp(DispatchNode):
         valid labels.  This conservative syntax is designed to be safe
         for passing to file handling functions."""
         path = context.environ['PATH_INFO'].split('/')
-        target_path = self.static_files
-        if target_path is None:
+        file_path = self.static_files
+        if file_path is None:
             raise PageNotFound
         ext = ''
         pleft = len(path)
@@ -996,8 +1013,8 @@ class WSGIApp(DispatchNode):
                 # fancy URLs.
                 if not cookie.is_ldh_label(p.encode('ascii')):
                     raise PageNotFound
-                target_path = os.path.join(target_path, p)
-                if not os.path.isdir(target_path):
+                file_path = file_path.join(p)
+                if not file_path.isdir():
                     raise PageNotFound
             elif not p:
                 # this is the directory form, e.g., /app/docs/ but we
@@ -1012,8 +1029,8 @@ class WSGIApp(DispatchNode):
                     raise PageNotFound
                 filename = p
                 ext = splitp[1]
-                target_path = os.path.join(target_path, p)
-        if not os.path.isfile(target_path):
+                file_path = file_path.join(p)
+        if not file_path.isfile():
             raise PageNotFound
         # Now the MIME mapping
         ctype = self.content_type.get(ext, None)
@@ -1027,13 +1044,14 @@ class WSGIApp(DispatchNode):
             ctype = params.APPLICATION_OCTETSTREAM
         context.set_status(200)
         context.add_header("Content-Type", str(ctype))
-        return self.file_response(context, target_path)
+        return self.file_response(context, file_path)
 
-    def file_response(self, context, target_path):
+    def file_response(self, context, file_path):
         """Returns a file from the file system
 
-        target_path
-            The system file path of the file to be returned.
+        file_path
+            The system file path of the file to be returned as an
+            :class:`pyslet.vfs.OSFilePath` instance.
 
         The Content-Length header is set from the file size, the
         Last-Modified date is set from the file's st_mtime and the
@@ -1042,13 +1060,15 @@ class WSGIApp(DispatchNode):
 
         The status is *not* set and must have been set before calling
         this method."""
-        finfo = os.stat(target_path)
+        if is_text(file_path):
+            file_path = OSFilePath(file_path)
+        finfo = file_path.stat()
         context.add_header("Content-Length", str(finfo.st_size))
         context.add_header("Last-Modified",
                            str(params.FullDate.from_unix_time(finfo.st_mtime)))
         context.start_response()
         bleft = finfo.st_size
-        with open(target_path, 'rb') as f:
+        with file_path.open('rb') as f:
             while bleft:
                 chunk_size = min(bleft, self.MAX_CHUNK)
                 chunk = f.read(chunk_size)
@@ -1358,7 +1378,7 @@ class WSGIDataApp(WSGIApp):
             metadata_file = cls.resolve_setup_path(metadata_file)
             # load the metadata document for our data layer
             cls.metadata = edmx.Document()
-            with open(metadata_file, 'rb') as f:
+            with metadata_file.open('rb') as f:
                 cls.metadata.read(f)
         else:
             cls.metadata = cls.load_default_metadata()
@@ -1394,6 +1414,7 @@ class WSGIDataApp(WSGIApp):
                 dbpassword = settings.setdefault('dbpassword', None)
         if source_type == 'sqlite':
             from pyslet.odata2.sqlds import SQLiteEntityContainer
+            # accepts either the string ":memory:" or an OSFilePath
             cls.data_source = SQLiteEntityContainer(
                 file_path=sqlite_path, container=cls.container)
         elif source_type == 'mysql':
@@ -2054,11 +2075,10 @@ class SessionApp(WSGIDataApp):
 
     @classmethod
     def load_default_metadata(cls):
-        mdir = os.path.split(os.path.abspath(__file__))[0]
-        metadata_file = os.path.abspath(
-            os.path.join(mdir, 'wsgi_metadata.xml'))
+        mdir = OSFilePath(__file__).abspath().split()[0]
+        metadata_file = mdir.join('wsgi_metadata.xml').abspath()
         metadata = edmx.Document()
-        with open(metadata_file, 'rb') as f:
+        with metadata_file.open('rb') as f:
             metadata.read(f)
         return metadata
 

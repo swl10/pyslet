@@ -53,6 +53,16 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20170520*
+
+#72 Travis CI tests failing in Python 3.5
+
+Changed wsgi module to use the OSFilePath wrapper for file paths for
+better compatibility with Posix file systems that use binary strings for
+file paths.  This module was causing test failures due to some use of
+os.path module with mixed string types. 
+
+ 
 *Build 20170519*
 
 Travis now builds and tests Python 2.7 and Python 3.5, I've dropped 2.6
