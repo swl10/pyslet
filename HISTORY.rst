@@ -57,6 +57,8 @@ so will raise an error in Python 3.
 
 #72 Travis CI tests failing in Python 3.5
 
+Updates to vfs module to deal with errors on Linux in Python 3.
+
 Changed wsgi module to use the OSFilePath wrapper for file paths for
 better compatibility with Posix file systems that use binary strings for
 file paths.  This module was causing test failures due to some use of

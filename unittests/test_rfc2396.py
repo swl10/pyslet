@@ -691,6 +691,13 @@ class FileURLTests(unittest.TestCase):
             os.path.split(__file__)[0], 'data_rfc2396')
         if not os.path.isabs(self.data_path):
             self.data_path = os.path.join(os.getcwd(), self.data_path)
+        self.data_path = self.sys_path(self.data_path)
+
+    def sys_path(self, path):
+        if is_unicode(path) and not os.path.supports_unicode_filenames:
+            return path.encode(sys.getfilesystemencoding())
+        else:
+            return path
 
     def test_constructor(self):
         u = uri.URI.from_octets(FILE_EXAMPLE)
@@ -762,7 +769,7 @@ class FileURLTests(unittest.TestCase):
     def test_unicode_pathnames(self):
         if isinstance(self.data_path, bytes):
             c = sys.getfilesystemencoding()
-            data_path = self.data_path.encode(c)
+            data_path = self.data_path.decode(c)
         else:
             data_path = self.data_path
         base = uri.URI.from_path(data_path)
@@ -784,10 +791,10 @@ class FileURLTests(unittest.TestCase):
                          "(skipped unicode path tests)")
 
     def visit_method(self, dirname, names):
-        d = uri.URI.from_path(os.path.join(dirname, os.curdir))
+        d = uri.URI.from_path(os.path.join(dirname, self.sys_path(os.curdir)))
         c = sys.getfilesystemencoding()
         for name in names:
-            if name.startswith('??'):
+            if name.startswith(self.sys_path('??')):
                 logging.warn("8-bit path tests limited to ASCII file names "
                              "by %s encoding", c)
                 continue
