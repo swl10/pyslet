@@ -10,6 +10,7 @@ from ..py2 import (
     to_text,
     ul,
     uspace)
+from ..rfc2396 import FileURL
 from ..pep8 import PEP8Compatibility, old_function
 from ..unicode5 import CharClass
 
@@ -627,7 +628,11 @@ class XMLParser(PEP8Compatibility):
         If *check_validity* is True, and all other options are left at
         their default (False) setting then the parser will behave as a
         validating XML parser."""
-
+        #: whether or not to open external entities
+        self.open_external_entities = False
+        #: whether or not to open remote entities (i.e., via http(s))
+        #: requires open_external_entities to be True
+        self.open_remote_entities = False
         #: Flag indicating if the document is valid, only set if
         #: :py:attr:`check_validity` is True
         self.valid = None
@@ -3957,12 +3962,19 @@ class XMLParser(PEP8Compatibility):
         with the entity's base URL and ignores the public ID.  Derived
         parsers may recognize public identifiers and resolve
         accordingly."""
-        base = None
-        if entity is None:
-            entity = self.get_external_entity()
-        if entity:
-            base = entity.location
-        return external_id.get_location(base)
+        if self.open_external_entities:
+            base = None
+            if entity is None:
+                entity = self.get_external_entity()
+            if entity:
+                base = entity.location
+            location = external_id.get_location(base)
+            if not self.open_remote_entities and \
+                    not isinstance(location, FileURL):
+                return None
+            return location
+        else:
+            return None
 
     def parse_ndata_decl(self, got_literal=False):
         """[76] NDataDecl

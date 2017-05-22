@@ -177,6 +177,7 @@ class XMLValidationTests(unittest.TestCase):
             with structures.XMLEntity(f) as e:
                 p = parser.XMLParser(e)
                 p.check_validity = True
+                p.open_external_entities = True
                 p.raiseValidityErrors = True
                 try:
                     p.parse_document()
@@ -200,6 +201,7 @@ class XMLValidationTests(unittest.TestCase):
             with structures.XMLEntity(f) as e:
                 p = parser.XMLParser(e)
                 p.check_validity = True
+                p.open_external_entities = True
                 # By default we don't raise validity errors...
                 try:
                     p.parse_document()
@@ -311,6 +313,86 @@ class XMLValidationTests(unittest.TestCase):
                 except structures.XMLError as e:
                     self.fail("XMLError raised by (non-fatal) error "
                               "example (%s)" % fname)
+
+    def test_xidmode(self):
+        dpath = os.path.join(TEST_DATA_DIR, 'xidmode')
+        save_dir = os.getcwd()
+        try:
+            os.chdir(dpath)
+            data = """<?xml version="1.0" encoding="ISO-8859-1"?>
+    <!DOCTYPE foo [
+        <!ELEMENT foo ANY >
+        <!ENTITY bad SYSTEM "secret.txt" >]>
+    <foo>&bad;</foo>"""
+            with structures.XMLEntity(data) as e:
+                # default configuration
+                p = parser.XMLParser(e)
+                try:
+                    doc = p.parse_document()
+                    data = doc.root.get_value()
+                    if "secret" in data:
+                        self.fail("Default parser resolves xid")
+                except structures.XMLMissingResourceError as e:
+                    pass
+            with structures.XMLEntity(data) as e:
+                # explicitly allow external entities
+                p = parser.XMLParser(e)
+                p.open_external_entities = True
+                try:
+                    doc = p.parse_document()
+                    data = doc.root.get_value()
+                    self.assertTrue("secret" in data)
+                except structures.XMLMissingResourceError as e:
+                    self.fail("Failed to resolve xid")
+        finally:
+            os.chdir(save_dir)
+
+    def tesx_xidmode_http(self):
+        dpath = os.path.join(TEST_DATA_DIR, 'xidmode')
+        save_dir = os.getcwd()
+        try:
+            os.chdir(dpath)
+            data = """<?xml version="1.0" encoding="ISO-8859-1"?>
+    <!DOCTYPE foo [
+        <!ELEMENT foo ANY >
+        <!ENTITY bad SYSTEM
+            "https://raw.githubusercontent.com/swl10/pyslet/master/LICENSE.txt"
+        >]>
+    <foo>&bad;</foo>"""
+            with structures.XMLEntity(data) as e:
+                # default configuration
+                p = parser.XMLParser(e)
+                try:
+                    doc = p.parse_document()
+                    data = doc.root.get_value()
+                    if "Copyright" in data:
+                        self.fail("Default parser resolves xid via http")
+                except structures.XMLMissingResourceError as e:
+                    pass
+            with structures.XMLEntity(data) as e:
+                # default configuration
+                p = parser.XMLParser(e)
+                p.open_external_entities = True
+                try:
+                    doc = p.parse_document()
+                    data = doc.root.get_value()
+                    if "Copyright" in data:
+                        self.fail("Default parser resolves xid via http")
+                except structures.XMLMissingResourceError as e:
+                    pass
+            with structures.XMLEntity(data) as e:
+                # explicitly allow external entities
+                p = parser.XMLParser(e)
+                p.open_external_entities = True
+                p.open_remote_entities = True
+                try:
+                    doc = p.parse_document()
+                    data = doc.root.get_value()
+                    self.assertTrue("Copyright" in data)
+                except structures.XMLMissingResourceError as e:
+                    self.fail("Failed to resolve remote xid")
+        finally:
+            os.chdir(save_dir)
 
 
 class XMLParserTests(unittest.TestCase):

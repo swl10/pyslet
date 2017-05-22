@@ -801,8 +801,10 @@ class OSFilePathTests(GeneralFilePathTests, unittest.TestCase):
         self.assertTrue(
             issubclass(self.fs, vfs.VirtualFilePath),
             "OSFilePath subclass of VirtualFilePath abstract class")
-        self.assertTrue(to_text(self.fs.curdir) == ".", "Current directory component")
-        self.assertTrue(to_text(self.fs.pardir) == "..", "Parent directory component")
+        self.assertTrue(to_text(self.fs.curdir) == ".",
+                        "Current directory component")
+        self.assertTrue(to_text(self.fs.pardir) == "..",
+                        "Parent directory component")
 
     def test_constructor(self):
         self.run_constructor()

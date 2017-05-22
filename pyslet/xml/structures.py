@@ -57,7 +57,10 @@ class XMLAttributeSetter(XMLError):
 
 class XMLMissingResourceError(XMLError):
 
-    """Raised when an entity cannot be found (e.g., missing file)"""
+    """Raised when an entity cannot be found (e.g., missing file).
+
+    Also raised when an external entity reference is encountered but the
+    opening of external entities is turned off."""
     pass
 
 
@@ -3734,6 +3737,8 @@ class XMLDeclaredEntity(XMLEntity):
             self.open_unicode(self.definition)
         elif isinstance(self.definition, XMLExternalID):
             # open from location or raise NotImplementedError
+            if self.location is None:
+                raise XMLMissingResourceError("Unresolved External ID")
             XMLEntity.open(self)
             # Now to handle the text declaration
             from pyslet.xml.parser import XMLParser

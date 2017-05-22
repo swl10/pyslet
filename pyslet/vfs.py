@@ -961,16 +961,20 @@ class OSFilePath(VirtualFilePath):
     codec = sys.getfilesystemencoding()
 
     #: copied from os.sep
-    sep = os.sep if os.path.supports_unicode_filenames else force_bytes(os.sep)
+    sep = os.sep if os.path.supports_unicode_filenames else \
+        force_bytes(os.sep)
 
     #: copied from os.curdir
-    curdir = os.curdir if os.path.supports_unicode_filenames else force_bytes(os.curdir)
+    curdir = os.curdir if os.path.supports_unicode_filenames else \
+        force_bytes(os.curdir)
 
     #: copied from os.pardir
-    pardir = os.pardir if os.path.supports_unicode_filenames else force_bytes(os.pardir)
+    pardir = os.pardir if os.path.supports_unicode_filenames else \
+        force_bytes(os.pardir)
 
     #: copied from os.extsep
-    ext = os.extsep if os.path.supports_unicode_filenames else force_bytes(os.extsep)
+    ext = os.extsep if os.path.supports_unicode_filenames else \
+        force_bytes(os.extsep)
 
     drive_sep = ul(":") if os.path.supports_unicode_filenames else b":"
     """always set to ':'
