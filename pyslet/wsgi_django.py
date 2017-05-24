@@ -138,7 +138,7 @@ class DjangoApp(wsgi.WSGIApp):
             DjangoApp.configured = True
         else:
             logging.warning("DjangoApp: setup ignored for %s" % cls.__name__)
-            cls.template_dirs = template_paths
+            cls.template_dirs = [t.path for t in template_paths]
 
     def redirect_page(self, context, location, code=303):
         """Provides a template driven redirection page

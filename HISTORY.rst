@@ -53,6 +53,11 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20170524*
+
+LTI sample app regression issue fixed following wsgi changes for #72
+
+
 *Build 20170522*
 
 #72 Travis CI tests failing in Python 3.5
