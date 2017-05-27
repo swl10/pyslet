@@ -50,6 +50,45 @@ class CommonExpressionTests(unittest.TestCase):
         e = p.parse_common_expression()
         return e.evaluate(None)
 
+    def test_confusing_identifiers(self):
+        p = odata.Parser("X and binary and Binary")
+        try:
+            e = p.parse_common_expression()
+        except ValueError as e:
+            self.fail("X/binary as identifier: %s" % str(e))
+        p = odata.Parser("datetime and DateTime")
+        try:
+            e = p.parse_common_expression()
+        except ValueError as e:
+            self.fail("datetime as identifier: %s" % str(e))
+        p = odata.Parser("guid and Guid")
+        try:
+            e = p.parse_common_expression()
+        except ValueError as e:
+            self.fail("guid as identifier: %s" % str(e))
+        p = odata.Parser("time and Time")
+        try:
+            e = p.parse_common_expression()
+        except ValueError as e:
+            self.fail("time as identifier: %s" % str(e))
+        p = odata.Parser("datetimeoffset and DateTimeOffset")
+        try:
+            e = p.parse_common_expression()
+        except ValueError as e:
+            self.fail("datetimeoffset as identifier: %s" % str(e))
+        # we don't support these types but just in case...
+        p = odata.Parser("geography and Geography")
+        try:
+            e = p.parse_common_expression()
+        except ValueError as e:
+            self.fail("geography as identifier: %s" % str(e))
+        # we don't support these types but just in case...
+        p = odata.Parser("geometry and Geometry")
+        try:
+            e = p.parse_common_expression()
+        except ValueError as e:
+            self.fail("geometry as identifier: %s" % str(e))
+
     def test_evaluate_common_expression(self):
         # cursory check:
         # a commonExpression must represent any and all supported common
@@ -701,6 +740,12 @@ class CommonExpressionTests(unittest.TestCase):
             pass
         value = self.evaluate_common("not null")
         self.assertTrue(value.value is None, "Expected NULL")
+        value = self.evaluate_common("(not true)")
+        self.assertTrue(value.value is False, "Expected False")
+        value = self.evaluate_common("(not false) and true")
+        self.assertTrue(value.value is True, "Expected True")
+        value = self.evaluate_common("(not false) and false")
+        self.assertTrue(value.value is False, "Expected False")
 
     def test_evaluate_is_of_expression(self):
         """...the data service MAY<24> support some or all of the common

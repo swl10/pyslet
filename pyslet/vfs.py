@@ -15,6 +15,7 @@ from .py2 import (
     builtins,
     byte,
     dict_keys,
+    force_bytes,
     is_unicode,
     is_text,
     join_bytes,
@@ -299,7 +300,7 @@ class VirtualFilePath(SortableMixin):
 
         Returns a tuple of (root, ext) where root is an instance
         containing just the root file path and ext is a string of
-        characters (or bytes) representing the orignal path's extension.
+        *characters* representing the orignal path's extension.
 
         For details see Python's os.path.splitext."""
         if self.is_dirlike():
@@ -960,16 +961,20 @@ class OSFilePath(VirtualFilePath):
     codec = sys.getfilesystemencoding()
 
     #: copied from os.sep
-    sep = os.sep
+    sep = os.sep if os.path.supports_unicode_filenames else \
+        force_bytes(os.sep)
 
     #: copied from os.curdir
-    curdir = os.curdir
+    curdir = os.curdir if os.path.supports_unicode_filenames else \
+        force_bytes(os.curdir)
 
     #: copied from os.pardir
-    pardir = os.pardir
+    pardir = os.pardir if os.path.supports_unicode_filenames else \
+        force_bytes(os.pardir)
 
     #: copied from os.extsep
-    ext = os.extsep
+    ext = os.extsep if os.path.supports_unicode_filenames else \
+        force_bytes(os.extsep)
 
     drive_sep = ul(":") if os.path.supports_unicode_filenames else b":"
     """always set to ':'
@@ -1096,11 +1101,11 @@ stat_pass = os.stat
 open_pass = builtins.open
 
 
-def stat_hook(path):
+def stat_hook(path, *args, **kwargs):
     if isinstance(path, VirtualFilePath):
         return path.stat()
     else:
-        return stat_pass(path)
+        return stat_pass(path, *args, **kwargs)
 
 
 def open_hook(path, *params):

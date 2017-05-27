@@ -79,7 +79,7 @@ class JinjaApp(wsgi.WSGIApp):
         template_paths = []
         for t in template_urls:
             template_paths.append(cls.resolve_setup_path(t))
-        cls.template_dirs = template_paths
+        cls.template_dirs = [t.path for t in template_paths]
 
     def __init__(self, **kwargs):
         super(JinjaApp, self).__init__(**kwargs)
