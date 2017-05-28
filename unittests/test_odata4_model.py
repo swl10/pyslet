@@ -43,7 +43,7 @@ class NamedTests(unittest.TestCase):
     def test_constructor(self):
         n = odata.Named()
         self.assertTrue(n.name is None)
-        self.assertTrue(n.namespace is None)
+        self.assertTrue(n.nametable is None)
         try:
             n.get_qualified_name()
             self.fail("check_name implemented")
@@ -52,6 +52,18 @@ class NamedTests(unittest.TestCase):
 
 
 class NameTableTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+
+        class MockNamespace(odata.NameTable):
+
+            def check_name(self, name):
+                pass
+
+            def check_value(self, value):
+                pass
+
+        self.mock_ns = MockNamespace()
 
     def test_constructor(self):
         ns = odata.NameTable()
@@ -82,7 +94,7 @@ class NameTableTests(unittest.TestCase):
         bad = ("45", "M'", "M;", "M=", "M\\", "M.N", "M+", "M-", "M*",
                "M/", "M<", "M>", "M=", "M~", "M!", "M@", "M#", "M%",
                "M^", "M&", "M|", "M`", "M?", "M(", "M)", "M[", "M]",
-               "M,", "M;", "M*", "M.",
+               "M,", "M;", "M*", "M.M", "",
                "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
                "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
                "LongOne_LongOne_L")
@@ -92,58 +104,6 @@ class NameTableTests(unittest.TestCase):
         for s in bad:
             self.assertFalse(odata.NameTable.is_simple_identifier(s),
                              "%s failed" % repr(s))
-
-
-class NamespaceTests(unittest.TestCase):
-
-    def setUp(self):        # noqa
-
-        class MockNamespace(odata.Namespace):
-
-            def check_name(self, name):
-                pass
-
-            def check_value(self, value):
-                pass
-
-        self.mock_ns = MockNamespace()
-
-    def test_constructor(self):
-        ns = odata.Namespace()
-        self.assertTrue(len(ns) == 0, "no definitions on init")
-        # abstract class...
-        n = odata.Named()
-        try:
-            ns["Hello"] = n
-            self.fail("check_type failed")
-        except NotImplementedError:
-            self.fail("check_name or check_value not implemented")
-        except TypeError:
-            # correct, that was a good identifier but a bad value
-            pass
-        try:
-            n.declare(ns)
-            self.fail("Named.declare with no name")
-        except NotImplementedError:
-            self.fail("check_name or check_value not implemented")
-        except TypeError:
-            self.fail("check_name with None")
-        except ValueError:
-            pass
-        n.name = "+Hello"
-        try:
-            n.declare(ns)
-            self.fail("Named.declare with bad name")
-        except ValueError:
-            pass
-        n.name = "_Hello"
-        try:
-            n.declare(ns)
-            self.fail("Named.declare with good name (bad type)")
-        except ValueError:
-            self.fail("Good name raised ValueError")
-        except TypeError:
-            pass
 
     def test_set_item(self):
         x = object()
@@ -221,11 +181,172 @@ class NamespaceTests(unittest.TestCase):
         self.mock_ns.close()
         self.assertTrue(c.call_count == 2)
 
+
+class NamespaceTests(unittest.TestCase):
+
+    def test_constructor(self):
+        ns = odata.Namespace()
+        self.assertTrue(len(ns) == 0, "no definitions on init")
+        # abstract class...
+        n = odata.Named()
+        try:
+            ns["Hello"] = n
+            self.fail("check_type failed")
+        except NotImplementedError:
+            self.fail("check_name or check_value not implemented")
+        except TypeError:
+            # correct, that was a good identifier but a bad value
+            pass
+        try:
+            n.declare(ns)
+            self.fail("Named.declare with no name")
+        except NotImplementedError:
+            self.fail("check_name or check_value not implemented")
+        except TypeError:
+            self.fail("check_name with None")
+        except ValueError:
+            pass
+        n.name = "+Hello"
+        try:
+            n.declare(ns)
+            self.fail("Named.declare with bad name")
+        except ValueError:
+            pass
+        n.name = "_Hello"
+        try:
+            n.declare(ns)
+            self.fail("Named.declare with good name (bad type)")
+        except ValueError:
+            self.fail("Good name raised ValueError")
+        except TypeError:
+            pass
+
     def test_edm(self):
         # There should be a default Edm namespace
         self.assertTrue(isinstance(odata.edm, odata.Namespace))
         self.assertTrue(odata.edm.name == "Edm")
         self.assertTrue(len(odata.edm) == 36, sorted(odata.edm.keys()))
+
+
+class EntityModelTests(unittest.TestCase):
+
+    def test_constructor(self):
+        em = odata.EntityModel()
+        self.assertTrue(len(em) == 0, "No schemas")
+
+    def test_namespace(self):
+        em = odata.EntityModel()
+        good = ("Edm",
+                "Some.Vocabulary.V1",
+                "Hello",
+                ul(b"Caf\xe9"),
+                ul(b'\xe9faC'),
+                u8(b'\xe3\x80\x87h'),
+                "_Hello",
+                "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+                "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+                "LongOne_LongOne_",
+                "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+                "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+                "LongOne_LongOne_."
+                "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+                "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+                "LongOne_LongOne_",
+                "M.M"
+                )
+        bad = ("45", "M'", "M;", "M=", "M\\", "M.", "M+", "M-", "M*",
+               "M/", "M<", "M>", "M=", "M~", "M!", "M@", "M#", "M%",
+               "M^", "M&", "M|", "M`", "M?", "M(", "M)", "M[", "M]",
+               "M,", "M;", "M*", "", None,
+               "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+               "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+               "LongOne_LongOne_L."
+               "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+               "LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_LongOne_"
+               "LongOne_LongOne_"
+               )
+        for s in good:
+            try:
+                em.check_name(s)
+            except ValueError:
+                self.fail("%s failed" % repr(s))
+        for s in bad:
+            try:
+                em.check_name(s)
+                self.fail("%s failed" % repr(s))
+            except ValueError:
+                pass
+
+    def test_entitymodel_declare(self):
+        em = odata.EntityModel()
+        em.name = "Test"
+        # abstract class...
+        ns = odata.Namespace()
+        # This should work fine!
+        em["Hello"] = ns
+        self.assertTrue(ns.name is None, "Alias declaration OK")
+        self.assertTrue(em["Hello"] is ns, "Can look-up value")
+        try:
+            em["+Hello"] = ns
+            self.fail("check_name failed")
+        except ValueError:
+            pass
+        ns.name = "Some.Vocabulary."
+        try:
+            ns.declare(em)
+            self.fail("Namespace.declare with bad name")
+        except ValueError:
+            pass
+        ns.name = "Some.Vocabulary.V1"
+        ns.declare(em)
+        self.assertTrue(len(em) == 2)
+        self.assertTrue(ns.nametable is not None, "nametable set on declare")
+        self.assertTrue(ns.nametable() is em, "nametable callable (weakref)")
+
+    def test_tell(self):
+        class Callback(object):
+
+            def __init__(self):
+                self.call_count = 0
+                self.last_value = None
+
+            def __call__(self, value):
+                self.call_count += 1
+                self.last_value = value
+
+        c = Callback()
+        self.assertTrue(c.call_count == 0)
+        em = odata.EntityModel()
+        nsx = odata.Namespace()
+        nsx.name = "_X"
+        nsy = odata.Namespace()
+        nsy.name = "_Y"
+        x = odata.NominalType()
+        x.name = "x"
+        x.declare(nsx)
+        y = odata.NominalType()
+        y.name = "y"
+        y.declare(nsy)
+        z = odata.NominalType()
+        z.name = "z"
+        nsx.declare(em)
+        em.qualified_tell("_X.x", c)
+        self.assertTrue(c.call_count == 1)
+        self.assertTrue(c.last_value is x)
+        em.qualified_tell("_X.z", c)
+        em.qualified_tell("_Y.y", c)
+        em.qualified_tell("_Y.ciao", c)
+        self.assertTrue(c.call_count == 1)
+        self.assertTrue(c.last_value is x)
+        z.declare(nsx)
+        self.assertTrue(c.call_count == 2)
+        self.assertTrue(c.last_value is z)
+        nsy.declare(em)
+        self.assertTrue(c.call_count == 3)
+        self.assertTrue(c.last_value is y)
+        em.close()
+        self.assertTrue(c.call_count == 4)
+        self.assertTrue(c.last_value is None)
 
 
 class NominalTypeTests(unittest.TestCase):
@@ -262,8 +383,8 @@ class NominalTypeTests(unittest.TestCase):
         n.name = "_Hello"
         n.declare(ns)
         self.assertTrue(len(ns) == 2)
-        self.assertTrue(n.namespace is not None, "namespace set on declare")
-        self.assertTrue(n.namespace() is ns, "namespace callable (weakref)")
+        self.assertTrue(n.nametable is not None, "nametable set on declare")
+        self.assertTrue(n.nametable() is ns, "nametable callable (weakref)")
 
     def test_abstract_types(self):
         # Edm namespace should contain the abstract types

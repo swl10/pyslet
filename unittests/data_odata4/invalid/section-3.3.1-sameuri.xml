@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:Reference Uri="../odata.pyslet.org.xml">
+        <edmx:Include Namespace="odata.pyslet.org"/>
+    </edmx:Reference>
+    <!-- two references MUST NOT specify the same URI -->
+    <edmx:Reference Uri="../odata.pyslet.org.xml">
+        <edmx:Include Namespace="types.pyslet.org"/>
+    </edmx:Reference>
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org"/>
+    </edmx:DataServices>
+</edmx:Edmx>

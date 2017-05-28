@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:Reference Uri="../odata.pyslet.org.xml">
+        <edmx:Include Namespace="odata.pyslet.org" Alias="pyslet"/>
+    </edmx:Reference>
+    <!-- a document MUST NOT specify an alias with the same name as an
+    in-scope namespace -->
+    <edmx:DataServices>
+        <Schema Namespace="pyslet"/>
+    </edmx:DataServices>
+</edmx:Edmx>

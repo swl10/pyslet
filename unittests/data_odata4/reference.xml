@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx"
+    Version="4.0">
+    <edmx:Reference Uri="include1.xml">
+        <edmx:Include Namespace="Org.OData.Capabilities.V1" />
+    </edmx:Reference>
+    <edmx:Reference Uri="include2.xml">
+        <edmx:Include Alias="UI" Namespace="org.example.Display" />
+    </edmx:Reference>
+    <edmx:DataServices>
+    </edmx:DataServices>
+</edmx:Edmx>

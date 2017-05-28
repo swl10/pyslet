@@ -32,6 +32,7 @@ import test_odata2_memds
 import test_odata2_metadata
 import test_odata2_server
 import test_odata2_sqlds
+import test_odata4_metadata
 import test_odata4_model
 import test_pep8
 import test_py2
@@ -78,6 +79,7 @@ all_tests.addTest(test_odata2_memds.suite())
 all_tests.addTest(test_odata2_metadata.suite())
 all_tests.addTest(test_odata2_server.suite())
 all_tests.addTest(test_odata2_sqlds.suite())
+all_tests.addTest(test_odata4_metadata.suite())
 all_tests.addTest(test_odata4_model.suite())
 all_tests.addTest(test_pep8.suite())
 all_tests.addTest(test_py2.suite())

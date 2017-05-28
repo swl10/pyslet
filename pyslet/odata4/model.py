@@ -63,34 +63,33 @@ class Named(object):
     def __init__(self):
         #: the name of this object
         self.name = None
-        #: a weak reference to the namespace in which this object is
+        #: a weak reference to the nametable in which this object is
         #: declared (or None if the object has not been declared)
-        self.namespace = None
+        self.nametable = None
 
     def get_qualified_name(self):
         """Returns the qualified name of this object
 
-        Includes any namespace prefix (does not use namespace
-        aliases)."""
+        Includes any nametable prefix (does not use aliases)."""
         raise NotImplementedError
 
-    def declare(self, namespace):
-        """Declares this object in the given namespace"""
-        if self.name in namespace:
+    def declare(self, nametable):
+        """Declares this object in the given nametable"""
+        if self.name in nametable:
             raise DuplicateNameError(
-                "%s already declared in %s" % (self.name, namespace.name))
-        namespace[self.name] = self
-        self.namespace = weakref.ref(namespace)
+                "%s already declared in %s" % (self.name, nametable.name))
+        nametable[self.name] = self
+        self.nametable = weakref.ref(nametable)
 
 
-class NameTable(collections.MutableMapping):
+class NameTable(Named, collections.MutableMapping):
 
     """Abstract class for managing tables of declared names
 
     Derived types behave like dictionaries (using Python's built-in
-    MultableMapping abstract base class (ABC).  Names can only be
-    defined once, they cannot be undefined and their corresponding valus
-    cannot be modified.
+    MutableMapping abstract base class (ABC).  Names can only be defined
+    once, they cannot be undefined and their corresponding valus cannot
+    be modified.
 
     To declare a value simply assign it as you would in a normal
     dictionary.  Names (keys) and values are checked using abstract
@@ -109,8 +108,6 @@ class NameTable(collections.MutableMapping):
         #: whether or not this name table is closed
         self.closed = False
         super(NameTable, self).__init__()
-        #: the name of this namespace
-        self.name = None
         self._callbacks = {}
         self._close_callbacks = []
 
@@ -177,6 +174,11 @@ class NameTable(collections.MutableMapping):
         self._close_callbacks.append(callback)
 
     def close(self):
+        """closes this name table
+
+        Any failed notification callbacks registered will :meth:`tell`
+        are triggered followed by all notification callbacks registered
+        with :meth:`tell_close`."""
         self.closed = True
         for callback_list in self._callbacks.values():
             for c in callback_list:
@@ -185,6 +187,15 @@ class NameTable(collections.MutableMapping):
         for c in self._close_callbacks:
             c()
 
+    def reopen(self):
+        """reopens this name table
+
+        Not usually called but allows further definitions to be added to
+        a closed name table."""
+        self.closed = False
+        self._callbacks = {}
+        self._close_callbacks = []
+
     simple_identifier_re = xsi.RegularExpression(
         "[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]{0,}")
 
@@ -192,6 +203,16 @@ class NameTable(collections.MutableMapping):
     def is_simple_identifier(cls, identifier):
         return cls.simple_identifier_re.match(identifier) and \
             len(identifier) <= 128
+
+    @classmethod
+    def is_namespace(cls, identifier):
+        parts = identifier.split(".")
+        if not parts:
+            return False
+        for id in parts:
+            if not cls.is_simple_identifier(id):
+                return False
+        return True
 
 
 class Namespace(NameTable):
@@ -302,6 +323,71 @@ class Namespace(NameTable):
             geometry.value_type = vtype
             geometry.declare(cls.edm)
         return cls.edm
+
+
+class EntityModel(NameTable):
+
+    """An EntityModel is a name table of OData Schemas"""
+    def __init__(self):
+        super(EntityModel, self).__init__()
+
+    def check_name(self, name):
+        """EntityModels contain schemas that define namespaces
+
+        The syntax for namespace names is a dot-separated list
+        of simple identifiers."""
+        if name is None:
+            raise ValueError("unnamed schema")
+        if not self.is_namespace(name):
+            raise ValueError("%s is not a valid Namespace name" % name)
+
+    def check_value(self, value):
+        """The following types may be declared in an EntityModel:
+
+        Namespace
+            Any Namespace type."""
+        if not isinstance(value, Namespace):
+            raise TypeError(
+                "%s can't be declared in %s" %
+                (repr(value),
+                 "<EntityModel>" if self.name is None else self.name))
+
+    def qualified_tell(self, qname, callback):
+        """Deferred qualified name lookup.
+
+        Equivalent to::
+
+            callback(self[qname])
+
+        *except* that if qname is not yet defined it waits until qname is
+        defined before calling the callback.  If the name table is
+        closed without name then the callback is called passing None."""
+        parts = qname.split(".")
+        if len(parts) < 2:
+            raise ValueError("qualified_tell requires a qualified name")
+        nsname = parts[0]
+        name = ".".join(parts[1:])
+        ns = self.get(nsname, None)
+        if ns is None:
+            self.tell(nsname, self._qcallback(name, callback))
+        else:
+            ns.tell(name, callback)
+
+    def _qcallback(self, name, callback):
+
+        def _qcallback_closure(ns):
+            if ns is None:
+                callback(None)
+            else:
+                ns.tell(name, callback)
+
+        return _qcallback_closure
+
+    def close(self):
+        """Closing the entity model closes all namespaces it contains"""
+        for ns in self.values():
+            ns.close()
+        super(EntityModel, self).close()
 
 
 class NominalType(Named):
