@@ -79,6 +79,29 @@ def validate_qualified_name(value):
             "Can't parse Qualified Name from :%s" % repr(value))
 
 
+def type_name_from_str(value):
+    """A type name is a qualified name or a Collection()
+
+    We represent these names as a tuple of (qualified name, flag) where
+    the flag is True if this is a collection."""
+    if value.startswith("Collection(") and value.endswith(")"):
+        qname = value[11:-1]
+        collection = True
+    else:
+        qname = value
+        collection = False
+    validate_qualified_name(qname)
+    return qname, collection
+
+
+def type_name_to_str(value):
+    qname, collection = value
+    if collection:
+        return "Collection(%s)" % qname
+    else:
+        return qname
+
+
 def path_from_str(value):
     # TODO
     return value
@@ -99,16 +122,6 @@ def path_expression_to_str(path):
     return path
 
 
-def type_from_str(value):
-    # TODO
-    return value
-
-
-def type_to_str(t):
-    # TODO
-    return t
-
-
 class CSDLElement(xmlns.XMLNSElement):
     XMLCONTENT = xml.ElementType.ElementContent
 
@@ -118,6 +131,20 @@ class CSDLElement(xmlns.XMLNSElement):
             return edmx.entity_model
         else:
             return None
+
+    def get_schema(self):
+        schema = self.find_parent(Schema)
+        if schema:
+            return schema.get_schema()
+        else:
+            return None
+
+    def get_annotation_target(self):
+        """Returns a model element suitale for annotation
+
+        Overridden in classes that create model elements that can be
+        annotated.  The default implementation returns None."""
+        return None
 
     def validate(self):
         """All CSDL elements support validation.
@@ -183,7 +210,7 @@ class EntityContainerContent(object):
     pass
 
 
-class AnnotedNavigationContent(object):
+class AnnotatedNavigationContent(object):
 
     """Abstract mixin class for elements allowed in EntitySet/Singleton"""
     pass
@@ -243,7 +270,7 @@ class GExpression(CSDLElement):
 
 class Annotation(
         ActionFunctionContent,
-        AnnotedNavigationContent,
+        AnnotatedNavigationContent,
         ComplexTypeContent,
         EntityContainerContent,
         EntityTypeContent,
@@ -257,22 +284,48 @@ class Annotation(
     """Represents the Annotation element."""
     XMLNAME = (EDM_NAMESPACE, 'Annotation')
 
-    XMLATTR_Target = ('term', validate_qualified_name, None)
+    XMLATTR_Term = ('term_qname', validate_qualified_name, None)
     XMLATTR_Qualifier = ('qualifier', validate_simple_identifier, None)
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
         # no need to initialise the *Content classes
+        self.term_qname = None
         self.term = None
         self.qualifier = None
         self.Annotation = []
-        self.GExpression = []
+        self.GExpression = None
+
+    def content_changed(self):
+        if self.term_qname is None:
+            raise odata.ModelError("Annotation.Term is required")
+        # we will need to look up this term
+        em = self.get_entity_model()
+        if em is not None:
+            em.qualified_tell(self.term_qname, self._set_term)
+
+    def _set_term(self, term):
+        self.term = term
+        if term is not None and self.parent:
+            target = self.parent.get_annotation_target()
+            if target is not None:
+                a = odata.QualifiedAnnotation()
+                a.name = self.qualifier
+                a.term = term
+                try:
+                    target.annotate(a)
+                except odata.DuplicateNameError:
+                    raise odata.DuplicateNameError(
+                        "P3 4.6 A model element MUST NOT specify more than "
+                        "one annotation for a given combination of Term and "
+                        "Qualifier attributes (%s:%s)" %
+                        (self.term_qname, self.qualifier))
 
     def get_children(self):
         for a in self.Annotation:
             yield a
-        for e in self.GExpression:
-            yield e
+        if self.GExpression:
+            yield self.GExpression
         for child in super(CSDLElement, self).get_children():
             yield child
 
@@ -442,7 +495,7 @@ class Apply(AnnotatedExpression):
 
 class CastOrIsOfExpression(FacetsMixin, AnnotatedExpression):
 
-    XMLATTR_Type = ('type_name', type_from_str, type_to_str)
+    XMLATTR_Type = ('type_name', type_name_from_str, type_name_to_str)
 
     def __init__(self, parent):
         AnnotatedExpression.__init__(self, parent)
@@ -611,7 +664,7 @@ class Edmx(CSDLElement):
         # close the entity model
         if not self.DataServices._closed:
             raise odata.ModelError(
-                "3.1 [edmx:Edmx] MUST contain a single direct child "
+                "P3 3.1 [edmx:Edmx] MUST contain a single direct child "
                 "edmx:DataServices element")
         self.entity_model.close()
 
@@ -625,12 +678,12 @@ class Edmx(CSDLElement):
     def validate(self):
         if self.version != "4.0":
             raise odata.ModelError(
-                "3.1.1 The edmx:Edmx element MUST provide the value "
+                "P3 3.1.1 The edmx:Edmx element MUST provide the value "
                 "4.0 for the Version attribute")
         if not self.entity_model.closed:
             raise odata.ModelError(
                 "EntitModel is not closed\n"
-                "3.1 [edmx.Edmx] MUST contain a single direct child "
+                "P3 3.1 [edmx.Edmx] MUST contain a single direct child "
                 "edmx:DataServices element")
         super(Edmx, self).validate()
         been_there = set()
@@ -638,7 +691,7 @@ class Edmx(CSDLElement):
             uri = str(r.resolve_uri(r.uri))
             if uri in been_there:
                 raise odata.ModelError(
-                    "3.3.1 two references MUST NOT specify the same URI")
+                    "P3 3.3.1 two references MUST NOT specify the same URI")
             been_there.add(uri)
 
 
@@ -653,7 +706,7 @@ class DataServices(CSDLElement):
     def content_changed(self):
         if self._closed:
             raise odata.ModelError(
-                "3.1 [edmx:Edmx] MUST contain a single direct child "
+                "P3 3.1 [edmx:Edmx] MUST contain a single direct child "
                 "edmx:DataServices element")
         else:
             self._closed = True
@@ -667,7 +720,7 @@ class DataServices(CSDLElement):
     def validate(self):
         if not self.Schema:
             raise odata.ModelError(
-                "3.2 The edmx:DataServices element MUST contain "
+                "P3 3.2 The edmx:DataServices element MUST contain "
                 "one or more edm:Schema elements")
         super(DataServices, self).validate()
 
@@ -686,7 +739,7 @@ class Reference(CSDLElement):
     def get_ref_model(self):
         if self.uri is None:
             raise odata.ModelError(
-                "3.3.1 The edmx:Reference element MUST specify a "
+                "P3 3.3.1 The edmx:Reference element MUST specify a "
                 "Uri attribute")
         if self.ref_model is None:
             ref = self.resolve_uri(self.uri)
@@ -709,7 +762,7 @@ class Reference(CSDLElement):
                 got_child = True
         if not got_child:
             raise odata.ModelError(
-                "3.3 The edmx:Reference element MUST contain at least one "
+                "P3 3.3 The edmx:Reference element MUST contain at least one "
                 "edmx:Include or edmx:IncludeAnnotations child element")
         super(Reference, self).validate()
 
@@ -728,14 +781,17 @@ class Include(ReferenceContent, CSDLElement):
     def content_changed(self):
         if self.namespace is None:
             raise odata.ModelError(
-                "3.4.1 The edmx:Include element MUST provide a Namespace "
+                "P3 3.4.1 The edmx:Include element MUST provide a Namespace "
                 "value for the Namespace attribute")
         ref_model = self.parent.get_ref_model()
         try:
             ns = ref_model[self.namespace]
+            # check that ns is not just referenced in ref_model
+            if not ns.is_owned_by(ref_model):
+                raise KeyError
         except KeyError:
             raise odata.ModelError(
-                "3.4.1 The value MUST match the namespace of a schema "
+                "P3 3.4.1 The value MUST match the namespace of a schema "
                 "defined in the referenced CSDL document (%s)" %
                 self.namespace)
         em = self.get_entity_model()
@@ -744,19 +800,20 @@ class Include(ReferenceContent, CSDLElement):
                 if self.alias is not None:
                     if self.alias in RESERVED_ALIASES:
                         raise odata.ModelError(
-                            "3.4.2 The Alias attribute MUST NOT use the "
-                            "reserved values")
+                            "P3 3.4.2 The Alias attribute MUST NOT use the "
+                            "reserved value %s" % self.alias)
                     em[self.alias] = ns
             except odata.DuplicateNameError:
                 raise odata.DuplicateNameError(
-                    "3.4.2 a document MUST NOT assign the same alias to "
+                    "P3 3.4.2 a document MUST NOT assign the same alias to "
                     "different namespaces and MUST NOT specify an alias "
                     "with the same name as an in-scope namespace")
             try:
-                ns.declare(em)
+                # cf Schema, we do not change the owner of ns here
+                em[ns.name] = ns
             except odata.DuplicateNameError:
                 raise odata.DuplicateNameError(
-                    "3.4.1 The same namespace MUST NOT be included "
+                    "P3 3.4.1 The same namespace MUST NOT be included "
                     "more than once")
 
 
@@ -773,6 +830,12 @@ class IncludeAnnotations(ReferenceContent, CSDLElement):
         self.qualifier = None
         self.target_namespace = None
 
+    def content_changed(self):
+        if self.term_namespace is None:
+            raise odata.ModelError(
+                "P3 3.5.1 An edmx:IncludeAnnotations element MUST provide "
+                "a Namespace value for the TermNamespace attribute")
+
 
 class Schema(CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'Schema')
@@ -785,31 +848,56 @@ class Schema(CSDLElement):
         self.namespace = None
         self.alias = None
         self.SchemaContent = []
-        self._ns = None
+        self._schema = None
 
-    def get_schema_ns(self):
+    def get_schema(self):
         if self.namespace is None:
-            raise odata.ModelError("expected Namespace in Schema")
-        if self._ns is None:
-            self._ns = odata.Namespace()
-            self._ns.name = self.namespace
+            raise odata.ModelError(
+                "P3 5.1.1 All edm:Schema elements MUST have a namespace "
+                "defined through a Namespace attribute")
+        if self.namespace in RESERVED_ALIASES:
+            raise odata.ModelError(
+                "P3 5.1.1 The Namespace attribute MUST NOT use the reserved "
+                "values Edm, odata, System, or Transient")
+        if self._schema is None:
+            self._schema = odata.Schema()
+            self._schema.name = self.namespace
             em = self.get_entity_model()
-            self._ns.declare(em)
+            # crucially we use declare to set the owner of the namespace
+            # cf Include that merely makes a reference.
+            try:
+                self._schema.declare(em)
+            except odata.DuplicateNameError:
+                raise odata.ModelError(
+                    "P3 5.1.1 [the Namespace attribute] MUST be unique "
+                    "within the document")
             if self.alias is not None:
                 if self.alias in RESERVED_ALIASES:
                     raise odata.ModelError(
-                        "The Alias attribute MUST NOT use the "
-                        "reserved values")
+                        "P3 5.1.2 The Alias attribute MUST NOT use the "
+                        "reserved value %s" % self.alias)
                 try:
-                    em[self.alias] = self._ns
+                    em[self.alias] = self._schema
                 except odata.DuplicateNameError:
-                    raise odata.ModelError(
-                        "3.4.2 a document MUST NOT specify an alias with "
-                        "the same name as an in-scope namespace")
-        return self._ns
+                    # what are we colliding with?
+                    dup = em[self.alias]
+                    if self.alias == dup.name:
+                        raise odata.ModelError(
+                            "P3 3.4.2 a document MUST NOT specify an alias "
+                            "with the same name as an in-scope namespace")
+                    else:
+                        # dup is an alias itself
+                        raise odata.ModelError(
+                            "P3 5.1.2 all edmx:Include and edm:Schema "
+                            "elements within a document MUST specify "
+                            "different values for the Alias attribute")
+        return self._schema
+
+    def get_annotation_target(self):
+        return self.get_schema()
 
     def content_changed(self):
-        ns = self.get_schema_ns()
+        ns = self.get_schema()
         # close this namespace
         ns.close()
 
@@ -822,22 +910,63 @@ class Schema(CSDLElement):
 
 class Type(CSDLElement):
 
-    XMLATTR_Name = ('base_type', validate_simple_identifier, None)
+    XMLATTR_Name = ('name', validate_simple_identifier, None)
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
         self.name = None
+        self._type_obj = None
+
+    def get_type(self):
+        if self._type_obj is None:
+            if self.name is None:
+                raise ValueError("Unnamed type (%s)" % repr(self))
+            self._type_obj = self.get_type_obj()
+            self._type_obj.name = self.name
+            s = self.get_schema()
+            if s is not None:
+                try:
+                    self._type_obj.declare(s)
+                except odata.DuplicateNameError:
+                    raise odata.DuplicateNameError(
+                        "P3 4.1 The qualified type name MUST be unique within "
+                        "a model; P3 5.1 the Name attribute MUST be unique "
+                        "across all direct child elements of a schema;")
+        return self._type_obj
+
+    def content_changed(self):
+        # trigger declaration
+        self.get_type()
 
 
 class DerivableType(Type):
 
-    XMLATTR_BaseType = ('base_type', validate_qualified_name, None)
+    XMLATTR_BaseType = ('base_type_name', validate_qualified_name, None)
     XMLATTR_Abstract = ('abstract', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self, parent):
         Type.__init__(self, parent)
-        self.base_type = None
+        self.base_type_name = None
         self.abstract = False
+
+    def content_changed(self):
+        self.get_type()
+        if self.base_type_name is not None:
+            em = self.get_entity_model()
+            em.qualified_tell(
+                self.base_type_name, self._set_base_type_callback)
+
+    def _set_base_type_callback(self, base_type_obj):
+        if base_type_obj is None:
+            raise odata.ModelError("%s is not declared" % self.base_type_name)
+        t = self.get_type()
+        try:
+            t.set_base(base_type_obj)
+        except odata.DuplicateNameError:
+            raise odata.DuplicateNameError(
+                "P3 6.1.1 The name of the structural property MUST be "
+                "unique within the set of structural and navigation "
+                "properties of ... its base types")
 
 
 class ComplexType(SchemaContent, DerivableType):
@@ -849,6 +978,9 @@ class ComplexType(SchemaContent, DerivableType):
         DerivableType.__init__(self, parent)
         self.open_type = False
         self.ComplexTypeContent = []
+
+    def get_type_obj(self):
+        return odata.ComplexType()
 
     def get_children(self):
         for cc in self.ComplexTypeContent:
@@ -869,6 +1001,9 @@ class EntityType(SchemaContent, DerivableType):
         self.open_type = False
         self.has_stream = False
         self.EntityTypeContent = []
+
+    def get_type_obj(self):
+        return odata.EntityType()
 
     def get_children(self):
         for sc in self.EntityTypeContent:
@@ -913,8 +1048,17 @@ class PropertyFacetsMixin(object):
 
 class CommonPropertyMixin(FacetsMixin, PropertyFacetsMixin):
 
+    """Mixin class for common property attributes
+
+    The specification and schema disagree here.  In the schema the
+    Nullable property defaults to true but the specification goes to
+    some lengths to explain that a missing Nullable property on a
+    property with a Collection type means that it is unknown whether or
+    not the collection may contain null values.  We go with the
+    specification here and handle the defaulting of Nullable (for
+    non-Collection properties) later."""
     XMLATTR_Name = ('name', validate_simple_identifier, None)
-    XMLATTR_Type = ('type_name', type_from_str, type_to_str)
+    XMLATTR_Type = ('type_name', type_name_from_str, type_name_to_str)
     XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_DefaultValue = 'default_value'
 
@@ -923,23 +1067,71 @@ class CommonPropertyMixin(FacetsMixin, PropertyFacetsMixin):
         PropertyFacetsMixin.__init__(self)
         self.name = None
         self.type_name = None
-        self.nullable = True
+        self.type_obj = None
+        self.nullable = None
         self.default_value = None
 
 
-class Property(EntityTypeContent, CommonPropertyMixin, Annotated):
+class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
+               Annotated):
     XMLNAME = (EDM_NAMESPACE, 'Property')
 
     def __init__(self, parent):
         Annotated.__init__(self, parent)
         CommonPropertyMixin.__init__(self)
 
+    def content_changed(self):
+        if self.name is None:
+            raise odata.ModelError(
+                "P3 6.1.1 Missing or invalid Name for Property %s" % self.name)
+        if self.type_name is None:
+            raise odata.ModelError(
+                "P3 6.1; P3 6.1.2 Missing or invalid Type for Property %s" %
+                self.name)
+        em = self.get_entity_model()
+        qname, collection = self.type_name
+        if self.nullable is None and not collection:
+            # default nullability
+            self.nullable = True
+        # look-up the type_name, will trigger declaration now or later
+        em.qualified_tell(qname, self._set_type_callback)
 
-class NavigationProperty(EntityTypeContent, CSDLElement):
+    def _set_type_callback(self, type_obj):
+        # set self.type_obj
+        if type_obj is None:
+            raise odata.ModelError("%s is not declared" % self.type_name)
+        if not isinstance(type_obj, (odata.PrimitiveType, odata.ComplexType,
+                                     odata.EnumerationType)):
+            raise odata.ModelError(
+                "P3 6.1.2 The value of the Type attribute MUST be the "
+                "QualifiedName of a primitive type, complex type, or "
+                "enumeration type in scope, or a collection of one of these")
+        qname, collection = self.type_name
+        if collection:
+            type_obj = odata.CollectionType(type_obj)
+        p = odata.Property(type_def=type_obj)
+        p.name = self.name
+        p.nullable = self.nullable
+        t = self.get_type_context()
+        if t is not None:
+            try:
+                p.declare(t)
+            except odata.DuplicateNameError:
+                raise odata.DuplicateNameError(
+                    "P3 6.1 A property MUST specify a unique name (%s:%s)" %
+                    (t.name, self.name))
+
+    def get_type_context(self):
+        if not isinstance(self.parent, (ComplexType, EntityType)):
+            return None
+        return self.parent.get_type()
+
+
+class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'NavigationProperty')
 
     XMLATTR_Name = ('name', validate_simple_identifier, None)
-    XMLATTR_Type = ('type_name', type_from_str, type_to_str)
+    XMLATTR_Type = ('type_name', type_name_from_str, type_name_to_str)
     XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_Partner = ('partner', path_from_str, path_to_str)
     XMLATTR_ContainsTarget = ('contains_target', xsi.boolean_from_str,
@@ -989,22 +1181,56 @@ class TypeDefinition(SchemaContent, FacetsMixin, PropertyFacetsMixin,
                      Annotated):
     XMLNAME = (EDM_NAMESPACE, 'TypeDefinition')
 
-    XMLATTR_Name = ('name', validate_simple_identifier, None)
+    XMLATTR_Name = ('type_name', validate_simple_identifier, None)
     XMLATTR_UnderlyingType = ('underlying_type', validate_qualified_name, None)
 
     def __init__(self, parent):
         Annotated.__init__(self, parent)
         FacetsMixin.__init__(self)
         PropertyFacetsMixin.__init__(self)
-        self.name = None
+        self.type_name = None
+        self._type_obj = None
         self.underlying_type = None     # must be a primitive type
+
+    def get_type(self):
+        if self._type_obj is None:
+            if self.name is None:
+                raise ValueError("Unnamed type")
+            self._type_obj = self.get_type_obj()
+            self._type_obj.name = self.name
+            s = self.get_schema()
+            if s is not None:
+                try:
+                    self._type_obj.declare(s)
+                except odata.DuplicateNameError:
+                    raise odata.DuplicateNameError(
+                        "P3 4.1 The qualified type name MUST be unique within "
+                        "a model; P3 5.1 the Name attribute MUST be unique "
+                        "across all direct child elements of a schema;")
+        return self._type_obj
+
+    def content_changed(self):
+        if self.type_name is None:
+            raise ValueError("Unamed type")
+        self._type_obj = odata.PrimitiveType()
+        self._type_obj.name = self.type_name
+        s = self.get_schema()
+        if s is not None:
+            try:
+                self._type_obj.declare(s)
+            except odata.DuplicateNameError:
+                raise odata.DuplicateNameError(
+                    "P3 4.1 The qualified type name MUST be unique within "
+                    "a model; P3 5.1 the Name attribute MUST be unique "
+                    "across all direct child elements of a schema;")
 
 
 class EnumType(SchemaContent, Type):
     XMLNAME = (EDM_NAMESPACE, 'EnumType')
 
     XMLATTR_IsFlags = ('is_flags', xsi.boolean_from_str, xsi.boolean_to_str)
-    XMLATTR_UnderlyingType = ('underlying_type', validate_qualified_name, None)
+    XMLATTR_UnderlyingType = ('underlying_type', type_name_from_str,
+                              type_name_to_str)
 
     def __init__(self, parent):
         Type.__init__(self, parent)
@@ -1017,6 +1243,9 @@ class EnumType(SchemaContent, Type):
             yield etc
         for child in super(EnumType, self).get_children():
             yield child
+
+    def get_type_obj(self):
+        return odata.EnumerationType()
 
 
 class Member(EnumTypeContent, Annotated):
@@ -1035,7 +1264,7 @@ class Member(EnumTypeContent, Annotated):
 class ReturnType(FacetsMixin, Annotated):
     XMLNAME = (EDM_NAMESPACE, 'ReturnType')
 
-    XMLATTR_Type = ('type_name', type_from_str, type_to_str)
+    XMLATTR_Type = ('type_name', type_name_from_str, type_name_to_str)
     XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self, parent):
@@ -1065,7 +1294,7 @@ class Parameter(ActionFunctionContent, FacetsMixin, Annotated):
     XMLNAME = (EDM_NAMESPACE, 'Parameter')
 
     XMLATTR_Name = ('name', validate_simple_identifier, None)
-    XMLATTR_Type = ('type_name', type_from_str, type_to_str)
+    XMLATTR_Type = ('type_name', type_name_from_str, type_name_to_str)
     XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self, parent):
@@ -1112,7 +1341,7 @@ class Term(SchemaContent, FacetsMixin, Annotated):
     XMLNAME = (EDM_NAMESPACE, 'Term')
 
     XMLATTR_Name = ('name', validate_simple_identifier, None)
-    XMLATTR_Type = ('type_name', type_from_str, type_to_str)
+    XMLATTR_Type = ('type_name', type_name_from_str, type_name_to_str)
     XMLATTR_BaseTerm = ('base_term', validate_qualified_name, None)
     XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_DefaultValue = 'default_value'
@@ -1126,6 +1355,14 @@ class Term(SchemaContent, FacetsMixin, Annotated):
         self.nullable = None
         self.default_value = None
         self.applies_to = None
+
+    def content_changed(self):
+        s = self.get_schema()
+        if s is not None:
+            # declare this Term within the namespace
+            term = odata.Term()
+            term.name = self.name
+            term.declare(s)
 
 
 class Annotations(SchemaContent, Annotated):
@@ -1164,10 +1401,10 @@ class AnnotatedNavigation(CSDLElement):
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
-        self.AnnotedNavigationContent = []
+        self.AnnotatedNavigationContent = []
 
     def get_children(self):
-        for ec in self.AnnotedNavigationContent:
+        for ec in self.AnnotatedNavigationContent:
             yield ec
         for child in super(EntityContainer, self).get_children():
             yield child
@@ -1189,7 +1426,7 @@ class EntitySet(EntityContainerContent, AnnotatedNavigation):
         self.include_in_service_document = True
 
 
-class NavigationPropertyBinding(AnnotedNavigationContent, CSDLElement):
+class NavigationPropertyBinding(AnnotatedNavigationContent, CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'NavigationPropertyBinding')
 
     XMLATTR_Path = ('path', path_from_str, path_to_str)
@@ -1239,7 +1476,7 @@ class FunctionImport(EntityContainerContent, ActionFunctionImportMixin,
         self.function = None
 
 
-class Singleton(EntityContainerContent, AnnotedNavigationContent):
+class Singleton(EntityContainerContent, AnnotatedNavigation):
     XMLNAME = (EDM_NAMESPACE, 'Singleton')
 
     XMLATTR_Name = ('name', validate_simple_identifier, None)
@@ -1282,7 +1519,7 @@ class CSDLDocument(xmlns.XMLNSDocument):
         parsing."""
         if self.root is None or not isinstance(self.root, Edmx):
             raise odata.ModelError(
-                "3.1 A CSDL document MUST contain a root edmx:Edmx element")
+                "P3 3.1 A CSDL document MUST contain a root edmx:Edmx element")
         self.root.validate()
 
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <!-- The Alias attribute MUST NOT use the reserved values Edm,
+        odata, System, or Transient -->
+        <Schema Namespace="test.pyslet.org" Alias="System"/>
+    </edmx:DataServices>
+</edmx:Edmx>

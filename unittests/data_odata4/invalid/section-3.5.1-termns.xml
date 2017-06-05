@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx"
+    Version="4.0">
+    <edmx:Reference Uri="../vocab.xml">
+        <!-- An edmx:IncludeAnnotations element MUST provide a Namespace
+        value for the TermNamespace attribute -->
+        <edmx:IncludeAnnotations />
+    </edmx:Reference>
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org"/>
+    </edmx:DataServices>
+</edmx:Edmx>

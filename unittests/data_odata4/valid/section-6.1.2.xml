@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <!-- The value of the Type attribute MUST be the
+            QualifiedName of a primitive type, complex type, or
+            enumeration type in scope, or a collection of one of these
+            types -->
+            <TypeDefinition Name="WeightType" UnderlyingType="Edm.Int32" />
+            <ComplexType Name="Measurement">
+                <Property Name="Dimension" Type="Edm.String"
+                    Nullable="false" MaxLength="50"
+                    DefaultValue="Unspecified" />
+                <Property Name="Length" Type="Edm.Decimal"
+                    Nullable="false" Precision="18" Scale="2" />
+            </ComplexType>
+            <EnumType Name="MaterialType" UnderlyingType="Edm.Int32">
+                <Member Name="Metal" Value="1" />
+                <Member Name="Wood" Value="2" />
+                <Member Name="Fabric" Value="3" />
+            </EnumType>            
+            <ComplexType Name="Specification">
+                <Property Name="Size" Type="test.pyslet.org.Measurement"
+                    Nullable="false" />
+                <Property Name="Material" Type="test.pyslet.org.MaterialType"
+                    Nullable="false" />             
+                <Property Name="Weight" Type="test.pyslet.org.WeightType"
+                    Nullable="false" />
+            </ComplexType>
+            <ComplexType Name="Specifications">
+                <Property Name="Size"
+                    Type="Collection(test.pyslet.org.Measurement)"
+                    Nullable="false" />
+                <Property Name="Material"
+                    Type="Collection(test.pyslet.org.MaterialType)"
+                    Nullable="false" />             
+                <Property Name="Weight"
+                    Type="Collection(test.pyslet.org.WeightType)"
+                    Nullable="false" />
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
+
+

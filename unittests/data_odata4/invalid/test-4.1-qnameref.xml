@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx"
+    Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <ComplexType Name="Address">
+            </ComplexType>
+            <EntityType Name="Contact">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32"/>
+                <!-- When referring to nominal types, the reference MUST
+                use [a] Namespace-qualified name [or a] Alias-qualified
+                name -->
+                <Property Name="Home" Type="Address"/>
+                <Property Name="Work" Type="Address"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

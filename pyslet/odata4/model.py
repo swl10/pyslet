@@ -42,6 +42,12 @@ class DuplicateNameError(ModelError):
     pass
 
 
+class ObjectRedclared(ModelError):
+
+    """Raised by an attempt to redeclare an object"""
+    pass
+
+
 class UndeclarationError(ModelError):
 
     """Raised when an attempt is made to undeclare a name in a name
@@ -64,8 +70,20 @@ class Named(object):
         #: the name of this object
         self.name = None
         #: a weak reference to the nametable in which this object is
-        #: declared (or None if the object has not been declared)
+        #: first declared (or None if the object has not been declared)
         self.nametable = None
+        #: the qualified name of this object (if declared)
+        self.qname = None
+
+    def is_owned_by(self, nametable):
+        """Checks the owning nametable
+
+        A named object may appear in multiple nametables (e.g., a Schema
+        may be defined in one entity model (the owner) but referenced in
+        other entity models.  This method returns True if the nametable
+        argument is the nametable in which the named object was declared
+        (see :meth:`declare`)."""
+        return self.nametable() is nametable
 
     def get_qualified_name(self):
         """Returns the qualified name of this object
@@ -74,12 +92,32 @@ class Named(object):
         raise NotImplementedError
 
     def declare(self, nametable):
-        """Declares this object in the given nametable"""
-        if self.name in nametable:
-            raise DuplicateNameError(
-                "%s already declared in %s" % (self.name, nametable.name))
-        nametable[self.name] = self
-        self.nametable = weakref.ref(nametable)
+        """Declares this object in the given nametable
+
+        Model elements can only be declared once.  Aliases are handled
+        by directly assigning them in the associated NameTable, e.g.::
+
+            schema.name = "my.long.schema.namespace"
+            schema.declare(model)
+            model['mlsn'] = schema      # assign the alias 'mlsn' """
+        if self.nametable is None:
+            if self.name is None:
+                raise ValueError("%s declared with no name" % repr(self))
+            # this declaration may trigger callbacks so we need to set
+            # the owner now, even if the declaration later fails.
+            self.nametable = weakref.ref(nametable)
+            if nametable.name:
+                self.qname = "%s.%s" % (nametable.name, self.name)
+            try:
+                nametable[self.name] = self
+            except:
+                self.nametable = None
+                self.qname = None
+                raise
+        else:
+            raise ObjectRedclared(
+                "%s already declared" %
+                (self.name if self.qname is None else self.qname))
 
 
 class NameTable(Named, collections.MutableMapping):
@@ -178,13 +216,18 @@ class NameTable(Named, collections.MutableMapping):
 
         Any failed notification callbacks registered will :meth:`tell`
         are triggered followed by all notification callbacks registered
-        with :meth:`tell_close`."""
+        with :meth:`tell_close`.  It is safe to call close on a name
+        table that is already closed (callbacks are only ever called the
+        first time)."""
         self.closed = True
-        for callback_list in self._callbacks.values():
+        cbs = list(self._callbacks.values())
+        self._callbacks = {}
+        for callback_list in cbs:
             for c in callback_list:
                 c(None)
-            self._callbacks = None
-        for c in self._close_callbacks:
+        cbs = self._close_callbacks
+        self._close_callbacks = []
+        for c in cbs:
             c()
 
     def reopen(self):
@@ -214,10 +257,33 @@ class NameTable(Named, collections.MutableMapping):
                 return False
         return True
 
+    @classmethod
+    def is_qualified_name(cls, identifier):
+        parts = identifier.split(".")
+        if len(parts) < 2:
+            return False
+        for id in parts:
+            if not cls.is_simple_identifier(id):
+                return False
+        return True
 
-class Namespace(NameTable):
 
-    """A namespace is a container for OData schema definitions."""
+class Annotatable(object):
+
+    """Abstract class for model elements that can be annotated"""
+
+    def __init__(self):
+        super(Annotatable, self).__init__()
+        self.annotations = Annotations()
+
+    def annotate(self, qa):
+        """Annotate this element with a qualified annotation"""
+        qa.qualified_declare(self.annotations)
+
+
+class Schema(Annotatable, NameTable):
+
+    """A Schema is a container for OData model definitions."""
 
     def check_name(self, name):
         """Checks the validity of 'name' against SimpleIdentifier
@@ -234,31 +300,31 @@ class Namespace(NameTable):
             raise ValueError("%s is not a valid SimpleIdentifier" % name)
 
     def check_value(self, value):
-        """The following types may be declared in a Namespace:
+        """The following types may be declared in a Schema:
 
         NominalType
             Any named type."""
-        if not isinstance(value, NominalType):
+        if not isinstance(value, (Term, NominalType)):
             raise TypeError(
                 "%s can't be declared in %s" %
                 (repr(value),
-                 "<Namespace>" if self.name is None else self.name))
+                 "<Schema>" if self.name is None else self.name))
 
     edm = None
-    """The Edm namespace.
+    """The Edm schema.
 
-    This namespace contains the base type definitions of the built-in
+    This schema contains the base type definitions of the built-in
     types in the Edm namespace."""
 
     @classmethod
     def edm_init(cls):
-        """Creates and returns the built-in Edm Namespace"""
-        cls.edm = Namespace()
+        """Creates and returns the built-in Edm schema"""
+        cls.edm = Schema()
         cls.edm.name = "Edm"
         primitive_base = PrimitiveType()
         primitive_base.name = "PrimitiveType"
         primitive_base.declare(cls.edm)
-        complex_base = NominalType()
+        complex_base = ComplexType()
         complex_base.name = "ComplexType"
         complex_base.declare(cls.edm)
         entity_base = NominalType()
@@ -282,12 +348,12 @@ class Namespace(NameTable):
                             ('String', StringValue),
                             ('TimeOfDay', TimeOfDayValue)):
             primitive = PrimitiveType()
-            primitive.parent = primitive_base
+            primitive.set_base(primitive_base)
             primitive.name = name
             primitive.value_type = vtype
             primitive.declare(cls.edm)
         geography_base = PrimitiveType()
-        geography_base.parent = primitive_base
+        geography_base.set_base(primitive_base)
         geography_base.name = "Geography"
         geography_base.declare(cls.edm)
         for name, vtype in (('GeographyPoint', GeographyPointValue),
@@ -300,12 +366,12 @@ class Namespace(NameTable):
                              GeographyMultiPolygonValue),
                             ('GeographyCollection', GeographyCollectionValue)):
             geography = PrimitiveType()
-            geography.parent = geography_base
+            geography.set_base(geography_base)
             geography.name = name
             geography.value_type = vtype
             geography.declare(cls.edm)
         geometry_base = PrimitiveType()
-        geometry_base.parent = primitive_base
+        geometry_base.set_base(primitive_base)
         geometry_base.name = "Geometry"
         geometry_base.declare(cls.edm)
         for name, vtype in (('GeometryPoint', GeometryPointValue),
@@ -318,11 +384,95 @@ class Namespace(NameTable):
                              GeometryMultiPolygonValue),
                             ('GeometryCollection', GeometryCollectionValue)):
             geometry = PrimitiveType()
-            geometry.parent = geometry_base
+            geometry.set_base(geometry_base)
             geometry.name = name
             geometry.value_type = vtype
             geometry.declare(cls.edm)
         return cls.edm
+
+
+class QualifiedAnnotation(Named):
+
+    """A Qualified Annotation (applied to a model element)
+
+    The name of this object is the qualifier used or *an empty string*
+    if the annotation was applied without a qualifier."""
+
+    def __init__(self):
+        Named.__init__(self)
+        #: the term that defines this annotation
+        self.term = None
+
+    def qualified_declare(self, annotations):
+        """Declares this annotation in an Annotations instance."""
+        if self.name is None:
+            self.name = ""
+        if self.term.qname is None:
+            raise ValueError("%s: associated Term was not declared" %
+                             self.term.name)
+        a = annotations.get(self.term.qname, None)
+        if a is None:
+            a = Annotation()
+            a.name = self.term.qname
+            a.declare(annotations)
+        self.declare(a)
+
+
+class Annotation(NameTable):
+
+    """An Annotation (applied to a model element).
+
+    The name of this object is the qualified name of the term that
+    defines this annotation.  The Annnotation is itself a name table
+    comprising the :class:`QualifiedAnnotation` instances."""
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against simple identifier
+
+        Raises ValueError if the name is not valid (or is None).
+        Empty string is allowed, as it represents no qualifier."""
+        if name is None:
+            raise ValueError("None is not a valid qualifier (use '')")
+        elif name and not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid qualifier" % name)
+
+    def check_value(self, value):
+        if not isinstance(value, QualifiedAnnotation):
+            raise TypeError(
+                "QualifiedAnnotation required, found %s" % repr(value))
+
+
+class Annotations(NameTable):
+
+    """The set of Annotations applied to a model element.
+
+    A name table that contains :class:`Annotation` instances keyed on
+    the qualified name of the defining term."""
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against QualifiedName
+
+        Raises ValueError if the name is not valid (or is None)."""
+        if name is None:
+            raise ValueError("Annotation with no name")
+        elif not self.is_qualified_name(name):
+            raise ValueError("%s is not a valid qualified name" % name)
+
+    def check_value(self, value):
+        if not isinstance(value, Annotation):
+            raise TypeError(
+                "Annotation required, found %s" % repr(value))
+
+    def qualified_get(self, term, qualifier=None):
+        """Looks up an annotation
+
+        Returns None if no annotation has been declared for the given
+        term (and optional qualifier)."""
+        try:
+            a = self[term]
+            return a['' if qualifier is None else qualifier]
+        except KeyError:
+            return None
 
 
 class EntityModel(NameTable):
@@ -330,23 +480,22 @@ class EntityModel(NameTable):
     """An EntityModel is a name table of OData Schemas"""
     def __init__(self):
         super(EntityModel, self).__init__()
+        # all entity models have the built-in Edm namespace in scope
+        self['Edm'] = edm
 
     def check_name(self, name):
         """EntityModels contain schemas that define namespaces
 
-        The syntax for namespace names is a dot-separated list
-        of simple identifiers."""
+        The syntax for a namespace is a dot-separated list of simple
+        identifiers."""
         if name is None:
             raise ValueError("unnamed schema")
         if not self.is_namespace(name):
-            raise ValueError("%s is not a valid Namespace name" % name)
+            raise ValueError("%s is not a valid namespace" % name)
 
     def check_value(self, value):
-        """The following types may be declared in an EntityModel:
-
-        Namespace
-            Any Namespace type."""
-        if not isinstance(value, Namespace):
+        """EntityModels contain Schemas"""
+        if not isinstance(value, Schema):
             raise TypeError(
                 "%s can't be declared in %s" %
                 (repr(value),
@@ -355,18 +504,17 @@ class EntityModel(NameTable):
     def qualified_tell(self, qname, callback):
         """Deferred qualified name lookup.
 
-        Equivalent to::
+        Similar to :meth:`Nametable.tell` except that it waits until
+        both the Schema containing qname is defined *and* the target
+        name is defined within that Schema.
 
-            callback(self[qname])
-
-        *except* that if qname is not yet defined it waits until qname is
-        defined before calling the callback.  If the name table is
-        closed without name then the callback is called passing None."""
+        If the entity model or the indicated Schema is closed without
+        qname being declared then the callback is called passing None."""
         parts = qname.split(".")
         if len(parts) < 2:
             raise ValueError("qualified_tell requires a qualified name")
-        nsname = parts[0]
-        name = ".".join(parts[1:])
+        nsname = ".".join(parts[:-1])
+        name = parts[-1]
         ns = self.get(nsname, None)
         if ns is None:
             self.tell(nsname, self._qcallback(name, callback))
@@ -396,7 +544,7 @@ class NominalType(Named):
 
     In Pyslet, all defined types are represented in the model by
     *instances* of NominalType.  Nominal types all have a :attr:`name`
-    and typically a parent type.
+    and typically a base type.
 
     NominalType instances are callable, returning a :class:`Value` instance
     of an appropriate class for representing a value of the type.  The
@@ -404,13 +552,24 @@ class NominalType(Named):
 
     def __init__(self):
         super(NominalType, self).__init__()
-        #: the parent type (may be None for built-in abstract types
-        self.parent = None
+        #: the base type (may be None for built-in abstract types)
+        self.base = None
         # the class used for values of this type
         self.value_type = Value
 
     def __call__(self):
-        return self.value_type(self)
+        return self.value_type(type_def=self)
+
+    def set_base(self, base):
+        """Sets the base type of this type
+
+        base
+            Must be of the correct type to be the base of the current
+            instance.
+
+        The default implementation raises NotImplementedError because
+        NominalType itself is an abstract class."""
+        raise NotImplementedError
 
 
 class PrimitiveType(NominalType):
@@ -418,7 +577,7 @@ class PrimitiveType(NominalType):
     """A Primitive Type declaration
 
     Instances represent primitive type delcarations, such as those made
-    by a TypeDefinition.  The built-in Edm Namespace contains instances
+    by a TypeDefinition.  The built-in Edm Schema contains instances
     representing the base primitie types themselves."""
 
     def __init__(self):
@@ -430,8 +589,110 @@ class PrimitiveType(NominalType):
         self.scale = None
         self.srid = None
 
-    def __call__(self):
-        return self.value_type()
+    def set_base(self, base):
+        """Sets the base type of this type
+
+        The base must also be a PrimitiveType."""
+        if not isinstance(base, PrimitiveType):
+            raise TypeError(
+                "%s is not a suitable base for %s" % (base.qname, self.name))
+        self.base = base
+
+
+class StructuredType(NameTable, NominalType):
+
+    """A Structured Type declaration"""
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against simple identifier"""
+        if name is None:
+            raise ValueError("unnamed property")
+        elif not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid SimpleIdentifier" % name)
+
+    def check_value(self, value):
+        if not isinstance(value, (Property, NavigationProperty)):
+            raise TypeError(
+                "Property or NavigationProperty required, found %s" %
+                repr(value))
+
+    def set_base(self, base):
+        """Sets the base type of this type
+
+        When structured types are associated with a base type the
+        properties of the base type are copied."""
+        if not isinstance(base, StructuredType):
+            raise TypeError(
+                "%s is not a suitable base for %s" % (base.qname, self.name))
+        for pname, p in base.items():
+            self[pname] = p
+        self.base = base
+
+
+class CollectionType(NominalType):
+
+    """Collections are treated as types in the model
+
+    In fact, OData does not allow you to declare a named type to be a
+    collection, instead, properties, navigation properties and entity
+    collections define collections in terms of single-valued named types.
+
+    To make implementing the model easier we treat these as private type
+    definitions.  That is, type definitions which are never declared in
+    the associated schema but are used as the type of other elements
+    that are part of the model."""
+
+    def __init__(self, item_type):
+        super(CollectionType, self).__init__()
+        #: the type being collected, we do not allow collections of
+        #: collections
+        self.item_type = item_type
+        self.value_type = CollectionValue
+
+
+class Property(Named):
+
+    """A Property declaration"""
+
+    def __init__(self, type_def):
+        super(Property, self).__init__()
+        #: the type definition for values of this property
+        self.type_def = type_def
+        # by default we're nullable
+        self.nullable = True
+
+
+class NavigationProperty(Named):
+
+    """A NavigationProperty declaration"""
+    pass
+
+
+class ComplexType(StructuredType):
+
+    """A ComplexType declaration"""
+
+    def __init__(self):
+        super(ComplexType, self).__init__()
+        self.value_type = ComplexValue
+
+
+class EntityType(StructuredType):
+
+    """An EntityType declaration"""
+    pass
+
+
+class EnumerationType(NominalType):
+
+    """An EnumerationType declaration"""
+    pass
+
+
+class Term(Named):
+
+    """Represents a defined term in the OData model"""
+    pass
 
 
 class Value(BoolMixin):
@@ -441,7 +702,7 @@ class Value(BoolMixin):
     All values processed by OData classes are reprsented by instances of
     this class.  All values have an associated type definition that
     controls the range of values it can represent (see
-    :class:`NominalType`).
+    :class:`NominalType` and its sub-classes).
 
     Values are mutable so cannot be used as dictionary keys (they are
     not hashable).  They evaluate to True unless they are null, in which
@@ -1333,6 +1594,10 @@ class StringValue(PrimitiveValue):
         else:
             self.value = to_text(value)
 
+    @classmethod
+    def from_str(cls, src):
+        return cls(src)
+
 
 class TimeOfDayValue(PrimitiveValue):
 
@@ -1486,6 +1751,67 @@ class GeometryMultiPolygonValue(GeometryValue):
 class GeometryCollectionValue(GeometryValue):
 
     edm_name = 'GeometryCollection'
+
+
+class CollectionValue(Value):
+
+    """Represents the value of a Collection
+
+    The type_def is required on construction.  There is no default
+    collection type.
+
+    It is important to understand the distinction between the object
+    that represents a value in the OData model and the Python-like
+    object that can be used to access a native representation of that
+    value.
+
+    In the case of primitive types the distinction is made using the
+    :attr:`PrimitiveValue.value` attribute that contains a Python-native
+    value representing the value (or None if the value is a null).  For
+    collections we retain the same sort of distinction in that the
+    CollectionValue object is not blessed with Python's Collection
+    behaviour.  Collection objects must be *opened* in order to obtain
+    such a representation.
+
+    This distinction has important implications for the use of the null
+    test.  A collection value is never null, so it always returns True
+    in simple boolean logic tests even if the collection is empty. On
+    the other hand, the object returned by :meth:`open` behaves like a
+    python Collection object and will evaluate to False if it empty."""
+
+    def __init__(self, type_def):
+        Value.__init__(self, type_def)
+
+    def is_null(self):
+        """CollectionValues are *never* null"""
+        return False
+
+
+class ComplexValue(Value, collections.Mapping):
+
+    """Represents the value of a Complex type
+
+    Instances behave like dictionaries of property values."""
+
+    def __init__(self, type_def=None):
+        if type_def is not None and not isinstance(type_def, ComplexType):
+            raise ModelError("ComplexValue required ComplexType: %s" %
+                             repr(type_def))
+        Value.__init__(self, type_def=edm['ComplexType'] if type_def is None
+                       else type_def)
+        self._value_table = {}
+        # create all the values
+        for name, property in type_def.items():
+            self._value_table[name] = property.type_def()
+
+    def __getitem__(self, key):
+        return self._value_table[key]
+
+    def __iter__(self):
+        return iter(self._value_table)
+
+    def __len__(self):
+        return len(self._value_table)
 
 
 class PrimitiveParser(BasicParser):
@@ -1727,7 +2053,7 @@ class PrimitiveParser(BasicParser):
         return i
 
 
-edm = Namespace.edm_init()
+edm = Schema.edm_init()
 
 
 class DocumentSchemas(NameTable):

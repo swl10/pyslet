@@ -29,8 +29,9 @@ def suite():
     return unittest.TestSuite((
         unittest.makeSuite(NamedTests, 'test'),
         unittest.makeSuite(NameTableTests, 'test'),
-        unittest.makeSuite(NamespaceTests, 'test'),
+        unittest.makeSuite(SchemaTests, 'test'),
         unittest.makeSuite(NominalTypeTests, 'test'),
+        unittest.makeSuite(StructuredTests, 'test'),
         unittest.makeSuite(ValueTests, 'test'),
         unittest.makeSuite(PrimitiveValueTests, 'test'),
         unittest.makeSuite(OperatorTests, 'test'),
@@ -55,7 +56,7 @@ class NameTableTests(unittest.TestCase):
 
     def setUp(self):        # noqa
 
-        class MockNamespace(odata.NameTable):
+        class MockSchema(odata.NameTable):
 
             def check_name(self, name):
                 pass
@@ -63,12 +64,13 @@ class NameTableTests(unittest.TestCase):
             def check_value(self, value):
                 pass
 
-        self.mock_ns = MockNamespace()
+        self.mock_ns = MockSchema()
 
     def test_constructor(self):
         ns = odata.NameTable()
         # abstract class...
         n = odata.Named()
+        n.name = "Hello"
         try:
             ns["Hello"] = n
             self.fail("check_name and check_value implemented")
@@ -182,12 +184,14 @@ class NameTableTests(unittest.TestCase):
         self.assertTrue(c.call_count == 2)
 
 
-class NamespaceTests(unittest.TestCase):
+class SchemaTests(unittest.TestCase):
 
     def test_constructor(self):
-        ns = odata.Namespace()
+        ns = odata.Schema()
         self.assertTrue(len(ns) == 0, "no definitions on init")
-        # abstract class...
+
+    def test_checks(self):
+        ns = odata.Schema()
         n = odata.Named()
         try:
             ns["Hello"] = n
@@ -197,6 +201,7 @@ class NamespaceTests(unittest.TestCase):
         except TypeError:
             # correct, that was a good identifier but a bad value
             pass
+        n = odata.NominalType()
         try:
             n.declare(ns)
             self.fail("Named.declare with no name")
@@ -215,24 +220,186 @@ class NamespaceTests(unittest.TestCase):
         n.name = "_Hello"
         try:
             n.declare(ns)
-            self.fail("Named.declare with good name (bad type)")
         except ValueError:
             self.fail("Good name raised ValueError")
         except TypeError:
+            self.fail("Good name and type raised TypeError")
+        # you can't declare something twice
+        try:
+            n.declare(ns)
+            self.fail("NominalType redeclared (same namespace)")
+        except odata.ObjectRedclared:
+            pass
+        ns2 = odata.Schema()
+        try:
+            n.declare(ns2)
+            self.fail("NominalType redeclared (different namespace)")
+        except odata.ObjectRedclared:
             pass
 
+    def test_qname(self):
+        ns = odata.Schema()
+        n = odata.NominalType()
+        n.name = "Hello"
+        # if the schema has no name, there is no qualified name
+        n.declare(ns)
+        self.assertTrue(n.qname is None)
+        self.assertTrue(n.nametable() is not None)
+        self.assertTrue(n.is_owned_by(ns))
+        # if we delete the schema we should lose the link
+        del ns
+        self.assertTrue(n.nametable is not None)
+        self.assertTrue(n.nametable() is None)
+        # we are still not allowed to redeclare
+        ns2 = odata.Schema()
+        ns2.name = "my.namespace"
+        try:
+            n.declare(ns2)
+            self.fail("NominalType redeclared (after ns del)")
+        except odata.ObjectRedclared:
+            pass
+        n = odata.NominalType()
+        n.name = "Hello"
+        n.declare(ns2)
+        self.assertTrue(n.qname == "my.namespace.Hello")
+
     def test_edm(self):
-        # There should be a default Edm namespace
-        self.assertTrue(isinstance(odata.edm, odata.Namespace))
+        # There should be a default Edm Schema
+        self.assertTrue(isinstance(odata.edm, odata.Schema))
         self.assertTrue(odata.edm.name == "Edm")
         self.assertTrue(len(odata.edm) == 36, sorted(odata.edm.keys()))
+
+
+class AnnotationsTests(unittest.TestCase):
+
+    def test_constructors(self):
+        atable = odata.Annotations()
+        self.assertTrue(len(atable) == 0, "No annotations initially")
+        a = odata.Annotation()
+        # annotation is itself a nametable keyed on qualifier
+        self.assertTrue(len(a) == 0, "No qualified annotations initially")
+        self.assertTrue(a.name is None)     # the qualified name of the term
+        qa = odata.QualifiedAnnotation()
+        self.assertTrue(qa.name is None)    # the (optional) qualifier
+        self.assertTrue(qa.term is None)    # the defining term
+
+    def test_qualified_checks(self):
+        a = odata.Annotation()
+        # name must be a qualifier (simple identifier), type is
+        # QualifiedAnnotation
+        qa = odata.NominalType()
+        try:
+            a["Tablet"] = qa
+            self.fail("check_type failed")
+        except NotImplementedError:
+            self.fail("check_name or check_value not implemented")
+        except TypeError:
+            # correct, that was a good identifier but a bad value
+            pass
+        qa = odata.QualifiedAnnotation()
+        try:
+            qa.declare(a)
+            self.fail("QualifiedAnnotation.declare with no name")
+        except NotImplementedError:
+            self.fail("check_name or check_value not implemented")
+        except TypeError:
+            self.fail("check_name with None")
+        except ValueError:
+            pass
+        qa.name = "+Tablet"
+        try:
+            qa.declare(a)
+            self.fail("QualifiedAnnotation.declare with bad name")
+        except ValueError:
+            pass
+        qa.name = "Tablet"
+        try:
+            qa.declare(a)
+        except ValueError:
+            self.fail("Good name raised ValueError")
+        except TypeError:
+            self.fail("Good name and type raised TypeError")
+
+    def test_annotation_checks(self):
+        aa = odata.Annotations()
+        # name must be a qualified name, type is Annotation
+        a = odata.NominalType()
+        try:
+            aa["Vocab.Description"] = a
+            self.fail("check_type failed")
+        except NotImplementedError:
+            self.fail("check_name or check_value not implemented")
+        except TypeError:
+            # correct, that was a good identifier but a bad value
+            pass
+        a = odata.Annotation()
+        try:
+            a.declare(aa)
+            self.fail("Annotation.declare with no name")
+        except NotImplementedError:
+            self.fail("check_name or check_value not implemented")
+        except TypeError:
+            self.fail("check_name with None")
+        except ValueError:
+            pass
+        a.name = "Description"
+        try:
+            a.declare(aa)
+            self.fail("Annotation.declare with bad name")
+        except ValueError:
+            pass
+        a.name = "Vocab.Description"
+        try:
+            a.declare(aa)
+        except ValueError:
+            self.fail("Good name raised ValueError")
+        except TypeError:
+            self.fail("Good name and type raised TypeError")
+
+    def test_declare(self):
+        term = odata.Term()
+        term.name = "Description"
+        # mock declaration in the "Vocab" namespace
+        term.qname = "Vocab.Description"
+        aa = odata.Annotations()
+        # check that we can apply a qualified term directly
+        qa = odata.QualifiedAnnotation()
+        qa.term = term
+        qa.name = "Tablet"
+        qa.qualified_declare(aa)
+        self.assertTrue(len(aa) == 1)
+        self.assertTrue(len(aa['Vocab.Description']) == 1)
+        self.assertTrue(aa['Vocab.Description']['Tablet'] is qa)
+        # an unqualified name goes in with an empty string qualifier
+        uqa = odata.QualifiedAnnotation()
+        uqa.term = term
+        uqa.name = None     # automatically declared as ""
+        uqa.qualified_declare(aa)
+        self.assertTrue(len(aa) == 1)
+        self.assertTrue(len(aa['Vocab.Description']) == 2)
+        self.assertTrue(aa['Vocab.Description'][''] is uqa)
+        # you can't declare a qualified name twice
+        dqa = odata.QualifiedAnnotation()
+        dqa.name = "Tablet"
+        dqa.term = term
+        try:
+            dqa.qualified_declare(aa)
+            self.fail("Duplicate qualified annotation")
+        except odata.DuplicateNameError:
+            pass
+        # test the lookup
+        self.assertTrue(len(aa['Vocab.Description']) == 2)
+        self.assertTrue(aa.qualified_get('Vocab.Description') is uqa)
+        self.assertTrue(aa.qualified_get('Vocab.Description', 'Tablet') is qa)
+        self.assertTrue(aa.qualified_get('Vocab.Description', 'Phone') is None)
 
 
 class EntityModelTests(unittest.TestCase):
 
     def test_constructor(self):
         em = odata.EntityModel()
-        self.assertTrue(len(em) == 0, "No schemas")
+        self.assertTrue(len(em) == 1, "Predefined Edm schema")
+        self.assertTrue("Edm" in em)
 
     def test_namespace(self):
         em = odata.EntityModel()
@@ -281,7 +448,7 @@ class EntityModelTests(unittest.TestCase):
         em = odata.EntityModel()
         em.name = "Test"
         # abstract class...
-        ns = odata.Namespace()
+        ns = odata.Schema()
         # This should work fine!
         em["Hello"] = ns
         self.assertTrue(ns.name is None, "Alias declaration OK")
@@ -294,12 +461,12 @@ class EntityModelTests(unittest.TestCase):
         ns.name = "Some.Vocabulary."
         try:
             ns.declare(em)
-            self.fail("Namespace.declare with bad name")
+            self.fail("Schema.declare with bad name")
         except ValueError:
             pass
         ns.name = "Some.Vocabulary.V1"
         ns.declare(em)
-        self.assertTrue(len(em) == 2)
+        self.assertTrue(len(em) == 3)
         self.assertTrue(ns.nametable is not None, "nametable set on declare")
         self.assertTrue(ns.nametable() is em, "nametable callable (weakref)")
 
@@ -317,9 +484,9 @@ class EntityModelTests(unittest.TestCase):
         c = Callback()
         self.assertTrue(c.call_count == 0)
         em = odata.EntityModel()
-        nsx = odata.Namespace()
-        nsx.name = "_X"
-        nsy = odata.Namespace()
+        nsx = odata.Schema()
+        nsx.name = "com.example._X"
+        nsy = odata.Schema()
         nsy.name = "_Y"
         x = odata.NominalType()
         x.name = "x"
@@ -330,10 +497,10 @@ class EntityModelTests(unittest.TestCase):
         z = odata.NominalType()
         z.name = "z"
         nsx.declare(em)
-        em.qualified_tell("_X.x", c)
+        em.qualified_tell("com.example._X.x", c)
         self.assertTrue(c.call_count == 1)
         self.assertTrue(c.last_value is x)
-        em.qualified_tell("_X.z", c)
+        em.qualified_tell("com.example._X.z", c)
         em.qualified_tell("_Y.y", c)
         em.qualified_tell("_Y.ciao", c)
         self.assertTrue(c.call_count == 1)
@@ -353,7 +520,7 @@ class NominalTypeTests(unittest.TestCase):
 
     def test_constructor(self):
         n = odata.NominalType()
-        self.assertTrue(n.parent is None)
+        self.assertTrue(n.base is None)
         # callable, returns a null of type n
         v = n()
         self.assertTrue(isinstance(v, odata.Value))
@@ -361,7 +528,7 @@ class NominalTypeTests(unittest.TestCase):
         self.assertTrue(v.is_null())
 
     def test_namespace_declare(self):
-        ns = odata.Namespace()
+        ns = odata.Schema()
         ns.name = "Test"
         # abstract class...
         n = odata.NominalType()
@@ -402,6 +569,71 @@ class NominalTypeTests(unittest.TestCase):
         self.assertTrue(t3.name == 'EntityType')
         self.assertTrue(t1 is not t3)
         self.assertTrue(t2 is not t3)
+
+
+class StructuredTests(unittest.TestCase):
+
+    def test_constructors(self):
+        # structured types are composed of structural properties they
+        # are themselves name tables!
+        t = odata.StructuredType()
+        # abstract class
+        self.assertTrue(isinstance(t, odata.NominalType),
+                        "structured types are nominal types")
+        self.assertTrue(isinstance(t, odata.NameTable),
+                        "structured types define scope")
+        it = odata.PrimitiveType()
+        p = odata.Property(it)
+        self.assertTrue(isinstance(p, odata.Named), "properties are nameable")
+
+    def test_declare(self):
+        t = odata.StructuredType()
+        # they require properties with simple identifier names
+        n = odata.NominalType()
+        n.name = "Dimension"
+        try:
+            n.declare(t)
+            self.fail("NominalType declared in StructuredType")
+        except TypeError:
+            pass
+        it = odata.PrimitiveType()
+        p = odata.Property(it)
+        p.name = "Max.Dimension"
+        try:
+            p.declare(t)
+            self.fail("Property declared with bad name")
+        except ValueError:
+            pass
+        p.name = "Dimension"
+        p.declare(t)
+        np = odata.NavigationProperty()
+        np.name = "Related"
+        np.declare(t)
+        self.assertTrue(t["Dimension"] is p)
+        self.assertTrue(t["Related"] is np)
+
+
+class CollectionTests(unittest.TestCase):
+
+    def test_constructor(self):
+        # collection types are collection wrappers for some other
+        # primitive, complex or enumeration type.
+        it = odata.PrimitiveType()
+        t = odata.CollectionType(it)
+        self.assertTrue(isinstance(t, odata.NominalType),
+                        "Collection types are nominal types")
+        self.assertTrue(t.item_type is it,
+                        "Collection types must have an item type")
+
+    def test_value(self):
+        it = odata.PrimitiveType()
+        t = odata.CollectionType(it)
+        # types are callable to obtain values
+        v = t()
+        self.assertTrue(isinstance(v, odata.CollectionValue))
+        # never null
+        self.assertTrue(v)
+        self.assertFalse(v.is_null())
 
 
 class ValueTests(unittest.TestCase):

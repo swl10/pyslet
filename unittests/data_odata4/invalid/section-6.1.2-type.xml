@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <ComplexType Name="Measurement">
+                <Property Name="Dimension" Type="Edm.String"
+                    Nullable="false" MaxLength="50"
+                    DefaultValue="Unspecified" />
+                <!-- The edm:Property element MUST include a Type
+                attribute. -->
+                <Property Name="Length"
+                    Nullable="false" Precision="18" Scale="2" />
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx"
+    Version="4.0">
+    <edmx:Reference Uri="../vocab.xml">
+        <edmx:Include Alias="Vocab" Namespace="vocab.pyslet.org" />
+    </edmx:Reference>
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <!-- A model element MUST NOT specify more than one
+            annotation for a given combination of Term and Qualifier
+            attributes -->
+            <Annotation Term="Vocab.Description" Qualifier="short"
+                String="Just a test"/>
+            <Annotation Term="Vocab.Description" Qualifier="short"
+                String="This Schema is just a test"/>            
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

@@ -108,6 +108,9 @@ class CSDLDocumentTests(unittest.TestCase):
         # none or more Reference elements...
         self.assertTrue(isinstance(e.Reference, list))
         self.assertTrue(len(e.Reference) == 0)
+        # check the entity model is present and open
+        self.assertTrue(isinstance(e.entity_model, odata.EntityModel))
+        self.assertTrue(e.entity_model.closed is False)
 
     def test_data_services(self):
         e = csdl.DataServices(None)
@@ -125,8 +128,17 @@ class CSDLDocumentTests(unittest.TestCase):
         self.assertTrue(len(e.ReferenceContent) == 0, "initially empty")
         # TODO check directly referenced definitions are in the
         # entity_model
-        # TODO check indirectly referenced definitions are not in the
-        # entity_model
+        dpath = TEST_DATA_DIR.join('valid', 'section-3.3-direct.xml')
+        uri = URI.from_virtual_path(dpath)
+        doc = csdl.CSDLDocument(base_uri=uri)
+        doc.read()
+        em = doc.root.entity_model
+        # types.pyslet.org is reference and should be present
+        self.assertTrue("types.pyslet.org" in em)
+        # other namespaces defined or referenced there should not be
+        # present
+        self.assertFalse("odata.pyslet.org" in em)
+        self.assertFalse("simple.pyslet.org" in em)
 
     def test_include(self):
         e = csdl.Include(None)
@@ -143,8 +155,62 @@ class CSDLDocumentTests(unittest.TestCase):
         self.assertTrue(e.term_namespace is None)
         self.assertTrue(e.qualifier is None)
         self.assertTrue(e.target_namespace is None)
-        # An edmx:IncludeAnnotations element MUST provide a Namespace
-        # value for the TermNamespace attribute
+
+    def test_section_4_4(self):
+        # TODO: Edm.Stream, or a type definition whose underlying type
+        # is Edm.Stream, cannot be used in collections or for
+        # non-binding parameters to functions or actions.
+        pass
+
+    def test_section_4_5(self):
+        # TODO: Edm.EntityType cannot be used as the type of a singleton
+        # in an entity container
+        # TODO: Edm.EntityType cannot be used as the type of an entity
+        # set
+        # TODO: Edm.EntityType cannot be the base type of an entity type
+        # or complex type.
+        # TODO: Edm.ComplexType cannot be the base type of an entity
+        # type or complex type
+        # TODO: Edm.PrimitiveType cannot be used as the type of a key
+        # property of an entity type
+        # TODO: Edm.PrimitiveType cannot be used as the underlying type
+        # of a type definition or enumeration type
+        # TODO: Collection(Edm.PrimitiveType) cannot be used as the type
+        # of a property
+        # TODO: Collection(Edm.PrimitiveType) cannot be used as the
+        # return type of a function
+        # TODO: Collection(Edm.ComplexType)) cannot be used as the type
+        # of a property
+        # TODO: Collection(Edm.ComplexType)) cannot be used as the
+        # return type of a function
+        pass
+
+    def test_section_6_2_1(self):
+        # If no value is specified for a property whose Type attribute
+        # does not specify a collection, the Nullable attribute defaults
+        # to true
+        fpath = TEST_DATA_DIR.join('valid', 'section-6.2.1.xml')
+        uri = URI.from_virtual_path(fpath)
+        doc = csdl.CSDLDocument(base_uri=uri)
+        doc.read()
+        em = doc.root.entity_model
+        # Measurement.Dimension should be nullable
+        s = em['test.pyslet.org']
+        p = s['Measurement']['Dimension']
+        self.assertTrue(p.nullable)
+        # If no value is specified for a property whose Type attribute
+        # specifies a collection, the client cannot assume any default
+        # value.
+        # Specifications.Weight has indeterminate nullability
+        p = s['Specifications']['Weight']
+        self.assertTrue(p.nullable is None)
+        # If the edm:Property element contains a Type attribute that
+        # specifies a collection, the property MUST always exist...
+        # The absence of the Nullable attribute means it is unknown
+        # whether the collection can contain null values.
+        ct = s['Specifications']
+        v = ct()
+        self.assertTrue(v['Weight'] is not None, "property exists")
 
     def test_valid_examples(self):
         dpath = TEST_DATA_DIR.join('valid')
