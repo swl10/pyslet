@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <ComplexType Name="MaxTest">
+                <Property Name="DecimalTest" Type="Edm.Decimal"
+                    Precision="6"/>
+                <Property Name="DateTimeOffsetTest"
+                    Type="Edm.DateTimeOffset" Precision="3"/>
+                <Property Name="DurationTest"
+                    Type="Edm.Duration" Precision="3"/>
+                <Property Name="TimeOfDayTest"
+                    Type="Edm.TimeOfDay" Precision="3"/>
+                <Property Name="DecimalUnknown" Type="Edm.Decimal"/>
+                <Property Name="DateTimeOffsetUnknown"
+                    Type="Edm.DateTimeOffset"/>
+                <Property Name="DurationUnknown" Type="Edm.Duration"/>
+                <Property Name="TimeOfDayUnknown" Type="Edm.TimeOfDay"/>
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
+
+

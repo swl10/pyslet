@@ -102,6 +102,42 @@ def type_name_to_str(value):
         return qname
 
 
+def max_from_str(value):
+    """MaxLength can be a positive integer or 'max'
+
+    The schema disagrees with the specification here as it allows
+    non-negative integers but we go with the specification and
+    return 0 for 'max'."""
+    if value == "max":
+        return 0
+    else:
+        return xsi.integer_from_str(value)
+
+
+def max_to_str(value):
+    if value <= 0:
+        return 'max'
+    else:
+        return xsi.integer_to_str(value)
+
+
+def scale_from_str(value):
+    """Scale can be a non-negative integer or 'variable'
+
+    We return -1 'variable'."""
+    if value == "variable":
+        return -1
+    else:
+        return xsi.integer_from_str(value)
+
+
+def scale_to_str(value):
+    if value < 0:
+        return 'variable'
+    else:
+        return xsi.integer_to_str(value)
+
+
 def path_from_str(value):
     # TODO
     return value
@@ -218,16 +254,15 @@ class AnnotatedNavigationContent(object):
 
 class FacetsMixin(object):
 
-    XMLATTR_MaxLength = ('max_length', xsi.integer_from_str,
-                         xsi.integer_to_str)
+    XMLATTR_MaxLength = ('max_length', max_from_str, max_to_str)
     XMLATTR_Precision = ('precision', xsi.integer_from_str, xsi.integer_to_str)
-    XMLATTR_Scale = 'scale'     # 'variable' or non-negative integer
+    XMLATTR_Scale = ('scale', scale_from_str, scale_to_str)
     XMLATTR_SRID = 'srid'       # 'variable' or non-negative integer
 
     def __init__(self):
         self.max_length = None
         self.precision = None
-        self.scale = None
+        self.scale = None           # negative value indicates variable
         self.srid = None
 
 
@@ -1107,6 +1142,20 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
                 "QualifiedName of a primitive type, complex type, or "
                 "enumeration type in scope, or a collection of one of these")
         qname, collection = self.type_name
+        if isinstance(type_obj, odata.PrimitiveType):
+            # add the facets to this type
+            ptype = odata.PrimitiveType()
+            ptype.set_base(type_obj)
+            ptype.set_max_length(self.max_length)
+            try:
+                ptype.set_precision(self.precision, self.scale)
+            except ValueError:
+                raise odata.ModelError(
+                    "P3 6.2.3 For a decimal property [Precision] MUST be "
+                    "a positive integer; P3 6.2.4 the value of the Scale "
+                    "attribute MUST be less than or equal to the value of "
+                    "the Precision attribute")
+            type_obj = ptype
         if collection:
             type_obj = odata.CollectionType(type_obj)
         p = odata.Property(type_def=type_obj)

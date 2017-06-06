@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <ComplexType Name="MaxTest">
+                <!-- The value of the Scale attribute MUST be less than
+                or equal to the value of the Precision attribute -->
+                <Property Name="DecimalTest" Type="Edm.Decimal"
+                    Precision="3" Scale="4"/>
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
+
+

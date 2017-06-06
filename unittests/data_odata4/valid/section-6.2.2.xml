@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <!-- A binary, stream or string property MAY define a
+            positive integer value for the MaxLength facet attribute -->
+            <ComplexType Name="MaxTest">
+                <Property Name="BinaryTest" Type="Edm.Binary" MaxLength="3"/>
+                <Property Name="StringTest" Type="Edm.String" MaxLength="3"/>
+                <Property Name="StreamTest" Type="Edm.Stream" MaxLength="3"/>
+                <Property Name="BinaryMax" Type="Edm.Binary" MaxLength="max"/>
+                <Property Name="StringMax" Type="Edm.String" MaxLength="max"/>
+                <Property Name="StreamMax" Type="Edm.Stream" MaxLength="max"/>
+                <Property Name="BinaryUnknown" Type="Edm.Binary" />
+                <Property Name="StringUnknown" Type="Edm.String" />
+                <Property Name="StreamUnknown" Type="Edm.Stream" />
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
+
+

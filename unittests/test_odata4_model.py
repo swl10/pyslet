@@ -5,7 +5,7 @@ import logging
 import unittest
 import uuid
 
-from decimal import Decimal
+from decimal import Decimal, getcontext
 
 from pyslet.iso8601 import (
     Date,
@@ -31,7 +31,9 @@ def suite():
         unittest.makeSuite(NameTableTests, 'test'),
         unittest.makeSuite(SchemaTests, 'test'),
         unittest.makeSuite(NominalTypeTests, 'test'),
-        unittest.makeSuite(StructuredTests, 'test'),
+        unittest.makeSuite(PrimitiveTypeTests, 'test'),
+        unittest.makeSuite(StructuredTypeTests, 'test'),
+        unittest.makeSuite(CollectionTests, 'test'),
         unittest.makeSuite(ValueTests, 'test'),
         unittest.makeSuite(PrimitiveValueTests, 'test'),
         unittest.makeSuite(OperatorTests, 'test'),
@@ -571,7 +573,335 @@ class NominalTypeTests(unittest.TestCase):
         self.assertTrue(t2 is not t3)
 
 
-class StructuredTests(unittest.TestCase):
+class PrimitiveTypeTests(unittest.TestCase):
+
+    def test_constructor(self):
+        t = odata.PrimitiveType()
+        self.assertTrue(t.base is None, "No base by default")
+        self.assertTrue(t.max_length is None, "No MaxLength by default")
+        # callable, returns a null of PrimitiveValue
+        v = t()
+        self.assertTrue(isinstance(v, odata.PrimitiveValue))
+        self.assertTrue(v.type_def is t)
+        self.assertTrue(v.is_null())
+
+    def test_max_length_binary(self):
+        # For binary or stream properties this is the octet length of
+        # the binary data
+        t = odata.edm['Binary']
+        self.assertTrue(t.max_length is None, "No MaxLength by default")
+        # create a derived class with max_length
+        t1 = odata.PrimitiveType()
+        # should inherit the value_type from t
+        t1.set_base(t)
+        # max_length is None, unknown restriction
+        v = t1()
+        self.assertTrue(isinstance(v, odata.BinaryValue))
+        v.set(b'Hello')
+        # max_length is 3
+        t1.set_max_length(3)
+        v = t1()
+        try:
+            v.set(b'Hello')
+            self.fail("Would truncate")
+        except ValueError:
+            pass
+        v.set(b'Hel')
+        # 0 => max size, treated the same as None in our case
+        t1.set_max_length(0)
+        v = t1()
+        v.set(b'Hello')
+
+    def test_max_length_stream(self):
+        # TODO
+        pass
+
+    def test_max_length_string(self):
+        cafe = ul('Caf\xe9')
+        t = odata.edm['String']
+        self.assertTrue(t.max_length is None, "No MaxLength by default")
+        # create a derived class with max_length
+        t1 = odata.PrimitiveType()
+        # should inherit the value_type from t
+        t1.set_base(t)
+        # max_length is None, unknown restriction
+        v = t1()
+        self.assertTrue(isinstance(v, odata.StringValue))
+        v.set(cafe)
+        # max_length is 3
+        t1.set_max_length(4)
+        v = t1()
+        v.set(cafe)     # OK as character length is 4, utf8 length check
+        t1.set_max_length(3)
+        try:
+            v.set(cafe)
+            self.fail("Would truncate")
+        except ValueError:
+            pass
+        v.set(cafe[1:])
+        # 0 => max size, treated the same as None in our case
+        t1.set_max_length(0)
+        v = t1()
+        v.set(cafe)
+
+    def test_precision_datetimeoffset(self):
+        """For a temporal property the value of this attribute specifies
+        the number of decimal places allowed in the seconds portion of
+        the property's value..."""
+        dt20 = TimePoint.from_str("2017-06-05T20:44:14.12345678901234567890Z")
+        t = odata.edm['DateTimeOffset']
+        self.assertTrue(t.precision == 6, "Default Precision")
+        # create a derived class (does not inherit precision)
+        t1 = odata.PrimitiveType()
+        t1.set_base(t)
+        v = t1()
+        self.assertTrue(isinstance(v, odata.DateTimeOffsetValue))
+        # If no value is specified, the temporal property has a
+        # precision of zero.
+        v.set(dt20)
+        self.assertTrue(v.value == "2017-06-05T20:44:14Z")
+        self.assertFalse(v.value == dt20)
+        t1.set_precision(6)
+        v = t1()
+        v.set(dt20)
+        self.assertTrue(v.value == "2017-06-05T20:44:14.123456Z",
+                        v.value.time.second)
+        self.assertFalse(v.value == dt20)
+        try:
+            t1.set_precision(15)
+            self.fail("Max temporal precision")
+        except ValueError:
+            pass
+        t1.set_precision(12)
+        # max precision is 12
+        v = t1()
+        v.set(dt20)
+        self.assertTrue(v.value == "2017-06-05T20:44:14.123456789012Z")
+        self.assertFalse(v.value == dt20)
+
+    def test_precision_duration(self):
+        d20 = Duration("PT0.12345678901234567890S")
+        t = odata.edm['Duration']
+        self.assertTrue(t.precision == 6, "Default Precision")
+        # create a derived class with precision
+        t1 = odata.PrimitiveType()
+        t1.set_base(t)
+        v = t1()
+        self.assertTrue(isinstance(v, odata.DurationValue))
+        # If no value is specified, the temporal property has a
+        # precision of zero.
+        v.set(d20)
+        self.assertTrue(v.value == "PT0S", str(v.value))
+        self.assertFalse(v.value == d20)
+        t1.set_precision(6)
+        v = t1()
+        v.set(d20)
+        self.assertTrue(v.value == "PT0.123456S")
+        self.assertFalse(v.value == d20)
+        try:
+            t1.set_precision(15)
+            self.fail("Max temporal precision")
+        except ValueError:
+            pass
+        t1.set_precision(12)
+        # max precision is 12
+        v = t1()
+        v.set(d20)
+        self.assertTrue(v.value == "PT0.123456789012S")
+        self.assertFalse(v.value == d20)
+
+    def test_precision_timeofday(self):
+        t20 = Time.from_str("20:44:14.12345678901234567890")
+        t = odata.edm['TimeOfDay']
+        self.assertTrue(t.precision == 6, "Default Precision")
+        # create a derived class with precision
+        t1 = odata.PrimitiveType()
+        t1.set_base(t)
+        v = t1()
+        self.assertTrue(isinstance(v, odata.TimeOfDayValue))
+        # If no value is specified, the temporal property has a
+        # precision of zero.
+        v.set(t20)
+        self.assertTrue(v.value == "20:44:14")
+        self.assertFalse(v.value == t20)
+        t1.set_precision(6)
+        v = t1()
+        v.set(t20)
+        self.assertTrue(v.value == "20:44:14.123456")
+        self.assertFalse(v.value == t20)
+        try:
+            t1.set_precision(15)
+            self.fail("Max temporal precision")
+        except ValueError:
+            pass
+        t1.set_precision(12)
+        # max precision is 12
+        v = t1()
+        v.set(t20)
+        self.assertTrue(v.value == "20:44:14.123456789012")
+        self.assertFalse(v.value == t20)
+
+    def test_decimal_precision(self):
+        """For a decimal property the value of this attribute specifies
+        the maximum number of significant decimal digits of the
+        property's value"""
+        self.assertTrue(getcontext().prec >= 28,
+                        "Tests require decimal precision of 28 or greater")
+        d20str = "0.12345678901234567890"
+        i20str = "12345678901234567890"
+        f20str = "1234567890.1234567890"
+        d20 = Decimal(d20str)
+        i20 = Decimal(i20str)
+        f20 = Decimal(f20str)
+        t = odata.edm['Decimal']
+        self.assertTrue(t.precision is None, "No Precision by default")
+        t1 = odata.PrimitiveType()
+        t1.set_base(t)
+        v = t1()
+        self.assertTrue(isinstance(v, odata.DecimalValue))
+        # If no value is specified, the decimal property has unspecified
+        # precision.  Python's default of 28 is larger than the 20 used
+        # in these tests.  The scale property, however, defaults to 0!
+        v.set(d20)
+        self.assertTrue(v.value == Decimal("0"))
+        v.set(i20)
+        self.assertTrue(v.value == i20)
+        v.set(f20)
+        self.assertTrue(v.value == Decimal("1234567890"))
+        # a specified precision, scale defaults to 0
+        t1.set_precision(6)
+        v = t1()
+        # these results should be rounded
+        v.set(d20)
+        self.assertTrue(v.value == Decimal("0"))
+        self.assertFalse(v.value == d20)
+        try:
+            v.set(i20)
+            self.fail("Integer larger than precision")
+        except ValueError:
+            pass
+        # a specified precision with a variable scale
+        t1.set_precision(6, -1)
+        v = t1()
+        v.set(d20)
+        self.assertTrue(v.value == Decimal("0.123457"))
+        v.set(i20)
+        self.assertTrue(v.value == Decimal("12345700000000000000"))
+        v.set(f20)
+        self.assertTrue(v.value == Decimal("1234570000"))
+        # if we exceed the digits we had originally we do not add 0s as
+        # this is a maximum number of digits, not an absolute number of
+        # digits.
+        t1.set_precision(42, 21)
+        v = t1()
+        v.set(d20)
+        self.assertTrue(v.value == d20)
+        self.assertTrue(str(v) == d20str, str(v))
+        v.set(i20)
+        self.assertTrue(v.value == i20)
+        self.assertTrue(str(v) == i20str, str(v))
+        v.set(f20)
+        self.assertTrue(v.value == f20)
+        self.assertTrue(str(v) == f20str, str(v))
+        # Unspecified precision, variable scale (uses -1)
+        # sig fig limited by python defaults, decimal places unlimited
+        t1.set_precision(None, -1)
+        v = t1()
+        v.set(d20)
+        self.assertTrue(v.value == d20)
+        self.assertTrue(str(v) == d20str, str(v))
+        v.set(i20)
+        self.assertTrue(v.value == i20)
+        self.assertTrue(str(v) == i20str, str(v))
+        v.set(f20)
+        self.assertTrue(v.value == f20)
+        self.assertTrue(str(v) == f20str, str(v))
+        # unspecified precision, scale is OK
+        t1.set_precision(None, 3)
+        v = t1()
+        v.set(d20)
+        self.assertTrue(v.value == Decimal("0.123"))
+        v.set(i20)
+        self.assertTrue(v.value == i20)
+        v.set(f20)
+        self.assertTrue(v.value == Decimal("1234567890.123"))
+        try:
+            t1.set_precision(2, 3)
+            self.fail("scale must be <= precision")
+        except ValueError:
+            pass
+        # try scale > 0
+        t1.set_precision(6, 3)
+        v = t1()
+        v.set(d20)
+        # scale beats precision
+        self.assertTrue(v.value == Decimal("0.123"))
+        try:
+            v.set(i20)
+            self.fail("Value exceeds precision-scale left digitis")
+        except ValueError:
+            pass
+        v.set(Decimal("123.4567"))
+        self.assertTrue(v.value == Decimal("123.457"))
+        # try scale = 0
+        t1.set_precision(6, 0)
+        v = t1()
+        v.set(d20)
+        self.assertTrue(v.value == Decimal("0"))
+        try:
+            v.set(f20)
+            self.fail("Value exceeds precision-scale left digitis")
+        except ValueError:
+            pass
+        # try scale = precision
+        t1.set_precision(6, 6)
+        v = t1()
+        v.set(d20)
+        self.assertTrue(v.value == Decimal("0.123457"))
+        try:
+            v.set(1)
+            self.fail("Value exceeds precision-scale left digitis")
+        except ValueError:
+            pass
+        # There's a strange note about negative scale in the
+        # specification.  Internally Python can support negative scale
+        # but the suggestion is that this translates to a Precision
+        # value that exceeds the maximum supported native precision.
+        # For example, if Python's default precision is 28 then we could
+        # allow precision to be set to 30 with an implied negative scale
+        # of -2, this would result in values being rounded such that the
+        # last two digits are always zero.  Given that scale cannot be
+        # negative it would have to be omitted (implied 0 behaviour).
+        t1.set_precision(getcontext().prec + 2)
+        xstr = "1" * (getcontext().prec + 2)
+        v.set(Decimal(xstr))
+        self.assertTrue(v.value == Decimal(xstr[:-2] + "00"))
+
+    def test_unicode_string(self):
+        cafe = ul('Caf\xe9')
+        t = odata.edm['String']
+        self.assertTrue(t.unicode is True, "Unicode by default")
+        t1 = odata.PrimitiveType()
+        # should inherit the value_type from t
+        t1.set_base(t)
+        # Unicode is None, same as False
+        v = t1()
+        self.assertTrue(isinstance(v, odata.StringValue))
+        v.set(cafe)
+        t1.set_unicode(False)
+        v = t1()
+        try:
+            v.set(cafe)
+            self.fail("ASCII required")
+        except ValueError:
+            pass
+        v.set(cafe[:-1])    # OK
+        t1.set_unicode(True)
+        v = t1()
+        v.set(cafe)
+
+
+class StructuredTypeTests(unittest.TestCase):
 
     def test_constructors(self):
         # structured types are composed of structural properties they
@@ -809,7 +1139,8 @@ class PrimitiveValueTests(unittest.TestCase):
             v = t(pv)
             self.assertTrue(v)
             self.assertFalse(v.is_null())
-            self.assertTrue(v.value == pv, "Non-null value on construction")
+            self.assertTrue(v.value == pv,
+                            "Non-null value on construction: %s" % repr(t))
             self.assertTrue(v.type_def is t_def)
 
     def test_from_value(self):
@@ -839,6 +1170,7 @@ class PrimitiveValueTests(unittest.TestCase):
         type_msg = "%s: " % repr(cls)
         for pv, ov in good:
             value_msg = type_msg + "%s " % repr(pv)
+            logging.debug("Checking good value: %s", value_msg)
             v = cls(pv)
             self.assertTrue(v, value_msg + "False")
             self.assertTrue(v.value == ov,
@@ -1010,7 +1342,6 @@ class PrimitiveValueTests(unittest.TestCase):
                   (long2(future_unix), future_time),
                   (float(future_unix), future_time),
                   (leap_actual, leap_adjusted),
-                  (leap_factual, leap_fadjusted),
                   (TimePoint.from_str("2016-12-31T24:00:00Z"),
                    TimePoint.from_str("2017-01-01T00:00:00Z"))
                   ),
@@ -1023,6 +1354,15 @@ class PrimitiveValueTests(unittest.TestCase):
             ((eagle_time, '1969-07-20T20:17:40Z'),
              (rome_time, '-0752-04-21T16:00:00+01:00'),
              (eagle_time_ms, '1969-07-20T20:17:40.000000Z')))
+        # check the correct operation of leap seconds with high precision
+        t = odata.PrimitiveType()
+        t.set_base(odata.edm['DateTimeOffset'])
+        t.set_precision(6)
+        v = t()
+        v.set(leap_factual)
+        self.assertTrue(v.value == leap_fadjusted)
+        v.set(eagle_time_ms)
+        self.assertTrue(to_text(v) == '1969-07-20T20:17:40.000000Z')
 
     def test_decimal(self):
         """Decimal values"""
@@ -1062,6 +1402,14 @@ class PrimitiveValueTests(unittest.TestCase):
             odata.DurationValue,
             ((t12345, 'P1DT2H3M4.5S'),
              (t1234, 'P1DT2H3M4S')))
+        # check the correct operation of precision
+        t = odata.PrimitiveType()
+        t.set_base(odata.edm['Duration'])
+        t.set_precision(1)
+        v = t()
+        v.set(t12345)
+        self.assertTrue(v.value == t12345)
+        self.assertTrue(to_text(v) == 'P1DT2H3M4.5S')
 
     def test_float_value(self):
         """Double and Single values"""
@@ -1169,6 +1517,18 @@ class PrimitiveValueTests(unittest.TestCase):
         self.do_text(
             odata.TimeOfDayValue,
             ((eagle_time, '20:17:40'), (eagle_time_ms, '20:17:40.000000')))
+        # check the correct operation of precision
+        t = odata.PrimitiveType()
+        t.set_base(odata.edm['TimeOfDay'])
+        t.set_precision(6)
+        v = t()
+        v.set(Time.from_str("235960.5"))
+        self.assertTrue(v.value == Time.from_str("235959.999999"))
+        v.set(Time.from_str("235960.55"))
+        self.assertTrue(v.value == Time.from_str("235959.999999"))
+        v.set(eagle_time_ms)
+        self.assertTrue(v.value == eagle_time_ms)
+        self.assertTrue(to_text(v) == '20:17:40.000000')
 
 
 NUMERIC_TYPES = (
@@ -1216,7 +1576,7 @@ class OperatorTests(unittest.TestCase):
         # Numeric primitive types are cast to each other with
         # appropriate rounding.
         for t1 in NUMERIC_TYPES:
-            v1 = t1(3.95)
+            v1 = t1(3.75)
             for t2 in NUMERIC_TYPES:
                 v2 = v1.cast(odata.edm[t2.edm_name])
                 # should succeed!
@@ -1228,7 +1588,7 @@ class OperatorTests(unittest.TestCase):
                     self.assertTrue(v2.value == 3, "%s -> %s is %s" %
                                     (repr(v1), repr(v2), str(v2)))
                 else:
-                    self.assertTrue(str(v2) == '3.95', "%s -> %s is %s" %
+                    self.assertTrue(str(v2) == '3.75', "%s -> %s is %s" %
                                     (repr(v1), repr(v2), str(v2)))
                 # the cast fails if the integer part doesn't fit into
                 # the target type
@@ -1305,6 +1665,7 @@ class ParserTests(unittest.TestCase):
 
     def from_str(self, cls, good, bad):
         for s in good:
+            logging.debug("Parsing %s from %s", cls.__name__, repr(s))
             try:
                 v = cls.from_str(s)
                 self.assertTrue(v, "%s.from_str(%s) is False" %
@@ -1579,5 +1940,5 @@ class ParserTests(unittest.TestCase):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.DEBUG, format="%(levelname)s %(message)s")
+        level=logging.INFO, format="%(levelname)s %(message)s")
     unittest.main()

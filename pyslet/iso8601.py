@@ -2231,13 +2231,13 @@ class Time(PEP8Compatibility, UnicodeMixin, SortableMixin):
             raise DateTimeError("time overflow")
         if self.minute is None:
             return
-        if not isinstance(self.hour, int):
+        if isinstance(self.hour, float):
             raise DateTimeError("bad fractional hour %s" % str(self.hour))
         if self.minute < 0 or self.minute > 59:
             raise DateTimeError("minute out of range %s" % str(self.minute))
         if self.second is None:
             return
-        if not isinstance(self.minute, int):
+        if isinstance(self.minute, float):
             raise DateTimeError("bad fractional minute %s" % str(self.minute))
         if self.second < 0 or self.second >= 61:
             raise DateTimeError("second out of range %s" % str(self.second))

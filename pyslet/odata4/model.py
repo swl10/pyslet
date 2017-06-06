@@ -3,13 +3,12 @@
 import base64
 import collections
 import datetime
+import decimal
 import logging
 import math
 import sys
 import uuid
 import weakref
-
-from decimal import Decimal
 
 from ..iso8601 import (
     Date,
@@ -352,6 +351,12 @@ class Schema(Annotatable, NameTable):
             primitive.name = name
             primitive.value_type = vtype
             primitive.declare(cls.edm)
+        # set the default facets to sensible defaults
+        cls.edm['DateTimeOffset'].set_precision(6)  # ms accuracy
+        cls.edm['Decimal'].set_precision(None, -1)  # variable scale
+        cls.edm['Duration'].set_precision(6)        # ms accuracy
+        cls.edm['String'].set_unicode(True)         # unicode default
+        cls.edm['TimeOfDay'].set_precision(6)       # ms accuracy
         geography_base = PrimitiveType()
         geography_base.set_base(primitive_base)
         geography_base.name = "Geography"
@@ -580,6 +585,14 @@ class PrimitiveType(NominalType):
     by a TypeDefinition.  The built-in Edm Schema contains instances
     representing the base primitie types themselves."""
 
+    # used for Decimal rounding
+    dec_nleft = decimal.getcontext().Emax + 1
+    dec_nright = 0
+    dec_digits = (1, ) * decimal.getcontext().prec
+
+    # used for temporal rounding
+    temporal_q = decimal.Decimal((0, (1, ), 0))
+
     def __init__(self):
         super(PrimitiveType, self).__init__()
         self.value_type = PrimitiveValue
@@ -596,7 +609,80 @@ class PrimitiveType(NominalType):
         if not isinstance(base, PrimitiveType):
             raise TypeError(
                 "%s is not a suitable base for %s" % (base.qname, self.name))
+        # update the value_type, impose a further restriction that the
+        # incoming value_type MUST be a subclass of the previous
+        # value_type.  In other words, you can't have a type based on
+        # Edm.String and use set_base to 'rebase' it to Edm.Int64
+        if not issubclass(base.value_type, self.value_type):
+            raise TypeError(
+                "Mismatched value types: can't base %s on %s" %
+                (self.name, base.qname))
         self.base = base
+        self.value_type = base.value_type
+
+    def set_max_length(self, max_length):
+        self.max_length = max_length
+
+    def set_precision(self, precision, scale=None):
+        if issubclass(self.value_type, DecimalValue):
+            # precision must be positive (or None)
+            if precision is None:
+                if scale is None:
+                    # both unspecified, scale implied 0 (default)
+                    self.dec_nright = PrimitiveType.dec_nright
+                elif scale < 0:
+                    # variable scale, no limit on right digits as
+                    # precision is also unlimited.
+                    self.dec_nright = -(decimal.getcontext().Emin -
+                                        decimal.getcontext().prec + 1)
+                else:
+                    # what is undefined - scale?  don't limit left
+                    # digits, could perhaps throw an error here!
+                    # scale must be <= precision, limit right digits
+                    self.dec_nright = scale
+                self.dec_nleft = PrimitiveType.dec_nleft
+                self.dec_digits = PrimitiveType.dec_digits
+            else:
+                if precision <= 0:
+                    raise ValueError(
+                        "Positive integer (or None) required for "
+                        "Decimal precision")
+                if scale is None:
+                    # just precision specified, scale is implied 0
+                    self.dec_nleft = precision
+                    self.dec_nright = 0
+                elif scale < 0:
+                    # variable scale, up to precision on the right
+                    self.dec_nleft = PrimitiveType.dec_nleft
+                    self.dec_nright = precision
+                elif scale > precision:
+                    raise ValueError("Scale exceeds precision")
+                else:
+                    self.dec_nleft = precision - scale
+                    self.dec_nright = scale
+                self.dec_digits = (1, ) * min(decimal.getcontext().prec,
+                                              precision)
+            self.precision = precision
+            self.scale = scale
+        elif issubclass(self.value_type, (DateTimeOffsetValue, DurationValue,
+                                          TimeOfDayValue)):
+            # precision must be non-negative (max 12)
+            if precision is None:
+                # no precision = 0
+                self.temporal_q = decimal.Decimal((0, (1, ), 0))
+                self.precision = None
+            else:
+                if precision < 0 or precision > 12:
+                    raise ValueError(
+                        "Integer from 1..12 required for temporal precision")
+                # overload the class attribute
+                self.temporal_q = decimal.Decimal(
+                    (0, (1, ) * (precision + 1), -precision))
+                self.precision = precision
+
+    def set_unicode(self, unicode_flag):
+        if issubclass(self.value_type, StringValue):
+            self.unicode = unicode_flag
 
 
 class StructuredType(NameTable, NominalType):
@@ -860,7 +946,7 @@ class PrimitiveValue(UnicodeMixin, Value):
         elif isinstance(value, bytes):
             result = BinaryValue()
             result.value = value
-        elif isinstance(value, Decimal):
+        elif isinstance(value, decimal.Decimal):
             result = DecimalValue()
             result.value = value
         elif isinstance(value, int) or isinstance(value, long2):
@@ -942,9 +1028,9 @@ class NumericValue(PrimitiveValue):
     """Abstract class for representing all numeric primitives"""
 
     if py2:
-        _num_types = (int, long2, float, Decimal)
+        _num_types = (int, long2, float, decimal.Decimal)
     else:
-        _num_types = (int, float, Decimal)
+        _num_types = (int, float, decimal.Decimal)
 
     def __unicode__(self):
         if self.value is None:
@@ -1028,7 +1114,7 @@ class FloatValue(NumericValue):
     def set(self, value):
         if value is None:
             self.value = None
-        elif isinstance(value, Decimal):
+        elif isinstance(value, decimal.Decimal):
             if value > self.DECIMAL_MAX:
                 self.value = self._inf
             elif value < self.DECIMAL_MIN:
@@ -1084,14 +1170,20 @@ class BinaryValue(PrimitiveValue):
     def set(self, value=None):
         if value is None:
             self.value = None
-        elif isinstance(value, bytes):
-            self.value = value
-        elif is_unicode(value):
-            self.value = value.encode("utf-8")
-        elif isinstance(value, PrimitiveValue):
-            raise TypeError
         else:
-            self.value = bytes(value)
+            if isinstance(value, bytes):
+                new_value = value
+            elif is_unicode(value):
+                new_value = value.encode("utf-8")
+            elif isinstance(value, PrimitiveValue):
+                raise TypeError
+            else:
+                new_value = bytes(value)
+            # check limits
+            if self.type_def.max_length and len(new_value) > \
+                    self.type_def.max_length:
+                raise ValueError("MaxLength exceeded for binary value")
+            self.value = new_value
 
     def __unicode__(self):
         if self.value is None:
@@ -1161,15 +1253,41 @@ class DecimalValue(NumericValue):
 
     edm_name = 'Decimal'
 
+    def _round(self, value):
+        precision = len(self.type_def.dec_digits)
+        vt = value.as_tuple()
+        vprec = len(vt.digits)
+        # check bounds on exponent
+        if vt.exponent + vprec > self.type_def.dec_nleft:
+            raise ValueError("Value too large for scaled Decimal")
+        if vt.exponent + vprec >= precision:
+            # negative scale results in integer (perhaps with trailing
+            # zeros)
+            q = decimal.Decimal(
+                (0, self.type_def.dec_digits, vprec + vt.exponent - precision))
+        else:
+            # some digits to the right of the decimal point, this needs
+            # a litte explaining.  We take the minimum of:
+            #   1. the specified max scale in the type
+            #   2. the number of digits to the right of the point in the
+            #      original value (-vt.exponent) - to prevent spurious 0s
+            #   3. the number of digits to the right of the point after
+            #      rounding to the current precision - to prevent us
+            #      exceeding precision
+            rdigits = min(self.type_def.dec_nright, -vt.exponent,
+                          max(0, precision - (vprec + vt.exponent)))
+            q = decimal.Decimal((0, self.type_def.dec_digits, -rdigits))
+        return value.quantize(q, rounding=decimal.ROUND_HALF_UP)
+
     def set(self, value):
         if value is None:
             self.value = None
         elif isinstance(value, (int, bool, long2)):
-            self.value = Decimal(value)
-        elif isinstance(value, Decimal):
-            self.value = value
+            self.value = self._round(decimal.Decimal(value))
+        elif isinstance(value, decimal.Decimal):
+            self.value = self._round(value)
         elif isinstance(value, float):
-            self.value = Decimal(str(value))
+            self.value = self._round(decimal.Decimal(repr(value)))
         else:
             raise TypeError("Can't set Decimal from %s" % repr(value))
 
@@ -1216,8 +1334,8 @@ class DoubleValue(FloatValue):
 
     MIN = -MAX
 
-    DECIMAL_MAX = Decimal(str(MAX))
-    DECIMAL_MIN = Decimal(str(MIN))
+    DECIMAL_MAX = decimal.Decimal(repr(MAX))
+    DECIMAL_MIN = decimal.Decimal(repr(MIN))
 
     type_name = "Edm.Double"
 
@@ -1296,8 +1414,8 @@ class SingleValue(FloatValue):
 
     MIN = -MAX
 
-    DECIMAL_MAX = Decimal(str(MAX))
-    DECIMAL_MIN = Decimal(str(MIN))
+    DECIMAL_MAX = decimal.Decimal(repr(MAX))
+    DECIMAL_MIN = decimal.Decimal(repr(MIN))
 
     edm_name = 'Single'
 
@@ -1348,6 +1466,19 @@ class DateValue(PrimitiveValue):
         return v
 
 
+def _struncate(temporal_q, s):
+    # truncate a seconds value to the active temporal precision
+    if isinstance(s, float):
+        s = decimal.Decimal(
+            repr(s)).quantize(temporal_q, rounding=decimal.ROUND_DOWN)
+        if temporal_q.as_tuple().exponent == 0:
+            return int(s)
+        else:
+            return float(s)
+    else:
+        return s
+
+
 class DateTimeOffsetValue(PrimitiveValue):
 
     """Represents a value of type Edm.DateTimeOffset
@@ -1390,6 +1521,7 @@ class DateTimeOffsetValue(PrimitiveValue):
                 raise ValueError(
                     "Missing timezone in %s" % str(value))
             else:
+                # handle precision
                 h, m, s = value.time.get_time()
                 zd, zh, zm = value.time.get_zone3()
                 if h == 24:
@@ -1401,9 +1533,12 @@ class DateTimeOffsetValue(PrimitiveValue):
                     # leap second!
                     if isinstance(s, float):
                         # max precision
-                        s = 59.999999
+                        s = _struncate(
+                            self.type_def.temporal_q, 59.999999999999)
                     else:
                         s = 59
+                elif isinstance(s, float):
+                    s = _struncate(self.type_def.temporal_q, s)
                 self.value = TimePoint(
                     date=date.expand(xdigits=-1),
                     time=Time(hour=h, minute=m, second=s, zdirection=zd,
@@ -1435,8 +1570,9 @@ class DateTimeOffsetValue(PrimitiveValue):
                 time=Time(
                     hour=value.hour,
                     minute=value.minute,
-                    second=value.second +
-                    (value.microsecond / 1000000.0),
+                    second=_struncate(
+                        self.type_def.temporal_q,
+                        value.second + (value.microsecond / 1000000.0)),
                     zdirection=zdirection,
                     zhour=zhour,
                     zminute=zminute))
@@ -1453,9 +1589,10 @@ class DateTimeOffsetValue(PrimitiveValue):
                     minute=0,
                     second=0,
                     zdirection=0))
-        elif isinstance(value, (int, long2, float, Decimal)):
+        elif isinstance(value, (int, long2, float, decimal.Decimal)):
             if value >= 0:
-                self.value = TimePoint.from_unix_time(float(value))
+                self.value = TimePoint.from_unix_time(
+                    _struncate(self.type_def.temporal_q, value))
             else:
                 raise ValueError(
                     "Can't set DateTimeOffset from %s" % str(value))
@@ -1490,8 +1627,7 @@ class DurationValue(PrimitiveValue):
     Duration literals allow a reduced range of values as values expressed
     in terms of years, months or weeks are not allowed.
 
-    Duration values can be set from an existing Duration or
-    DurationValue instance only."""
+    Duration values can be set from an existing Duration only."""
 
     edm_name = 'Duration'
 
@@ -1504,7 +1640,9 @@ class DurationValue(PrimitiveValue):
                 if d[0] or d[1]:
                     raise ValueError("Can't set Duration from %s" % str(value))
                 else:
-                    self.value = value
+                    self.value = xsi.Duration(value)
+                    self.value.seconds = _struncate(
+                        self.type_def.temporal_q, self.value.seconds)
             except DateTimeError:
                 # must be a week-based value
                 raise ValueError("Can't set Duration from %s" % str(value))
@@ -1581,18 +1719,32 @@ class StringValue(PrimitiveValue):
     def set(self, value=None):
         if value is None:
             self.value = None
-        elif isinstance(value, bytes):
-            try:
-                self.value = value.decode('ascii')
-            except UnicodeDecodeError:
-                raise ValueError(
-                    "Can't set String from non-ascii bytes %s" % str(value))
-        elif is_unicode(value):
-            self.value = value
-        elif isinstance(value, PrimitiveValue):
-            raise TypeError("Can't set String from %s" % repr(value))
         else:
-            self.value = to_text(value)
+            if isinstance(value, bytes):
+                try:
+                    new_value = value.decode('ascii')
+                except UnicodeDecodeError:
+                    raise ValueError(
+                        "Can't set String from non-ascii bytes %s" %
+                        str(value))
+            elif is_unicode(value):
+                new_value = value
+            elif isinstance(value, PrimitiveValue):
+                raise TypeError("Can't set String from %s" % repr(value))
+            else:
+                new_value = to_text(value)
+            # check limits
+            if self.type_def.unicode is False:
+                try:
+                    value.encode('ascii')
+                except UnicodeEncodeError:
+                    raise ValueError(
+                        "Can't store non-ascii text in Edm.String type with "
+                        "Unicode=False")
+            if self.type_def.max_length and len(new_value) > \
+                    self.type_def.max_length:
+                raise ValueError("MaxLength exceeded for binary value")
+            self.value = new_value
 
     @classmethod
     def from_str(cls, src):
@@ -1645,13 +1797,17 @@ class TimeOfDayValue(PrimitiveValue):
                     # leap second!
                     if isinstance(s, float):
                         # max precision
-                        s = 59.999999
+                        s = _struncate(self.type_def.temporal_q,
+                                       59.999999999999)
                     else:
                         s = 59
+                elif isinstance(s, float):
+                    s = _struncate(self.type_def.temporal_q, s)
                 self.value = Time(hour=h, minute=m, second=s)
         elif isinstance(value, datetime.time):
-            self.value = Time(hour=value.hour, minute=value.minute,
-                              second=value.second)
+            self.value = Time(
+                hour=value.hour, minute=value.minute,
+                second=_struncate(self.type_def.temporal_q, value.second))
         elif value is None:
             self.value = None
         else:
@@ -1840,9 +1996,9 @@ class PrimitiveParser(BasicParser):
         if self.parse('.'):
             rdigits = self.require_production(self.parse_digits(1),
                                               "decimal fraction")
-            v.set(Decimal(sign + ldigits + '.' + rdigits))
+            v.set(decimal.Decimal(sign + ldigits + '.' + rdigits))
         else:
-            v.set(Decimal(sign + ldigits))
+            v.set(decimal.Decimal(sign + ldigits))
         return v
 
     def require_double_value(self):
