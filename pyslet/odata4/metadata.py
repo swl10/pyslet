@@ -121,21 +121,31 @@ def max_to_str(value):
         return xsi.integer_to_str(value)
 
 
-def scale_from_str(value):
-    """Scale can be a non-negative integer or 'variable'
+def nonneg_variable_from_str(value):
+    """Can be a non-negative integer or 'variable'
 
-    We return -1 'variable'."""
+    We return -1 for 'variable'."""
     if value == "variable":
         return -1
     else:
-        return xsi.integer_from_str(value)
+        value = xsi.integer_from_str(value)
+        if value < 0:
+            raise ValueError("non-negative value required: %i" % value)
+        return value
 
 
-def scale_to_str(value):
+def nonneg_variable_to_str(value):
     if value < 0:
         return 'variable'
     else:
         return xsi.integer_to_str(value)
+
+
+scale_from_str = nonneg_variable_from_str
+scale_to_str = nonneg_variable_to_str
+
+srid_from_str = nonneg_variable_from_str
+srid_to_str = nonneg_variable_to_str
 
 
 def path_from_str(value):
@@ -257,7 +267,7 @@ class FacetsMixin(object):
     XMLATTR_MaxLength = ('max_length', max_from_str, max_to_str)
     XMLATTR_Precision = ('precision', xsi.integer_from_str, xsi.integer_to_str)
     XMLATTR_Scale = ('scale', scale_from_str, scale_to_str)
-    XMLATTR_SRID = 'srid'       # 'variable' or non-negative integer
+    XMLATTR_SRID = ('srid', srid_from_str, srid_to_str)
 
     def __init__(self):
         self.max_length = None
@@ -1114,6 +1124,7 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
     def __init__(self, parent):
         Annotated.__init__(self, parent)
         CommonPropertyMixin.__init__(self)
+        self._p = None
 
     def content_changed(self):
         if self.name is None:
@@ -1133,10 +1144,9 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
 
     def _set_type_callback(self, type_obj):
         # set self.type_obj
-        if type_obj is None:
-            raise odata.ModelError("%s is not declared" % self.type_name)
-        if not isinstance(type_obj, (odata.PrimitiveType, odata.ComplexType,
-                                     odata.EnumerationType)):
+        if type_obj is None or not isinstance(
+                type_obj, (odata.PrimitiveType, odata.ComplexType,
+                           odata.EnumerationType)):
             raise odata.ModelError(
                 "P3 6.1.2 The value of the Type attribute MUST be the "
                 "QualifiedName of a primitive type, complex type, or "
@@ -1155,20 +1165,38 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
                     "a positive integer; P3 6.2.4 the value of the Scale "
                     "attribute MUST be less than or equal to the value of "
                     "the Precision attribute")
+            try:
+                ptype.set_srid(self.srid)
+            except ValueError:
+                raise odata.ModelError(
+                    "P3 6.2.6 The value of the SRID attribute MUST be a "
+                    "non-negative integer or the special value variable")
             type_obj = ptype
+        default_value = None
+        if self.default_value is not None:
+            if isinstance(type_obj, odata.PrimitiveType):
+                default_value = type_obj.value_from_str(self.default_value)
+            elif isinstance(type_obj, odata.EnumerationType):
+                # wait until the type is closed
+                type_obj.tell_close(self._set_default_callback)
         if collection:
             type_obj = odata.CollectionType(type_obj)
-        p = odata.Property(type_def=type_obj)
-        p.name = self.name
-        p.nullable = self.nullable
+        self._p = odata.Property(type_def=type_obj)
+        self._p.name = self.name
+        self._p.nullable = self.nullable
+        self._p.default_value = default_value
         t = self.get_type_context()
         if t is not None:
             try:
-                p.declare(t)
+                self._p.declare(t)
             except odata.DuplicateNameError:
                 raise odata.DuplicateNameError(
                     "P3 6.1 A property MUST specify a unique name (%s:%s)" %
                     (t.name, self.name))
+
+    def _set_default_callback(self):
+        self._p.default_value = self._p.type_def.value_from_str(
+            self.default_value)
 
     def get_type_context(self):
         if not isinstance(self.parent, (ComplexType, EntityType)):
@@ -1293,6 +1321,11 @@ class EnumType(SchemaContent, Type):
         for child in super(EnumType, self).get_children():
             yield child
 
+    def content_changed(self):
+        t = self.get_type()
+        # we're done with declaring this type
+        t.close()
+
     def get_type_obj(self):
         return odata.EnumerationType()
 
@@ -1308,6 +1341,27 @@ class Member(EnumTypeContent, Annotated):
         Annotated.__init__(self, parent)
         self.name = None
         self.value = None
+
+    def content_changed(self):
+        if self.name is None:
+            raise odata.ModelError(
+                "Missing or invalid Name for Member %s" % self.name)
+        m = odata.Member()
+        m.name = self.name
+        m.value = self.value
+        t = self.get_type_context()
+        if t is not None:
+            try:
+                m.declare(t)
+            except odata.DuplicateNameError:
+                raise odata.DuplicateNameError(
+                    "(%s:%s)" %
+                    (t.name, self.name))
+
+    def get_type_context(self):
+        if not isinstance(self.parent, EnumType):
+            return None
+        return self.parent.get_type()
 
 
 class ReturnType(FacetsMixin, Annotated):

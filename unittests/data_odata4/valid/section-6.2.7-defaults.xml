@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <ComplexType Name="DefaultTest">
+                <!-- Default values of type Edm.String MUST be
+                represented according to the XML escaping rules for
+                character data in attribute values. -->
+                <Property Name="BinaryTest" Type="Edm.Binary"
+                    DefaultValue="Q2Fmw6k="/>
+                <Property Name="BooleanTest" Type="Edm.Boolean"
+                    DefaultValue="true"/>
+                <Property Name="ByteTest" Type="Edm.Byte"
+                    DefaultValue="239"/>
+                <Property Name="DateTest" Type="Edm.Date"
+                    DefaultValue="2017-05-30"/>
+                <Property Name="DateTimeOffsetTest" Type="Edm.DateTimeOffset"
+                    DefaultValue="2017-05-30T04:20:00+01:00"/>
+                <Property Name="DecimalTest" Type="Edm.Decimal"
+                    DefaultValue="3.14159"/>
+                <Property Name="DoubleTest" Type="Edm.Double"
+                    DefaultValue="3.14159"/>
+                <Property Name="DurationTest" Type="Edm.Duration"
+                    DefaultValue="PT1S"/>
+                <!-- 
+                <Property Name="GeographyPointTest" Type="Edm.GeographyPoint"
+                    DefaultValue="SRID=4326;Point(-1.002455 51.441514)"/>                    
+                <Property Name="GeographyLineStringTest"
+                    Type="Edm.GeographyLineString"
+                    DefaultValue="SRID=4326;LineString(-1.002455 51.441514,-0.996460 -51.455060)"/>
+                <Property Name="GeographyPolygonTest"
+                    Type="Edm.GeographyPolygon"
+                    DefaultValue="SRID=4326;Polygon((-1.003192 51.442683,-1.002943 51.441773,-1.001779 51.442028,-1.001503 51.442320, -1.001513 51.442745,-1.001993 51.442863,-1.003192 51.442683))"/>
+                <Property Name="GeographyMultiPointTest"
+                    Type="Edm.GeographyMultiPoint"
+                    DefaultValue="SRID=4326;MultiPoint((-1.002455 51.441514),(-0.996460 51.455060))"/>
+                <Property Name="GeographyMultiLineStringTest"
+                    Type="Edm.GeographyMultiLineString"
+                    DefaultValue="SRID=4326;MultiLineString((-1.002455 51.441514,-0.996460 51.455060))"/>                    
+                <Property Name="GeographyMultiPolygonTest"
+                    Type="Edm.GeographyMultiPolygon"
+                    DefaultValue="SRID=4326;MultiPolygon(((-1.003192 51.442683,-1.002943 51.441773,-1.001779 51.442028,-1.001503 51.442320, -1.001513 51.442745,-1.001993 51.442863,-1.003192 51.442683)))"/>
+                <Property Name="GeographyCollectionTest"
+                    Type="Edm.GeographyCollection"
+                    DefaultValue="SRID=4326;Collection(Point(-1.002455 51.441514),LineString(-1.002455 51.441514,-0.996460 -51.455060))"/>
+                <Property Name="GeometryPointTest" Type="Edm.GeometryPoint"
+                    DefaultValue="SRID=0;Point(1.0 -1.0)"/>                    
+                <Property Name="GeometryLineStringTest"
+                    Type="Edm.GeometryLineString"
+                    DefaultValue="SRID=0;LineString(1.0 -1.0,-1.0 1.0)"/>
+                <Property Name="GeometryPolygonTest"
+                    Type="Edm.GeometryPolygon"
+                    DefaultValue="SRID=0;Polygon((1.0 -1.0,1.0 1.0,-1.0 1.0,-1.0 -1.0,1.0 -1.0))"/>
+                <Property Name="GeometryMultiPointTest"
+                    Type="Edm.GeometryMultiPoint"
+                    DefaultValue="SRID=0;MultiPoint((1.0 -1.0),(-1.0 1.0))"/>
+                <Property Name="GeometryMultiLineStringTest"
+                    Type="Edm.GeometryMultiLineString"
+                    DefaultValue="SRID=0;MultiLineString((1.0 -1.0,-1.0 1.0),(1.0 1.0,-1.0 -1.0))"/>                    
+                <Property Name="GeometryMultiPolygonTest"
+                    Type="Edm.GeometryMultiPolygon"
+                    DefaultValue="SRID=0;MultiPolygon(((1.0 -1.0,1.0 1.0,-1.0 1.0,-1.0 -1.0,1.0 -1.0)),((4.0 -1.0,4.0 1.0,2.0 1.0,2.0 -1.0,4.0 -1.0)))"/>
+                <Property Name="GeometryCollectionTest"
+                    Type="Edm.GeometryCollection"
+                    DefaultValue="SRID=0;Collection(LineString(1.0 -1.0,-1.0 1.0),LineString(1.0 1.0,-1.0 -1.0),Polygon((1.0 -1.0,1.0 1.0,-1.0 1.0,-1.0 -1.0,1.0 -1.0)))"/>
+                -->
+                <Property Name="GuidTest" Type="Edm.Guid"
+                    DefaultValue="00000000-0000-0000-0000-0000deadbeef"/>
+                <Property Name="Int16Test" Type="Edm.Int16"
+                    DefaultValue="-16657"/>
+                <Property Name="Int32Test" Type="Edm.Int32"
+                    DefaultValue="-559038737"/>
+                <Property Name="Int64Test" Type="Edm.Int64"
+                    DefaultValue="3735928559"/>
+                <Property Name="SByteTest" Type="Edm.SByte"
+                    DefaultValue="-17"/>
+                <Property Name="SingleTest" Type="Edm.Single"
+                    DefaultValue="3.14159"/>
+                <Property Name="StringTest" Type="Edm.String"
+                    DefaultValue="Fish&amp;Chips"/>
+                <Property Name="TimeOfDayTest" Type="Edm.TimeOfDay"
+                    DefaultValue="04:20:00"/>
+                <Property Name="EnumTest" Type="test.pyslet.org.MaterialType"
+                    DefaultValue="Metal"/>                
+            </ComplexType>
+            <EnumType Name="MaterialType" UnderlyingType="Edm.Int32">
+                <Member Name="Metal" Value="1" />
+                <Member Name="Wood" Value="2" />
+                <Member Name="Fabric" Value="3" />
+            </EnumType>            
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

@@ -7,6 +7,8 @@ from pyslet.odata4 import model as odata
 from pyslet.odata4 import metadata as csdl
 from pyslet.rfc2396 import URI
 from pyslet.vfs import OSFilePath
+from pyslet.xml.namespace import XMLNSParser
+from pyslet.xml.structures import XMLValidityError
 
 
 def suite():
@@ -81,6 +83,13 @@ class NamespaceTests(unittest.TestCase):
             csdl.edm_version(
                 'http://schemas.microsoft.com/ado/2000/01/edm') is None,
             "Unknown Edm version")
+
+
+class ValidatingParser(XMLNSParser):
+
+    def __init__(self, entity):
+        super(ValidatingParser, self).__init__(entity)
+        self.raiseValidityErrors = True
 
 
 class CSDLDocumentTests(unittest.TestCase):
@@ -212,6 +221,25 @@ class CSDLDocumentTests(unittest.TestCase):
         v = ct()
         self.assertTrue(v['Weight'] is not None, "property exists")
 
+    def test_section_6_2_7_defaults(self):
+        # A primitive or enumeration property MAY define a value for the
+        # DefaultValue attribute.
+        fpath = TEST_DATA_DIR.join('valid', 'section-6.2.7-defaults.xml')
+        uri = URI.from_virtual_path(fpath)
+        doc = csdl.CSDLDocument(base_uri=uri)
+        doc.read()
+        em = doc.root.entity_model
+        s = em['test.pyslet.org']
+        data = (
+            ('BinaryTest', odata.BinaryValue, b'Caf\xc3\xa9'),
+            )
+        for pname, ptype, default in data:
+            p = s['DefaultTest'][pname]
+            self.assertTrue(isinstance(p.default_value, ptype))
+            self.assertTrue(
+                p.default_value.value == default,
+                "Default: %s = %s" % (pname, repr(p.default_value.value)))
+
     def test_valid_examples(self):
         dpath = TEST_DATA_DIR.join('valid')
         for fname in dpath.listdir():
@@ -242,12 +270,15 @@ class CSDLDocumentTests(unittest.TestCase):
                 sid = None
             uri = URI.from_virtual_path(dpath.join(fname))
             doc = csdl.CSDLDocument(base_uri=uri)
+            doc.XMLParser = ValidatingParser
             logging.info("Checking: %s", str(uri))
             try:
                 doc.read()
                 doc.validate()
                 self.fail("%s validated" % str(fname))
             except odata.ModelError as err:
+                msg = str(err)
+            except XMLValidityError as err:
                 msg = str(err)
             if sid is not None:
                 self.assertTrue(sid in msg.split(),

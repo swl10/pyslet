@@ -17,16 +17,18 @@ from ..iso8601 import (
     TimePoint)
 from ..py2 import (
     BoolMixin,
+    byte,
     long2,
     is_text,
     is_unicode,
     py2,
     range3,
     to_text,
+    ul,
     UnicodeMixin
     )
 from ..xml import xsdatatypes as xsi
-from ..unicode5 import BasicParser
+from ..unicode5 import BasicParser, CharClass
 
 
 class ModelError(Exception):
@@ -684,6 +686,190 @@ class PrimitiveType(NominalType):
         if issubclass(self.value_type, StringValue):
             self.unicode = unicode_flag
 
+    def set_srid(self, srid):
+        if issubclass(self.value_type, (GeographyValue, GeometryValue)):
+            self.srid = srid
+
+    def value_from_str(self, src):
+        logging.debug("%s.value_from_str", self.value_type.edm_name)
+        return self.value_type.from_str(src)
+
+
+class EnumerationType(NameTable, NominalType):
+
+    """An EnumerationType declaration"""
+
+    def __init__(self, base=None):
+        super(EnumerationType, self).__init__()
+        if base is None:
+            base = edm['Int32']
+        elif base not in (edm['Byte'], edm['SByte'], edm['Int16'],
+                          edm['Int32'], edm['Int64']):
+            raise ValueError("Enumeration base must be integer type")
+        self.base = base
+        #: whether or not values are being auto-assigned None means
+        #: 'undetermined', only possible when there are no members
+        self.assigned_values = None
+        #: whether or not this type is a flags-based enumeration
+        self.is_flags = False
+        #: the list of members in the order they were declared
+        self.members = []
+        # a mapping from values to the first declared member with that
+        # value
+        self._valuetable = {}
+        self.value_type = EnumerationValue
+
+    def set_is_flags(self):
+        """Sets is_flags to True.
+
+        If the Enumeration already has members declared will raise
+        ModelError."""
+        if self.members:
+            raise ModelError(
+                "Can't set is_flags on Enumeration with existing members")
+        self.assigned_values = False
+        self.is_flags = True
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against simple identifier"""
+        if name is None:
+            raise ValueError("unnamed member")
+        elif not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid SimpleIdentifier" % name)
+
+    def check_value(self, value):
+        if not isinstance(value, Member):
+            raise TypeError("Member required, found %s" % repr(value))
+
+    def __setitem__(self, key, value):
+        self.check_value(value)
+        if self.assigned_values is None:
+            self.assigned_values = value.value is None
+        if self.assigned_values:
+            if value.value is not None:
+                raise ModelError(
+                    "Enum member %s declared with unexpected value" %
+                    value.name)
+            value.value = len(self.members)
+            try:
+                super(EnumerationType, self).__setitem__(key, value)
+            except (ValueError, TypeError):
+                # remove the auto-assigned value
+                value.value = None
+                raise
+        else:
+            if value.value is None:
+                raise ModelError("Enum member %s requires value" % value.name)
+            super(EnumerationType, self).__setitem__(key, value)
+        self.members.append(value)
+        self._valuetable.setdefault(value.value, value)
+
+    def lookup(self, name_or_value):
+        """Looks up a Member by name or value
+
+        Returns the :class:`Member` instance.  If name_or_value is not
+        the name or the value of a member then ValueError is raised. If
+        name_or_value is an integer and multiple Members match then the
+        first declared Member is returned."""
+        try:
+            if is_text(name_or_value):
+                return self[name_or_value]
+            elif isinstance(name_or_value, (int, long2)):
+                return self._valuetable[name_or_value]
+            else:
+                raise ValueError("integer or string required")
+        except KeyError:
+            raise ValueError(
+                "%s is not defined in %s" % (name_or_value, self.name))
+
+    def lookup_flags(self, value):
+        """Returns a list of Members that comprise this value
+
+        For use with Enumerations that have :attr:`is_flags` set to
+        True. Returns a compact list of members (in declaration order)
+        that combine to make the input value.
+
+        In the simplest case, where flags are defined using 1, 2, 4,
+        etc. then this will just be the list of flags corresponding to
+        the bits set in value.  In more complex examples where
+        Enumerations define Members that combine flags then powerful
+        Members are favoured over less powerful ones.  I.e., a Member
+        with value 3 will be returned in preference to a list of two
+        members with values 1 and 2.
+
+        If :attr:`is_flags` is False, throws TypeError."""
+        result = []
+        rmask = 0
+        for m in self.members:
+            if m.value & value == m.value:
+                # m is a candidate for adding to the result but does it
+                # add any value?  Don't add superfluous multi-flags for
+                # the sake of it.
+                add_m = (m.value & rmask != m.value)
+                i = 0
+                while i < len(result):
+                    match = result[i]
+                    # if match is masked by (but not equal to m) then
+                    # remove it from the result.  This rule ensures that
+                    # 1 and 2 will be removed in favour or 3
+                    if match.value & m.value == match.value:
+                        del result[i]
+                        # but we better add m now!
+                        add_m = True
+                    else:
+                        i += 1
+                if add_m:
+                    result.append(m)
+                    # expand rmask
+                    rmask |= m.value
+        return result
+
+    def value_from_str(self, src):
+        """Constructs an enumeration value from a source string"""
+        p = PrimitiveParser(src)
+        v = self()
+        mlist = p.require_enum_value()
+        if not self.is_flags:
+            if len(mlist) != 1:
+                raise ModelError("Enum member: expected single name or value")
+            v.set(mlist[0])
+        else:
+            v.set(mlist)
+        p.require_end()
+        return v
+
+
+class Member(Named):
+
+    """Represents a member of an enumeration"""
+
+    def __init__(self):
+        super(Member, self).__init__()
+        #: the integer value corresponding to this member
+        #: defaults to None: auto-assigned when declared
+        self.value = None
+
+
+class CollectionType(NominalType):
+
+    """Collections are treated as types in the model
+
+    In fact, OData does not allow you to declare a named type to be a
+    collection, instead, properties, navigation properties and entity
+    collections define collections in terms of single-valued named types.
+
+    To make implementing the model easier we treat these as private type
+    definitions.  That is, type definitions which are never declared in
+    the associated schema but are used as the type of other elements
+    that are part of the model."""
+
+    def __init__(self, item_type):
+        super(CollectionType, self).__init__()
+        #: the type being collected, we do not allow collections of
+        #: collections
+        self.item_type = item_type
+        self.value_type = CollectionValue
+
 
 class StructuredType(NameTable, NominalType):
 
@@ -715,27 +901,6 @@ class StructuredType(NameTable, NominalType):
         self.base = base
 
 
-class CollectionType(NominalType):
-
-    """Collections are treated as types in the model
-
-    In fact, OData does not allow you to declare a named type to be a
-    collection, instead, properties, navigation properties and entity
-    collections define collections in terms of single-valued named types.
-
-    To make implementing the model easier we treat these as private type
-    definitions.  That is, type definitions which are never declared in
-    the associated schema but are used as the type of other elements
-    that are part of the model."""
-
-    def __init__(self, item_type):
-        super(CollectionType, self).__init__()
-        #: the type being collected, we do not allow collections of
-        #: collections
-        self.item_type = item_type
-        self.value_type = CollectionValue
-
-
 class Property(Named):
 
     """A Property declaration"""
@@ -744,8 +909,11 @@ class Property(Named):
         super(Property, self).__init__()
         #: the type definition for values of this property
         self.type_def = type_def
-        # by default we're nullable
+        #: whether or not the property value can be null (or contain
+        #: null in the case of a collection)
         self.nullable = True
+        #: the default value of the property (primitive/enums only)
+        self.default_value = None
 
 
 class NavigationProperty(Named):
@@ -766,12 +934,6 @@ class ComplexType(StructuredType):
 class EntityType(StructuredType):
 
     """An EntityType declaration"""
-    pass
-
-
-class EnumerationType(NominalType):
-
-    """An EnumerationType declaration"""
     pass
 
 
@@ -1185,6 +1347,13 @@ class BinaryValue(PrimitiveValue):
                 raise ValueError("MaxLength exceeded for binary value")
             self.value = new_value
 
+    @classmethod
+    def from_str(cls, src):
+        p = PrimitiveParser(src)
+        v = p.require_binary_value()
+        p.require_end()
+        return v
+
     def __unicode__(self):
         if self.value is None:
             raise ValueError("null value has no text representation")
@@ -1241,6 +1410,14 @@ class ByteValue(IntegerValue):
     _pytype = int
 
     edm_name = 'Byte'
+
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_byte_value()
+        p.require_end()
+        return v
 
 
 class DecimalValue(NumericValue):
@@ -1352,6 +1529,14 @@ class Int16Value(IntegerValue):
 
     edm_name = 'Int16'
 
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_int16_value()
+        p.require_end()
+        return v
+
 
 class Int32Value(IntegerValue):
 
@@ -1365,6 +1550,14 @@ class Int32Value(IntegerValue):
 
     edm_name = 'Int32'
 
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_int32_value()
+        p.require_end()
+        return v
+
 
 class Int64Value(IntegerValue):
 
@@ -1377,6 +1570,14 @@ class Int64Value(IntegerValue):
         _pytype = int
 
     edm_name = 'Int64'
+
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_int64_value()
+        p.require_end()
+        return v
 
 
 class SByteValue(IntegerValue):
@@ -1649,6 +1850,18 @@ class DurationValue(PrimitiveValue):
         else:
             raise TypeError("Can't set Duration from %s" % repr(value))
 
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string
+
+        OData syntax follows XML schema convention of an optional sign
+        followed by an ISO-type duration specified in days, hours,
+        minutes and seconds."""
+        p = PrimitiveParser(src)
+        v = p.require_duration_value()
+        p.require_end()
+        return v
+
 
 class GuidValue(PrimitiveValue):
 
@@ -1839,6 +2052,14 @@ class GeographyPointValue(GeographyValue):
 
     edm_name = 'GeographyPoint'
 
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_full_point_literal()
+        p.require_end()
+        return cls(v)
+
 
 class GeographyLineStringValue(GeographyValue):
 
@@ -1909,6 +2130,73 @@ class GeometryCollectionValue(GeometryValue):
     edm_name = 'GeometryCollection'
 
 
+class EnumerationValue(UnicodeMixin, Value):
+
+    """Represents the value of an Enumeration type"""
+
+    def __init__(self, type_def, pvalue=None):
+        Value.__init__(self, type_def)
+        self.value = None
+        if pvalue is not None:
+            self.set(pvalue)
+
+    def __unicode__(self):
+        if self.value is None:
+            raise ValueError("null value has no text representation")
+        elif self.type_def.is_flags:
+            return ul(',').join([v.name for
+                                 v in self.type_def.lookup_flags(self.value)])
+        else:
+            return self.type_def.lookup(self.value).name
+
+    def set(self, value):
+        """Sets the value from a python 'native' value representation
+
+        Accepts None (meaning null), integer, string or iterable objects
+        that yield integer and/or strings (mixtures are acceptable).
+        Other types raise TypeError.
+
+        Strings and values are converted to enum members through look-up
+        and (for flags) bitwise OR operation.  If a value is not
+        defined in the enumeration then ValueError is raised.  Note
+        that with flags enumerations you may *only* set the (integer) value
+        to an integer representing multiple flags *if* that value has
+        a defined name.  For example, if you have Red=1 and Blue=2 as
+        members then you may::
+
+            v.set(1)
+            v.set(2)
+            v.set((1, 2))
+
+        however, you may *not*::
+
+            v.set(3)
+
+        This rule has implications for the use of 0 which, for a flags
+        enumeration, means no flags are set.  You *must* define a member
+        with value of 0 if you want to use this value.  E.g., extending
+        the above example define Black=0 if you want to do this::
+
+            v.set(0)"""
+        if is_text(value) or isinstance(value, (int, long2)):
+            self.value = self.type_def.lookup(value).value
+        elif self.type_def.is_flags:
+            # iterate over the values
+            total_value = 0
+            count = 0
+            try:
+                for v in value:
+                    count += 1
+                    total_value |= self.type_def.lookup(v).value
+            except TypeError:
+                raise TypeError("int, str or iterable thereof required")
+            if not count:
+                raise ValueError("Enum member name or value expected")
+            self.value = total_value
+        else:
+            raise TypeError("Enum member or value expected")
+
+
 class CollectionValue(Value):
 
     """Represents the value of a Collection
@@ -1970,13 +2258,84 @@ class ComplexValue(Value, collections.Mapping):
         return len(self._value_table)
 
 
+_oid_start_char = CharClass("_")
+_oid_start_char.add_class(CharClass.ucd_category("L"))
+_oid_start_char.add_class(CharClass.ucd_category("Nl"))
+
+_oid_char = CharClass()
+for c in ("L", "Nl", "Nd", "Mn", "Mc", "Pc", "Cf"):
+    _oid_char.add_class(CharClass.ucd_category(c))
+
+
 class PrimitiveParser(BasicParser):
 
     """A Parser for the OData ABNF
 
     This class takes case of parsing primitive values only."""
 
+    # Line 720
+    def require_odata_identifier(self):
+        result = []
+        if not _oid_start_char.test(self.the_char):
+            self.parser_error("simple identifier")
+        result.append(self.the_char)
+        self.next_char()
+        while _oid_char.test(self.the_char):
+            result.append(self.the_char)
+            self.next_char()
+        if len(result) > 128:
+            self.parser_error("simple identifier; 128 chars or fewer")
+        return ''.join(result)
+
+    # Line 856
+    #: Matches production: nullValue
+    null_value = 'null'
+
+    # Line 859
+    def require_binary(self):
+        """Parses production: binary
+
+        Returns a :class:`BinaryValue` instance or raises a parser
+        error."""
+        # binary = "binary" SQUOTE binaryValue SQUOTE
+        self.require_production(self.parse_insensitive("binary"), "binary")
+        self.require("'")
+        v = self.require_binary_value()
+        self.require("'")
+        return v
+
+    # Line 860
+    def require_binary_value(self):
+        """Parses production: binaryValue
+
+        Returns a :class:`BinaryValue` instance or raises a parser
+        error."""
+        result = bytearray()
+        while self.base64_char.test(self.the_char):
+            result.append(byte(self.the_char))
+            self.next_char()
+        # in OData, the trailing "=" are optional but if given they must
+        # result in the correct length string.
+        pad = len(result) % 4
+        if pad == 3:
+            self.parse('=')
+            result.append(byte('='))
+        elif pad == 2:
+            self.parse('==')
+            result.append(byte('='))
+            result.append(byte('='))
+        return BinaryValue(base64.urlsafe_b64decode(result))
+
+    # Line 863
+    #: a character class representing production base64char
+    base64_char = CharClass(('A', 'Z'), ('a', 'z'), ('0', '9'), '-', '_')
+
+    # Line 865
     def require_boolean_value(self):
+        """Parses production: booleanValue
+
+        Returns a :class:`BooleanValue` instance or raises a parser
+        error."""
         v = BooleanValue()
         if self.parse_insensitive("true"):
             v.set(True)
@@ -1986,11 +2345,14 @@ class PrimitiveParser(BasicParser):
             self.parser_error("booleanValue")
         return v
 
+    # Line 867
     def require_decimal_value(self):
+        """Parses production: decimalValue
+
+        Returns a :class:`DecimalValue` instance or raises a parser
+        error."""
         v = DecimalValue()
-        sign = self.parse_one('+-')
-        if not sign:
-            sign = ''
+        sign = self.parse_sign()
         ldigits = self.require_production(self.parse_digits(1),
                                           "decimal digits")
         if self.parse('.'):
@@ -2001,7 +2363,12 @@ class PrimitiveParser(BasicParser):
             v.set(decimal.Decimal(sign + ldigits))
         return v
 
+    # Line 869
     def require_double_value(self):
+        """Parses production: doubleValue
+
+        Returns a :class:`DoubleValue` instance or raises a parser
+        error."""
         v = DoubleValue()
         sign = self.parse_one('+-')
         if not sign:
@@ -2034,19 +2401,22 @@ class PrimitiveParser(BasicParser):
         v.set(float(dec + exp))
         return v
 
-    def require_sbyte_value(self):
-        v = SByteValue()
-        sign = self.parse_one('+-')
-        if not sign:
-            sign = ''
-        digits = self.require_production(self.parse_digits(1, 3), "digits")
-        try:
-            v.set(int(sign + digits))
-        except ValueError:
-            self.parser_error('sbyte in range [-128, 127]')
+    # Line 870
+    def require_single_value(self):
+        """Parses production: singleValue
+
+        Returns a :class:`SingleValue` instance or raises a parser
+        error."""
+        v = SingleValue()
+        v.set(self.require_double_value().value)
         return v
 
+    # Line 873
     def require_guid_value(self):
+        """Parses production: guidValue
+
+        Returns a :class:`GuidValue` instance or raises a parser
+        error."""
         hex_parts = []
         part = self.parse_hex_digits(8, 8)
         if not part:
@@ -2066,6 +2436,173 @@ class PrimitiveParser(BasicParser):
         result = GuidValue()
         result.set(uuid.UUID(hex=''.join(hex_parts)))
         return result
+
+    # Line 875
+    def require_byte_value(self):
+        """Parses production: byteValue
+
+        Returns a :class:`ByteValue` instance of raises a parser
+        error."""
+        #   1*3DIGIT
+        digits = self.require_production(self.parse_digits(1, 3), "byteValue")
+        v = ByteValue()
+        try:
+            v.set(int(digits))
+        except ValueError:
+            self.parser_error('byte in range [0, 255]')
+        return v
+
+    # Line 876
+    def require_sbyte_value(self):
+        """Parses production: sbyteValue
+
+        Returns a :class:`SByteValue` instance of raises a parser
+        error."""
+        sign = self.parse_sign()
+        digits = self.require_production(self.parse_digits(1, 3), "sbyteValue")
+        v = SByteValue()
+        try:
+            v.set(int(sign + digits))
+        except ValueError:
+            self.parser_error('sbyte in range [-128, 127]')
+        return v
+
+    # Line 877
+    def require_int16_value(self):
+        """Parses production: int16Value
+
+        Returns a :class:`Int16Value` instance of raises a parser
+        error."""
+        sign = self.parse_sign()
+        digits = self.require_production(self.parse_digits(1, 5), "int16Value")
+        v = Int16Value()
+        try:
+            v.set(int(sign + digits))
+        except ValueError:
+            self.parser_error('int16Value in range [-32768, 32767]')
+        return v
+
+    # Line 878
+    def require_int32_value(self):
+        """Parses production: int32Value
+
+        Returns a :class:`Int32Value` instance of raises a parser
+        error."""
+        sign = self.parse_sign()
+        digits = self.require_production(
+            self.parse_digits(1, 10), "int32Value")
+        v = Int32Value()
+        try:
+            v.set(int(sign + digits))
+        except ValueError:
+            self.parser_error('int32Value in range [-2147483648, 2147483647]')
+        return v
+
+    # Line 879
+    def require_int64_value(self):
+        """Parses production: int64Value
+
+        Returns a :class:`Int64Value` instance of raises a parser
+        error."""
+        sign = self.parse_sign()
+        digits = self.require_production(self.parse_digits(1, 19),
+                                         "int64Value")
+        v = Int64Value()
+        try:
+            v.set(int(sign + digits))
+        except ValueError:
+            self.parser_error('int64Value in range [-9223372036854775808, '
+                              '9223372036854775807]')
+        return v
+
+    # Line 910
+    def require_enum_value(self):
+        """Parses production: enumValue
+
+        Returns a non-empty *list* of strings and/or integers or raises
+        a parser error."""
+        result = []
+        result.append(self.require_single_enum_value())
+        while self.parse(","):
+            # no need to use look ahead
+            result.append(self.require_single_enum_value())
+        return result
+
+    # Line 911
+    def require_single_enum_value(self):
+        """Parses production: singleEnumValue
+
+        Reuturns either a simple identifier string, an integer or raises
+        a parser error."""
+        name = self.parse_production(self.require_odata_identifier)
+        if name:
+            return name
+        else:
+            return self.require_int64_value()
+
+    # Line 943
+    def require_full_point_literal(self):
+        """Parses production: fullPointLiteral
+
+        Returns a Point instance."""
+        # sridLiteral pointLiteral
+        pass
+
+    # Line 1052
+    def parse_sign(self):
+        """Parses production: SIGN (aka sign)
+
+        This production is typically optional so we either return "+",
+        "-" or "" depending on the sign character parsed.  The ABNF
+        allows for the percent encoded value "%2B" instead of "+" but we
+        assume that percent-encoding has been removed before parsing.
+        (That may not be true in XML documents but it seems
+        unintentional to allow this form in that context.)"""
+        sign = self.parse_one('+-')
+        return sign if sign else ''
+
+    def require_duration_value(self):
+        sign = self.parse_one('+-')
+        if sign:
+            sign = 1 if sign == "+" else -1
+        else:
+            sign = 1
+        self.require("P")
+        digits = self.parse_digits(1)
+        if digits:
+            self.require("D")
+            days = int(digits)
+        else:
+            days = 0
+        hours = minutes = seconds = 0
+        if self.parse("T"):
+            # time fields
+            digits = self.parse_digits(1)
+            if digits and self.parse("H"):
+                hours = int(digits)
+                digits = None
+            if not digits:
+                digits = self.parse_digits(1)
+            if digits and self.parse('M'):
+                minutes = int(digits)
+                digits = None
+            if not digits:
+                digits = self.parse_digits(1)
+            if digits:
+                if self.parse('.'):
+                    rdigits = self.require_production(
+                        self.parse_digits(1), "fractional seconds")
+                    self.require("S")
+                    seconds = float(digits + "." + rdigits)
+                elif self.parse("S"):
+                    seconds = int(digits)
+        d = xsi.Duration()
+        d.sign = sign
+        d.days = days
+        d.hours = hours
+        d.minutes = minutes
+        d.seconds = seconds
+        return DurationValue(d)
 
     def require_date_value(self):
         year = self.require_year()

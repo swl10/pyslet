@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <ComplexType Name="MaxTest">
+                <!-- The value of the SRID attribute MUST be a
+                non-negative integer or the special value variable -->
+                <Property Name="SRIDTest1" Type="Edm.GeographyPoint"
+                    SRID="0"/>
+                <Property Name="SRIDTest2" Type="Edm.GeographyPoint"
+                    SRID="1"/>
+                <Property Name="SRIDTest3" Type="Edm.GeographyPoint"
+                    SRID="variable"/>
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

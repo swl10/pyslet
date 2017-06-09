@@ -9,7 +9,7 @@
                     DefaultValue="Unspecified" />
                 <!-- The edm:Property element MUST include a Name
                 attribute whose value is a SimpleIdentifier -->
-                <Property Type="Edm.Decimal"
+                <Property Name="Max.Length" Type="Edm.Decimal"
                     Nullable="false" Precision="18" Scale="2" />
             </ComplexType>
         </Schema>

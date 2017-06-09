@@ -34,6 +34,7 @@ def suite():
         unittest.makeSuite(PrimitiveTypeTests, 'test'),
         unittest.makeSuite(StructuredTypeTests, 'test'),
         unittest.makeSuite(CollectionTests, 'test'),
+        unittest.makeSuite(EnumerationTests, 'test'),
         unittest.makeSuite(ValueTests, 'test'),
         unittest.makeSuite(PrimitiveValueTests, 'test'),
         unittest.makeSuite(OperatorTests, 'test'),
@@ -966,6 +967,240 @@ class CollectionTests(unittest.TestCase):
         self.assertFalse(v.is_null())
 
 
+class EnumerationTests(unittest.TestCase):
+
+    def test_constructor(self):
+        # enumeration types are wrappers for one of a limited number of
+        # integer types: Edm.Byte, Edm.SByte, Edm.Int16, Edm.Int32, or
+        # Edm.Int64 - defaulting to Edm.Int32
+        et = odata.EnumerationType()
+        self.assertTrue(isinstance(et, odata.NominalType),
+                        "Enumeration types are nominal types")
+        self.assertTrue(isinstance(et, odata.NameTable),
+                        "Enumeration types define scope for members")
+        self.assertTrue(et.base is odata.edm['Int32'],
+                        "Default base type is Int32")
+        self.assertTrue(et.assigned_values is None,
+                        "Whether or not")
+        self.assertTrue(et.is_flags is False, "Default to no flags")
+        self.assertTrue(isinstance(et.members, list), "Members type")
+        self.assertTrue(len(et.members) == 0, "No Members")
+        for base in ('Byte', 'SByte', 'Int16', 'Int32', 'Int64'):
+            et = odata.EnumerationType(odata.edm[base])
+            self.assertTrue(et.base is odata.edm[base])
+        for base in ('Binary', 'String', 'Guid', 'Double', 'Decimal'):
+            try:
+                et = odata.EnumerationType(odata.edm[base])
+                self.fail("EnumerationType(%s) should fail" % base)
+            except ValueError:
+                pass
+
+    def test_declare(self):
+        et = odata.EnumerationType()
+        # they require Members with simple identifier names
+        n = odata.NominalType()
+        n.name = "Dimension"
+        try:
+            n.declare(et)
+            self.fail("NominalType declared in EnumerationType")
+        except TypeError:
+            pass
+        m = odata.Member()
+        m.name = "Game.Rock"
+        try:
+            m.declare(et)
+            self.fail("Member declared with bad name")
+        except ValueError:
+            pass
+        m.name = "Rock"
+        m.declare(et)
+
+    def test_auto_members(self):
+        et = odata.EnumerationType()
+        m0 = odata.Member()
+        m0.name = "Rock"
+        self.assertTrue(m0.value is None, "No value by default")
+        m0.declare(et)
+        self.assertTrue(et.assigned_values is True)
+        self.assertTrue(len(et.members) == 1)
+        self.assertTrue(et.members[0] is m0)
+        self.assertTrue(et['Rock'] is m0)
+        self.assertTrue(m0.value == 0, "Auto-assigned starts at 0")
+        m1 = odata.Member()
+        m1.name = "Paper"
+        m1.declare(et)
+        self.assertTrue(m1.value == 1, "Auto-assigned 1")
+        m2 = odata.Member()
+        m2.name = "Scissors"
+        m2.value = 2
+        try:
+            m2.declare(et)
+            self.fail("Can't declare value with auto-assigned enum")
+        except odata.ModelError:
+            pass
+        m2.value = None
+        m2.declare(et)
+        self.assertTrue(m2.value == 2)
+
+    def test_auto_value(self):
+        et = odata.EnumerationType()
+        for n in ("Rock", "Paper", "Scissors"):
+            m = odata.Member()
+            m.name = n
+            m.declare(et)
+        v = et()
+        self.assertTrue(isinstance(v, odata.EnumerationValue))
+        # is null
+        self.assertFalse(v)
+        self.assertTrue(v.is_null())
+        # we can set from string
+        v.set("Rock")
+        self.assertTrue(v.value == 0)
+        try:
+            v.set("Red")
+            self.fail("Bad enumeration string")
+        except ValueError:
+            pass
+        # can't set multiple values when is_flags is False
+        try:
+            v.set("Rock,Paper")
+            self.fail("Single value required")
+        except ValueError:
+            pass
+        # we can set from an integer
+        v.set(1)
+        self.assertTrue(v.value == 1)
+        self.assertTrue(str(v) == "Paper", to_text(v))
+        try:
+            v.set(4)
+            self.fail("Enum member must be a member")
+        except ValueError:
+            pass
+        try:
+            v.set(3)
+            self.fail("Enum value must be a member (no bitwise or)")
+        except ValueError:
+            pass
+        try:
+            v.set(1.0)
+            self.fail("Enum set from float")
+        except TypeError:
+            pass
+
+    def test_manual_members(self):
+        et = odata.EnumerationType()
+        m3 = odata.Member()
+        m3.name = "Rock"
+        m3.value = 3
+        m3.declare(et)
+        self.assertTrue(et.assigned_values is False)
+        self.assertTrue(len(et.members) == 1)
+        self.assertTrue(et.members[0] is m3)
+        self.assertTrue(et['Rock'] is m3)
+        self.assertTrue(m3.value == 3, "Manual value 3")
+        m2 = odata.Member()
+        m2.name = "Paper"
+        m2.value = 2
+        m2.declare(et)
+        self.assertTrue(m2.value == 2, "Manual value 2")
+        m1 = odata.Member()
+        m1.name = "Scissors"
+        try:
+            m1.declare(et)
+            self.fail("Manual member requires value")
+        except odata.ModelError:
+            pass
+        m3alt = odata.Member()
+        m3alt.name = "Stone"
+        m3alt.value = 3
+        # aliases are OK
+        m3alt.declare(et)
+
+    def test_manual_value(self):
+        et = odata.EnumerationType()
+        for name, value in (("Rock", 3), ("Paper", 2), ("Scissors", 1)):
+            m = odata.Member()
+            m.name = name
+            m.value = value
+            m.declare(et)
+        # we can set from an integer
+        v = et()
+        v.set(1)
+        self.assertTrue(v.value == 1)
+        self.assertTrue(str(v) == "Scissors")
+        try:
+            v.set(0)
+            self.fail("No zero value")
+        except ValueError:
+            pass
+        v.set("Paper")
+        self.assertTrue(v.value == 2)
+
+    def test_flags(self):
+        # If the IsFlags attribute has a value of true, a non-negative
+        # integer value MUST be specified for the Value attribute
+        et = odata.EnumerationType()
+        m = odata.Member()
+        m.name = "Red"
+        m.declare(et)
+        # you can't set is_flags if there are already members
+        try:
+            et.set_is_flags()
+            self.fail("flags with auto-members")
+        except odata.ModelError:
+            pass
+        et = odata.EnumerationType()
+        et.set_is_flags()
+        self.assertTrue(et.is_flags is True)
+        self.assertTrue(et.assigned_values is False)
+        m = odata.Member()
+        m.name = "Red"
+        try:
+            m.declare(et)
+            self.fail("flags requires member values")
+        except odata.ModelError:
+            pass
+        m.value = 1
+        m.declare(et)
+        m = odata.Member()
+        m.name = "Green"
+        m.value = 2
+        m.declare(et)
+        self.assertTrue(len(et.members) == 2)
+
+    def test_flag_values(self):
+        et = odata.EnumerationType()
+        et.set_is_flags()
+        for name, value in (
+                ("Red", 1), ("Green", 2), ("Blue", 4),
+                ("Yellow", 3), ("Magenta", 5),
+                # ("Cyan", 6),
+                ("White", 7)):
+            m = odata.Member()
+            m.name = name
+            m.value = value
+            m.declare(et)
+        v = et()
+        v.set(1)
+        self.assertTrue(v.value == 1)
+        self.assertTrue(str(v) == "Red")
+        # you can't use a value that isn't defined even if it makes sense.
+        try:
+            v.set(0)
+            self.fail("0 for flags when unspecified")
+        except ValueError:
+            pass
+        v.set("White")
+        self.assertTrue(v.value == 7)
+        # when converting to strings, use an exact match if there is one
+        self.assertTrue(str(v) == "White")
+        v.set(["Red", "Green"])
+        self.assertTrue(str(v) == "Yellow")
+        v.set(["Green", "Blue"])
+        # otherwise use the composed flags preserving definition order
+        self.assertTrue(str(v) == "Green,Blue")
+
+
 class ValueTests(unittest.TestCase):
 
     def test_base(self):
@@ -1712,6 +1947,27 @@ class ParserTests(unittest.TestCase):
             "null", "")
         self.from_str(odata.GuidValue, good, bad)
 
+    def test_duration_value(self):
+        """durationValue = [ sign ] "P" [ 1*DIGIT "D" ]
+                [ "T" [ 1*DIGIT "H" ] [ 1*DIGIT "M" ]
+                 [ 1*DIGIT [ "." 1*DIGIT ] "S" ] ]"""
+        v = odata.DurationValue.from_str("-P3DT1H4M1.5S")
+        self.assertTrue(v.value.sign == -1)
+        self.assertTrue(v.value.years == 0)
+        self.assertTrue(v.value.months == 0)
+        self.assertTrue(v.value.weeks is None)
+        self.assertTrue(v.value.days == 3)
+        self.assertTrue(v.value.hours == 1)
+        self.assertTrue(v.value.minutes == 4)
+        self.assertTrue(v.value.seconds == 1.5)
+        good = (
+            "P", "+P", "PT1S", "PT1.1S", "P1D",
+            )
+        bad = (
+            "", "P1H", "1H", "P1D1H", "P1DT1M1H", "1S",
+            )
+        self.from_str(odata.DurationValue, good, bad)
+
     def test_date_value(self):
         """dateValue = year "-" month "-" day
 
@@ -1832,6 +2088,38 @@ class ParserTests(unittest.TestCase):
             "null", ""
             )
         self.from_str(odata.TimeOfDayValue, good, bad)
+
+    def test_enum_value(self):
+        """enumValue = singleEnumValue *( COMMA singleEnumValue )
+        singleEnumValue = enumerationMember / enumMemberValue
+        enumMemberValue = int64Value
+        enumerationMember   = odataIdentifier"""
+        good = (
+            ("Rock,Paper,Scissors", ["Rock", "Paper", "Scissors"]),
+            ("Rock", ["Rock"]),
+            ("1", [1]),
+            ("-1", [-1]),   # negatives are OK
+            )
+        bad = (
+            "1.0",      # floats are not
+            "Rock+Paper",
+            )
+        for src, value in good:
+            p = odata.PrimitiveParser(src)
+            try:
+                v = p.require_enum_value()
+            except ValueError as err:
+                self.fail("%s raised %s" % (src, str(err)))
+            self.assertTrue(v == value, "failed to parse %s" % src)
+            p.require_end()
+        for src in bad:
+            p = odata.PrimitiveParser(src)
+            try:
+                v = p.require_enum_value()
+                p.require_end()
+                self.fail("%s validated for enumValue" % repr(src))
+            except ValueError:
+                pass
 
     def test_decimal_value(self):
         """decimalValue = [SIGN] 1*DIGIT ["." 1*DIGIT]"""

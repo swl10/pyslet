@@ -3,10 +3,6 @@
     xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
     <edmx:DataServices>
         <Schema Namespace="test.pyslet.org">
-            <!-- The value of the Type attribute MUST be the
-            QualifiedName of a primitive type, complex type, or
-            enumeration type in scope, or a collection of one of these
-            types -->
             <TypeDefinition Name="WeightType" UnderlyingType="Edm.Int32" />
             <ComplexType Name="Measurement">
                 <Property Name="Dimension" Type="Edm.String"
@@ -21,7 +17,11 @@
                 <Member Name="Fabric" Value="3" />
             </EnumType>            
             <ComplexType Name="Specification">
-                <Property Name="Size" Type="Measurement"
+                <!-- The value of the Type attribute MUST be the
+                QualifiedName of a primitive type, complex type, or
+                enumeration type in scope, or a collection of one of
+                these types -->
+                <Property Name="Size" Type="wrong.pyslet.org.Measurement"
                     Nullable="false" />
                 <Property Name="Material" Type="test.pyslet.org.MaterialType"
                     Nullable="false" />             
