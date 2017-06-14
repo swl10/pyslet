@@ -20,30 +20,29 @@
                 <Property Name="DecimalTest" Type="Edm.Decimal"
                     DefaultValue="3.14159"/>
                 <Property Name="DoubleTest" Type="Edm.Double"
-                    DefaultValue="3.14159"/>
+                    DefaultValue="3.1416015625"/>
                 <Property Name="DurationTest" Type="Edm.Duration"
                     DefaultValue="PT1S"/>
-                <!-- 
                 <Property Name="GeographyPointTest" Type="Edm.GeographyPoint"
-                    DefaultValue="SRID=4326;Point(-1.002455 51.441514)"/>                    
+                    DefaultValue="SRID=4326;Point(-1.00244140625 51.44775390625)"/>                    
                 <Property Name="GeographyLineStringTest"
                     Type="Edm.GeographyLineString"
-                    DefaultValue="SRID=4326;LineString(-1.002455 51.441514,-0.996460 -51.455060)"/>
+                    DefaultValue="SRID=4326;LineString(-1.00244140625 51.44775390625,-0.9964599609375 51.455810546875)"/>
                 <Property Name="GeographyPolygonTest"
                     Type="Edm.GeographyPolygon"
-                    DefaultValue="SRID=4326;Polygon((-1.003192 51.442683,-1.002943 51.441773,-1.001779 51.442028,-1.001503 51.442320, -1.001513 51.442745,-1.001993 51.442863,-1.003192 51.442683))"/>
+                    DefaultValue="SRID=4326;Polygon((-1.003173828125 51.439697265625,-1.0029296875 51.4437255859375,-1.001708984375 51.4437255859375,-1.001708984375 51.439697265625,-1.003173828125 51.439697265625))"/>
                 <Property Name="GeographyMultiPointTest"
                     Type="Edm.GeographyMultiPoint"
-                    DefaultValue="SRID=4326;MultiPoint((-1.002455 51.441514),(-0.996460 51.455060))"/>
+                    DefaultValue="SRID=4326;MultiPoint((-1.00244140625 51.44775390625),(-0.9964599609375 51.455810546875))"/>
                 <Property Name="GeographyMultiLineStringTest"
                     Type="Edm.GeographyMultiLineString"
-                    DefaultValue="SRID=4326;MultiLineString((-1.002455 51.441514,-0.996460 51.455060))"/>                    
+                    DefaultValue="SRID=4326;MultiLineString((-1.00244140625 51.44775390625,-0.9964599609375 51.455810546875))"/>                    
                 <Property Name="GeographyMultiPolygonTest"
                     Type="Edm.GeographyMultiPolygon"
-                    DefaultValue="SRID=4326;MultiPolygon(((-1.003192 51.442683,-1.002943 51.441773,-1.001779 51.442028,-1.001503 51.442320, -1.001513 51.442745,-1.001993 51.442863,-1.003192 51.442683)))"/>
+                    DefaultValue="SRID=4326;MultiPolygon(((-1.003173828125 51.439697265625,-1.0029296875 51.4437255859375,-1.001708984375 51.4437255859375,-1.001708984375 51.439697265625,-1.003173828125 51.439697265625)))"/>
                 <Property Name="GeographyCollectionTest"
                     Type="Edm.GeographyCollection"
-                    DefaultValue="SRID=4326;Collection(Point(-1.002455 51.441514),LineString(-1.002455 51.441514,-0.996460 -51.455060))"/>
+                    DefaultValue="SRID=4326;Collection(Point(-1.00244140625 51.44775390625),LineString(-1.00244140625 51.44775390625,-0.9964599609375 51.455810546875))"/>
                 <Property Name="GeometryPointTest" Type="Edm.GeometryPoint"
                     DefaultValue="SRID=0;Point(1.0 -1.0)"/>                    
                 <Property Name="GeometryLineStringTest"
@@ -64,7 +63,6 @@
                 <Property Name="GeometryCollectionTest"
                     Type="Edm.GeometryCollection"
                     DefaultValue="SRID=0;Collection(LineString(1.0 -1.0,-1.0 1.0),LineString(1.0 1.0,-1.0 -1.0),Polygon((1.0 -1.0,1.0 1.0,-1.0 1.0,-1.0 -1.0,1.0 -1.0)))"/>
-                -->
                 <Property Name="GuidTest" Type="Edm.Guid"
                     DefaultValue="00000000-0000-0000-0000-0000deadbeef"/>
                 <Property Name="Int16Test" Type="Edm.Int16"
@@ -76,7 +74,7 @@
                 <Property Name="SByteTest" Type="Edm.SByte"
                     DefaultValue="-17"/>
                 <Property Name="SingleTest" Type="Edm.Single"
-                    DefaultValue="3.14159"/>
+                    DefaultValue="3.1416015625"/>
                 <Property Name="StringTest" Type="Edm.String"
                     DefaultValue="Fish&amp;Chips"/>
                 <Property Name="TimeOfDayTest" Type="Edm.TimeOfDay"

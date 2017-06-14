@@ -18,9 +18,10 @@ from ..iso8601 import (
 from ..py2 import (
     BoolMixin,
     byte,
-    long2,
+    force_text,
     is_text,
     is_unicode,
+    long2,
     py2,
     range3,
     to_text,
@@ -28,7 +29,7 @@ from ..py2 import (
     UnicodeMixin
     )
 from ..xml import xsdatatypes as xsi
-from ..unicode5 import BasicParser, CharClass
+from ..unicode5 import BasicParser, CharClass, ParserError
 
 
 class ModelError(Exception):
@@ -1304,14 +1305,6 @@ class FloatValue(NumericValue):
             raise TypeError(
                 "can't set %s from %s" % (self.edm_name, repr(value)))
 
-    @classmethod
-    def from_str(cls, src):
-        """Constructs a value from a string"""
-        p = PrimitiveParser(src)
-        v = p.require_double_value()
-        p.require_end()
-        return v
-
 
 class BinaryValue(PrimitiveValue):
 
@@ -1514,7 +1507,13 @@ class DoubleValue(FloatValue):
     DECIMAL_MAX = decimal.Decimal(repr(MAX))
     DECIMAL_MIN = decimal.Decimal(repr(MIN))
 
-    type_name = "Edm.Double"
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_double_value()
+        p.require_end()
+        return v
 
 
 class Int16Value(IntegerValue):
@@ -1602,6 +1601,8 @@ class SingleValue(FloatValue):
 
     """Represents a value of type Edm.Single"""
 
+    edm_name = 'Single'
+
     try:
         MAX = (2 - 2 ** -23) * 2 ** 127
     except OverflowError:
@@ -1618,7 +1619,13 @@ class SingleValue(FloatValue):
     DECIMAL_MAX = decimal.Decimal(repr(MAX))
     DECIMAL_MIN = decimal.Decimal(repr(MIN))
 
-    edm_name = 'Single'
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_single_value()
+        p.require_end()
+        return v
 
 
 class DateValue(PrimitiveValue):
@@ -2044,13 +2051,97 @@ class TimeOfDayValue(PrimitiveValue):
             return self.value.get_string(ndp=0)
 
 
-class GeographyValue(PrimitiveValue):
+class GeoItem(object):
+
+    """Abstract mixin class used to identify Geo items
+
+    Geo items are any class that can be added to a
+    :class:`GeoCollection` covering points, line strings, polygons,
+    multi-points, multi-line strings, multi-polygons and geo collections
+    themselves."""
+
     pass
 
 
-class GeographyPointValue(GeographyValue):
+class Point(GeoItem, UnicodeMixin,
+            collections.namedtuple('Point', ['x', 'y'])):
 
-    edm_name = 'GeographyPoint'
+    """Represents a Point type in OData.
+
+    This is a Python namedtuple, almost straight out of the Python docs
+    which defines a 2D point that has named fields x and y (in that
+    order). The interpretation of x and y will depend on the coordinate
+    reference system.  The same type used for both Geography and
+    Geometry types.  The values of x and y are always floats, they are
+    converted if necessary."""
+
+    __slots__ = ()
+
+    def __new__(cls, x, y):
+        # check that x and y are valid
+        self = super(Point, cls).__new__(cls, float(x), float(y))
+        return self
+
+    @staticmethod
+    def from_arg(arg):
+        """Returns a point instance
+
+        If arg is already a Point then it is returned, otherwise it is
+        iterated to obtain two values to create a new Point instance."""
+        if isinstance(arg, Point):
+            return arg
+        else:
+            try:
+                x, y = arg
+                return Point(x, y)
+            except (TypeError, ValueError):
+                "Point requires exactly two values"
+                raise
+
+    def __unicode__(self):
+        return force_text("%.16g %.16g" % self)
+
+    def to_literal(self):
+        return force_text("Point(%.16g %.16g)" % self)
+
+
+class PointLiteral(
+        UnicodeMixin,
+        collections.namedtuple('PointLiteral', ['srid', 'point'])):
+
+    """Represents a Point literal in OData
+
+    This is a Python namedtuple consisting of an integer 'srid' followed
+    by a 'point' of type :class:`Point`."""
+
+    __slots__ = ()
+
+    def __new__(cls, srid, point):
+        # check that args are valid
+        if not isinstance(point, Point):
+            raise TypeError("Expected Point")
+        srid = int(srid)
+        if srid < 0:
+            raise ValueError("SRID must be non-negative")
+        self = super(PointLiteral, cls).__new__(cls, srid, point)
+        return self
+
+    def __unicode__(self):
+        return force_text("SRID=%i;Point(%s)" % self)
+
+
+class PointValue(object):
+
+    def set(self, value=None):
+        if value is None:
+            self.value = value
+        elif isinstance(value, PointLiteral):
+            self.value = value
+        elif isinstance(value, PrimitiveValue):
+            raise TypeError
+        else:
+            raise TypeError("Can't set %s from %s" %
+                            (self.__class__.__name__, repr(value)))
 
     @classmethod
     def from_str(cls, src):
@@ -2061,32 +2152,517 @@ class GeographyPointValue(GeographyValue):
         return cls(v)
 
 
-class GeographyLineStringValue(GeographyValue):
+class LineString(GeoItem, UnicodeMixin, tuple):
+
+    """Represents a LineString in OData
+
+    A sub-class of tuple containing 2 or more :class:`Point`
+    instances."""
+
+    __slots__ = ()
+
+    def __new__(cls, points):
+        points = [Point.from_arg(p) for p in points]
+        if len(points) < 2:
+            raise ValueError("LineString requires at least 2 points")
+        self = super(LineString, cls).__new__(cls, points)
+        return self
+
+    def __unicode__(self):
+        return force_text("(%s)" % ",".join(to_text(p) for p in self))
+
+    def to_literal(self):
+        return force_text("LineString%s" % to_text(self))
+
+
+class LineStringLiteral(
+        UnicodeMixin,
+        collections.namedtuple('LineStringLiteral', ['srid', 'line_string'])):
+
+    """Represents a LineString literal in OData.
+
+    This is a Python namedtuple consisting of an integer 'srid' followed
+    by a 'line_string', an instance of :class:`LineString`"""
+
+    __slots__ = ()
+
+    def __new__(cls, srid, line_string):
+        # check that args are valid
+        if not isinstance(line_string, LineString):
+            line_string = LineString(line_string)
+        srid = int(srid)
+        if srid < 0:
+            raise ValueError("SRID must be non-negative")
+        self = super(LineStringLiteral, cls).__new__(
+            cls, srid, line_string)
+        return self
+
+    def __unicode__(self):
+        return force_text("SRID=%i;LineString%s" % self)
+
+
+class LineStringValue(object):
+
+    def set(self, value=None):
+        if value is None:
+            self.value = value
+        elif isinstance(value, LineStringLiteral):
+            self.value = value
+        elif isinstance(value, PrimitiveValue):
+            raise TypeError
+        else:
+            raise TypeError("Can't set %s from %s" %
+                            (self.__class__.__name__, repr(value)))
+
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_full_line_string_literal()
+        p.require_end()
+        return cls(v)
+
+
+class Ring(UnicodeMixin, tuple):
+
+    """Represents a Ring in OData
+
+    A sub-class of tuple containing :class:`Point` instances with the
+    constraint that the last and first points in a ring are always the
+    same.  As per the ABNF, we allow the degnerate case of a ring
+    consisting of a single point."""
+
+    __slots__ = ()
+
+    def __new__(cls, points):
+        points = [Point.from_arg(p) for p in points]
+        if len(points) < 1:
+            raise ValueError("Ring requires at least 1 points")
+        elif len(points) > 1 and points[0] != points[-1]:
+            raise ValueError("First and last points in ring must match")
+        self = super(Ring, cls).__new__(cls, points)
+        return self
+
+    @staticmethod
+    def from_arg(arg):
+        """Returns a Ring instance
+
+        If arg is already a Ring then it is returned, otherwise it is
+        used to construct a Ring instance."""
+        if isinstance(arg, Ring):
+            return arg
+        else:
+            return Ring(arg)
+
+    def __unicode__(self):
+        return force_text("(%s)" % ",".join(to_text(p) for p in self))
+
+
+class Polygon(GeoItem, UnicodeMixin, tuple):
+
+    """Represents a Polygon in OData
+
+    A sub-class of tuple containing :class:`Ring` instances."""
+
+    __slots__ = ()
+
+    def __new__(cls, rings):
+        rings = [Ring.from_arg(r) for r in rings]
+        if len(rings) < 1:
+            raise ValueError("Polygon requires at 1 ring")
+        self = super(Polygon, cls).__new__(cls, rings)
+        return self
+
+    @staticmethod
+    def from_arg(arg):
+        """Returns a Polygon instance
+
+        If arg is already a Polygon instance then it is returned,
+        otherwise it is used to construct a Polygon instance."""
+        if isinstance(arg, Polygon):
+            return arg
+        else:
+            return Polygon(arg)
+
+    def __unicode__(self):
+        return force_text("(%s)" % ",".join(to_text(r) for r in self))
+
+    def to_literal(self):
+        return force_text("Polygon%s" % to_text(self))
+
+
+class PolygonLiteral(
+        UnicodeMixin,
+        collections.namedtuple('PolygonLiteral', ['srid', 'polygon'])):
+    """Represents a Polygon literal in OData.
+
+    This is a Python namedtuple consisting of an integer 'srid' followed
+    'polygon', an instance of :class:`Polygon`."""
+
+    __slots__ = ()
+
+    def __new__(cls, srid, polygon):
+        # check that args are valid
+        if not isinstance(polygon, Polygon):
+            polygon = Polygon.from_arg(polygon)
+        srid = int(srid)
+        if srid < 0:
+            raise ValueError("SRID must be non-negative")
+        self = super(PolygonLiteral, cls).__new__(cls, srid, polygon)
+        return self
+
+    def __unicode__(self):
+        return force_text("SRID=%i;Polygon%s" % self)
+
+
+class PolygonValue(object):
+
+    def set(self, value=None):
+        if value is None:
+            self.value = value
+        elif isinstance(value, PolygonLiteral):
+            # validate this literal
+            self.value = value
+        elif isinstance(value, PrimitiveValue):
+            raise TypeError
+        else:
+            raise TypeError("Can't set %s from %s" %
+                            (self.__class__.__name__, repr(value)))
+
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_full_polygon_literal()
+        p.require_end()
+        return cls(v)
+
+
+class MultiPoint(GeoItem, UnicodeMixin, tuple):
+
+    """Represents a MultiPoint in OData
+
+    A sub-class of tuple containing 0 or more :class:`Point`
+    instances."""
+
+    __slots__ = ()
+
+    def __new__(cls, points):
+        points = [Point.from_arg(p) for p in points]
+        self = super(MultiPoint, cls).__new__(cls, points)
+        return self
+
+    def __unicode__(self):
+        return force_text(",".join("(%s)" % to_text(p) for p in self))
+
+    def to_literal(self):
+        return force_text("MultiPoint(%s)" % to_text(self))
+
+
+class MultiPointLiteral(
+        UnicodeMixin,
+        collections.namedtuple('MultiPointLiteral', ['srid', 'multipoint'])):
+
+    """Represents a MultiPoint literal in OData.
+
+    This is a Python namedtuple consisting of an integer 'srid' followed
+    by 'multipoint', an instance of :class:`MultiPoint`"""
+
+    __slots__ = ()
+
+    def __new__(cls, srid, multipoint):
+        # check that args are valid
+        if not isinstance(multipoint, MultiPoint):
+            multipoint = MultiPoint(multipoint)
+        srid = int(srid)
+        if srid < 0:
+            raise ValueError("SRID must be non-negative")
+        self = super(MultiPointLiteral, cls).__new__(
+            cls, srid, multipoint)
+        return self
+
+    def __unicode__(self):
+        return force_text("SRID=%i;MultiPoint(%s)" % self)
+
+
+class MultiPointValue(object):
+
+    def set(self, value=None):
+        if value is None:
+            self.value = value
+        elif isinstance(value, MultiPointLiteral):
+            self.value = value
+        elif isinstance(value, PrimitiveValue):
+            raise TypeError
+        else:
+            raise TypeError("Can't set %s from %s" %
+                            (self.__class__.__name__, repr(value)))
+
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_full_multi_point_literal()
+        p.require_end()
+        return cls(v)
+
+
+class MultiLineString(GeoItem, UnicodeMixin, tuple):
+
+    """Represents a MultiLineString in OData
+
+    A sub-class of tuple containing 0 or more :class:`LineString`
+    instances."""
+
+    __slots__ = ()
+
+    def __new__(cls, line_strings):
+        line_strings = [l if isinstance(l, LineString) else LineString(l)
+                        for l in line_strings]
+        self = super(MultiLineString, cls).__new__(cls, line_strings)
+        return self
+
+    def __unicode__(self):
+        return force_text(",".join(to_text(l) for l in self))
+
+    def to_literal(self):
+        return force_text("MultiLineString(%s)" % to_text(self))
+
+
+class MultiLineStringLiteral(
+        UnicodeMixin,
+        collections.namedtuple('MultiLineStringLiteral',
+                               ['srid', 'multi_line_string'])):
+
+    """Represents a MultiLineString literal in OData.
+
+    This is a Python namedtuple consisting of an integer 'srid' followed
+    by 'multi_line_string', an instance of :class:`MultiLineString`"""
+
+    __slots__ = ()
+
+    def __new__(cls, srid, multi_line_string):
+        # check that args are valid
+        if not isinstance(multi_line_string, MultiLineString):
+            multi_line_string = MultiLineString(multi_line_string)
+        srid = int(srid)
+        if srid < 0:
+            raise ValueError("SRID must be non-negative")
+        self = super(MultiLineStringLiteral, cls).__new__(
+            cls, srid, multi_line_string)
+        return self
+
+    def __unicode__(self):
+        return force_text("SRID=%i;MultiLineString(%s)" % self)
+
+
+class MultiLineStringValue(object):
+
+    def set(self, value=None):
+        if value is None:
+            self.value = value
+        elif isinstance(value, MultiLineStringLiteral):
+            self.value = value
+        elif isinstance(value, PrimitiveValue):
+            raise TypeError
+        else:
+            raise TypeError("Can't set %s from %s" %
+                            (self.__class__.__name__, repr(value)))
+
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_full_multi_line_string_literal()
+        p.require_end()
+        return cls(v)
+
+
+class MultiPolygon(GeoItem, UnicodeMixin, tuple):
+
+    """Represents a MultiPolygon in OData
+
+    A sub-class of tuple containing 0 or more :class:`Polygon`
+    instances."""
+
+    __slots__ = ()
+
+    def __new__(cls, polygons):
+        polygons = [p if isinstance(p, Polygon) else Polygon(p)
+                    for p in polygons]
+        self = super(MultiPolygon, cls).__new__(cls, polygons)
+        return self
+
+    def __unicode__(self):
+        return force_text(",".join(to_text(p) for p in self))
+
+    def to_literal(self):
+        return force_text("MultiPolygon(%s)" % to_text(self))
+
+
+class MultiPolygonLiteral(
+        UnicodeMixin,
+        collections.namedtuple('MultiPolygonLiteral',
+                               ['srid', 'multi_polygon'])):
+
+    """Represents a MultiPolygon literal in OData.
+
+    This is a Python namedtuple consisting of an integer 'srid' followed
+    by 'multi_polygon', an instance of :class:`MultiPolygon`"""
+
+    __slots__ = ()
+
+    def __new__(cls, srid, multi_polygon):
+        # check that args are valid
+        if not isinstance(multi_polygon, MultiPolygon):
+            multi_polygon = MultiPolygon(multi_polygon)
+        srid = int(srid)
+        if srid < 0:
+            raise ValueError("SRID must be non-negative")
+        self = super(MultiPolygonLiteral, cls).__new__(
+            cls, srid, multi_polygon)
+        return self
+
+    def __unicode__(self):
+        return force_text("SRID=%i;MultiPolygon(%s)" % self)
+
+
+class MultiPolygonValue(object):
+
+    def set(self, value=None):
+        if value is None:
+            self.value = value
+        elif isinstance(value, MultiPolygonLiteral):
+            self.value = value
+        elif isinstance(value, PrimitiveValue):
+            raise TypeError
+        else:
+            raise TypeError("Can't set %s from %s" %
+                            (self.__class__.__name__, repr(value)))
+
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_full_multi_polygon_literal()
+        p.require_end()
+        return cls(v)
+
+
+class GeoCollection(GeoItem, UnicodeMixin, tuple):
+
+    """Represents a GeoCollection in OData
+
+    A sub-class of tuple containing 0 or more of the basic Geo classes
+    :class:`Point`, :class:`LineString`, :class:`Polygon`,
+    :class:`MultiPoint`, class:`MultiLineString`, :class:`MultiPolygon`
+    and :class:`GeoCollection` itself. (GeoCollection objects can be
+    defined recursively)
+
+    .. note::   Although a GeoCollection has 'Collection' in its name it
+                behaves like a single 'atomic' value in OData, just like
+                the other primitive types such as Int32, String, etc."""
+
+    __slots__ = ()
+
+    def __new__(cls, items):
+        for i in items:
+            if not isinstance(i, GeoItem):
+                raise ValueError("Bad item in GeoCollection: %s" % repr(i))
+        self = super(GeoCollection, cls).__new__(cls, items)
+        return self
+
+    def to_literal(self):
+        return to_text(self)
+
+    def __unicode__(self):
+        return force_text(
+            "Collection(%s)" % (",".join(i.to_literal() for i in self)))
+
+
+class GeoCollectionLiteral(
+        UnicodeMixin,
+        collections.namedtuple('GeoCollection', ['srid', 'items'])):
+
+    """Represents a Geo Collection literal in OData.
+
+    This is a Python namedtuple consisting of an integer 'srid' followed
+    by 'items', an instance of :class:`GeoCollection`."""
+
+    __slots__ = ()
+
+    def __new__(cls, srid, items):
+        # check that args are valid
+        if not isinstance(items, GeoCollection):
+            items = GeoCollection(items)
+        srid = int(srid)
+        if srid < 0:
+            raise ValueError("SRID must be non-negative")
+        self = super(GeoCollectionLiteral, cls).__new__(
+            cls, srid, items)
+        return self
+
+    def __unicode__(self):
+        return force_text("SRID=%i;%s" % self)
+
+
+class GeoCollectionValue(object):
+
+    def set(self, value=None):
+        if value is None:
+            self.value = value
+        elif isinstance(value, GeoCollectionLiteral):
+            self.value = value
+        elif isinstance(value, PrimitiveValue):
+            raise TypeError
+        else:
+            raise TypeError("Can't set %s from %s" %
+                            (self.__class__.__name__, repr(value)))
+
+    @classmethod
+    def from_str(cls, src):
+        """Constructs a value from a string"""
+        p = PrimitiveParser(src)
+        v = p.require_full_collection_literal()
+        p.require_end()
+        return cls(v)
+
+
+class GeographyValue(PrimitiveValue):
+    pass
+
+
+class GeographyPointValue(PointValue, GeographyValue):
+
+    edm_name = 'GeographyPoint'
+
+
+class GeographyLineStringValue(LineStringValue, GeographyValue):
 
     edm_name = 'GeographyLineString'
 
 
-class GeographyPolygonValue(GeographyValue):
+class GeographyPolygonValue(PolygonValue, GeographyValue):
 
     edm_name = 'GeographyPolygon'
 
 
-class GeographyMultiPointValue(GeographyValue):
+class GeographyMultiPointValue(MultiPointValue, GeographyValue):
 
     edm_name = 'GeographyMultiPoint'
 
 
-class GeographyMultiLineStringValue(GeographyValue):
+class GeographyMultiLineStringValue(MultiLineStringValue, GeographyValue):
 
     edm_name = 'GeographyMultiLineString'
 
 
-class GeographyMultiPolygonValue(GeographyValue):
+class GeographyMultiPolygonValue(MultiPolygonValue, GeographyValue):
 
     edm_name = 'GeographyMultiPolygon'
 
 
-class GeographyCollectionValue(GeographyValue):
+class GeographyCollectionValue(GeoCollectionValue, GeographyValue):
 
     edm_name = 'GeographyCollection'
 
@@ -2095,37 +2671,37 @@ class GeometryValue(PrimitiveValue):
     pass
 
 
-class GeometryPointValue(GeometryValue):
+class GeometryPointValue(PointValue, GeometryValue):
 
     edm_name = 'GeometryPoint'
 
 
-class GeometryLineStringValue(GeometryValue):
+class GeometryLineStringValue(LineStringValue, GeometryValue):
 
     edm_name = 'GeometryLineString'
 
 
-class GeometryPolygonValue(GeometryValue):
+class GeometryPolygonValue(PolygonValue, GeometryValue):
 
     edm_name = 'GeometryPolygon'
 
 
-class GeometryMultiPointValue(GeometryValue):
+class GeometryMultiPointValue(MultiPointValue, GeometryValue):
 
     edm_name = 'GeometryMultiPoint'
 
 
-class GeometryMultiLineStringValue(GeometryValue):
+class GeometryMultiLineStringValue(MultiLineStringValue, GeometryValue):
 
     edm_name = 'GeometryMultiLineString'
 
 
-class GeometryMultiPolygonValue(GeometryValue):
+class GeometryMultiPolygonValue(MultiPolygonValue, GeometryValue):
 
     edm_name = 'GeometryMultiPolygon'
 
 
-class GeometryCollectionValue(GeometryValue):
+class GeometryCollectionValue(GeoCollectionValue, GeometryValue):
 
     edm_name = 'GeometryCollection'
 
@@ -2221,7 +2797,8 @@ class CollectionValue(Value):
     test.  A collection value is never null, so it always returns True
     in simple boolean logic tests even if the collection is empty. On
     the other hand, the object returned by :meth:`open` behaves like a
-    python Collection object and will evaluate to False if it empty."""
+    python Collection object and will evaluate to False if it is
+    empty."""
 
     def __init__(self, type_def):
         Value.__init__(self, type_def)
@@ -2324,7 +2901,7 @@ class PrimitiveParser(BasicParser):
             self.parse('==')
             result.append(byte('='))
             result.append(byte('='))
-        return BinaryValue(base64.urlsafe_b64decode(result))
+        return BinaryValue(base64.urlsafe_b64decode(bytes(result)))
 
     # Line 863
     #: a character class representing production base64char
@@ -2502,7 +3079,7 @@ class PrimitiveParser(BasicParser):
     def require_int64_value(self):
         """Parses production: int64Value
 
-        Returns a :class:`Int64Value` instance of raises a parser
+        Returns a :class:`Int64Value` instance or raises a parser
         error."""
         sign = self.parse_sign()
         digits = self.require_production(self.parse_digits(1, 19),
@@ -2515,96 +3092,37 @@ class PrimitiveParser(BasicParser):
                               '9223372036854775807]')
         return v
 
-    # Line 910
-    def require_enum_value(self):
-        """Parses production: enumValue
+    # Line 881
+    def require_string(self):
+        """Parses production: string
 
-        Returns a non-empty *list* of strings and/or integers or raises
-        a parser error."""
+        Returns a :class:`StringValue` instance or raises a parser
+        error. Note that this is the literal quoted form of the string
+        for use in URLs, string values in XML and JSON payloads are
+        represented using native representations.  It is assumed that
+        the input *has already* been decoded from the URL and is
+        represented as a character string (it may also contain non-ASCII
+        characters interpreted from the URL in an appropriate way)."""
         result = []
-        result.append(self.require_single_enum_value())
-        while self.parse(","):
-            # no need to use look ahead
-            result.append(self.require_single_enum_value())
-        return result
+        self.require("'")
+        while self.the_char is not None:
+            if self.parse("'"):
+                if self.parse("'"):
+                    # an escaped single quote
+                    result.append("'")
+                else:
+                    break
+            else:
+                result.append(self.the_char)
+                self.next_char()
+        return "".join(result)
 
-    # Line 911
-    def require_single_enum_value(self):
-        """Parses production: singleEnumValue
-
-        Reuturns either a simple identifier string, an integer or raises
-        a parser error."""
-        name = self.parse_production(self.require_odata_identifier)
-        if name:
-            return name
-        else:
-            return self.require_int64_value()
-
-    # Line 943
-    def require_full_point_literal(self):
-        """Parses production: fullPointLiteral
-
-        Returns a Point instance."""
-        # sridLiteral pointLiteral
-        pass
-
-    # Line 1052
-    def parse_sign(self):
-        """Parses production: SIGN (aka sign)
-
-        This production is typically optional so we either return "+",
-        "-" or "" depending on the sign character parsed.  The ABNF
-        allows for the percent encoded value "%2B" instead of "+" but we
-        assume that percent-encoding has been removed before parsing.
-        (That may not be true in XML documents but it seems
-        unintentional to allow this form in that context.)"""
-        sign = self.parse_one('+-')
-        return sign if sign else ''
-
-    def require_duration_value(self):
-        sign = self.parse_one('+-')
-        if sign:
-            sign = 1 if sign == "+" else -1
-        else:
-            sign = 1
-        self.require("P")
-        digits = self.parse_digits(1)
-        if digits:
-            self.require("D")
-            days = int(digits)
-        else:
-            days = 0
-        hours = minutes = seconds = 0
-        if self.parse("T"):
-            # time fields
-            digits = self.parse_digits(1)
-            if digits and self.parse("H"):
-                hours = int(digits)
-                digits = None
-            if not digits:
-                digits = self.parse_digits(1)
-            if digits and self.parse('M'):
-                minutes = int(digits)
-                digits = None
-            if not digits:
-                digits = self.parse_digits(1)
-            if digits:
-                if self.parse('.'):
-                    rdigits = self.require_production(
-                        self.parse_digits(1), "fractional seconds")
-                    self.require("S")
-                    seconds = float(digits + "." + rdigits)
-                elif self.parse("S"):
-                    seconds = int(digits)
-        d = xsi.Duration()
-        d.sign = sign
-        d.days = days
-        d.hours = hours
-        d.minutes = minutes
-        d.seconds = seconds
-        return DurationValue(d)
-
+    # Line 884
     def require_date_value(self):
+        """Parses the production: dateValue
+
+        Returns a :class:`DateValue` instance or raises a parser
+        error."""
         year = self.require_year()
         self.require('-')
         month = self.require_month()
@@ -2619,7 +3137,12 @@ class PrimitiveParser(BasicParser):
         except DateTimeError:
             self.parser_error("valid dateValue")
 
+    # Line 886
     def require_date_time_offset_value(self):
+        """Parses production: dateTimeOffsetValue
+
+        Returns a :class:`DateTimeOffsetValue` instance or raises a
+        parser error."""
         year = self.require_year()
         self.require('-')
         month = self.require_month()
@@ -2663,7 +3186,56 @@ class PrimitiveParser(BasicParser):
         except DateTimeError:
             self.parser_error("valid dateTimeOffsetValue")
 
+    # Line 889
+    def require_duration_value(self):
+        """Parses production: durationValue
+
+        Returns a :class:`DurationValue` instance or raises a parser
+        error."""
+        sign = self.parse_sign_int()
+        self.require("P")
+        digits = self.parse_digits(1)
+        if digits:
+            self.require("D")
+            days = int(digits)
+        else:
+            days = 0
+        hours = minutes = seconds = 0
+        if self.parse("T"):
+            # time fields
+            digits = self.parse_digits(1)
+            if digits and self.parse("H"):
+                hours = int(digits)
+                digits = None
+            if not digits:
+                digits = self.parse_digits(1)
+            if digits and self.parse('M'):
+                minutes = int(digits)
+                digits = None
+            if not digits:
+                digits = self.parse_digits(1)
+            if digits:
+                if self.parse('.'):
+                    rdigits = self.require_production(
+                        self.parse_digits(1), "fractional seconds")
+                    self.require("S")
+                    seconds = float(digits + "." + rdigits)
+                elif self.parse("S"):
+                    seconds = int(digits)
+        d = xsi.Duration()
+        d.sign = sign
+        d.days = days
+        d.hours = hours
+        d.minutes = minutes
+        d.seconds = seconds
+        return DurationValue(d)
+
+    # Line 893
     def require_time_of_day_value(self):
+        """Parses production: timeOfDayValue
+
+        Returns a :class:`TimeOfDayValue` instance or raises a parser
+        error."""
         hour = self.require_hour()
         self.require(':')
         minute = self.require_minute()
@@ -2683,7 +3255,24 @@ class PrimitiveParser(BasicParser):
         except DateTimeError:
             self.parser_error("valid timeOfDayValue")
 
+    # Line 896
+    def require_zero_to_fifty_nine(self, production):
+        """Parses production: zeroToFiftyNine
+
+        Returns an integer in the range 0..59 or raises a parser
+        error."""
+        digits = self.require_production(self.parse_digits(2, 2), production)
+        i = int(digits)
+        if i > 59:
+            self.parser_error("%s in range [0..59]" % production)
+        return i
+
+    # Line 897
     def require_year(self):
+        """Parses production: year
+
+        Returns an integer representing the parsed year or raises a
+        parser error."""
         if self.parse('-'):
             sign = -1
         else:
@@ -2696,7 +3285,12 @@ class PrimitiveParser(BasicParser):
             self.parser_error("year")
         return sign * int(digits)
 
+    # Line 898
     def require_month(self):
+        """Parses production: month
+
+        Returns an integer representing the month or raises a parser
+        error."""
         if self.parse('0'):
             digits = self.parse_digit()
         elif self.parse('1'):
@@ -2708,7 +3302,12 @@ class PrimitiveParser(BasicParser):
             self.parser_error("month")
         return int(digits)
 
+    # Line 900
     def require_day(self):
+        """Parses production: day
+
+        Returns an integer representing the day or raises a parser
+        error."""
         if self.parse("0"):
             digits = self.parse_digit()
         else:
@@ -2725,25 +3324,361 @@ class PrimitiveParser(BasicParser):
             self.parser_error("day")
         return int(digits)
 
+    # Line 903
     def require_hour(self):
+        """Parses production: hour
+
+        Returns an integer representing the hour or raises a parser
+        error."""
         digits = self.require_production(self.parse_digits(2, 2), "hour")
         hour = int(digits)
         if hour > 23:
             self.parser_error("hour in range [0..23]")
         return hour
 
+    # Line 905
     def require_minute(self):
+        """Parses production: minute
+
+        Returns an integer representation of the minute or raises a
+        parser error."""
         return self.require_zero_to_fifty_nine("minute")
 
+    # Line 906
     def require_second(self):
+        """Parses production: second
+
+        Returns an integer representation of the second or raises a
+        parser error."""
         return self.require_zero_to_fifty_nine("second")
 
-    def require_zero_to_fifty_nine(self, production):
-        digits = self.require_production(self.parse_digits(2, 2), production)
-        i = int(digits)
-        if i > 59:
-            self.parser_error("%s in range [0..59]" % production)
-        return i
+    # Line 910
+    def require_enum_value(self):
+        """Parses production: enumValue
+
+        Returns a non-empty *list* of strings and/or integers or raises
+        a parser error."""
+        result = []
+        result.append(self.require_single_enum_value())
+        while self.parse(","):
+            # no need to use look ahead
+            result.append(self.require_single_enum_value())
+        return result
+
+    # Line 911
+    def require_single_enum_value(self):
+        """Parses production: singleEnumValue
+
+        Reuturns either a simple identifier string, an integer or raises
+        a parser error."""
+        name = self.parse_production(self.require_odata_identifier)
+        if name:
+            return name
+        else:
+            return self.require_int64_value()
+
+    # Line 915
+    def require_full_collection_literal(self):
+        """Parses production: fullCollectionLiteral
+
+        Returns a :class:`GeoCollectionLiteral` instance, a named tuple
+        consisting of 'srid' and 'items' members."""
+        srid = self.require_srid_literal()
+        items = self.require_collection_literal()
+        return GeoCollectionLiteral(srid, items)
+
+    # Line 916
+    def require_collection_literal(self):
+        """Parses production: collectionLiteral
+
+        Returns a :class:`GeoCollection` instance."""
+        self.require_production(
+            self.parse_insensitive("collection("), "collectionLiteral")
+        items = [self.require_geo_literal()]
+        while self.parse(self.COMMA):
+            items.append(self.require_geo_literal())
+        self.require(self.CLOSE)
+        return GeoCollection(items)
+
+    # Line 917
+    def require_geo_literal(self):
+        """Parses production: geoLiteral
+
+        Returns a :class:`GeoItem` instance."""
+        item = self.parse_production(self.require_collection_literal)
+        if not item:
+            item = self.parse_production(self.require_line_string_literal)
+        if not item:
+            item = self.parse_production(self.require_multi_point_literal)
+        if not item:
+            item = self.parse_production(
+                self.require_multi_line_string_literal)
+        if not item:
+            item = self.parse_production(
+                self.require_multi_polygon_literal)
+        if not item:
+            item = self.parse_production(self.require_point_literal)
+        if not item:
+            item = self.parse_production(self.require_polygon_literal)
+        if not item:
+            self.parser_error("geoLiteral")
+        return item
+
+    # Line 926
+    def require_full_line_string_literal(self):
+        """Parses production: fullLineStringLiteral
+
+        Returns a :class:`LineStringLiteral` instance, a named tuple
+        consisting of 'srid' and 'line_string' members."""
+        srid = self.require_srid_literal()
+        l = self.require_line_string_literal()
+        return LineStringLiteral(srid, l)
+
+    # Line 927
+    def require_line_string_literal(self):
+        """Parses production: lineStringLiteral
+
+        Returns a :class:`LineString` instance."""
+        self.require_production(
+            self.parse_insensitive("linestring"), "lineStringLiteral")
+        return self.require_line_string_data()
+
+    # Line 928
+    def require_line_string_data(self):
+        """Parses production: lineStringData
+
+        Returns a :class:`LineString` instance."""
+        self.require(self.OPEN)
+        coords = []
+        coords.append(self.require_position_literal())
+        while self.parse(self.COMMA):
+            coords.append(self.require_position_literal())
+        self.require(self.CLOSE)
+        return LineString(coords)
+
+    # Line 931
+    def require_full_multi_line_string_literal(self):
+        """Parses production: fullMultiLineStringLiteral
+
+        Returns a :class:`MultiLineStringLiteral` instance."""
+        srid = self.require_srid_literal()
+        ml = self.require_multi_line_string_literal()
+        return MultiLineStringLiteral(srid, ml)
+
+    # Line 932
+    def require_multi_line_string_literal(self):
+        """Parses production: multiLineStringLiteral
+
+        Returns a :class:`MultiLineString` instance."""
+        try:
+            self.require_production(
+                self.parse_insensitive("multilinestring("),
+                "MultiLineStringLiteral")
+            # may be empty
+            line_strings = []
+            l = self.parse_production(self.require_line_string_data)
+            if l:
+                line_strings.append(l)
+                while self.parse(self.COMMA):
+                    line_strings.append(self.require_line_string_data())
+            self.require(self.CLOSE)
+        except ParserError:
+            self.parser_error()
+        return MultiLineString(line_strings)
+
+    # Line 935
+    def require_full_multi_point_literal(self):
+        """Parses production: fullMultiPointLiteral
+
+        Returns a :class:`MultiPointLiteral` instance."""
+        srid = self.require_srid_literal()
+        mp = self.require_multi_point_literal()
+        return MultiPointLiteral(srid, mp)
+
+    # Line 936
+    def require_multi_point_literal(self):
+        """Parses production: multiPointLiteral
+
+        Returns a :class:`MultiPoint` instance."""
+        self.require_production(
+            self.parse_insensitive("multipoint("), "MultiPointLiteral")
+        # may be empty
+        points = []
+        p = self.parse_production(self.require_point_data)
+        if p:
+            points.append(p)
+            while self.parse(self.COMMA):
+                points.append(self.require_point_data())
+        self.require(self.CLOSE)
+        return MultiPoint(points)
+
+    # Line 939
+    def require_full_multi_polygon_literal(self):
+        """Parses production: fullMultiPolygonLiteral
+
+        Returns a :class:`MultiPolygonLiteral` instance."""
+        srid = self.require_srid_literal()
+        mp = self.require_multi_polygon_literal()
+        return MultiPolygonLiteral(srid, mp)
+
+    # Line 940
+    def require_multi_polygon_literal(self):
+        """Parses production: multiPolygonLiteral
+
+        Returns a :class:`MultiPolygon` instance."""
+        try:
+            self.require_production(
+                self.parse_insensitive("multipolygon("), "MultiPolygonLiteral")
+            # may be empty
+            polygons = []
+            p = self.parse_production(self.require_polygon_data)
+            if p:
+                polygons.append(p)
+                while self.parse(self.COMMA):
+                    polygons.append(self.require_polygon_data())
+            self.require(self.CLOSE)
+        except ParserError:
+            self.parser_error()
+        return MultiPolygon(polygons)
+
+    # Line 943
+    def require_full_point_literal(self):
+        """Parses production: fullPointLiteral
+
+        Returns a :class:`PointLiteral` instance, a named tuple
+        consisting of "srid" and "point" members."""
+        srid = self.require_srid_literal()
+        p = self.require_point_literal()
+        return PointLiteral(srid, p)
+
+    # Line 944
+    def require_srid_literal(self):
+        """Parses production: sridLiteral
+
+        Returns an integer reference for the SRID or raises a parser
+        error."""
+        self.require_production(
+            self.parse_insensitive("srid"), "SRID")
+        self.require(self.EQ)
+        digits = self.require_production(self.parse_digits(1, 5))
+        self.require(self.SEMI)
+        return int(digits)
+
+    # Line 945
+    def require_point_literal(self):
+        """Parses production: pointLiteral
+
+        Reuturns a Point instance."""
+        self.require_production(
+            self.parse_insensitive("point"), "pointLiteral")
+        return self.require_point_data()
+
+    # Line 946
+    def require_point_data(self):
+        """Parses production: pointData
+
+        Returns a :class:`Point` instance."""
+        self.require(self.OPEN)
+        coords = self.require_position_literal()
+        self.require(self.CLOSE)
+        return Point(*coords)
+
+    # Line 947
+    def require_position_literal(self):
+        """Parses production: positionLiteral
+
+        Returns a tuple of two float values or raises a parser error.
+        Although the ABNF refers to "longitude then latitude" this
+        production is used for all co-ordinate reference systems in both
+        Geography and Geometry types so we make no such judgement
+        ourselves and simply return an unamed tuple."""
+        d1 = self.require_double_value()
+        self.require(self.SP)
+        d2 = self.require_double_value()
+        return (d1.value, d2.value)
+
+    # Line 950
+    def require_full_polygon_literal(self):
+        """Parses production: fullPolygonLiteral
+
+        Returns a :class:`PolygonLiteral` instance."""
+        srid = self.require_srid_literal()
+        p = self.require_polygon_literal()
+        return PolygonLiteral(srid, p)
+
+    # Line 951
+    def require_polygon_literal(self):
+        """Parses production: polygonLiteral
+
+        Returns a :class:`Polygon` instance."""
+        self.require_production(
+            self.parse_insensitive("polygon"), "polygonLiteral")
+        return self.require_polygon_data()
+
+    # Line 952
+    def require_polygon_data(self):
+        """Parses production: polygonData
+
+        Returns a :class:`Polygon` instance."""
+        self.require(self.OPEN)
+        rings = []
+        rings.append(self.require_ring_literal())
+        while self.parse(self.COMMA):
+            rings.append(self.require_ring_literal())
+        self.require(self.CLOSE)
+        return Polygon(rings)
+
+    # Line 953
+    def require_ring_literal(self):
+        """Parses production: ringLiteral
+
+        Returns a :class:`Ring` instance."""
+        self.require(self.OPEN)
+        coords = []
+        coords.append(self.require_position_literal())
+        while self.parse(self.COMMA):
+            coords.append(self.require_position_literal())
+        self.require(self.CLOSE)
+        return Ring(coords)
+
+    # Line 1052
+    def parse_sign(self):
+        """Parses production: SIGN (aka sign)
+
+        This production is typically optional so we either return "+",
+        "-" or "" depending on the sign character parsed.  The ABNF
+        allows for the percent encoded value "%2B" instead of "+" but we
+        assume that percent-encoding has been removed before parsing.
+        (That may not be true in XML documents but it seems
+        unintentional to allow this form in that context.)"""
+        sign = self.parse_one('+-')
+        return sign if sign else ''
+
+    # Line 1050
+    COMMA = ul(",")
+
+    # Line 1051
+    EQ = ul("=")
+
+    # Line 1052
+    def parse_sign_int(self):
+        """Parses production: SIGN (aka sign)
+
+        Returns the integer 1 or -1 depending on the sign.  If no sign
+        is parsed then 1 is returned."""
+        sign = self.parse_one('+-')
+        return -1 if sign == "-" else 1
+
+    # Line 1053
+    SEMI = ul(";")
+
+    # Line 1057
+    OPEN = ul("(")
+    # Line 1058
+    CLOSE = ul(")")
+
+    # Line 1162
+    SP = ul(" ")
 
 
 edm = Schema.edm_init()

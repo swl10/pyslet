@@ -1,14 +1,18 @@
 #! /usr/bin/env python
 
+import decimal
 import logging
 import unittest
+import uuid
 
+from pyslet import iso8601 as iso
 from pyslet.odata4 import model as odata
 from pyslet.odata4 import metadata as csdl
 from pyslet.rfc2396 import URI
 from pyslet.vfs import OSFilePath
 from pyslet.xml.namespace import XMLNSParser
 from pyslet.xml.structures import XMLValidityError
+from pyslet.xml.xsdatatypes import Duration
 
 
 def suite():
@@ -232,10 +236,122 @@ class CSDLDocumentTests(unittest.TestCase):
         s = em['test.pyslet.org']
         data = (
             ('BinaryTest', odata.BinaryValue, b'Caf\xc3\xa9'),
+            ('BooleanTest', odata.BooleanValue, True),
+            ('ByteTest', odata.ByteValue, 239),
+            ('DateTest', odata.DateValue, iso.Date(
+                century=20, year=17, month=5, day=30)),
+            ('DateTimeOffsetTest', odata.DateTimeOffsetValue, iso.TimePoint(
+                date=iso.Date(century=20, year=17, month=5, day=30),
+                time=iso.Time(hour=4, minute=20, second=00, zdirection=1,
+                              zhour=1, zminute=0))),
+            ('DecimalTest', odata.DecimalValue, decimal.Decimal('3.14159')),
+            ('DoubleTest', odata.DoubleValue, 3.1416015625),
+            ('DurationTest', odata.DurationValue, Duration("PT1S")),
+            ('GeographyPointTest', odata.GeographyPointValue,
+             odata.PointLiteral(
+                srid=4326, point=odata.Point(-1.00244140625,
+                                             51.44775390625))),
+            ('GeographyLineStringTest', odata.GeographyLineStringValue,
+             odata.LineStringLiteral(
+                srid=4326, line_string=odata.LineString(
+                    ((-1.00244140625, 51.44775390625),
+                     (-0.9964599609375, 51.455810546875))))),
+            ('GeographyPolygonTest', odata.GeographyPolygonValue,
+             odata.PolygonLiteral(srid=4326, polygon=odata.Polygon(
+                (((-1.003173828125, 51.439697265625),
+                  (-1.0029296875, 51.4437255859375),
+                  (-1.001708984375, 51.4437255859375),
+                  (-1.001708984375, 51.439697265625),
+                  (-1.003173828125, 51.439697265625)),
+                 )))),
+            ('GeographyMultiPointTest', odata.GeographyMultiPointValue,
+             odata.MultiPointLiteral(
+                srid=4326, multipoint=(
+                    odata.Point(-1.00244140625, 51.44775390625),
+                    odata.Point(-0.9964599609375, 51.455810546875)))),
+            ('GeographyMultiLineStringTest',
+             odata.GeographyMultiLineStringValue,
+             odata.MultiLineStringLiteral(
+                srid=4326, multi_line_string=(
+                    odata.LineString(((-1.00244140625, 51.44775390625),
+                                      (-0.9964599609375, 51.455810546875))),
+                    ))),
+            ('GeographyMultiPolygonTest', odata.GeographyMultiPolygonValue,
+             odata.MultiPolygonLiteral(
+                srid=4326, multi_polygon=(
+                    odata.Polygon((((-1.003173828125, 51.439697265625),
+                                    (-1.0029296875, 51.4437255859375),
+                                    (-1.001708984375, 51.4437255859375),
+                                    (-1.001708984375, 51.439697265625),
+                                    (-1.003173828125, 51.439697265625)),
+                                   )),
+                    ))),
+            ('GeographyCollectionTest', odata.GeographyCollectionValue,
+             odata.GeoCollectionLiteral(
+                srid=4326, items=(
+                    odata.Point(-1.00244140625, 51.44775390625),
+                    odata.LineString(((-1.00244140625, 51.44775390625),
+                                      (-0.9964599609375, 51.455810546875)))
+                    ))),
+            ('GeometryPointTest', odata.GeometryPointValue,
+             odata.PointLiteral(srid=0, point=odata.Point(1.0, -1.0))),
+            ('GeometryLineStringTest', odata.GeometryLineStringValue,
+             odata.LineStringLiteral(
+                srid=0, line_string=odata.LineString(
+                    ((1.0, -1.0), (-1.0, 1.0))))),
+            ('GeometryPolygonTest', odata.GeometryPolygonValue,
+             odata.PolygonLiteral(srid=0, polygon=odata.Polygon(
+                (((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0),
+                  (1.0, -1.0)),
+                 )))),
+            ('GeometryMultiPointTest', odata.GeometryMultiPointValue,
+             odata.MultiPointLiteral(
+                srid=0, multipoint=(
+                    odata.Point(1.0, -1.0), odata.Point(-1.0, 1.0)))),
+            ('GeometryMultiLineStringTest',
+             odata.GeometryMultiLineStringValue,
+             odata.MultiLineStringLiteral(
+                srid=0, multi_line_string=(
+                    odata.LineString(((1.0, -1.0), (-1.0, 1.0))),
+                    odata.LineString(((1.0, 1.0), (-1.0, -1.0))),
+                    ))),
+            ('GeometryMultiPolygonTest', odata.GeometryMultiPolygonValue,
+             odata.MultiPolygonLiteral(
+                srid=0, multi_polygon=(
+                    odata.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
+                                    (-1.0, -1.0), (1.0, -1.0)),
+                                   )),
+                    odata.Polygon((((4.0, -1.0), (4.0, 1.0), (2.0, 1.0),
+                                    (2.0, -1.0), (4.0, -1.0)),
+                                   ))
+                    ))),
+            ('GeometryCollectionTest', odata.GeometryCollectionValue,
+             odata.GeoCollectionLiteral(
+                srid=0, items=(
+                    odata.LineString(((1.0, -1.0),
+                                      (-1.0, 1.0))),
+                    odata.LineString(((1.0, 1.0),
+                                      (-1.0, -1.0))),
+                    odata.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
+                                    (-1.0, -1.0), (1.0, -1.0)),
+                                   )),
+                    ))),
+            ('GuidTest', odata.GuidValue, uuid.UUID(int=0xdeadbeef)),
+            ('Int16Test', odata.Int16Value, -16657),
+            ('Int32Test', odata.Int32Value, -559038737),
+            ('Int64Test', odata.Int64Value, 3735928559),
+            ('SByteTest', odata.SByteValue, -17),
+            ('SingleTest', odata.SingleValue, 3.1416015625),
+            ('StringTest', odata.StringValue, "Fish&Chips"),
+            ('TimeOfDayTest', odata.TimeOfDayValue,
+             iso.Time(hour=4, minute=20, second=0)),
+            ('EnumTest', odata.EnumerationValue, 1)
             )
         for pname, ptype, default in data:
             p = s['DefaultTest'][pname]
-            self.assertTrue(isinstance(p.default_value, ptype))
+            self.assertTrue(
+                isinstance(p.default_value, ptype),
+                "%s (Expected %s)" % (repr(p.default_value), repr(ptype)))
             self.assertTrue(
                 p.default_value.value == default,
                 "Default: %s = %s" % (pname, repr(p.default_value.value)))
