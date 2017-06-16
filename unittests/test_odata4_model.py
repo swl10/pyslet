@@ -12,6 +12,7 @@ from pyslet.iso8601 import (
     Time,
     TimePoint
     )
+import pyslet.odata4.geotypes as geo
 import pyslet.odata4.model as odata
 from pyslet.py2 import (
     BoolMixin,
@@ -574,6 +575,100 @@ class NominalTypeTests(unittest.TestCase):
         self.assertTrue(t2 is not t3)
 
 
+ALL_TYPES = (
+    # Value type, example value, True if it is the default value type
+    # for this example value
+    (odata.BinaryValue, b'3.14', True),
+    (odata.BooleanValue, True, True),
+    (odata.ByteValue, 3, False),
+    (odata.DateValue, Date(), True),
+    (odata.DateTimeOffsetValue, TimePoint().with_zone(0), True),
+    (odata.DecimalValue, Decimal('3.14'), True),
+    (odata.DoubleValue, 3.14, True),
+    (odata.DurationValue, Duration(), True),
+    (odata.GuidValue, uuid.UUID(int=3), True),
+    (odata.Int16Value, 3, False),
+    (odata.Int32Value, 3, False),
+    (odata.Int64Value, 3, True),
+    (odata.SByteValue, 3, False),
+    (odata.SingleValue, 3.14, False),
+    # odata.StreamValue is handled specially
+    (odata.StringValue, ul('3.14'), True),
+    (odata.TimeOfDayValue, Time(), True),
+    # odata.Geography is abstract
+    (odata.GeographyPointValue, geo.PointLiteral(
+        srid=4326, point=geo.Point(-1.00244140625, 51.44775390625)), True),
+    (odata.GeographyLineStringValue, geo.LineStringLiteral(
+        srid=4326, line_string=geo.LineString(
+            ((-1.00244140625, 51.44775390625),
+             (-0.9964599609375, 51.455810546875)))), True),
+    (odata.GeographyPolygonValue, geo.PolygonLiteral(
+        srid=4326, polygon=geo.Polygon(
+            (((-1.003173828125, 51.439697265625),
+              (-1.0029296875, 51.4437255859375),
+              (-1.001708984375, 51.4437255859375),
+              (-1.001708984375, 51.439697265625),
+              (-1.003173828125, 51.439697265625)),
+             ))), True),
+    (odata.GeographyMultiPointValue, geo.MultiPointLiteral(
+        srid=4326, multipoint=(
+            geo.Point(-1.00244140625, 51.44775390625),
+            geo.Point(-0.9964599609375, 51.455810546875))), True),
+    (odata.GeographyMultiLineStringValue, geo.MultiLineStringLiteral(
+        srid=4326, multi_line_string=(
+            geo.LineString(((-1.00244140625, 51.44775390625),
+                            (-0.9964599609375, 51.455810546875))),
+            )), True),
+    (odata.GeographyMultiPolygonValue, geo.MultiPolygonLiteral(
+        srid=4326, multi_polygon=(
+            geo.Polygon((((-1.003173828125, 51.439697265625),
+                          (-1.0029296875, 51.4437255859375),
+                          (-1.001708984375, 51.4437255859375),
+                          (-1.001708984375, 51.439697265625),
+                          (-1.003173828125, 51.439697265625)),
+                         )),
+            )), True),
+    (odata.GeographyCollectionValue, geo.GeoCollectionLiteral(
+        srid=4326, items=(
+            geo.Point(-1.00244140625, 51.44775390625),
+            geo.LineString(((-1.00244140625, 51.44775390625),
+                            (-0.9964599609375, 51.455810546875)))
+            )), True),
+    # odata.Geometry is abstract
+    (odata.GeometryPointValue, geo.PointLiteral(
+        srid=0, point=geo.Point(1.0, -1.0)), True),
+    (odata.GeometryLineStringValue, geo.LineStringLiteral(
+        srid=0, line_string=geo.LineString(
+            ((1.0, -1.0), (-1.0, 1.0)))), True),
+    (odata.GeometryPolygonValue, geo.PolygonLiteral(
+        srid=0, polygon=geo.Polygon(
+            (((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0),
+              (1.0, -1.0)), ))), True),
+    (odata.GeometryMultiPointValue, geo.MultiPointLiteral(
+        srid=0, multipoint=(
+            geo.Point(1.0, -1.0), geo.Point(-1.0, 1.0))), True),
+    (odata.GeometryMultiLineStringValue, geo.MultiLineStringLiteral(
+        srid=0, multi_line_string=(
+            geo.LineString(((1.0, -1.0), (-1.0, 1.0))),
+            geo.LineString(((1.0, 1.0), (-1.0, -1.0))),
+            )), True),
+    (odata.GeometryMultiPolygonValue, geo.MultiPolygonLiteral(
+        srid=0, multi_polygon=(
+            geo.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
+                          (-1.0, -1.0), (1.0, -1.0)), )),
+            geo.Polygon((((4.0, -1.0), (4.0, 1.0), (2.0, 1.0),
+                          (2.0, -1.0), (4.0, -1.0)), ))
+            )), True),
+    (odata.GeometryCollectionValue, geo.GeoCollectionLiteral(
+        srid=0, items=(
+            geo.LineString(((1.0, -1.0), (-1.0, 1.0))),
+            geo.LineString(((1.0, 1.0), (-1.0, -1.0))),
+            geo.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
+                          (-1.0, -1.0), (1.0, -1.0)), )),
+            )), True)
+    )
+
+
 class PrimitiveTypeTests(unittest.TestCase):
 
     def test_constructor(self):
@@ -901,6 +996,36 @@ class PrimitiveTypeTests(unittest.TestCase):
         v = t1()
         v.set(cafe)
 
+    def test_srid_geo(self):
+        for t, pv, default in ALL_TYPES:
+            if issubclass(t, (odata.GeographyValue, odata.GeometryValue)):
+                edm_type = odata.edm[t.edm_name]
+                self.assertTrue(edm_type.value_type is t)
+                self.assertTrue(edm_type.srid is None)
+                t1 = odata.PrimitiveType()
+                t1.set_base(edm_type)
+                # value_type inherited from edm_type
+                self.assertTrue(t1.value_type is edm_type.value_type)
+                self.assertTrue(t1.srid is None)
+                v = t1()
+                self.assertTrue(isinstance(v, t))
+                v.set(pv)
+                if issubclass(t, odata.GeographyValue):
+                    def_srid = 4326
+                else:
+                    def_srid = 0
+                self.assertTrue(v.value.srid == def_srid)
+                # make up a similar value with a different srid
+                pv1 = pv.__class__(6832, pv[1])
+                v.set(pv1)
+                # we don't force points to match the implied default!
+                self.assertTrue(v.value.srid == 6832)
+                # but we will convert raw points to literals with the
+                # default SRID
+                v.set(pv1[1])
+                self.assertTrue(v.value.srid == def_srid)
+                self.assertTrue(v.value == pv)
+
 
 class StructuredTypeTests(unittest.TestCase):
 
@@ -1223,43 +1348,6 @@ class ValueTests(unittest.TestCase):
             self.fail("Unspecified Value is hashable")
         except TypeError:
             pass
-
-
-ALL_TYPES = (
-    (odata.BinaryValue, b'3.14', True),
-    (odata.BooleanValue, True, True),
-    (odata.ByteValue, 3, False),
-    (odata.DateValue, Date(), True),
-    (odata.DateTimeOffsetValue, TimePoint().with_zone(0), True),
-    (odata.DecimalValue, Decimal('3.14'), True),
-    (odata.DoubleValue, 3.14, True),
-    (odata.DurationValue, Duration(), True),
-    (odata.GuidValue, uuid.UUID(int=3), True),
-    (odata.Int16Value, 3, False),
-    (odata.Int32Value, 3, False),
-    (odata.Int64Value, 3, True),
-    (odata.SByteValue, 3, False),
-    (odata.SingleValue, 3.14, False),
-    # odata.StreamValue is handled specially
-    (odata.StringValue, ul('3.14'), True),
-    (odata.TimeOfDayValue, Time(), True),
-    # odata.Geography is abstract
-    # (odata.GeographyPointValue, None, False),
-    # (odata.GeographyLineStringValue, None, False),
-    # (odata.GeographyPolygonValue, None, False),
-    # (odata.GeographyMultiPointValue, None, False),
-    # (odata.GeographyMultiLineStringValue, None, False),
-    # (odata.GeographyMultiPolygonValue, None, False),
-    # (odata.GeographyCollectionValue, None, False),
-    # odata.Geometry is abstract
-    # (odata.GeometryPointValue, None, False),
-    # (odata.GeometryLineStringValue, None, False),
-    # (odata.GeometryPolygonValue, None, False),
-    # (odata.GeometryMultiPointValue, None, False),
-    # (odata.GeometryMultiLineStringValue, None, False),
-    # (odata.GeometryMultiPolygonValue, None, False),
-    # (odata.GeometryCollectionValue, None, False)
-    )
 
 
 class GoodBytes(object):
@@ -1675,42 +1763,42 @@ class PrimitiveValueTests(unittest.TestCase):
 
     def test_point(self):
         """Geography and Geometry points"""
-        p = odata.Point(1.0, -1.0)
+        p = geo.Point(1.0, -1.0)
         self.assertTrue(p.x == 1.0)
         self.assertTrue(p.y == -1.0)
         self.assertTrue(p[0] == 1.0)
         self.assertTrue(p[1] == -1.0)
-        p = odata.Point(y=-1.0, x=1.0)
+        p = geo.Point(y=-1.0, x=1.0)
         self.assertTrue(p.x == 1.0)
         self.assertTrue(p.y == -1.0)
         self.assertTrue(p[0] == 1.0)
         self.assertTrue(p[1] == -1.0)
-        p = odata.Point(1, -1)
+        p = geo.Point(1, -1)
         self.assertTrue(isinstance(p.x, float), "force float")
         try:
-            p = odata.Point("x", "y")
+            p = geo.Point("x", "y")
             self.fail("force float fail")
         except ValueError:
             pass
         # from_arg will accept any iterable
-        pa = odata.Point.from_arg(p)
+        pa = geo.Point.from_arg(p)
         self.assertTrue(pa == p)
-        pa = odata.Point.from_arg((1.0, -1.0))
+        pa = geo.Point.from_arg((1.0, -1.0))
         self.assertTrue(pa == p)
 
         def genxy():
             for xy in (1.0, -1.0):
                 yield xy
 
-        p = odata.Point.from_arg(genxy())
+        p = geo.Point.from_arg(genxy())
         self.assertTrue(pa == p)
         # Now on to PointLiteral values...
-        p1 = odata.PointLiteral(0, odata.Point(1.0, -1.0))
-        p2 = odata.PointLiteral(0, odata.Point(1.5, -1.5))
-        p3 = odata.PointLiteral(
-            4326, odata.Point(-127.89734578345, 45.234534534))
+        p1 = geo.PointLiteral(0, geo.Point(1.0, -1.0))
+        p2 = geo.PointLiteral(0, geo.Point(1.5, -1.5))
+        p3 = geo.PointLiteral(
+            4326, geo.Point(-127.89734578345, 45.234534534))
         try:
-            odata.PointLiteral(-1, odata.Point(1.0, -1.0))
+            geo.PointLiteral(-1, geo.Point(1.0, -1.0))
             self.fail("negative SRID")
         except ValueError:
             pass
@@ -1735,7 +1823,7 @@ class PrimitiveValueTests(unittest.TestCase):
         y = -1.5 * size
         n = 5
         while n:
-            yield odata.Point(x, y)
+            yield geo.Point(x, y)
             new_x = y if reverse else -y
             y = -x if reverse else x
             x = new_x
@@ -1746,7 +1834,7 @@ class PrimitiveValueTests(unittest.TestCase):
         x = 1.5
         y = -1.5
         while n:
-            yield odata.Point(x, y)
+            yield geo.Point(x, y)
             new_x = -1.125 * y
             y = 1.125 * x
             x = new_x
@@ -1754,27 +1842,27 @@ class PrimitiveValueTests(unittest.TestCase):
 
     def test_line_string(self):
         """Geography and Geometry line strings"""
-        l1 = odata.LineStringLiteral(
-            0, odata.LineString(((1.0, -1.0), (-1.0, 1.0))))
-        l2 = odata.LineStringLiteral(
-            0, odata.LineString(((1.5, -1.5), (-1.5, 1.5))))
-        l3 = odata.LineStringLiteral(
-            4326, odata.LineString(((1.5, -1.5), (1.5, 1.5), (-1.5, 1.5),
-                                    (-1.5, -1.5))))
+        l1 = geo.LineStringLiteral(
+            0, geo.LineString(((1.0, -1.0), (-1.0, 1.0))))
+        l2 = geo.LineStringLiteral(
+            0, geo.LineString(((1.5, -1.5), (-1.5, 1.5))))
+        l3 = geo.LineStringLiteral(
+            4326, geo.LineString(((1.5, -1.5), (1.5, 1.5), (-1.5, 1.5),
+                                  (-1.5, -1.5))))
         for arg in [
                 (),                     # No points
                 (1, 0),                 # Integers, not points
                 ((1, 0), ),             # Only 1 point
-                (odata.Point(1, 0), ),  # Only 1 point instance
+                (geo.Point(1, 0), ),  # Only 1 point instance
                 ]:
             try:
-                odata.LineString(arg)
+                geo.LineString(arg)
                 self.fail("Bad LineString arg: %s" % repr(arg))
             except (ValueError, TypeError):
                 pass
         try:
-            odata.LineStringLiteral(
-                -1, odata.LineString(((1.0, -1.0), (-1.0, 1.0))))
+            geo.LineStringLiteral(
+                -1, geo.LineString(((1.0, -1.0), (-1.0, 1.0))))
             self.fail("negative SRID")
         except ValueError:
             pass
@@ -1785,8 +1873,8 @@ class PrimitiveValueTests(unittest.TestCase):
                 good=((l1, l1),
                       (l2, l2),
                       (l3, l3),
-                      (odata.LineStringLiteral(
-                        0, odata.LineString(((30, 10), (10, 30), (40, 40)))),
+                      (geo.LineStringLiteral(
+                        0, geo.LineString(((30, 10), (10, 30), (40, 40)))),
                        # compares to regular tuple OK
                        (0, ((30, 10), (10, 30), (40, 40)))),
                       ),
@@ -1804,37 +1892,35 @@ class PrimitiveValueTests(unittest.TestCase):
 
     def test_polygon(self):
         """Geography and Geometry polygons"""
-        p1 = odata.PolygonLiteral(
-            0, odata.Polygon(
-                (odata.Ring(
-                    (odata.Point(1.5, -1.5), odata.Point(1.5, 1.5),
-                     odata.Point(-1.5, 1.5), odata.Point(-1.5, -1.5),
-                     odata.Point(1.5, -1.5))), )))
+        p1 = geo.PolygonLiteral(
+            0, geo.Polygon(
+                (geo.Ring(
+                    (geo.Point(1.5, -1.5), geo.Point(1.5, 1.5),
+                     geo.Point(-1.5, 1.5), geo.Point(-1.5, -1.5),
+                     geo.Point(1.5, -1.5))), )))
         try:
-            odata.PolygonLiteral(-1, p1.polygon)
+            geo.PolygonLiteral(-1, p1.polygon)
             self.fail("negative SRID")
         except ValueError:
             pass
         try:
-            odata.PolygonLiteral(0, [])
+            geo.PolygonLiteral(0, [])
             self.fail("no rings")
         except ValueError:
             pass
         try:
-            odata.PolygonLiteral(0, 1.0)
+            geo.PolygonLiteral(0, 1.0)
             self.fail("non-iterable rings")
         except TypeError:
             pass
         try:
-            odata.Polygon([])
+            geo.Polygon([])
             self.fail("no rings")
         except ValueError:
             pass
         try:
-            odata.Ring([odata.Point(1.5, -1.5),
-                        odata.Point(1.5, 1.5),
-                        odata.Point(-1.5, 1.5),
-                        odata.Point(-1.5, -1.5)])
+            geo.Ring([geo.Point(1.5, -1.5), geo.Point(1.5, 1.5),
+                      geo.Point(-1.5, 1.5), geo.Point(-1.5, -1.5)])
             self.fail("unclosed ring")
         except ValueError:
             pass
@@ -1846,12 +1932,12 @@ class PrimitiveValueTests(unittest.TestCase):
                       ),
                 bad_values=(),
                 bad_types=(1.0,
-                           odata.PointLiteral(0, odata.Point(1.0, -1.0)),
-                           odata.LineStringLiteral(
-                            4326, (odata.Point(1.5, -1.5),
-                                   odata.Point(1.5, 1.5),
-                                   odata.Point(-1.5, 1.5),
-                                   odata.Point(-1.5, -1.5))), )
+                           geo.PointLiteral(0, geo.Point(1.0, -1.0)),
+                           geo.LineStringLiteral(
+                            4326, (geo.Point(1.5, -1.5),
+                                   geo.Point(1.5, 1.5),
+                                   geo.Point(-1.5, 1.5),
+                                   geo.Point(-1.5, -1.5))), )
                 )
             self.do_text(
                 cls,
@@ -1861,25 +1947,25 @@ class PrimitiveValueTests(unittest.TestCase):
 
     def test_multi_point(self):
         # a tuple of points
-        mp = odata.MultiPoint((odata.Point(1, -1), ))
+        mp = geo.MultiPoint((geo.Point(1, -1), ))
         self.assertTrue(len(mp) == 1)
         self.assertTrue(mp[0] == (1, -1))
         # can be created from anything that generates points
-        mp = odata.MultiPoint(self.gen_spiral(10))
+        mp = geo.MultiPoint(self.gen_spiral(10))
         self.assertTrue(len(mp) == 10)
-        self.assertTrue(mp[0] == odata.Point(1.5, -1.5))
+        self.assertTrue(mp[0] == geo.Point(1.5, -1.5))
         # empty list is OK
-        mp = odata.MultiPoint(())
+        mp = geo.MultiPoint(())
         self.assertTrue(len(mp) == 0)
         # Now move on to the literal
-        square = odata.MultiPoint(self.gen_square_ring())
-        mp1 = odata.MultiPointLiteral(0, square)
-        mp2 = odata.MultiPointLiteral(0, self.gen_square_ring())
+        square = geo.MultiPoint(self.gen_square_ring())
+        mp1 = geo.MultiPointLiteral(0, square)
+        mp2 = geo.MultiPointLiteral(0, self.gen_square_ring())
         self.assertTrue(mp1 == mp2)
-        mp3 = odata.MultiPointLiteral(
-            4326, (odata.Point(-127.89734578345, 45.234534534), ))
+        mp3 = geo.MultiPointLiteral(
+            4326, (geo.Point(-127.89734578345, 45.234534534), ))
         try:
-            odata.MultiPointLiteral(-1, square)
+            geo.MultiPointLiteral(-1, square)
             self.fail("negative SRID")
         except ValueError:
             pass
@@ -1903,26 +1989,26 @@ class PrimitiveValueTests(unittest.TestCase):
 
     def test_multi_line_string(self):
         # a tuple of points
-        square = odata.LineString(self.gen_square_ring())
-        spiral2 = odata.LineString(self.gen_spiral(2))
-        mls = odata.MultiLineString((spiral2, ))
+        square = geo.LineString(self.gen_square_ring())
+        spiral2 = geo.LineString(self.gen_spiral(2))
+        mls = geo.MultiLineString((spiral2, ))
         self.assertTrue(len(mls) == 1)
         self.assertTrue(mls[0][0] == (1.5, -1.5))
         # can be created from anything that can be converted to line strings
-        mls = odata.MultiLineString((square, ((1, 0), (0, 1))))
+        mls = geo.MultiLineString((square, ((1, 0), (0, 1))))
         self.assertTrue(len(mls) == 2)
         self.assertTrue(mls[1][0] == (1.0, 0))
         # empty list is OK
-        mls = odata.MultiLineString(())
+        mls = geo.MultiLineString(())
         self.assertTrue(len(mls) == 0)
         # Now move on to the literal
-        mls1 = odata.MultiLineStringLiteral(0, (square, ))
-        mls2 = odata.MultiLineStringLiteral(0, (self.gen_square_ring(), ))
+        mls1 = geo.MultiLineStringLiteral(0, (square, ))
+        mls2 = geo.MultiLineStringLiteral(0, (self.gen_square_ring(), ))
         self.assertTrue(mls1 == mls2)
-        mls3 = odata.MultiLineStringLiteral(
+        mls3 = geo.MultiLineStringLiteral(
             4326, (self.gen_spiral(5), self.gen_spiral(2)))
         try:
-            odata.MultiLineStringLiteral(-1, (square, ))
+            geo.MultiLineStringLiteral(-1, (square, ))
             self.fail("negative SRID")
         except ValueError:
             pass
@@ -1942,38 +2028,38 @@ class PrimitiveValueTests(unittest.TestCase):
                 cls,
                 ((mls1, "SRID=0;MultiLineString((1.5 -1.5,1.5 1.5,-1.5 1.5,"
                   "-1.5 -1.5,1.5 -1.5))"),
-                 (odata.MultiLineStringLiteral(4326, ()),
+                 (geo.MultiLineStringLiteral(4326, ()),
                   "SRID=4326;MultiLineString()")
                  ))
 
     def test_multi_polygon(self):
         # a tuple of points
-        square1 = odata.Ring(self.gen_square_ring())
-        rsquare1 = odata.Ring(self.gen_square_ring(reverse=True, size=0.5))
-        square2 = odata.Ring(self.gen_square_ring(size=2))
-        rsquare2 = odata.Ring(self.gen_square_ring(reverse=True))
-        p1 = odata.Polygon((square1, rsquare1))
-        p2 = odata.Polygon((square2, rsquare2))
-        mp = odata.MultiPolygon((p1, p2))
+        square1 = geo.Ring(self.gen_square_ring())
+        rsquare1 = geo.Ring(self.gen_square_ring(reverse=True, size=0.5))
+        square2 = geo.Ring(self.gen_square_ring(size=2))
+        rsquare2 = geo.Ring(self.gen_square_ring(reverse=True))
+        p1 = geo.Polygon((square1, rsquare1))
+        p2 = geo.Polygon((square2, rsquare2))
+        mp = geo.MultiPolygon((p1, p2))
         self.assertTrue(len(mp) == 2)
         self.assertTrue(mp[0][0][0] == (1.5, -1.5))
         # can be created from anything that can be converted to Polygon
-        mp = odata.MultiPolygon((p1, (square2, )))
+        mp = geo.MultiPolygon((p1, (square2, )))
         self.assertTrue(len(mp) == 2)
         self.assertTrue(mp[1][0][0] == (3, -3))
         # empty list is OK
-        mp = odata.MultiPolygon([])
+        mp = geo.MultiPolygon([])
         self.assertTrue(len(mp) == 0)
         # Now move on to the literal
-        mp1 = odata.MultiPolygonLiteral(0, (p1, ))
-        mp2 = odata.MultiPolygonLiteral(
+        mp1 = geo.MultiPolygonLiteral(0, (p1, ))
+        mp2 = geo.MultiPolygonLiteral(
             0, [(self.gen_square_ring(),
                  self.gen_square_ring(reverse=True, size=0.5))])
         self.assertTrue(mp1 == mp2, "%s == %s" % (mp1, mp2))
-        mp3 = odata.MultiPolygonLiteral(
-            4326, odata.MultiPolygon((p2, p1)))
+        mp3 = geo.MultiPolygonLiteral(
+            4326, geo.MultiPolygon((p2, p1)))
         try:
-            odata.MultiPolygonLiteral(-1, (p1, ))
+            geo.MultiPolygonLiteral(-1, (p1, ))
             self.fail("negative SRID")
         except ValueError:
             pass
@@ -1995,33 +2081,33 @@ class PrimitiveValueTests(unittest.TestCase):
                     "(1.5 -1.5,1.5 1.5,-1.5 1.5,-1.5 -1.5,1.5 -1.5),"
                     "(0.75 -0.75,-0.75 -0.75,-0.75 0.75,0.75 0.75,"
                     "0.75 -0.75)))"),
-                 (odata.MultiPolygonLiteral(4326, ()),
+                 (geo.MultiPolygonLiteral(4326, ()),
                   "SRID=4326;MultiPolygon()")
                  ))
 
     def test_geo_collection(self):
-        c0 = odata.GeoCollection([])
+        c0 = geo.GeoCollection([])
         self.assertTrue(len(c0) == 0)
-        p = odata.Point(1.5, -1.5)
-        l = odata.LineString(self.gen_spiral(2))
-        square = odata.Ring(self.gen_square_ring())
-        rsquare = odata.Ring(self.gen_square_ring(reverse=True, size=0.5))
-        pg = odata.Polygon((square, rsquare))
-        mp = odata.MultiPoint([p])
-        ml = odata.MultiLineString([l])
-        mpn = odata.MultiPolygon([pg])
-        c = odata.GeoCollection([p, l, pg, mp, ml, mpn])
-        rc = odata.GeoCollection([c, p])
+        p = geo.Point(1.5, -1.5)
+        l = geo.LineString(self.gen_spiral(2))
+        square = geo.Ring(self.gen_square_ring())
+        rsquare = geo.Ring(self.gen_square_ring(reverse=True, size=0.5))
+        pg = geo.Polygon((square, rsquare))
+        mp = geo.MultiPoint([p])
+        ml = geo.MultiLineString([l])
+        mpn = geo.MultiPolygon([pg])
+        c = geo.GeoCollection([p, l, pg, mp, ml, mpn])
+        rc = geo.GeoCollection([c, p])
         self.assertTrue(len(c) == 6)
         self.assertTrue(c[0] == (1.5, -1.5))
         self.assertTrue(rc[0] == c)
         # Now the literal form
-        c_lit = odata.GeoCollectionLiteral(0, c)
-        rc_lit = odata.GeoCollectionLiteral(0, rc)
-        c_lit2 = odata.GeoCollectionLiteral(0, [p, l, pg, mp, ml, mpn])
+        c_lit = geo.GeoCollectionLiteral(0, c)
+        rc_lit = geo.GeoCollectionLiteral(0, rc)
+        c_lit2 = geo.GeoCollectionLiteral(0, [p, l, pg, mp, ml, mpn])
         self.assertTrue(c_lit == c_lit2)
         try:
-            odata.GeoCollectionLiteral(-1, c)
+            geo.GeoCollectionLiteral(-1, c)
             self.fail("negative SRID")
         except ValueError:
             pass
@@ -2053,7 +2139,7 @@ class PrimitiveValueTests(unittest.TestCase):
                   "))"      # MultiPolygon
                   "),"      # Collection
                   "Point(1.5 -1.5))"),
-                 (odata.GeoCollectionLiteral(4326, ()),
+                 (geo.GeoCollectionLiteral(4326, ()),
                   "SRID=4326;Collection()")
                  ))
 

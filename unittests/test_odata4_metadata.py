@@ -6,6 +6,7 @@ import unittest
 import uuid
 
 from pyslet import iso8601 as iso
+from pyslet.odata4 import geotypes as geo
 from pyslet.odata4 import model as odata
 from pyslet.odata4 import metadata as csdl
 from pyslet.rfc2396 import URI
@@ -248,16 +249,15 @@ class CSDLDocumentTests(unittest.TestCase):
             ('DoubleTest', odata.DoubleValue, 3.1416015625),
             ('DurationTest', odata.DurationValue, Duration("PT1S")),
             ('GeographyPointTest', odata.GeographyPointValue,
-             odata.PointLiteral(
-                srid=4326, point=odata.Point(-1.00244140625,
-                                             51.44775390625))),
+             geo.PointLiteral(
+                srid=4326, point=geo.Point(-1.00244140625, 51.44775390625))),
             ('GeographyLineStringTest', odata.GeographyLineStringValue,
-             odata.LineStringLiteral(
-                srid=4326, line_string=odata.LineString(
+             geo.LineStringLiteral(
+                srid=4326, line_string=geo.LineString(
                     ((-1.00244140625, 51.44775390625),
                      (-0.9964599609375, 51.455810546875))))),
             ('GeographyPolygonTest', odata.GeographyPolygonValue,
-             odata.PolygonLiteral(srid=4326, polygon=odata.Polygon(
+             geo.PolygonLiteral(srid=4326, polygon=geo.Polygon(
                 (((-1.003173828125, 51.439697265625),
                   (-1.0029296875, 51.4437255859375),
                   (-1.001708984375, 51.4437255859375),
@@ -265,76 +265,71 @@ class CSDLDocumentTests(unittest.TestCase):
                   (-1.003173828125, 51.439697265625)),
                  )))),
             ('GeographyMultiPointTest', odata.GeographyMultiPointValue,
-             odata.MultiPointLiteral(
+             geo.MultiPointLiteral(
                 srid=4326, multipoint=(
-                    odata.Point(-1.00244140625, 51.44775390625),
-                    odata.Point(-0.9964599609375, 51.455810546875)))),
+                    geo.Point(-1.00244140625, 51.44775390625),
+                    geo.Point(-0.9964599609375, 51.455810546875)))),
             ('GeographyMultiLineStringTest',
              odata.GeographyMultiLineStringValue,
-             odata.MultiLineStringLiteral(
+             geo.MultiLineStringLiteral(
                 srid=4326, multi_line_string=(
-                    odata.LineString(((-1.00244140625, 51.44775390625),
-                                      (-0.9964599609375, 51.455810546875))),
+                    geo.LineString(((-1.00244140625, 51.44775390625),
+                                    (-0.9964599609375, 51.455810546875))),
                     ))),
             ('GeographyMultiPolygonTest', odata.GeographyMultiPolygonValue,
-             odata.MultiPolygonLiteral(
+             geo.MultiPolygonLiteral(
                 srid=4326, multi_polygon=(
-                    odata.Polygon((((-1.003173828125, 51.439697265625),
-                                    (-1.0029296875, 51.4437255859375),
-                                    (-1.001708984375, 51.4437255859375),
-                                    (-1.001708984375, 51.439697265625),
-                                    (-1.003173828125, 51.439697265625)),
-                                   )),
+                    geo.Polygon((((-1.003173828125, 51.439697265625),
+                                  (-1.0029296875, 51.4437255859375),
+                                  (-1.001708984375, 51.4437255859375),
+                                  (-1.001708984375, 51.439697265625),
+                                  (-1.003173828125, 51.439697265625)),
+                                 )),
                     ))),
             ('GeographyCollectionTest', odata.GeographyCollectionValue,
-             odata.GeoCollectionLiteral(
+             geo.GeoCollectionLiteral(
                 srid=4326, items=(
-                    odata.Point(-1.00244140625, 51.44775390625),
-                    odata.LineString(((-1.00244140625, 51.44775390625),
-                                      (-0.9964599609375, 51.455810546875)))
+                    geo.Point(-1.00244140625, 51.44775390625),
+                    geo.LineString(((-1.00244140625, 51.44775390625),
+                                    (-0.9964599609375, 51.455810546875)))
                     ))),
             ('GeometryPointTest', odata.GeometryPointValue,
-             odata.PointLiteral(srid=0, point=odata.Point(1.0, -1.0))),
+             geo.PointLiteral(srid=0, point=geo.Point(1.0, -1.0))),
             ('GeometryLineStringTest', odata.GeometryLineStringValue,
-             odata.LineStringLiteral(
-                srid=0, line_string=odata.LineString(
+             geo.LineStringLiteral(
+                srid=0, line_string=geo.LineString(
                     ((1.0, -1.0), (-1.0, 1.0))))),
             ('GeometryPolygonTest', odata.GeometryPolygonValue,
-             odata.PolygonLiteral(srid=0, polygon=odata.Polygon(
+             geo.PolygonLiteral(srid=0, polygon=geo.Polygon(
                 (((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0),
-                  (1.0, -1.0)),
-                 )))),
+                  (1.0, -1.0)), )
+                ))),
             ('GeometryMultiPointTest', odata.GeometryMultiPointValue,
-             odata.MultiPointLiteral(
+             geo.MultiPointLiteral(
                 srid=0, multipoint=(
-                    odata.Point(1.0, -1.0), odata.Point(-1.0, 1.0)))),
+                    geo.Point(1.0, -1.0), geo.Point(-1.0, 1.0)))),
             ('GeometryMultiLineStringTest',
              odata.GeometryMultiLineStringValue,
-             odata.MultiLineStringLiteral(
+             geo.MultiLineStringLiteral(
                 srid=0, multi_line_string=(
-                    odata.LineString(((1.0, -1.0), (-1.0, 1.0))),
-                    odata.LineString(((1.0, 1.0), (-1.0, -1.0))),
+                    geo.LineString(((1.0, -1.0), (-1.0, 1.0))),
+                    geo.LineString(((1.0, 1.0), (-1.0, -1.0))),
                     ))),
             ('GeometryMultiPolygonTest', odata.GeometryMultiPolygonValue,
-             odata.MultiPolygonLiteral(
+             geo.MultiPolygonLiteral(
                 srid=0, multi_polygon=(
-                    odata.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
-                                    (-1.0, -1.0), (1.0, -1.0)),
-                                   )),
-                    odata.Polygon((((4.0, -1.0), (4.0, 1.0), (2.0, 1.0),
-                                    (2.0, -1.0), (4.0, -1.0)),
-                                   ))
+                    geo.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
+                                  (-1.0, -1.0), (1.0, -1.0)), )),
+                    geo.Polygon((((4.0, -1.0), (4.0, 1.0), (2.0, 1.0),
+                                  (2.0, -1.0), (4.0, -1.0)), ))
                     ))),
             ('GeometryCollectionTest', odata.GeometryCollectionValue,
-             odata.GeoCollectionLiteral(
+             geo.GeoCollectionLiteral(
                 srid=0, items=(
-                    odata.LineString(((1.0, -1.0),
-                                      (-1.0, 1.0))),
-                    odata.LineString(((1.0, 1.0),
-                                      (-1.0, -1.0))),
-                    odata.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
-                                    (-1.0, -1.0), (1.0, -1.0)),
-                                   )),
+                    geo.LineString(((1.0, -1.0), (-1.0, 1.0))),
+                    geo.LineString(((1.0, 1.0), (-1.0, -1.0))),
+                    geo.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
+                                  (-1.0, -1.0), (1.0, -1.0)), )),
                     ))),
             ('GuidTest', odata.GuidValue, uuid.UUID(int=0xdeadbeef)),
             ('Int16Test', odata.Int16Value, -16657),
