@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeA">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeB" BaseType="test.pyslet.org.TypeA">
+                <NavigationProperty Name="BX" Type="test.pyslet.org.TypeX"
+                    Partner="XA"/> 
+            </EntityType>
+            <EntityType Name="TypeC" BaseType="test.pyslet.org.TypeA">
+                <!-- If a partner navigation property is specified [on
+                the target navigation property], this partner navigation
+                property MUST either specify the current navigation
+                property as its partner to define a bi-directional
+                relationship or it MUST NOT specify a partner attribute
+                -->
+                <NavigationProperty Name="CX" Type="test.pyslet.org.TypeX"
+                    Partner="XA"/> 
+            </EntityType>
+            <EntityType Name="TypeX">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <NavigationProperty Name="XA" Type="test.pyslet.org.TypeA"
+                    Partner="test.pyslet.org.TypeB/BX"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

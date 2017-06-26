@@ -13,6 +13,7 @@ from pyslet.iso8601 import (
     TimePoint
     )
 import pyslet.odata4.geotypes as geo
+import pyslet.odata4.metadata as csdl
 import pyslet.odata4.model as odata
 from pyslet.py2 import (
     BoolMixin,
@@ -23,6 +24,8 @@ from pyslet.py2 import (
     ul,
     UnicodeMixin,
     )
+from pyslet.rfc2396 import URI
+from pyslet.vfs import OSFilePath
 from pyslet.xml.xsdatatypes import Duration
 
 
@@ -43,17 +46,16 @@ def suite():
         ))
 
 
+TEST_DATA_DIR = OSFilePath(__file__).split()[0].join('data_odata4')
+
+
 class NamedTests(unittest.TestCase):
 
     def test_constructor(self):
         n = odata.Named()
         self.assertTrue(n.name is None)
         self.assertTrue(n.nametable is None)
-        try:
-            n.get_qualified_name()
-            self.fail("check_name implemented")
-        except NotImplementedError:
-            pass
+        self.assertTrue(n.qname is None)
 
 
 class NameTableTests(unittest.TestCase):
@@ -68,6 +70,7 @@ class NameTableTests(unittest.TestCase):
             def check_value(self, value):
                 pass
 
+        self.mock_class = MockSchema
         self.mock_ns = MockSchema()
 
     def test_constructor(self):
@@ -186,6 +189,24 @@ class NameTableTests(unittest.TestCase):
         self.assertTrue(c.call_count == 0)
         self.mock_ns.close()
         self.assertTrue(c.call_count == 2)
+        self.mock_ns.tell_close(c)
+        self.assertTrue(c.call_count == 3)
+
+    def test_root(self):
+        s1 = self.mock_class()
+        self.assertTrue(s1.root_nametable() is None)
+        s2 = self.mock_class()
+        s2.name = "s2"
+        s2.declare(s1)
+        s3 = self.mock_class()
+        s3.name = "s3"
+        s3.declare(s2)
+        self.assertTrue(s3.root_nametable() is s1)
+        o1 = odata.Named()
+        o1.name = "o1"
+        self.assertTrue(o1.root_nametable() is None)
+        o1.declare(s3)
+        self.assertTrue(o1.root_nametable() is s1)
 
 
 class SchemaTests(unittest.TestCase):
@@ -1038,9 +1059,12 @@ class StructuredTypeTests(unittest.TestCase):
                         "structured types are nominal types")
         self.assertTrue(isinstance(t, odata.NameTable),
                         "structured types define scope")
-        it = odata.PrimitiveType()
-        p = odata.Property(it)
+        pt = odata.PrimitiveType()
+        p = odata.Property()
         self.assertTrue(isinstance(p, odata.Named), "properties are nameable")
+        self.assertTrue(p.type_def is None)
+        p.set_type(pt)
+        self.assertTrue(p.type_def is pt)
 
     def test_declare(self):
         t = odata.StructuredType()
@@ -1052,8 +1076,9 @@ class StructuredTypeTests(unittest.TestCase):
             self.fail("NominalType declared in StructuredType")
         except TypeError:
             pass
-        it = odata.PrimitiveType()
-        p = odata.Property(it)
+        pt = odata.PrimitiveType()
+        p = odata.Property()
+        p.set_type(pt)
         p.name = "Max.Dimension"
         try:
             p.declare(t)
@@ -1068,22 +1093,96 @@ class StructuredTypeTests(unittest.TestCase):
         self.assertTrue(t["Dimension"] is p)
         self.assertTrue(t["Related"] is np)
 
+    def test_nppath(self):
+        dpath = TEST_DATA_DIR.join('valid', 'structure-paths.xml')
+        uri = URI.from_virtual_path(dpath)
+        doc = csdl.CSDLDocument(base_uri=uri)
+        doc.read()
+        em = doc.root.entity_model
+        # simple case, just a navigation property name
+        a = em['test.pyslet.org']['TypeA']
+        b = em['test.pyslet.org']['TypeB']
+        x = em['test.pyslet.org']['TypeX']
+        np = em.resolve_nppath(x, ["XP"])
+        self.assertTrue(np.name == "XP")
+        self.assertTrue(isinstance(np, odata.NavigationProperty))
+        self.assertTrue(np is x["XP"])
+        # simple case resulting in simple property
+        try:
+            em.resolve_nppath(x, ["X1"])
+            self.fail("resolve_nppath resolved simpled property")
+        except odata.PathError:
+            pass
+        # simple case with non-existent property name
+        try:
+            em.resolve_nppath(x, ["X9"])
+            self.fail("resolve_nppath: X9")
+        except odata.PathError:
+            pass
+        # now follow a path using a complex type
+        np = em.resolve_nppath(x, ["X2", "AP"])
+        self.assertTrue(np is a['AP'])
+        try:
+            em.resolve_nppath(x, ["X2", "A1"])
+            # can't resolve to simple property
+            self.fail("TypeX/X2/A1")
+        except odata.PathError:
+            pass
+        # now follow a path using a derived complex type
+        np = em.resolve_nppath(
+            x, ["X2", odata.QualifiedName("test.pyslet.org", "TypeB"), "BP"])
+        self.assertTrue(np is b['BP'])
+        # but if we miss the type cast segment it fails...
+        try:
+            em.resolve_nppath(x, ["X2", "BP"])
+            self.fail("TypeX/X2/BP")
+        except odata.PathError:
+            pass
+        # derived types inherit properties so it's ok to do this...
+        np = em.resolve_nppath(
+            x, ["X2", odata.QualifiedName("test.pyslet.org", "TypeB"), "AP"])
+        self.assertTrue(np is a['AP'])
+        self.assertTrue(np is b['AP'])
+        # it is OK to do a nop-cast like this too
+        np = em.resolve_nppath(
+            x, ["X2", odata.QualifiedName("test.pyslet.org", "TypeA"), "AP"])
+        self.assertTrue(np is a['AP'])
+        # but a cast to a parent is not OK as it opens the door to
+        # further casts that descend a different branch of the type tree
+        # resulting in a type that is (derived from) TypeX.
+        try:
+            em.resolve_nppath(
+                x,
+                ["X3", odata.QualifiedName("test.pyslet.org", "TypeA"), "AP"])
+            self.fail("TypeX/X3/TypeA/AP")
+        except odata.PathError:
+            pass
+        self.assertTrue(np is a['AP'])
+        # ...but doing so places derived type properties out of reach
+        try:
+            em.resolve_nppath(
+                x,
+                ["X3", odata.QualifiedName("test.pyslet.org", "TypeA"), "BP"])
+            self.fail("TypeX/X3/TypeA/BP")
+        except odata.PathError:
+            pass
+
 
 class CollectionTests(unittest.TestCase):
 
     def test_constructor(self):
         # collection types are collection wrappers for some other
         # primitive, complex or enumeration type.
-        it = odata.PrimitiveType()
-        t = odata.CollectionType(it)
+        pt = odata.PrimitiveType()
+        t = odata.CollectionType(pt)
         self.assertTrue(isinstance(t, odata.NominalType),
                         "Collection types are nominal types")
-        self.assertTrue(t.item_type is it,
+        self.assertTrue(t.item_type is pt,
                         "Collection types must have an item type")
 
     def test_value(self):
-        it = odata.PrimitiveType()
-        t = odata.CollectionType(it)
+        pt = odata.PrimitiveType()
+        t = odata.CollectionType(pt)
         # types are callable to obtain values
         v = t()
         self.assertTrue(isinstance(v, odata.CollectionValue))
@@ -2575,7 +2674,7 @@ class ParserTests(unittest.TestCase):
             "Rock+Paper",
             )
         for src, value in good:
-            p = odata.PrimitiveParser(src)
+            p = odata.ODataParser(src)
             try:
                 v = p.require_enum_value()
             except ValueError as err:
@@ -2583,7 +2682,7 @@ class ParserTests(unittest.TestCase):
             self.assertTrue(v == value, "failed to parse %s" % src)
             p.require_end()
         for src in bad:
-            p = odata.PrimitiveParser(src)
+            p = odata.ODataParser(src)
             try:
                 v = p.require_enum_value()
                 p.require_end()

@@ -52,7 +52,7 @@ def boolean_from_str(src):
     elif src == "0":
         return False
     else:
-        raise ValueError
+        raise ValueError("Can't read boolean from %s" % src)
 
 
 @old_function("EncodeBoolean")

@@ -856,7 +856,7 @@ class URI(CmpMixin, PEP8Compatibility):
                 uri_len = frag_start + frag_len
         if uri_len < len(octets):
             raise URIException("URI incompletely parsed from octets: %s" %
-                               octets)
+                               octets[:uri_len])
         #: The URI scheme, if present
         self.scheme = _parse_scheme(self.octets)
         #: The scheme specific part of the URI

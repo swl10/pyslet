@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeA">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <!-- If specified, the value of this attribute MUST be a
+                path from the entity type specified in the Type
+                attribute to a navigation property defined on that type
+                or a derived type -->
+                <NavigationProperty Name="AX" Type="test.pyslet.org.TypeX"
+                    Partner="test.pyslet.org.TypeY/YA"/>
+                <!-- The path may traverse complex types, including
+                derived complex types -->
+                <NavigationProperty Name="AP" Type="test.pyslet.org.TypeP"
+                    Partner="P1/test.pyslet.org.TypeR/RA"/>
+            </EntityType>
+            <EntityType Name="TypeB" BaseType="test.pyslet.org.TypeA">
+                <NavigationProperty Name="BZ" Type="test.pyslet.org.TypeZ"
+                    Partner="ZA"/>                
+            </EntityType>
+            <EntityType Name="TypeX">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeY" BaseType="test.pyslet.org.TypeX">
+                <NavigationProperty Name="YA"
+                    Type="Collection(test.pyslet.org.TypeA)" Partner="AX"/>
+            </EntityType>
+            <EntityType Name="TypeZ">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <!-- Although BZ has a partner that points to ZA we
+                don't add a partner to ZA to create a bi-directional
+                relationship.  In the spec it says this...
+                    "can occur if ... the current navigation property is
+                    defined on a type derived from the type of the
+                    partner navigation property."
+                
+                At first sight this might be hard to understand because
+                a Partner path such as "test.pyslet.org.TypeB/BZ" would
+                be perfectly legal even though TypeB is derived from
+                TypeA.  The specification only says this CAN occur, not
+                that it MUST.  To make the reason clearer why it might
+                not, we've added TypeC (also derived from TypeA) which
+                is similar to TypeB in that it has a navigation property
+                CZ pointing to ZA.  It is now clearer that ZA MUST NOT
+                have a Partner as it could only point to one of BZ or CZ
+                which would violoate the rule for the other that a
+                Partner must point back to the current navigation
+                property or be absent. -->
+                <NavigationProperty Name="ZA" Type="test.pyslet.org.TypeA"/>
+            </EntityType>
+            <EntityType Name="TypeC" BaseType="test.pyslet.org.TypeA">
+                <NavigationProperty Name="CZ" Type="test.pyslet.org.TypeZ"
+                    Partner="ZA"/>                
+            </EntityType>
+            <EntityType Name="TypeP">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="P1" Type="test.pyslet.org.TypeQ"/>
+            </EntityType>            
+            <ComplexType Name="TypeQ">
+                <Property Name="Q1" Type="Edm.String" />                
+            </ComplexType>
+            <ComplexType Name="TypeR" BaseType="test.pyslet.org.TypeQ">
+                <!-- [recall that] if the partner navigation property is
+                defined on a complex type [it MUST NOT specify a partner
+                attribute] -->
+                <NavigationProperty Name="RA" Type="test.pyslet.org.TypeA"/>
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

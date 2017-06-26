@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="Product">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <!-- The edm:NavigationProperty element MUST include a
+                Name attribute whose value is a SimpleIdentifier -->
+                <NavigationProperty Name="test.Category"
+                    Type="test.pyslet.org.Category" Nullable="false"
+                    Partner="Products" />
+                <NavigationProperty Name="Supplier"
+                    Type="test.pyslet.org.Supplier" />
+            </EntityType>
+            <EntityType Name="Category">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <NavigationProperty Name="Products"
+                    Type="Collection(test.pyslet.org.Product)"
+                    Partner="Category" />
+            </EntityType>
+            <EntityType Name="Supplier">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>  
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

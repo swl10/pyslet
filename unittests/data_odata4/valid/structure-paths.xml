@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeP">
+                <Key>
+                    <PropertyRef Name="P1"/>
+                </Key>
+                <Property Name="P1" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <ComplexType Name="TypeA">
+                <Property Name="A1" Type="Edm.Int32" />
+                <NavigationProperty Name="AP" Type="test.pyslet.org.TypeP" />
+            </ComplexType>
+            <ComplexType Name="TypeB" BaseType="test.pyslet.org.TypeA">
+                <Property Name="B1" Type="Edm.Int32" />
+                <NavigationProperty Name="BP" Type="test.pyslet.org.TypeP" />
+            </ComplexType>
+            <EntityType Name="TypeX">
+                <Key>
+                    <PropertyRef Name="X1"/>
+                </Key>
+                <Property Name="X1" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="X2" Type="test.pyslet.org.TypeA"/>
+                <Property Name="X3" Type="test.pyslet.org.TypeB"/>
+                <NavigationProperty Name="XP" Type="test.pyslet.org.TypeP" />
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

@@ -19,6 +19,7 @@ from ..iso8601 import (
 from ..py2 import (
     BoolMixin,
     byte,
+    force_text,
     is_text,
     is_unicode,
     long2,
@@ -64,6 +65,29 @@ class NameTableClosed(ModelError):
     pass
 
 
+class PathError(Exception):
+
+    """Raised during path traversal"""
+    pass
+
+
+class QualifiedName(
+        UnicodeMixin,
+        collections.namedtuple('QualifiedName', ['namespace', 'name'])):
+
+    """Represents a qualified name
+
+    This is a Python namedtuple consisting of two strings, a namespace
+    and a name.  No syntax checking is done on the values at creation.
+    When converting to str (and unicode for Python 2) the two components
+    are joined with a "." as you'd expect."""
+
+    __slots__ = ()
+
+    def __unicode__(self):
+        return force_text("%s.%s" % self)
+
+
 class Named(object):
 
     """An abstract class for a named object"""
@@ -74,7 +98,7 @@ class Named(object):
         #: a weak reference to the nametable in which this object is
         #: first declared (or None if the object has not been declared)
         self.nametable = None
-        #: the qualified name of this object (if declared)
+        #: the qualified name of this object (if declared) as a string
         self.qname = None
 
     def is_owned_by(self, nametable):
@@ -86,12 +110,6 @@ class Named(object):
         argument is the nametable in which the named object was declared
         (see :meth:`declare`)."""
         return self.nametable() is nametable
-
-    def get_qualified_name(self):
-        """Returns the qualified name of this object
-
-        Includes any nametable prefix (does not use aliases)."""
-        raise NotImplementedError
 
     def declare(self, nametable):
         """Declares this object in the given nametable
@@ -120,6 +138,22 @@ class Named(object):
             raise ObjectRedclared(
                 "%s already declared" %
                 (self.name if self.qname is None else self.qname))
+
+    def root_nametable(self):
+        """Returns the root table of a nametable hierarchy
+
+        Uses the :attr:`nametable` attribute to trace back through a
+        chain of containing namespaces until it finds one that has not
+        been declared.
+
+        If this object has not been declared then None is returned."""
+        if self.nametable is None:
+            return None
+        else:
+            n = self
+            while n.nametable is not None:
+                n = n.nametable()
+            return n
 
 
 class NameTable(Named, collections.MutableMapping):
@@ -199,7 +233,7 @@ class NameTable(Named, collections.MutableMapping):
         defined before calling the callback.  If the name table is
         closed without name then the callback is called passing None."""
         value = self.get(name, None)
-        if value is not None:
+        if value is not None or self.closed:
             callback(value)
         else:
             callback_list = self._callbacks.setdefault(name, [])
@@ -210,8 +244,14 @@ class NameTable(Named, collections.MutableMapping):
 
         Calls callback (with no arguments) when the name table is
         closed.  This call is made after all unsuccessful notifications
-        registered with :meth:`tell` have been made."""
-        self._close_callbacks.append(callback)
+        registered with :meth:`tell` have been made.
+
+        If the table is already closed then callback is called
+        immediately."""
+        if self.closed:
+            callback()
+        else:
+            self._close_callbacks.append(callback)
 
     def close(self):
         """closes this name table
@@ -220,17 +260,23 @@ class NameTable(Named, collections.MutableMapping):
         are triggered followed by all notification callbacks registered
         with :meth:`tell_close`.  It is safe to call close on a name
         table that is already closed (callbacks are only ever called the
-        first time)."""
-        self.closed = True
-        cbs = list(self._callbacks.values())
-        self._callbacks = {}
-        for callback_list in cbs:
-            for c in callback_list:
-                c(None)
-        cbs = self._close_callbacks
-        self._close_callbacks = []
-        for c in cbs:
-            c()
+        first time) or even on one that is *being* closed.  In the
+        latter case no action is taken, essentially the table is closed
+        immediately, new declarations will fail and any calls to tell
+        and tell_close made during queued callbacks will invoke the
+        passed callback directly and nested calls to close itself do
+        nothing."""
+        if not self.closed:
+            self.closed = True
+            cbs = list(self._callbacks.values())
+            self._callbacks = {}
+            for callback_list in cbs:
+                for c in callback_list:
+                    c(None)
+            cbs = self._close_callbacks
+            self._close_callbacks = []
+            for c in cbs:
+                c()
 
     def reopen(self):
         """reopens this name table
@@ -305,12 +351,26 @@ class Schema(Annotatable, NameTable):
         """The following types may be declared in a Schema:
 
         NominalType
-            Any named type."""
-        if not isinstance(value, (Term, NominalType)):
+            Any named type.
+
+        EntityContainer
+            A container of entities.
+
+        Term
+            The definition of an annotation term."""
+        if not isinstance(value, (Term, NominalType, EntityContainer)):
             raise TypeError(
                 "%s can't be declared in %s" %
                 (repr(value),
                  "<Schema>" if self.name is None else self.name))
+
+    def close(self):
+        """Closing the schema closes all items it contains"""
+        for item in self.values():
+            if isinstance(item, NameTable) and not item.closed:
+                logging.warning("Cyclical reference detected: %s", item.qname)
+                item.close()
+        super(Schema, self).close()
 
     edm = None
     """The Edm schema.
@@ -329,7 +389,7 @@ class Schema(Annotatable, NameTable):
         complex_base = ComplexType()
         complex_base.name = "ComplexType"
         complex_base.declare(cls.edm)
-        entity_base = NominalType()
+        entity_base = EntityType()
         entity_base.name = "EntityType"
         entity_base.declare(cls.edm)
         for name, vtype in (('Binary', BinaryValue),
@@ -509,6 +569,27 @@ class EntityModel(NameTable):
                 (repr(value),
                  "<EntityModel>" if self.name is None else self.name))
 
+    @staticmethod
+    def split_qname(qname):
+        dot = qname.rfind('.')
+        if dot < 1 or dot > len(qname) - 1:
+            # ".name" and "name." don't count!
+            raise ValueError("qualified name required: %s" % qname)
+        return qname[:dot], qname[dot + 1:]
+
+    def qualified_get(self, qname):
+        """Looks up qname in this entity model.
+
+        qname
+            A string or a :class:`QualifiedName` instance.
+
+        Returns the object it points to or raises KeyError."""
+        if isinstance(qname, QualifiedName):
+            namespace, name = qname
+        else:
+            namespace, name = self.split_qname(qname)
+        return self[namespace][name]
+
     def qualified_tell(self, qname, callback):
         """Deferred qualified name lookup.
 
@@ -518,11 +599,7 @@ class EntityModel(NameTable):
 
         If the entity model or the indicated Schema is closed without
         qname being declared then the callback is called passing None."""
-        parts = qname.split(".")
-        if len(parts) < 2:
-            raise ValueError("qualified_tell requires a qualified name")
-        nsname = ".".join(parts[:-1])
-        name = parts[-1]
+        nsname, name = self.split_qname(qname)
         ns = self.get(nsname, None)
         if ns is None:
             self.tell(nsname, self._qcallback(name, callback))
@@ -544,6 +621,69 @@ class EntityModel(NameTable):
         for ns in self.values():
             ns.close()
         super(EntityModel, self).close()
+
+    def resolve_nppath(self, from_type, path):
+        """Resolves a navigation property path
+
+        from_type
+            The object to start resolving from, must be a structured
+            type.
+
+        path
+            An array of strings and QualifiedName instances representing
+            the path.
+
+        The rules for following navigation property paths are different
+        depending on the context. In Part 3, 7.1.4 they are defined
+        as follows:
+
+            The path may traverse complex types, including derived
+            complex types, but MUST NOT traverse any navigation
+            properties"""
+        pos = 0
+        try:
+            while pos < len(path):
+                segment = path[pos]
+                pos += 1
+                if is_text(segment):
+                    # must resole to a property of this type
+                    p = from_type[segment]
+                    if isinstance(p, NavigationProperty):
+                        if pos < len(path):
+                            raise PathError(
+                                "Can't traverse navigation property %s" %
+                                p.name)
+                        return p
+                    else:
+                        from_type = p.type_def
+                        # must be a structured type, not a primitive or
+                        # collection
+                        if not isinstance(from_type, StructuredType):
+                            raise PathError(
+                                "Can't resolve path containing: %s" %
+                                repr(from_type))
+                elif isinstance(segment, QualifiedName):
+                    # a type-cast
+                    new_type = self.qualified_get(segment)
+                    if not isinstance(new_type, StructuredType):
+                        raise PathError(
+                            "Can't resolve path containing: %s" %
+                            repr(new_type))
+                    # for type-casting we allow derived types
+                    if new_type.is_derived_from(from_type, strict=False):
+                        from_type = new_type
+                    else:
+                        raise PathError(
+                            "Can't resolve cast from %s to %s" %
+                            (from_type.qname, new_type.qname))
+                else:
+                    raise TypeError(
+                        "Bad path segment %s" % repr(segment))
+        except KeyError as err:
+            raise PathError("Path segment not found: %s" % str(err))
+        # if we get here then the path finished at a complex property
+        # of type-cast segment.
+        raise PathError("Path did not resolve to a navigation property")
 
 
 class NominalType(Named):
@@ -578,6 +718,28 @@ class NominalType(Named):
         The default implementation raises NotImplementedError because
         NominalType itself is an abstract class."""
         raise NotImplementedError
+
+    def is_derived_from(self, t, strict=False):
+        """Returns True if this type is derived from type t
+
+        strict
+            Optional flag determining the behaviour when t
+            is the type itself::
+
+                t.is_derived_from(t, True) is False
+
+            as t is not strictly derived from itself. By default, strict
+            mode is off::
+
+                t.is_derived_from(t) is True"""
+        curr_type = self
+        if not strict and t is self:
+            return True
+        while curr_type.base is not None:
+            curr_type = curr_type.base
+            if curr_type is t:
+                return True
+        return False
 
 
 class PrimitiveType(NominalType):
@@ -827,7 +989,7 @@ class EnumerationType(NameTable, NominalType):
 
     def value_from_str(self, src):
         """Constructs an enumeration value from a source string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = self()
         mlist = p.require_enum_value()
         if not self.is_flags:
@@ -897,30 +1059,93 @@ class StructuredType(NameTable, NominalType):
         if not isinstance(base, StructuredType):
             raise TypeError(
                 "%s is not a suitable base for %s" % (base.qname, self.name))
-        for pname, p in base.items():
-            self[pname] = p
         self.base = base
+
+    def navigation_properties(self):
+        """Generates all navigation properties of this type
+
+        This iterator will traverse complex types but *not* collections
+        of complex types.  It yields tuples of (path, nav property)."""
+        for n, p in self.items():
+            if isinstance(p, NavigationProperty):
+                yield n, p
+            elif isinstance(p.type_def, ComplexType):
+                for nn, np in p.type_def.navigation_properties():
+                    yield "%s/%s" % (n, nn), np
+
+    def close(self):
+        # before we close this nametable, add in the declarataions from
+        # the base type if present
+        if self.base is not None:
+            for pname, p in self.base.items():
+                self[pname] = p
+        super(StructuredType, self).close()
 
 
 class Property(Named):
 
     """A Property declaration"""
 
-    def __init__(self, type_def):
+    def __init__(self):
         super(Property, self).__init__()
         #: the type definition for values of this property
-        self.type_def = type_def
+        self.type_def = None
         #: whether or not the property value can be null (or contain
         #: null in the case of a collection)
         self.nullable = True
         #: the default value of the property (primitive/enums only)
         self.default_value = None
 
+    def set_type(self, type_def):
+        self.type_def = type_def
+
+    def set_nullable(self, nullable):
+        self.nullable = nullable
+
 
 class NavigationProperty(Named):
 
     """A NavigationProperty declaration"""
-    pass
+
+    def __init__(self):
+        super(NavigationProperty, self).__init__()
+        #: the type definition for values of this property
+        self.type_def = None
+        #: whether or not this property is a collection
+        self.collection = False
+        #: whether of not the linked entities are contained
+        self.containment = False
+        #: the partner of this navigation property
+        self.partner = None
+        #: reverse partners are navigation properties that point back to
+        #: us, there can be more than one but if the relationship is
+        #: bidirectional there will *exactly* one and it will be the
+        #: same object as self.partner.
+        self.reverse_partners = []
+
+    def set_nullable(self, nullable):
+        self.nullable = nullable
+
+    def set_containment(self, contains_target):
+        self.containment = contains_target
+
+    def set_type(self, type_def, collection):
+        self.type_def = type_def
+        self.collection = collection
+
+    def set_partner(self, partner):
+        if self.reverse_partners:
+            if len(self.reverse_partners) > 1:
+                raise ModelError(
+                    "%s cannot specify a partner as multiple navigation "
+                    "properties already partner it" %
+                    self.name)
+            if self.reverse_partners[0] is not partner:
+                raise ModelError(
+                    "%s is already a partner of %s" %
+                    (self.reverse_partners[0].name, self.name))
+        self.partner = partner
+        partner.reverse_partners.append(self)
 
 
 class ComplexType(StructuredType):
@@ -941,6 +1166,70 @@ class EntityType(StructuredType):
 class Term(Named):
 
     """Represents a defined term in the OData model"""
+    pass
+
+
+class EntityContainer(NameTable):
+
+    """An EntityContainer is a container for OData entities."""
+
+    def __init__(self):
+        super(EntityContainer, self).__init__()
+        #: the entity container we are extending
+        self.extends = None
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against SimpleIdentifier
+
+        Raises ValueError if the name is not valid (or is None).
+
+        From the spec:
+
+            The edm:EntityContainer element MUST provide a unique
+            SimpleIdentifier value for the Name attribute."""
+        if name is None:
+            raise ValueError("unnamed container")
+        elif not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid SimpleIdentifier" % name)
+
+    def check_value(self, value):
+        """The following types may be declared in an EntityContainer:
+
+        EntitySet, Singleton, ActionImport and FunctionImport."""
+        if not isinstance(value, (EntitySet, Singleton)):
+            raise TypeError(
+                "%s can't be declared in %s" %
+                (repr(value),
+                 "<EntityContainer>" if self.name is None else self.name))
+
+    def set_extends(self, extends):
+        """Sets the container that this container extends"""
+        if not isinstance(extends, EntityContainer):
+            raise TypeError(
+                "%s must be an entity container" % extends.qname)
+        self.extends = extends
+
+    def close(self):
+        # before we close this nametable, add in the declarataions from
+        # the extended container if present
+        if self.extends is not None:
+            for name, item in self.extends.items():
+                # we tolerate cycles, which means that if an item is
+                # already declared we ignore it
+                old_item = self.get(name, None)
+                if old_item is item:
+                    continue
+                self[name] = item
+        super(EntityContainer, self).close()
+
+
+class EntitySet(Named):
+
+    pass
+
+
+class Singleton(Named):
+
     pass
 
 
@@ -1405,7 +1694,7 @@ class BinaryValue(PrimitiveValue):
 
     @classmethod
     def from_str(cls, src):
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_binary_value()
         p.require_end()
         return v
@@ -1450,7 +1739,7 @@ class BooleanValue(PrimitiveValue):
 
         OData syntax is case insenstive for the values "true" and
         "false" but case sensitive for the value 'null'."""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_boolean_value()
         p.require_end()
         return v
@@ -1470,7 +1759,7 @@ class ByteValue(IntegerValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_byte_value()
         p.require_end()
         return v
@@ -1537,7 +1826,7 @@ class DecimalValue(NumericValue):
         means that we won't allow '%2B1' to be interpreted as +1 when it
         is used in XML attribute/element values or JSON decimal strings
         which I assume is what is intended."""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_decimal_value()
         p.require_end()
         return v
@@ -1573,7 +1862,7 @@ class DoubleValue(FloatValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_double_value()
         p.require_end()
         return v
@@ -1594,7 +1883,7 @@ class Int16Value(IntegerValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_int16_value()
         p.require_end()
         return v
@@ -1615,7 +1904,7 @@ class Int32Value(IntegerValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_int32_value()
         p.require_end()
         return v
@@ -1636,7 +1925,7 @@ class Int64Value(IntegerValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_int64_value()
         p.require_end()
         return v
@@ -1652,7 +1941,7 @@ class SByteValue(IntegerValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_sbyte_value()
         p.require_end()
         return v
@@ -1685,7 +1974,7 @@ class SingleValue(FloatValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_single_value()
         p.require_end()
         return v
@@ -1731,7 +2020,7 @@ class DateValue(PrimitiveValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_date_value()
         p.require_end()
         return v
@@ -1873,7 +2162,7 @@ class DateTimeOffsetValue(PrimitiveValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_date_time_offset_value()
         p.require_end()
         return v
@@ -1927,7 +2216,7 @@ class DurationValue(PrimitiveValue):
         OData syntax follows XML schema convention of an optional sign
         followed by an ISO-type duration specified in days, hours,
         minutes and seconds."""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_duration_value()
         p.require_end()
         return v
@@ -1971,7 +2260,7 @@ class GuidValue(PrimitiveValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_guid_value()
         p.require_end()
         return v
@@ -2099,7 +2388,7 @@ class TimeOfDayValue(PrimitiveValue):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_time_of_day_value()
         p.require_end()
         return v
@@ -2136,7 +2425,7 @@ class PointValue(object):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_full_point_literal()
         p.require_end()
         return cls(v)
@@ -2164,7 +2453,7 @@ class LineStringValue(object):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_full_line_string_literal()
         p.require_end()
         return cls(v)
@@ -2193,7 +2482,7 @@ class PolygonValue(object):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_full_polygon_literal()
         p.require_end()
         return cls(v)
@@ -2221,7 +2510,7 @@ class MultiPointValue(object):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_full_multi_point_literal()
         p.require_end()
         return cls(v)
@@ -2249,7 +2538,7 @@ class MultiLineStringValue(object):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_full_multi_line_string_literal()
         p.require_end()
         return cls(v)
@@ -2277,7 +2566,7 @@ class MultiPolygonValue(object):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_full_multi_polygon_literal()
         p.require_end()
         return cls(v)
@@ -2305,7 +2594,7 @@ class GeoCollectionValue(object):
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
-        p = PrimitiveParser(src)
+        p = ODataParser(src)
         v = p.require_full_collection_literal()
         p.require_end()
         return cls(v)
@@ -2471,10 +2760,10 @@ class CollectionValue(Value):
     In the case of primitive types the distinction is made using the
     :attr:`PrimitiveValue.value` attribute that contains a Python-native
     value representing the value (or None if the value is a null).  For
-    collections we retain the same sort of distinction in that the
+    collections we retain the same sort of distinction.  The
     CollectionValue object is not blessed with Python's Collection
-    behaviour.  Collection objects must be *opened* in order to obtain
-    such a representation.
+    behaviour but must be *opened* in order to obtain such a
+    representation.
 
     This distinction has important implications for the use of the null
     test.  A collection value is never null, so it always returns True
@@ -2527,11 +2816,76 @@ for c in ("L", "Nl", "Nd", "Mn", "Mc", "Pc", "Cf"):
     _oid_char.add_class(CharClass.ucd_category(c))
 
 
-class PrimitiveParser(BasicParser):
+class ODataParser(BasicParser):
 
     """A Parser for the OData ABNF
 
     This class takes case of parsing primitive values only."""
+
+    # Line 252
+    def require_expand_path(self):
+        """Parses production expandPath
+
+        The syntax is a bit obscure from the definition due to
+        the equivalence of many of the constructs but it
+        reduces to::
+
+            [ qualifiedName "/" ] odataIdentifier
+                *( "/" [ qualifiedName "/" ] odataIdentifier )
+                [ "/" qualifiedName ]
+
+        We return a list of strings and/or :class:`QualifiedName`
+        instances containing the path elements without separators. The
+        is no ambiguity as the path can neither start nor end in a
+        separator."""
+        result = []
+        qname = self.parse_production(self.require_qualified_name)
+        if qname:
+            result.append(qname)
+            self.require("/")
+            result.append(self.require_odata_identifier())
+        else:
+            result.append(self.require_odata_identifier())
+        while self.parse("/"):
+            qname = self.parse_production(self.require_qualified_name)
+            if qname:
+                result.append(qname)
+                if self.parse("/"):
+                    result.append(self.require_odata_identifier())
+                else:
+                    break
+            else:
+                result.append(self.require_odata_identifier())
+        return result
+
+    # Line 701-704
+    def require_qualified_name(self):
+        """Parses productions of the form qualified<type>Name
+
+        Returns a named tuple of (namespace, name).
+
+        Although split out in the ABNF these definitions are all
+        equivalent and can't be differentiated in the syntax without
+        reference to a specific model."""
+        result = []
+        result.append(self.require_odata_identifier())
+        self.require(".")
+        result.append(self.require_odata_identifier())
+        while self.parse("."):
+            result.append(self.require_odata_identifier())
+        return QualifiedName(".".join(result[:-1]), result[-1])
+
+    # Line 707
+    def require_namespace(self):
+        """Parses procution namespace
+
+        Returns a string representing the namespace.  This method is
+        greedy, it will parse as many identifiers as it can."""
+        result = []
+        result.append(self.require_odata_identifier())
+        while self.parse("."):
+            result.append(self.require_odata_identifier())
+        return ".".join(result)
 
     # Line 720
     def require_odata_identifier(self):

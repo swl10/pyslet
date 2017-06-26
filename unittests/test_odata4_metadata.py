@@ -351,6 +351,22 @@ class CSDLDocumentTests(unittest.TestCase):
                 p.default_value.value == default,
                 "Default: %s = %s" % (pname, repr(p.default_value.value)))
 
+    def test_section_13_1_2_cycle(self):
+        # services should not introduce cycles with Extends. Clients
+        # should be prepared to process cycles introduced with Extends.
+        fpath = TEST_DATA_DIR.join('valid', 'section-13.1.2-cycle.xml')
+        uri = URI.from_virtual_path(fpath)
+        doc = csdl.CSDLDocument(base_uri=uri)
+        doc.read()
+        em = doc.root.entity_model
+        s = em['test.pyslet.org']
+        container_a = s['ContainerA']
+        container_b = s['ContainerB']
+        # the cycle between these contains simply means that all
+        # definitions in A are in B *and* vice versa
+        self.assertTrue(len(container_a) == 2)
+        self.assertTrue(len(container_b) == 2)
+
     def test_valid_examples(self):
         dpath = TEST_DATA_DIR.join('valid')
         for fname in dpath.listdir():
@@ -392,6 +408,7 @@ class CSDLDocumentTests(unittest.TestCase):
             except XMLValidityError as err:
                 msg = str(err)
             if sid is not None:
+                logging.debug(msg)
                 self.assertTrue(sid in msg.split(),
                                 "%s raised %s" % (str(fname), msg))
 

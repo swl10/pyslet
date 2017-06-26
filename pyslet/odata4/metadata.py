@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+import logging
+
 from . import model as odata
 from ..py2 import (
     is_text,
@@ -182,6 +184,13 @@ class CSDLElement(xmlns.XMLNSElement):
         schema = self.find_parent(Schema)
         if schema:
             return schema.get_schema()
+        else:
+            return None
+
+    def get_container(self):
+        container = self.find_parent(EntityContainer)
+        if container:
+            return container.get_container()
         else:
             return None
 
@@ -974,9 +983,10 @@ class Type(CSDLElement):
                     self._type_obj.declare(s)
                 except odata.DuplicateNameError:
                     raise odata.DuplicateNameError(
-                        "P3 4.1 The qualified type name MUST be unique within "
-                        "a model; P3 5.1 the Name attribute MUST be unique "
-                        "across all direct child elements of a schema;")
+                        "[%s] P3 4.1 The qualified type name MUST be unique "
+                        "within a model; P3 5.1 the Name attribute MUST be "
+                        "unique across all direct child elements of a "
+                        "schema;" % self._type_obj.name)
         return self._type_obj
 
     def content_changed(self):
@@ -995,23 +1005,40 @@ class DerivableType(Type):
         self.abstract = False
 
     def content_changed(self):
-        self.get_type()
+        t = self.get_type()
         if self.base_type_name is not None:
             em = self.get_entity_model()
             em.qualified_tell(
                 self.base_type_name, self._set_base_type_callback)
+        else:
+            # this type is complete, close it
+            try:
+                t.close()
+            except odata.DuplicateNameError as err:
+                # if we are the base type of some other type we may
+                # discover a name conflict at this point (in the derived
+                # type).
+                raise odata.DuplicateNameError(
+                    "[%s] P3 6.1.1 and 7.1.1 The name of the structural or "
+                    "navigation property MUST be unique within the set of "
+                    "structural and navigation properties of ... its base "
+                    "types" % str(err))
 
     def _set_base_type_callback(self, base_type_obj):
         if base_type_obj is None:
             raise odata.ModelError("%s is not declared" % self.base_type_name)
         t = self.get_type()
+        t.set_base(base_type_obj)
+        # we need to wait for our base to be closed before we can be
+        # closed - simple chaining is all that is required.
         try:
-            t.set_base(base_type_obj)
-        except odata.DuplicateNameError:
+            base_type_obj.tell_close(t.close)
+        except odata.DuplicateNameError as err:
             raise odata.DuplicateNameError(
-                "P3 6.1.1 The name of the structural property MUST be "
-                "unique within the set of structural and navigation "
-                "properties of ... its base types")
+                "[%s] P3 6.1.1 and 7.1.1 The name of the structural or "
+                "navigation property MUST be unique within the set of "
+                "structural and navigation properties of ... its base "
+                "types" % str(err))
 
 
 class ComplexType(SchemaContent, DerivableType):
@@ -1134,15 +1161,27 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
             raise odata.ModelError(
                 "P3 6.1; P3 6.1.2 Missing or invalid Type for Property %s" %
                 self.name)
-        em = self.get_entity_model()
         qname, collection = self.type_name
         if self.nullable is None and not collection:
             # default nullability
             self.nullable = True
-        # look-up the type_name, will trigger declaration now or later
+        self._p = odata.Property()
+        self._p.name = self.name
+        self._p.set_nullable(self.nullable)
+        t = self.get_type_context()
+        if t is not None:
+            try:
+                self._p.declare(t)
+            except odata.DuplicateNameError:
+                raise odata.DuplicateNameError(
+                    "P3 6.1 A property MUST specify a unique name (%s:%s)" %
+                    (t.name, self.name))
+        # look-up the type_name, will trigger type binding now or later
+        em = self.get_entity_model()
         em.qualified_tell(qname, self._set_type_callback)
 
     def _set_type_callback(self, type_obj):
+        em = self.get_entity_model()
         # set self.type_obj
         if type_obj is None or not isinstance(
                 type_obj, (odata.PrimitiveType, odata.ComplexType,
@@ -1172,31 +1211,35 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
                     "P3 6.2.6 The value of the SRID attribute MUST be a "
                     "non-negative integer or the special value variable")
             type_obj = ptype
+        if collection and isinstance(type_obj, odata.ComplexType):
+            em.tell_close(self._check_complex_callback)
         default_value = None
         if self.default_value is not None:
             if isinstance(type_obj, odata.PrimitiveType):
                 default_value = type_obj.value_from_str(self.default_value)
             elif isinstance(type_obj, odata.EnumerationType):
-                # wait until the type is closed
+                # wait until the type is closed!
                 type_obj.tell_close(self._set_default_callback)
         if collection:
             type_obj = odata.CollectionType(type_obj)
-        self._p = odata.Property(type_def=type_obj)
-        self._p.name = self.name
-        self._p.nullable = self.nullable
-        self._p.default_value = default_value
-        t = self.get_type_context()
-        if t is not None:
-            try:
-                self._p.declare(t)
-            except odata.DuplicateNameError:
-                raise odata.DuplicateNameError(
-                    "P3 6.1 A property MUST specify a unique name (%s:%s)" %
-                    (t.name, self.name))
+        self._p.set_type(type_obj)
+        if default_value is not None:
+            self._p.default_value = default_value
 
     def _set_default_callback(self):
         self._p.default_value = self._p.type_def.value_from_str(
             self.default_value)
+
+    def _check_complex_callback(self):
+        # check this complex type to see if it contains a containment
+        # navigation property
+        for path, np in self._p.type_def.item_type.navigation_properties():
+            logging.debug("Checking %s.%s for containment" % (self.name, path))
+            if np.containment:
+                raise odata.ModelError(
+                    "P3 7.1.5 complex types declaring a containment "
+                    "navigation property MUST NOT be used as the type "
+                    "of a collection-valued property [%s]" % self.name)
 
     def get_type_context(self):
         if not isinstance(self.parent, (ComplexType, EntityType)):
@@ -1218,16 +1261,125 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
         CSDLElement.__init__(self, parent)
         self.name = None
         self.type_name = None
-        self.nullable = True
-        self.partner = True
-        self.contains_target = True
+        self.nullable = None
+        self.partner = None
+        self._partner_path = None
+        self.contains_target = False
         self.NavigationPropertyContent = []
+        self._np = None
+
+    def content_changed(self):
+        if self.name is None:
+            raise odata.ModelError(
+                "P3 7.1.1 Missing or invalid Name for NavigationProperty %s" %
+                self.name)
+        if self.type_name is None:
+            raise odata.ModelError(
+                "P3 7.1.2 Missing or invalid Type for NavigationProperty %s" %
+                self.name)
+        # check syntax of partner, if present
+        if self.partner is not None:
+            p = odata.ODataParser(self.partner)
+            try:
+                self._partner_path = p.require_expand_path()
+                p.require_end()
+                logging.debug("Partner %s", to_text(self._partner_path))
+            except ValueError as err:
+                raise odata.PathError(
+                    "Failed to parse Partner path in %s; %s" %
+                    (self.name, to_text(err)))
+        else:
+            self._partner_path = None
+        self._np = odata.NavigationProperty()
+        self._np.name = self.name
+        qname, collection = self.type_name
+        if collection:
+            if self.nullable is not None:
+                raise odata.ModelError(
+                    "[%s] P3 7.1.3 A navigation property whose Type "
+                    "attribute specifies a collection MUST NOT specify a "
+                    "value for the Nullable attribute" % self.name)
+        elif self.nullable is None:
+            # default nullability
+            self.nullable = True
+        self._np.set_nullable(self.nullable)
+        self._np.set_containment(self.contains_target)
+        t = self.get_type_context()
+        if t is not None:
+            if self.partner is not None and \
+                    not isinstance(t, odata.EntityType):
+                raise odata.ModelError(
+                    "[%s/%s] P3 7.1.4 The Partner ... MUST NOT be specified "
+                    "for navigation properties of complex types." %
+                    (t.name, self.name))
+            try:
+                self._np.declare(t)
+            except odata.DuplicateNameError:
+                raise odata.DuplicateNameError(
+                    "[%s/%s] P3 7.1 the name of the navigation property MUST "
+                    "be unique" % (t.name, self.name))
+        # look-up the type_name, will trigger type binding now or later
+        em = self.get_entity_model()
+        em.qualified_tell(qname, self._set_type_callback)
+        if self._partner_path is not None:
+            # we need to resolve the partner path, wait for all
+            # declarations to have been made.
+            em.tell_close(self._set_partner_callback)
+
+    def _set_type_callback(self, type_obj):
+        # set self.type_obj
+        if type_obj is None or not isinstance(type_obj, odata.EntityType):
+            raise odata.ModelError(
+                "[%s] P3 7.1.2 The value of the type attribute MUST resolve "
+                "to an entity type or a collection of an entity type" %
+                self.name)
+        self._np.set_type(type_obj, self.type_name[1])
+
+    def _set_partner_callback(self):
+        em = self.get_entity_model()
+        try:
+            # the path resolution takes care of one of our constraints
+            target = em.resolve_nppath(self._np.type_def, self._partner_path)
+        except odata.PathError as err:
+            raise odata.ModelError(
+                "[%s] P3 7.1.4 Partner MUST be a path from the entity type "
+                "specified in the Type attribute to a navigation property "
+                "defined on that type or a derived type (%s)" %
+                (self.name, to_text(err)))
+        t = self.get_type_context()
+        if not t.is_derived_from(target.type_def):
+            raise odata.ModelError(
+                "[%s] P3 7.1.4 The type of the partner navigation property "
+                "MUST be the containing entity type of the current "
+                "navigation property or one of its parent entity types" %
+                self.name)
+        if target.partner is not None and target.partner is not self._np:
+            raise odata.ModelError(
+                "[%s] P3 7.1.4 If a partner navigation property is "
+                "specified [on the target navigation property], this "
+                "partner navigation property MUST either specify the current "
+                "navigation property as its partner or it MUST NOT specify a "
+                "partner attribute" % self.name)
+        try:
+            self._np.set_partner(target)
+        except odata.ModelError as err:
+            raise odata.ModelError(
+                "P3 7.1.4 If a partner navigation property is "
+                "specified [on the target navigation property], this "
+                "partner navigation property MUST either specify the current "
+                "navigation property as its partner or it MUST NOT specify a "
+                "partner attribute (%s)" % str(err))
 
     def get_children(self):
         for npc in self.NavigationPropertyContent:
             yield npc
         for child in super(NavigationProperty, self).get_children():
             yield child
+
+    def get_type_context(self):
+        if not isinstance(self.parent, (ComplexType, EntityType)):
+            return None
+        return self.parent.get_type()
 
 
 class ReferentialConstraint(Annotated):
@@ -1281,9 +1433,10 @@ class TypeDefinition(SchemaContent, FacetsMixin, PropertyFacetsMixin,
                     self._type_obj.declare(s)
                 except odata.DuplicateNameError:
                     raise odata.DuplicateNameError(
-                        "P3 4.1 The qualified type name MUST be unique within "
-                        "a model; P3 5.1 the Name attribute MUST be unique "
-                        "across all direct child elements of a schema;")
+                        "[%s] P3 4.1 The qualified type name MUST be unique "
+                        "within a model; P3 5.1 the Name attribute MUST be "
+                        "unique across all direct child elements of a "
+                        "schema;" % self._type_obj.name)
         return self._type_obj
 
     def content_changed(self):
@@ -1297,9 +1450,10 @@ class TypeDefinition(SchemaContent, FacetsMixin, PropertyFacetsMixin,
                 self._type_obj.declare(s)
             except odata.DuplicateNameError:
                 raise odata.DuplicateNameError(
-                    "P3 4.1 The qualified type name MUST be unique within "
-                    "a model; P3 5.1 the Name attribute MUST be unique "
-                    "across all direct child elements of a schema;")
+                    "[%s] P3 4.1 The qualified type name MUST be unique "
+                    "within a model; P3 5.1 the Name attribute MUST be unique "
+                    "across all direct child elements of a schema;" %
+                    self._type_obj.name)
 
 
 class EnumType(SchemaContent, Type):
@@ -1492,12 +1646,50 @@ class EntityContainer(SchemaContent, CSDLElement):
         self.name = None
         self.extends = None
         self.EntityContainerContent = []
+        self._container = None
 
     def get_children(self):
         for ec in self.EntityContainerContent:
             yield ec
         for child in super(EntityContainer, self).get_children():
             yield child
+
+    def content_changed(self):
+        # force declaration of container
+        ec = self.get_container()
+        if self.extends is not None:
+            em = self.get_entity_model()
+            em.qualified_tell(
+                self.extends, self._set_extends_callback)
+        else:
+            # safe to close the container now
+            ec.close()
+
+    def _set_extends_callback(self, extends_obj):
+        if extends_obj is None:
+            raise odata.ModelError("%s is not declared" % self.extends)
+        ec = self.get_container()
+        try:
+            ec.set_extends(extends_obj)
+        except odata.DuplicateNameError as err:
+            raise odata.DuplicateNameError(
+                "[%s] TBC" % str(err))
+        # close this container when the 'base' container closes
+        extends_obj.tell_close(ec.close)
+
+    def get_container(self):
+        if self._container is None:
+            self._container = odata.EntityContainer()
+            self._container.name = self.name
+            schema = self.get_schema()
+            try:
+                self._container.declare(schema)
+            except odata.DuplicateNameError:
+                raise odata.ModelError(
+                    "P3 13.1 Entity set, singleton, action import, and "
+                    "function import names MUST be unique within an entity "
+                    "container (%s)" % self.name)
+        return self._container
 
 
 class AnnotatedNavigation(CSDLElement):
@@ -1509,7 +1701,7 @@ class AnnotatedNavigation(CSDLElement):
     def get_children(self):
         for ec in self.AnnotatedNavigationContent:
             yield ec
-        for child in super(EntityContainer, self).get_children():
+        for child in super(AnnotatedNavigation, self).get_children():
             yield child
 
 
@@ -1527,6 +1719,20 @@ class EntitySet(EntityContainerContent, AnnotatedNavigation):
         self.name = None
         self.type_name = None
         self.include_in_service_document = True
+
+    def content_changed(self):
+        container = self.get_container()
+        if container is not None:
+            # declare this EntitySet within the container
+            es = odata.EntitySet()
+            es.name = self.name
+            try:
+                es.declare(container)
+            except odata.DuplicateNameError as err:
+                raise odata.ModelError(
+                    "P3 13.1 Entity set, singleton, action import, and "
+                    "function import names MUST be unique within an entity "
+                    "container (%s)" % str(err))
 
 
 class NavigationPropertyBinding(AnnotatedNavigationContent, CSDLElement):
@@ -1589,6 +1795,20 @@ class Singleton(EntityContainerContent, AnnotatedNavigation):
         AnnotatedNavigation.__init__(self, parent)
         self.name = None
         self.type_name = None
+
+    def content_changed(self):
+        container = self.get_container()
+        if container is not None:
+            # declare this Singleton within the container
+            s = odata.Singleton()
+            s.name = self.name
+            try:
+                s.declare(container)
+            except odata.DuplicateNameError as err:
+                raise odata.ModelError(
+                    "P3 13.1 Entity set, singleton, action import, and "
+                    "function import names MUST be unique within an entity "
+                    "container (%s)" % str(err))
 
 
 class CSDLDocument(xmlns.XMLNSDocument):

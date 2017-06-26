@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityContainer Name="TestDB">
+                <EntitySet Name="EntityA" EntityType="test.pyslet.org.TypeA"/>
+                <EntitySet Name="EntityB" EntityType="test.pyslet.org.TypeB"/>
+                <!-- Entity set, singleton, action import, and function
+                import names MUST be unique within an entity container.
+                -->
+                <Singleton Name="EntityA" Type="test.pyslet.org.TypeA"/>
+            </EntityContainer>
+            <EntityType Name="TypeA">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeB">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

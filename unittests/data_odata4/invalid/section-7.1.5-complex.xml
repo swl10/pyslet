@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeA">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <!-- complex types declaring a containment navigation
+                property, either directly or indirectly via a property
+                of complex type, MUST NOT be used as the type of a
+                collection-valued property-->
+                <Property Name="A1" Type="Collection(test.pyslet.org.TypeX)" />
+            </EntityType>
+            <ComplexType Name="TypeX">
+                <Property Name="XInfo" Type="Edm.String"/>
+                <Property Name="Y" Type="test.pyslet.org.TypeY"/>
+            </ComplexType>
+            <ComplexType Name="TypeY">
+                <Property Name="YInfo" Type="Edm.String"/>
+                <NavigationProperty Name="YB"
+                    Type="test.pyslet.org.TypeB" ContainsTarget="true"/>
+            </ComplexType>
+            <EntityType Name="TypeB">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
