@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeA">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <NavigationProperty Name="AB" Type="test.pyslet.org.TypeB"/> 
+            </EntityType>
+            <EntityType Name="TypeB">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityContainer Name="MyDB">
+                <EntitySet Name="A" EntityType="test.pyslet.org.TypeA">
+                    <!-- A navigation property binding MUST name a
+                    navigation property ... in the Path attribute -->
+                    <NavigationPropertyBinding Path="ID" Target="B" />
+                </EntitySet>
+                <EntitySet Name="B" EntityType="test.pyslet.org.TypeB"/>
+            </EntityContainer>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

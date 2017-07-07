@@ -77,15 +77,8 @@ class NameTableTests(unittest.TestCase):
         ns = odata.NameTable()
         # abstract class...
         n = odata.Named()
-        n.name = "Hello"
         try:
-            ns["Hello"] = n
-            self.fail("check_name and check_value implemented")
-        except NotImplementedError:
-            pass
-        # same result if we try and declare something
-        try:
-            n.declare(ns)
+            n.declare(ns, "Hello")
             self.fail("Named.declare in abstract name space")
         except NotImplementedError:
             pass
@@ -196,16 +189,13 @@ class NameTableTests(unittest.TestCase):
         s1 = self.mock_class()
         self.assertTrue(s1.root_nametable() is None)
         s2 = self.mock_class()
-        s2.name = "s2"
-        s2.declare(s1)
+        s2.declare(s1, "s2")
         s3 = self.mock_class()
-        s3.name = "s3"
-        s3.declare(s2)
+        s3.declare(s2, "s3")
         self.assertTrue(s3.root_nametable() is s1)
         o1 = odata.Named()
-        o1.name = "o1"
         self.assertTrue(o1.root_nametable() is None)
-        o1.declare(s3)
+        o1.declare(s3, "o1")
         self.assertTrue(o1.root_nametable() is s1)
 
 
@@ -219,7 +209,7 @@ class SchemaTests(unittest.TestCase):
         ns = odata.Schema()
         n = odata.Named()
         try:
-            ns["Hello"] = n
+            n.declare(ns, "Hello")
             self.fail("check_type failed")
         except NotImplementedError:
             self.fail("check_name or check_value not implemented")
@@ -228,7 +218,7 @@ class SchemaTests(unittest.TestCase):
             pass
         n = odata.NominalType()
         try:
-            n.declare(ns)
+            n.declare(ns, "")
             self.fail("Named.declare with no name")
         except NotImplementedError:
             self.fail("check_name or check_value not implemented")
@@ -236,56 +226,58 @@ class SchemaTests(unittest.TestCase):
             self.fail("check_name with None")
         except ValueError:
             pass
-        n.name = "+Hello"
         try:
-            n.declare(ns)
+            n.declare(ns, "+Hello")
             self.fail("Named.declare with bad name")
         except ValueError:
             pass
-        n.name = "_Hello"
         try:
-            n.declare(ns)
+            n.declare(ns, "_Hello")
         except ValueError:
             self.fail("Good name raised ValueError")
         except TypeError:
             self.fail("Good name and type raised TypeError")
-        # you can't declare something twice
+        # you can't declare something twice (with the same name)
         try:
-            n.declare(ns)
-            self.fail("NominalType redeclared (same namespace)")
-        except odata.ObjectRedclared:
+            n.declare(ns, "_Hello")
+            self.fail("NominalType redeclared (same namespace and name)")
+        except odata.DuplicateNameError:
             pass
         ns2 = odata.Schema()
-        try:
-            n.declare(ns2)
-            self.fail("NominalType redeclared (different namespace)")
-        except odata.ObjectRedclared:
-            pass
+        # declare in an alternate namespace
+        n.declare(ns2, "Hello")
+        self.assertTrue(n.name == "_Hello")
+        self.assertTrue(n.nametable() is ns)
+        self.assertTrue(ns2["Hello"] is n)
+        # declare alias in same namespace
+        n.declare(ns, "HelloAgain")
+        self.assertTrue(n.name == "_Hello")
+        self.assertTrue(n.nametable() is ns)
+        self.assertTrue(ns["HelloAgain"] is n)
 
     def test_qname(self):
         ns = odata.Schema()
         n = odata.NominalType()
-        n.name = "Hello"
-        # if the schema has no name, there is no qualified name
-        n.declare(ns)
-        self.assertTrue(n.qname is None)
-        self.assertTrue(n.nametable() is not None)
+        # if the schema has no name, the qualified name is just name
+        n.declare(ns, "Hello")
+        self.assertTrue(n.qname == "Hello")
+        self.assertTrue(n.nametable is not None)
+        self.assertTrue(n.nametable() is ns)
         self.assertTrue(n.is_owned_by(ns))
         # if we delete the schema we should lose the link
         del ns
         self.assertTrue(n.nametable is not None)
         self.assertTrue(n.nametable() is None)
-        # we are still not allowed to redeclare
+        # we're just an orphan
         ns2 = odata.Schema()
+        # fake declaration of schema
         ns2.name = "my.namespace"
-        try:
-            n.declare(ns2)
-            self.fail("NominalType redeclared (after ns del)")
-        except odata.ObjectRedclared:
-            pass
+        n.declare(ns2, "HelloAgain")
+        self.assertTrue(n.name == "Hello")
+        self.assertTrue(n.nametable() is None)
+        self.assertTrue(n.qname == "Hello")
         n = odata.NominalType()
-        n.name = "Hello"
-        n.declare(ns2)
+        n.declare(ns2, "Hello")
         self.assertTrue(n.qname == "my.namespace.Hello")
 
     def test_edm(self):
@@ -323,23 +315,12 @@ class AnnotationsTests(unittest.TestCase):
             pass
         qa = odata.QualifiedAnnotation()
         try:
-            qa.declare(a)
-            self.fail("QualifiedAnnotation.declare with no name")
-        except NotImplementedError:
-            self.fail("check_name or check_value not implemented")
-        except TypeError:
-            self.fail("check_name with None")
-        except ValueError:
-            pass
-        qa.name = "+Tablet"
-        try:
-            qa.declare(a)
+            qa.declare(a, "+Tablet")
             self.fail("QualifiedAnnotation.declare with bad name")
         except ValueError:
             pass
-        qa.name = "Tablet"
         try:
-            qa.declare(a)
+            qa.declare(a, "Tablet")
         except ValueError:
             self.fail("Good name raised ValueError")
         except TypeError:
@@ -359,23 +340,12 @@ class AnnotationsTests(unittest.TestCase):
             pass
         a = odata.Annotation()
         try:
-            a.declare(aa)
-            self.fail("Annotation.declare with no name")
-        except NotImplementedError:
-            self.fail("check_name or check_value not implemented")
-        except TypeError:
-            self.fail("check_name with None")
-        except ValueError:
-            pass
-        a.name = "Description"
-        try:
-            a.declare(aa)
+            a.declare(aa, "Description")
             self.fail("Annotation.declare with bad name")
         except ValueError:
             pass
-        a.name = "Vocab.Description"
         try:
-            a.declare(aa)
+            a.declare(aa, "Vocab.Description")
         except ValueError:
             self.fail("Good name raised ValueError")
         except TypeError:
@@ -383,32 +353,29 @@ class AnnotationsTests(unittest.TestCase):
 
     def test_declare(self):
         term = odata.Term()
-        term.name = "Description"
         # mock declaration in the "Vocab" namespace
+        term.name = "Description"
         term.qname = "Vocab.Description"
         aa = odata.Annotations()
         # check that we can apply a qualified term directly
         qa = odata.QualifiedAnnotation()
         qa.term = term
-        qa.name = "Tablet"
-        qa.qualified_declare(aa)
+        qa.qualified_declare(aa, "Tablet")
         self.assertTrue(len(aa) == 1)
         self.assertTrue(len(aa['Vocab.Description']) == 1)
         self.assertTrue(aa['Vocab.Description']['Tablet'] is qa)
         # an unqualified name goes in with an empty string qualifier
         uqa = odata.QualifiedAnnotation()
         uqa.term = term
-        uqa.name = None     # automatically declared as ""
-        uqa.qualified_declare(aa)
+        uqa.qualified_declare(aa)   # automatically declared as ""
         self.assertTrue(len(aa) == 1)
         self.assertTrue(len(aa['Vocab.Description']) == 2)
         self.assertTrue(aa['Vocab.Description'][''] is uqa)
         # you can't declare a qualified name twice
         dqa = odata.QualifiedAnnotation()
-        dqa.name = "Tablet"
         dqa.term = term
         try:
-            dqa.qualified_declare(aa)
+            dqa.qualified_declare(aa, "Tablet")
             self.fail("Duplicate qualified annotation")
         except odata.DuplicateNameError:
             pass
@@ -471,27 +438,23 @@ class EntityModelTests(unittest.TestCase):
 
     def test_entitymodel_declare(self):
         em = odata.EntityModel()
-        em.name = "Test"
-        # abstract class...
         ns = odata.Schema()
         # This should work fine!
-        em["Hello"] = ns
-        self.assertTrue(ns.name is None, "Alias declaration OK")
+        ns.declare(em, "Hello")
+        self.assertTrue(ns.name == "Hello", "Declaration OK")
         self.assertTrue(em["Hello"] is ns, "Can look-up value")
         try:
-            em["+Hello"] = ns
+            ns.declare(em, "+Hello")
             self.fail("check_name failed")
         except ValueError:
             pass
-        ns.name = "Some.Vocabulary."
         try:
-            ns.declare(em)
+            ns.declare(em, "Some.Vocabulary.")
             self.fail("Schema.declare with bad name")
         except ValueError:
             pass
-        ns.name = "Some.Vocabulary.V1"
-        ns.declare(em)
-        self.assertTrue(len(em) == 3)
+        ns.declare(em, "Some.Vocabulary.V1")
+        self.assertTrue(len(em) == 3)       # includes Edm
         self.assertTrue(ns.nametable is not None, "nametable set on declare")
         self.assertTrue(ns.nametable() is em, "nametable callable (weakref)")
 
@@ -510,18 +473,13 @@ class EntityModelTests(unittest.TestCase):
         self.assertTrue(c.call_count == 0)
         em = odata.EntityModel()
         nsx = odata.Schema()
-        nsx.name = "com.example._X"
         nsy = odata.Schema()
-        nsy.name = "_Y"
         x = odata.NominalType()
-        x.name = "x"
-        x.declare(nsx)
+        x.declare(nsx, "x")
         y = odata.NominalType()
-        y.name = "y"
-        y.declare(nsy)
+        y.declare(nsy, "y")
         z = odata.NominalType()
-        z.name = "z"
-        nsx.declare(em)
+        nsx.declare(em, "com.example._X")
         em.qualified_tell("com.example._X.x", c)
         self.assertTrue(c.call_count == 1)
         self.assertTrue(c.last_value is x)
@@ -530,13 +488,13 @@ class EntityModelTests(unittest.TestCase):
         em.qualified_tell("_Y.ciao", c)
         self.assertTrue(c.call_count == 1)
         self.assertTrue(c.last_value is x)
-        z.declare(nsx)
+        z.declare(nsx, "z")
         self.assertTrue(c.call_count == 2)
         self.assertTrue(c.last_value is z)
-        nsy.declare(em)
+        nsy.declare(em, "_Y")
         self.assertTrue(c.call_count == 3)
         self.assertTrue(c.last_value is y)
-        em.close()
+        nsy.close()
         self.assertTrue(c.call_count == 4)
         self.assertTrue(c.last_value is None)
 
@@ -554,26 +512,18 @@ class NominalTypeTests(unittest.TestCase):
 
     def test_namespace_declare(self):
         ns = odata.Schema()
-        ns.name = "Test"
         # abstract class...
         n = odata.NominalType()
         # This should work fine!
-        ns["Hello"] = n
-        self.assertTrue(n.name is None, "Alias declaration OK")
+        n.declare(ns, "Hello")
+        self.assertTrue(n.name == "Hello", "Declaration OK")
         self.assertTrue(ns["Hello"] is n, "Can look-up value")
         try:
-            ns["+Hello"] = n
-            self.fail("check_name failed")
-        except ValueError:
-            pass
-        n.name = "+Hello"
-        try:
-            n.declare(ns)
+            n.declare(ns, "+Hello")
             self.fail("Named.declare with bad name")
         except ValueError:
             pass
-        n.name = "_Hello"
-        n.declare(ns)
+        n.declare(ns, "_Hello")
         self.assertTrue(len(ns) == 2)
         self.assertTrue(n.nametable is not None, "nametable set on declare")
         self.assertTrue(n.nametable() is ns, "nametable callable (weakref)")
@@ -715,8 +665,8 @@ class PrimitiveTypeTests(unittest.TestCase):
         v = t1()
         self.assertTrue(isinstance(v, odata.BinaryValue))
         v.set(b'Hello')
-        # max_length is 3
-        t1.set_max_length(3)
+        # set a weak value: max_length of 3
+        t1.set_max_length(3, can_override=True)
         v = t1()
         try:
             v.set(b'Hello')
@@ -728,6 +678,11 @@ class PrimitiveTypeTests(unittest.TestCase):
         t1.set_max_length(0)
         v = t1()
         v.set(b'Hello')
+        try:
+            t1.set_max_length(4)
+            self.fail("Strong facet redefined")
+        except odata.ModelError:
+            pass
 
     def test_max_length_stream(self):
         # TODO
@@ -745,11 +700,12 @@ class PrimitiveTypeTests(unittest.TestCase):
         v = t1()
         self.assertTrue(isinstance(v, odata.StringValue))
         v.set(cafe)
-        # max_length is 3
-        t1.set_max_length(4)
+        # set a weak value
+        t1.set_max_length(4, can_override=True)
         v = t1()
         v.set(cafe)     # OK as character length is 4, utf8 length check
-        t1.set_max_length(3)
+        # set another weak value
+        t1.set_max_length(3, can_override=True)
         try:
             v.set(cafe)
             self.fail("Would truncate")
@@ -760,6 +716,11 @@ class PrimitiveTypeTests(unittest.TestCase):
         t1.set_max_length(0)
         v = t1()
         v.set(cafe)
+        try:
+            t1.set_max_length(4)
+            self.fail("Strong facet redefined")
+        except odata.ModelError:
+            pass
 
     def test_precision_datetimeoffset(self):
         """For a temporal property the value of this attribute specifies
@@ -767,7 +728,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         the property's value..."""
         dt20 = TimePoint.from_str("2017-06-05T20:44:14.12345678901234567890Z")
         t = odata.edm['DateTimeOffset']
-        self.assertTrue(t.precision == 6, "Default Precision")
+        self.assertTrue(t.precision is None, "Default unspecified Precision")
         # create a derived class (does not inherit precision)
         t1 = odata.PrimitiveType()
         t1.set_base(t)
@@ -778,16 +739,18 @@ class PrimitiveTypeTests(unittest.TestCase):
         v.set(dt20)
         self.assertTrue(v.value == "2017-06-05T20:44:14Z")
         self.assertFalse(v.value == dt20)
-        t1.set_precision(6)
+        # set a weak value for precision
+        t1.set_precision(6, can_override=True)
         v = t1()
         v.set(dt20)
         self.assertTrue(v.value == "2017-06-05T20:44:14.123456Z",
                         v.value.time.second)
         self.assertFalse(v.value == dt20)
+        # set a strong value for precision
         try:
             t1.set_precision(15)
             self.fail("Max temporal precision")
-        except ValueError:
+        except odata.ModelError:
             pass
         t1.set_precision(12)
         # max precision is 12
@@ -795,11 +758,17 @@ class PrimitiveTypeTests(unittest.TestCase):
         v.set(dt20)
         self.assertTrue(v.value == "2017-06-05T20:44:14.123456789012Z")
         self.assertFalse(v.value == dt20)
+        # set another strong value should now fail
+        try:
+            t1.set_precision(6)
+            self.fail("Strong Precision redefined")
+        except odata.ModelError:
+            pass
 
     def test_precision_duration(self):
         d20 = Duration("PT0.12345678901234567890S")
         t = odata.edm['Duration']
-        self.assertTrue(t.precision == 6, "Default Precision")
+        self.assertTrue(t.precision is None, "Default unspecified Precision")
         # create a derived class with precision
         t1 = odata.PrimitiveType()
         t1.set_base(t)
@@ -810,15 +779,17 @@ class PrimitiveTypeTests(unittest.TestCase):
         v.set(d20)
         self.assertTrue(v.value == "PT0S", str(v.value))
         self.assertFalse(v.value == d20)
-        t1.set_precision(6)
+        # set a weak value for precision
+        t1.set_precision(6, can_override=True)
         v = t1()
         v.set(d20)
         self.assertTrue(v.value == "PT0.123456S")
         self.assertFalse(v.value == d20)
+        # set a strong value for precision
         try:
             t1.set_precision(15)
             self.fail("Max temporal precision")
-        except ValueError:
+        except odata.ModelError:
             pass
         t1.set_precision(12)
         # max precision is 12
@@ -826,30 +797,37 @@ class PrimitiveTypeTests(unittest.TestCase):
         v.set(d20)
         self.assertTrue(v.value == "PT0.123456789012S")
         self.assertFalse(v.value == d20)
+        # set another strong value should now fail
+        try:
+            t1.set_precision(6)
+            self.fail("Strong Precision redefined")
+        except odata.ModelError:
+            pass
 
     def test_precision_timeofday(self):
         t20 = Time.from_str("20:44:14.12345678901234567890")
         t = odata.edm['TimeOfDay']
-        self.assertTrue(t.precision == 6, "Default Precision")
+        self.assertTrue(t.precision is None, "Default unspecified Precision")
         # create a derived class with precision
         t1 = odata.PrimitiveType()
         t1.set_base(t)
         v = t1()
         self.assertTrue(isinstance(v, odata.TimeOfDayValue))
-        # If no value is specified, the temporal property has a
-        # precision of zero.
+        # If unspecified the precision is 0
         v.set(t20)
         self.assertTrue(v.value == "20:44:14")
         self.assertFalse(v.value == t20)
-        t1.set_precision(6)
+        # set a weak value for precision
+        t1.set_precision(6, can_override=True)
         v = t1()
         v.set(t20)
         self.assertTrue(v.value == "20:44:14.123456")
         self.assertFalse(v.value == t20)
+        # set a strong value for precision
         try:
             t1.set_precision(15)
             self.fail("Max temporal precision")
-        except ValueError:
+        except odata.ModelError:
             pass
         t1.set_precision(12)
         # max precision is 12
@@ -857,6 +835,12 @@ class PrimitiveTypeTests(unittest.TestCase):
         v.set(t20)
         self.assertTrue(v.value == "20:44:14.123456789012")
         self.assertFalse(v.value == t20)
+        # set another strong value should now fail
+        try:
+            t1.set_precision(6)
+            self.fail("Strong Precision redefined")
+        except odata.ModelError:
+            pass
 
     def test_decimal_precision(self):
         """For a decimal property the value of this attribute specifies
@@ -885,8 +869,8 @@ class PrimitiveTypeTests(unittest.TestCase):
         self.assertTrue(v.value == i20)
         v.set(f20)
         self.assertTrue(v.value == Decimal("1234567890"))
-        # a specified precision, scale defaults to 0
-        t1.set_precision(6)
+        # a specified precision, unspecified scale defaults to 0
+        t1.set_precision(6, can_override=True)
         v = t1()
         # these results should be rounded
         v.set(d20)
@@ -898,7 +882,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         except ValueError:
             pass
         # a specified precision with a variable scale
-        t1.set_precision(6, -1)
+        t1.set_precision(6, -1, can_override=True)
         v = t1()
         v.set(d20)
         self.assertTrue(v.value == Decimal("0.123457"))
@@ -909,7 +893,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         # if we exceed the digits we had originally we do not add 0s as
         # this is a maximum number of digits, not an absolute number of
         # digits.
-        t1.set_precision(42, 21)
+        t1.set_precision(42, 21, can_override=True)
         v = t1()
         v.set(d20)
         self.assertTrue(v.value == d20)
@@ -922,7 +906,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         self.assertTrue(str(v) == f20str, str(v))
         # Unspecified precision, variable scale (uses -1)
         # sig fig limited by python defaults, decimal places unlimited
-        t1.set_precision(None, -1)
+        t1.set_precision(None, -1, can_override=True)
         v = t1()
         v.set(d20)
         self.assertTrue(v.value == d20)
@@ -934,7 +918,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         self.assertTrue(v.value == f20)
         self.assertTrue(str(v) == f20str, str(v))
         # unspecified precision, scale is OK
-        t1.set_precision(None, 3)
+        t1.set_precision(None, 3, can_override=True)
         v = t1()
         v.set(d20)
         self.assertTrue(v.value == Decimal("0.123"))
@@ -943,12 +927,12 @@ class PrimitiveTypeTests(unittest.TestCase):
         v.set(f20)
         self.assertTrue(v.value == Decimal("1234567890.123"))
         try:
-            t1.set_precision(2, 3)
+            t1.set_precision(2, 3, can_override=True)
             self.fail("scale must be <= precision")
-        except ValueError:
+        except odata.ModelError:
             pass
         # try scale > 0
-        t1.set_precision(6, 3)
+        t1.set_precision(6, 3, can_override=True)
         v = t1()
         v.set(d20)
         # scale beats precision
@@ -961,7 +945,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         v.set(Decimal("123.4567"))
         self.assertTrue(v.value == Decimal("123.457"))
         # try scale = 0
-        t1.set_precision(6, 0)
+        t1.set_precision(6, 0, can_override=True)
         v = t1()
         v.set(d20)
         self.assertTrue(v.value == Decimal("0"))
@@ -971,7 +955,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         except ValueError:
             pass
         # try scale = precision
-        t1.set_precision(6, 6)
+        t1.set_precision(6, 6, can_override=True)
         v = t1()
         v.set(d20)
         self.assertTrue(v.value == Decimal("0.123457"))
@@ -993,19 +977,21 @@ class PrimitiveTypeTests(unittest.TestCase):
         xstr = "1" * (getcontext().prec + 2)
         v.set(Decimal(xstr))
         self.assertTrue(v.value == Decimal(xstr[:-2] + "00"))
+        # TOD: testing of strong values in set_precision
 
     def test_unicode_string(self):
         cafe = ul('Caf\xe9')
         t = odata.edm['String']
-        self.assertTrue(t.unicode is True, "Unicode by default")
+        self.assertTrue(t.unicode is None, "Facet unspecified by default")
         t1 = odata.PrimitiveType()
         # should inherit the value_type from t
         t1.set_base(t)
-        # Unicode is None, same as False
+        # by default we accept unicode characters
         v = t1()
         self.assertTrue(isinstance(v, odata.StringValue))
         v.set(cafe)
-        t1.set_unicode(False)
+        # set a weak value
+        t1.set_unicode(False, can_override=True)
         v = t1()
         try:
             v.set(cafe)
@@ -1013,9 +999,15 @@ class PrimitiveTypeTests(unittest.TestCase):
         except ValueError:
             pass
         v.set(cafe[:-1])    # OK
+        # set a strong value
         t1.set_unicode(True)
         v = t1()
         v.set(cafe)
+        try:
+            t1.set_unicode(False)
+            self.fail("Strong facet can't be changed")
+        except odata.ModelError:
+            pass
 
     def test_srid_geo(self):
         for t, pv, default in ALL_TYPES:
@@ -1037,10 +1029,10 @@ class PrimitiveTypeTests(unittest.TestCase):
                     def_srid = 0
                 self.assertTrue(v.value.srid == def_srid)
                 # make up a similar value with a different srid
-                pv1 = pv.__class__(6832, pv[1])
+                pv1 = pv.__class__(27700, pv[1])
                 v.set(pv1)
                 # we don't force points to match the implied default!
-                self.assertTrue(v.value.srid == 6832)
+                self.assertTrue(v.value.srid == 27700)
                 # but we will convert raw points to literals with the
                 # default SRID
                 v.set(pv1[1])
@@ -1068,30 +1060,80 @@ class StructuredTypeTests(unittest.TestCase):
 
     def test_declare(self):
         t = odata.StructuredType()
+        # fake declaration
+        t.name = "TypeA"
         # they require properties with simple identifier names
         n = odata.NominalType()
-        n.name = "Dimension"
         try:
-            n.declare(t)
+            n.declare(t, "Dimension")
             self.fail("NominalType declared in StructuredType")
         except TypeError:
             pass
         pt = odata.PrimitiveType()
         p = odata.Property()
         p.set_type(pt)
-        p.name = "Max.Dimension"
         try:
-            p.declare(t)
+            p.declare(t, "Max.Dimension")
             self.fail("Property declared with bad name")
         except ValueError:
             pass
-        p.name = "Dimension"
-        p.declare(t)
+        p.declare(t, "Dimension")
+        self.assertTrue(p.qname == "TypeA/Dimension")
         np = odata.NavigationProperty()
-        np.name = "Related"
-        np.declare(t)
+        np.declare(t, "Related")
+        self.assertTrue(np.qname == "TypeA/Related")
         self.assertTrue(t["Dimension"] is p)
         self.assertTrue(t["Related"] is np)
+
+    def test_base(self):
+        ta = odata.StructuredType()
+        pa = odata.Property()
+        pa.set_type(odata.edm['PrimitiveType'])
+        pa.declare(ta, "PA1")
+        tb = odata.StructuredType()
+        pb = odata.Property()
+        pb.declare(tb, "PB1")
+        pb.set_type(odata.edm['PrimitiveType'])
+        pt = odata.PrimitiveType()
+        try:
+            tb.set_base(pt)
+            self.fail("StructuredType with PrimitiveType base")
+        except TypeError:
+            pass
+        self.assertTrue(len(tb) == 1)
+        tb.set_base(ta)
+        self.assertTrue(len(tb) == 1)
+        self.assertFalse("PA1" in tb)
+        self.assertTrue(tb.base is ta)
+        # the additional properties appear on closure only
+        try:
+            tb.close()
+            # the base is incomplete
+        except odata.ModelError:
+            pass
+        ta.close()
+        tb.close()
+        self.assertTrue(len(tb) == 2)
+        self.assertTrue("PA1" in tb)
+        self.assertTrue(tb.base is ta)
+
+    def test_derived(self):
+        dpath = TEST_DATA_DIR.join('valid', 'atest.xml')
+        uri = URI.from_virtual_path(dpath)
+        doc = csdl.CSDLDocument(base_uri=uri)
+        doc.read()
+        em = doc.root.entity_model
+        ta = em['a.test.pyslet.org']['TypeA']
+        derived = list(em.derived_types(ta))
+        self.assertTrue(len(derived) == 2)
+        tnames = [t.name for t in derived]
+        self.assertTrue('TypeB' in tnames)
+        self.assertTrue('TypeC' in tnames)
+        tx = em['b.test.pyslet.org']['TypeX']
+        derived = list(em.derived_types(tx))
+        self.assertTrue(len(derived) == 3)
+        tnames = [t.name for t in derived]
+        self.assertTrue('TypeQ' not in tnames)
 
     def test_nppath(self):
         dpath = TEST_DATA_DIR.join('valid', 'structure-paths.xml')
@@ -1216,62 +1258,55 @@ class EnumerationTests(unittest.TestCase):
             try:
                 et = odata.EnumerationType(odata.edm[base])
                 self.fail("EnumerationType(%s) should fail" % base)
-            except ValueError:
+            except odata.ModelError:
                 pass
 
     def test_declare(self):
         et = odata.EnumerationType()
         # they require Members with simple identifier names
         n = odata.NominalType()
-        n.name = "Dimension"
         try:
-            n.declare(et)
+            n.declare(et, "Dimension")
             self.fail("NominalType declared in EnumerationType")
         except TypeError:
             pass
         m = odata.Member()
-        m.name = "Game.Rock"
         try:
-            m.declare(et)
+            m.declare(et, "Game.Rock")
             self.fail("Member declared with bad name")
         except ValueError:
             pass
-        m.name = "Rock"
-        m.declare(et)
+        m.declare(et, "Rock")
 
     def test_auto_members(self):
         et = odata.EnumerationType()
         m0 = odata.Member()
-        m0.name = "Rock"
         self.assertTrue(m0.value is None, "No value by default")
-        m0.declare(et)
+        m0.declare(et, "Rock")
         self.assertTrue(et.assigned_values is True)
         self.assertTrue(len(et.members) == 1)
         self.assertTrue(et.members[0] is m0)
         self.assertTrue(et['Rock'] is m0)
         self.assertTrue(m0.value == 0, "Auto-assigned starts at 0")
         m1 = odata.Member()
-        m1.name = "Paper"
-        m1.declare(et)
+        m1.declare(et, "Paper")
         self.assertTrue(m1.value == 1, "Auto-assigned 1")
         m2 = odata.Member()
-        m2.name = "Scissors"
         m2.value = 2
         try:
-            m2.declare(et)
+            m2.declare(et, "Scissors")
             self.fail("Can't declare value with auto-assigned enum")
         except odata.ModelError:
             pass
         m2.value = None
-        m2.declare(et)
+        m2.declare(et, "Scissors")
         self.assertTrue(m2.value == 2)
 
     def test_auto_value(self):
         et = odata.EnumerationType()
         for n in ("Rock", "Paper", "Scissors"):
             m = odata.Member()
-            m.name = n
-            m.declare(et)
+            m.declare(et, n)
         v = et()
         self.assertTrue(isinstance(v, odata.EnumerationValue))
         # is null
@@ -1314,39 +1349,34 @@ class EnumerationTests(unittest.TestCase):
     def test_manual_members(self):
         et = odata.EnumerationType()
         m3 = odata.Member()
-        m3.name = "Rock"
         m3.value = 3
-        m3.declare(et)
+        m3.declare(et, "Rock")
         self.assertTrue(et.assigned_values is False)
         self.assertTrue(len(et.members) == 1)
         self.assertTrue(et.members[0] is m3)
         self.assertTrue(et['Rock'] is m3)
         self.assertTrue(m3.value == 3, "Manual value 3")
         m2 = odata.Member()
-        m2.name = "Paper"
         m2.value = 2
-        m2.declare(et)
+        m2.declare(et, "Paper")
         self.assertTrue(m2.value == 2, "Manual value 2")
         m1 = odata.Member()
-        m1.name = "Scissors"
         try:
-            m1.declare(et)
+            m1.declare(et, "Scissors")
             self.fail("Manual member requires value")
         except odata.ModelError:
             pass
         m3alt = odata.Member()
-        m3alt.name = "Stone"
         m3alt.value = 3
         # aliases are OK
-        m3alt.declare(et)
+        m3alt.declare(et, "Stone")
 
     def test_manual_value(self):
         et = odata.EnumerationType()
         for name, value in (("Rock", 3), ("Paper", 2), ("Scissors", 1)):
             m = odata.Member()
-            m.name = name
             m.value = value
-            m.declare(et)
+            m.declare(et, name)
         # we can set from an integer
         v = et()
         v.set(1)
@@ -1365,8 +1395,7 @@ class EnumerationTests(unittest.TestCase):
         # integer value MUST be specified for the Value attribute
         et = odata.EnumerationType()
         m = odata.Member()
-        m.name = "Red"
-        m.declare(et)
+        m.declare(et, "Red")
         # you can't set is_flags if there are already members
         try:
             et.set_is_flags()
@@ -1378,18 +1407,16 @@ class EnumerationTests(unittest.TestCase):
         self.assertTrue(et.is_flags is True)
         self.assertTrue(et.assigned_values is False)
         m = odata.Member()
-        m.name = "Red"
         try:
-            m.declare(et)
+            m.declare(et, "Red")
             self.fail("flags requires member values")
         except odata.ModelError:
             pass
         m.value = 1
-        m.declare(et)
+        m.declare(et, "Red")
         m = odata.Member()
-        m.name = "Green"
         m.value = 2
-        m.declare(et)
+        m.declare(et, "Green")
         self.assertTrue(len(et.members) == 2)
 
     def test_flag_values(self):
@@ -1401,9 +1428,8 @@ class EnumerationTests(unittest.TestCase):
                 # ("Cyan", 6),
                 ("White", 7)):
             m = odata.Member()
-            m.name = name
             m.value = value
-            m.declare(et)
+            m.declare(et, name)
         v = et()
         v.set(1)
         self.assertTrue(v.value == 1)

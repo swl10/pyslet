@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <ComplexType Name="DefaultTest">
+                <!-- Values of other primitive types MUST be represented
+                according to the " "appropriate alternative in the
+                primitiveValue rule. -->
+                <Property Name="BinaryTest" Type="Edm.Binary"
+                    DefaultValue="+Q2Fmw6k="/>
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

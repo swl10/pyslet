@@ -2,13 +2,16 @@
 
 import decimal
 import logging
+import traceback
 import unittest
 import uuid
 
 from pyslet import iso8601 as iso
+from pyslet.odata4 import errors as errors
 from pyslet.odata4 import geotypes as geo
 from pyslet.odata4 import model as odata
 from pyslet.odata4 import metadata as csdl
+from pyslet.odata4.errors import Req40
 from pyslet.rfc2396 import URI
 from pyslet.vfs import OSFilePath
 from pyslet.xml.namespace import XMLNSParser
@@ -106,6 +109,15 @@ class CSDLDocumentTests(unittest.TestCase):
         <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"></Schema>
     </edmx:DataServices>
 </edmx:Edmx>"""
+
+    def setUp(self):        # noqa
+        self.save_req = odata.Requirement
+        odata.Requirement = Req40
+        csdl.Requirement = Req40
+
+    def tearDown(self):     # noqa
+        odata.Requirement = self.save_req
+        csdl.Requirement = self.save_req
 
     def test_container(self):
         # The metadata document contains a single entity container
@@ -378,8 +390,7 @@ class CSDLDocumentTests(unittest.TestCase):
             logging.info("Validating: %s", str(uri))
             try:
                 doc.read()
-                doc.validate()
-            except odata.ModelError as err:
+            except errors.ModelError as err:
                 self.fail("%s raised by %s" % (str(err), str(fname)))
 
     def test_invalid_examples(self):
@@ -401,16 +412,18 @@ class CSDLDocumentTests(unittest.TestCase):
             logging.info("Checking: %s", str(uri))
             try:
                 doc.read()
-                doc.validate()
                 self.fail("%s validated" % str(fname))
-            except odata.ModelError as err:
+            except errors.ODataError as err:
                 msg = str(err)
+                long_msg = traceback.format_exc()
             except XMLValidityError as err:
                 msg = str(err)
+                long_msg = traceback.format_exc()
             if sid is not None:
                 logging.debug(msg)
-                self.assertTrue(sid in msg.split(),
-                                "%s raised %s" % (str(fname), msg))
+                self.assertTrue(
+                    sid in msg.split(),
+                    "%s raised %s\n%s" % (str(fname), msg, long_msg))
 
 
 if __name__ == "__main__":

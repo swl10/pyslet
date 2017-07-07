@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeA">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="BID" Type="Edm.Int32" Nullable="false"/>                
+                <Property Name="XInfo" Type="test.pyslet.org.TypeC" />
+                <NavigationProperty Name="AB" Type="test.pyslet.org.TypeB"
+                    Nullable="false">
+                    <!-- [The Property attribute] MUST be a path
+                    expression resolving to a primitive property of the
+                    dependent entity type -->
+                    <ReferentialConstraint Property="XInfo"
+                        ReferencedProperty="XInfo"/>
+                </NavigationProperty>
+            </EntityType>
+            <EntityType Name="TypeB">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="XInfo" Type="test.pyslet.org.TypeC" />
+            </EntityType>
+            <ComplexType Name="TypeC">
+                <Property Name="XID" Type="Edm.Int32" Nullable="false"/>
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

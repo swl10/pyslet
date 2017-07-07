@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EnumType Name="TypeA" UnderlyingType="Edm.Int32" IsFlags="false">
+                <Member Name="A1" Value="1" />
+                <Member Name="A2" Value="2" />
+                <!-- If the IsFlags attribute has a value of false,
+                either all members MUST specify an integer value for the
+                Value attribute, or all members MUST NOT specify a value
+                for the Value attribute -->
+                <Member Name="A3" />
+            </EnumType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

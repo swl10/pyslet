@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeA" Abstract="true">
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeB">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeC" BaseType="test.pyslet.org.TypeB">
+                <!-- An entity type that is not abstract MUST either
+                contain exactly one edm:Key element or inherit its key
+                from its base type
+                
+                Although not explicitly stated this condition appears to
+                be an XOR.  It's clear from the context that an
+                EntityType MUST NOT contain an edm:Key element AND
+                inherit its key from its base type -->
+                <Key>
+                    <PropertyRef Name="CID"/>
+                </Key>
+                <Property Name="CID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Info" Type="Edm.String" Nullable="false"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <TypeDefinition Name="String" UnderlyingType="Edm.String"/>
+            <TypeDefinition Name="ShortString"
+                UnderlyingType="Edm.String" MaxLength="256"/>
+            <TypeDefinition Name="LongString"
+                UnderlyingType="Edm.String" MaxLength="max"/>
+            <TypeDefinition Name="ASCIIString"
+                UnderlyingType="Edm.String" Unicode="false"/>
+            <TypeDefinition Name="ShortASCIIString"
+                UnderlyingType="Edm.String" MaxLength="32"
+                Unicode="false"/>
+            <TypeDefinition Name="TimeOfDay" UnderlyingType="Edm.TimeOfDay"/>
+            <TypeDefinition Name="PreciseTimeOfDay"
+                UnderlyingType="Edm.TimeOfDay" Precision="12"/>
+            <TypeDefinition Name="Decimal" UnderlyingType="Edm.Decimal"/>
+            <TypeDefinition Name="PreciseDecimal"
+                UnderlyingType="Edm.Decimal" Precision="20"/>
+            <TypeDefinition Name="ScaledDecimal"
+                UnderlyingType="Edm.Decimal" Scale="6"/>
+            <TypeDefinition Name="PreciselyScaledDecimal"
+                UnderlyingType="Edm.Decimal" Precision="20" Scale="6"/>
+            <ComplexType Name="TypeA">
+                <Property Name="A1" Type="test.pyslet.org.String"
+                    MaxLength="32" Unicode="false"/>
+                <!-- Additional facets appropriate for the underlying
+                type MAY be specified when the type definition is used
+                but the facets specified in the type definition MUST NOT
+                be re-specified -->
+                <Property Name="A2" Type="test.pyslet.org.ShortString"
+                    Unicode="false" MaxLength="64"/>
+                <Property Name="A3" Type="test.pyslet.org.LongString" 
+                    Unicode="false" />
+                <Property Name="A4" Type="test.pyslet.org.ASCIIString"
+                    MaxLength="32" />
+                <Property Name="A5"
+                    Type="test.pyslet.org.ShortASCIIString" />
+                <Property Name="A6" Type="test.pyslet.org.TimeOfDay"
+                    Precision="12" />
+                <Property Name="A7"
+                    Type="test.pyslet.org.PreciseTimeOfDay" />
+                <Property Name="A8" Type="test.pyslet.org.Decimal" 
+                    Precision="20" Scale="6"/>
+                <Property Name="A9"
+                    Type="test.pyslet.org.PreciseDecimal" Scale="6" />
+                <Property Name="A10"
+                    Type="test.pyslet.org.ScaledDecimal" Precision="20"/>
+                <Property Name="A11"
+                    Type="test.pyslet.org.PreciselyScaledDecimal" />
+            </ComplexType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

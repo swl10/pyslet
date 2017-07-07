@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeA" Abstract="true">
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeB">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeC" BaseType="test.pyslet.org.TypeB">
+                <Property Name="Info" Type="Edm.String" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeX">
+                <Key>
+                    <PropertyRef Name="EnumerationID"/>
+                    <PropertyRef Name="BooleanID"/>
+                    <PropertyRef Name="ByteID"/>
+                    <PropertyRef Name="DateID"/>
+                    <PropertyRef Name="DateTimeOffsetID"/>
+                    <PropertyRef Name="DecimalID"/>
+                    <PropertyRef Name="DurationID"/>
+                    <PropertyRef Name="GuidID"/>
+                    <PropertyRef Name="Int16ID"/>
+                    <PropertyRef Name="Int32ID"/>
+                    <PropertyRef Name="Int64ID"/>
+                    <PropertyRef Name="SByteID"/>
+                    <PropertyRef Name="StringID"/>
+                    <PropertyRef Name="TimeOfDayID"/>
+                    <PropertyRef Name="F/Int16ID" Alias="FInt16ID"/>
+                </Key>
+                <Property Name="EnumerationID"
+                    Type="test.pyslet.org.TypeE" Nullable="false"/>                
+                <Property Name="BooleanID" Type="Edm.Boolean"
+                    Nullable="false"/>                
+                <Property Name="ByteID" Type="Edm.Byte"
+                    Nullable="false"/>                
+                <Property Name="DateID" Type="Edm.Date"
+                    Nullable="false"/>                
+                <Property Name="DateTimeOffsetID" Type="Edm.DateTimeOffset"
+                    Nullable="false"/>                
+                <Property Name="DecimalID" Type="Edm.Decimal"
+                    Nullable="false"/>                
+                <Property Name="DurationID" Type="Edm.Duration"
+                    Nullable="false"/>                
+                <Property Name="GuidID" Type="Edm.Guid"
+                    Nullable="false"/>                
+                <Property Name="Int16ID" Type="Edm.Int16"
+                    Nullable="false"/>                
+                <Property Name="Int32ID" Type="Edm.Int32"
+                    Nullable="false"/>                
+                <Property Name="Int64ID" Type="Edm.Int64"
+                    Nullable="false"/>                
+                <Property Name="SByteID" Type="Edm.SByte"
+                    Nullable="false"/>                
+                <Property Name="StringID" Type="Edm.String"
+                    Nullable="false"/>                
+                <Property Name="TimeOfDayID" Type="Edm.TimeOfDay"
+                    Nullable="false"/>                
+                <Property Name="F" Type="test.pyslet.org.TypeF"
+                    Nullable="false"/>                
+            </EntityType>
+            <EnumType Name="TypeE" UnderlyingType="Edm.Int32">
+                <Member Name="E1" Value="1" />
+                <Member Name="E2" Value="2" />
+                <Member Name="E3" Value="3" />
+            </EnumType>
+            <ComplexType Name="TypeF">
+                <Property Name="Int16ID" Type="Edm.Int16"
+                    Nullable="false"/>
+            </ComplexType>               
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

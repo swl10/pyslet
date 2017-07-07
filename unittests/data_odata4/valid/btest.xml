@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="b.test.pyslet.org">
+            <EntityType Name="TypeX" BaseType="c.test.pyslet.org.TypeP"
+                    Abstract="true">
+                <Property Name="X1" Type="Edm.String"/>
+            </EntityType>
+            <EntityType Name="TypeY">
+                <Key>
+                    <PropertyRef Name="Y1"/>
+                </Key>
+                <Property Name="Y1" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+        </Schema>
+        <Schema Namespace="c.test.pyslet.org">
+            <EntityType Name="TypeP" Abstract="true">
+                <Key>
+                    <PropertyRef Name="P1"/>
+                </Key>
+                <Property Name="P1" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeQ" BaseType="b.test.pyslet.org.TypeX">
+                <Property Name="Q1" Type="Edm.String" Nullable="false"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

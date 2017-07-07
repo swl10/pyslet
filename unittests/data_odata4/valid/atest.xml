@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:Reference Uri="btest.xml">
+        <edmx:Include Namespace="b.test.pyslet.org" />
+    </edmx:Reference>
+    <edmx:DataServices>
+        <Schema Namespace="a.test.pyslet.org" Alias="SchemaA">
+            <EntityType Name="TypeA" BaseType="b.test.pyslet.org.TypeX"
+                    Abstract="true">
+                <Property Name="A1" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeB" BaseType="a.test.pyslet.org.TypeA">
+                <Property Name="B1" Type="Edm.String" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="TypeC" BaseType="SchemaA.TypeB">
+                <Property Name="C1" Type="Edm.String"/>
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

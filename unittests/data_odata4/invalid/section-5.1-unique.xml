@@ -3,8 +3,7 @@
     Version="4.0">
     <edmx:DataServices>
         <Schema Namespace="test.pyslet.org">
-            <ComplexType Name="Address">
-            </ComplexType>
+            <Term Name="Address" Type="Edm.String"/>
             <!-- Values of the Name attribute MUST be unique across all
             direct child elements of a schema -->
             <EntityType Name="Address">

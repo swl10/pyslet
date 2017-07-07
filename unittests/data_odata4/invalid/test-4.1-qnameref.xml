@@ -11,7 +11,7 @@
                 </Key>
                 <Property Name="ID" Type="Edm.Int32"/>
                 <!-- When referring to nominal types, the reference MUST
-                use [a] Namespace-qualified name [or a] Alias-qualified
+                use [a] Namespace-qualified name [or an] Alias-qualified
                 name -->
                 <Property Name="Home" Type="Address"/>
                 <Property Name="Work" Type="Address"/>

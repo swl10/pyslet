@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <ComplexType Name="TypeA">
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>                
+            </ComplexType>
+            <EntityType Name="TypeB" Abstract="true">
+                <Property Name="B" Type="Edm.String" />
+            </EntityType>
+            <EntityType Name="TypeC" BaseType="test.pyslet.org.TypeB">
+                <Key>
+                    <!-- The value of the Alias attribute MUST be unique
+                    within the set of aliases, structural and navigation
+                    properties of the containing entity type and any of
+                    its base types -->
+                    <PropertyRef Name="A/ID" Alias="B"/>
+                </Key>
+                <Property Name="A" Type="test.pyslet.org.TypeA"
+                    Nullable="false"/>               
+                <Property Name="Info" Type="Edm.String" Nullable="false"/>                
+            </EntityType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

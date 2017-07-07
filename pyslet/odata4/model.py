@@ -11,6 +11,17 @@ import uuid
 import weakref
 
 from . import geotypes as geo
+from .errors import (
+    DuplicateNameError,
+    InheritanceCycleDetected,
+    ModelError,
+    NameTableClosed,
+    ObjectDeclaredError,
+    ObjectNotDeclaredError,
+    PathError,
+    Requirement,
+    UndeclarationError,
+    )
 from ..iso8601 import (
     Date,
     DateTimeError,
@@ -33,44 +44,6 @@ from ..xml import xsdatatypes as xsi
 from ..unicode5 import BasicParser, CharClass, ParserError
 
 
-class ModelError(Exception):
-
-    """Base error for OData model exceptions"""
-    pass
-
-
-class DuplicateNameError(ModelError):
-
-    """Raised when a duplicate name is encountered in a name table"""
-    pass
-
-
-class ObjectRedclared(ModelError):
-
-    """Raised by an attempt to redeclare an object"""
-    pass
-
-
-class UndeclarationError(ModelError):
-
-    """Raised when an attempt is made to undeclare a name in a name
-    table"""
-    pass
-
-
-class NameTableClosed(ModelError):
-
-    """Raised when an attempt to declare a name in a closed name table
-    is made"""
-    pass
-
-
-class PathError(Exception):
-
-    """Raised during path traversal"""
-    pass
-
-
 class QualifiedName(
         UnicodeMixin,
         collections.namedtuple('QualifiedName', ['namespace', 'name'])):
@@ -88,12 +61,12 @@ class QualifiedName(
         return force_text("%s.%s" % self)
 
 
-class Named(object):
+class Named(UnicodeMixin):
 
     """An abstract class for a named object"""
 
     def __init__(self):
-        #: the name of this object
+        #: the name of this object, set by :meth:`declare`
         self.name = None
         #: a weak reference to the nametable in which this object is
         #: first declared (or None if the object has not been declared)
@@ -101,43 +74,57 @@ class Named(object):
         #: the qualified name of this object (if declared) as a string
         self.qname = None
 
+    def __unicode__(self):
+        if self.qname is not None:
+            return self.qname
+        elif self.name is not None:
+            return self.name
+        else:
+            return type(self).__name__
+
     def is_owned_by(self, nametable):
         """Checks the owning nametable
 
         A named object may appear in multiple nametables (e.g., a Schema
         may be defined in one entity model (the owner) but referenced in
         other entity models.  This method returns True if the nametable
-        argument is the nametable in which the named object was declared
-        (see :meth:`declare`)."""
+        argument is the nametable in which the named object was first
+        declared (see :meth:`declare`)."""
         return self.nametable() is nametable
 
-    def declare(self, nametable):
+    def declare(self, nametable, name):
         """Declares this object in the given nametable
 
-        Model elements can only be declared once.  Aliases are handled
-        by directly assigning them in the associated NameTable, e.g.::
+        The first time a model element is declared the object's :attr:`name`
+        and :attr:`qname` are set along with the owning :attr:`nametable`.
+
+        Subsequent declarations represent aliases and do not change the
+        object's attributes::
 
             schema.name = "my.long.schema.namespace"
-            schema.declare(model)
-            model['mlsn'] = schema      # assign the alias 'mlsn' """
+            schema.declare(model, "my.long.schema.namespace")
+            schema.declare(model, "mlsn")       # assign the alias 'mlsn'
+            schema.name == "my.long.schema.namespace"   """
         if self.nametable is None:
-            if self.name is None:
+            if name is None:
                 raise ValueError("%s declared with no name" % repr(self))
             # this declaration may trigger callbacks so we need to set
             # the owner now, even if the declaration later fails.
             self.nametable = weakref.ref(nametable)
+            self.name = name
             if nametable.name:
-                self.qname = "%s.%s" % (nametable.name, self.name)
+                self.qname = nametable.name + nametable.sep + name
+            else:
+                self.qname = name
             try:
-                nametable[self.name] = self
+                nametable[name] = self
             except:
                 self.nametable = None
+                self.name = None
                 self.qname = None
                 raise
         else:
-            raise ObjectRedclared(
-                "%s already declared" %
-                (self.name if self.qname is None else self.qname))
+            nametable[name] = self
 
     def root_nametable(self):
         """Returns the root table of a nametable hierarchy
@@ -161,29 +148,34 @@ class NameTable(Named, collections.MutableMapping):
     """Abstract class for managing tables of declared names
 
     Derived types behave like dictionaries (using Python's built-in
-    MutableMapping abstract base class (ABC).  Names can only be defined
-    once, they cannot be undefined and their corresponding valus cannot
+    MutableMapping abstract base class).  Names can only be defined
+    once, they cannot be undefined and their corresponding values cannot
     be modified.
 
-    To declare a value simply assign it as you would in a normal
-    dictionary.  Names (keys) and values are checked using abstract
-    methods (see below) for validity.
+    To declare a value use the :meth:`Named.declare` method.  Direct use
+    of dictionary assignment declares an alias only.  Names (keys) and
+    values are checked on assignment using abstract methods (see below)
+    for validity.
 
     NameTables define names case-sensitively in accordance with the
     OData specification.
 
     NameTables are created in an open state, in which they will accept
     new declarations.  They can also be closed, after which they will
-    not accept any new declarations (raising :class:`NameTabelClosedError`
-    if you attempt to assign or modify a new key). """
+    not accept any new declarations (raising
+    :class:`NameTabelClosedError` if you attempt to assign or modify a
+    new key)."""
+
+    #: qualified names use a dot separator
+    sep = "."
 
     def __init__(self):
         self._name_table = {}
         #: whether or not this name table is closed
         self.closed = False
-        super(NameTable, self).__init__()
         self._callbacks = {}
         self._close_callbacks = []
+        super(NameTable, self).__init__()
 
     def __getitem__(self, key):
         return self._name_table[key]
@@ -192,7 +184,7 @@ class NameTable(Named, collections.MutableMapping):
         if self.closed:
             raise NameTableClosed(to_text(self.name))
         if key in self._name_table:
-            raise DuplicateNameError("%s in %s" % (key, to_text(self.name)))
+            raise DuplicateNameError("%s in %s" % (key, to_text(self)))
         self.check_name(key)
         self.check_value(value)
         self._name_table[key] = value
@@ -252,6 +244,24 @@ class NameTable(Named, collections.MutableMapping):
             callback()
         else:
             self._close_callbacks.append(callback)
+
+    @staticmethod
+    def tell_all_closed(nametables, callback):
+        """Notification of multiple closures
+
+        Calls callback (with no arguments) when all the name tables in
+        the nametables iterable are closed."""
+        i = iter(nametables)
+
+        def _callback():
+            try:
+                nt = next(i)
+                # yes, it's OK to call ourselves here!
+                nt.tell_close(_callback)
+            except StopIteration:
+                callback()
+
+        _callback()
 
     def close(self):
         """closes this name table
@@ -324,9 +334,20 @@ class Annotatable(object):
         super(Annotatable, self).__init__()
         self.annotations = Annotations()
 
-    def annotate(self, qa):
-        """Annotate this element with a qualified annotation"""
-        qa.qualified_declare(self.annotations)
+    def annotate(self, qa, qualifier=None):
+        """Annotate this element with a qualified annotation
+
+        The qualifier is optional, if it is None then the annotation is
+        declared with an empty string for its qualifier, representing an
+        unqualified annotation."""
+        try:
+            if qualifier is None:
+                qualifier = ""
+            qa.qualified_declare(self.annotations, qualifier)
+        except DuplicateNameError:
+            raise DuplicateNameError(
+                Requirement.annotations_s %
+                ("%s:%s)" % (qa.term.qname, qualifier)))
 
 
 class Schema(Annotatable, NameTable):
@@ -364,13 +385,31 @@ class Schema(Annotatable, NameTable):
                 (repr(value),
                  "<Schema>" if self.name is None else self.name))
 
-    def close(self):
-        """Closing the schema closes all items it contains"""
+    def detect_circular_refs(self):
+        """Detects any circular references
+
+        In fact, this method searches for any objects with NameTables
+        that are still open and warns that they may be part of a circular
+        chain of references.  For EntityTypes we check for inheritance
+        cycles specifically, otherwise we then intervene by closing one
+        of the objects arbitrarily which should resolve the problem.
+
+        Although undesirable, circular references are tolerated in
+        EntityContainers (the specification uses the language SHOULD NOT
+        rather than MUST NOT). In cases like these objects end up
+        containing the union of the two sets of definitions."""
         for item in self.values():
             if isinstance(item, NameTable) and not item.closed:
-                logging.warning("Cyclical reference detected: %s", item.qname)
+                logging.warning("Circular reference detected: %s", item.qname)
+                if isinstance(item, (ComplexType, EntityType)):
+                    try:
+                        item.is_derived_from(item, strict=True)
+                    except InheritanceCycleDetected:
+                        raise InheritanceCycleDetected(
+                            (Requirement.et_cycle_s if
+                             isinstance(item, EntityType) else
+                             Requirement.ct_cycle_s) % item.qname)
                 item.close()
-        super(Schema, self).close()
 
     edm = None
     """The Edm schema.
@@ -384,14 +423,15 @@ class Schema(Annotatable, NameTable):
         cls.edm = Schema()
         cls.edm.name = "Edm"
         primitive_base = PrimitiveType()
-        primitive_base.name = "PrimitiveType"
-        primitive_base.declare(cls.edm)
+        primitive_base.declare(cls.edm, "PrimitiveType")
         complex_base = ComplexType()
-        complex_base.name = "ComplexType"
-        complex_base.declare(cls.edm)
+        complex_base.declare(cls.edm, "ComplexType")
+        complex_base.set_abstract(True)
+        complex_base.close()
         entity_base = EntityType()
-        entity_base.name = "EntityType"
-        entity_base.declare(cls.edm)
+        entity_base.declare(cls.edm, "EntityType")
+        entity_base.set_abstract(True)
+        entity_base.close()
         for name, vtype in (('Binary', BinaryValue),
                             ('Boolean', BooleanValue),
                             ('Byte', ByteValue),
@@ -406,24 +446,21 @@ class Schema(Annotatable, NameTable):
                             ('Int64', Int64Value),
                             ('SByte', SByteValue),
                             ('Single', SingleValue),
-                            ('Stream', PrimitiveValue),
+                            ('Stream', StreamValue),
                             ('String', StringValue),
                             ('TimeOfDay', TimeOfDayValue)):
             primitive = PrimitiveType()
             primitive.set_base(primitive_base)
-            primitive.name = name
             primitive.value_type = vtype
-            primitive.declare(cls.edm)
-        # set the default facets to sensible defaults
-        cls.edm['DateTimeOffset'].set_precision(6)  # ms accuracy
-        cls.edm['Decimal'].set_precision(None, -1)  # variable scale
-        cls.edm['Duration'].set_precision(6)        # ms accuracy
-        cls.edm['String'].set_unicode(True)         # unicode default
-        cls.edm['TimeOfDay'].set_precision(6)       # ms accuracy
+            # set the default facets to sensible defaults
+            if vtype in (DateTimeOffsetValue, DurationValue, TimeOfDayValue):
+                primitive.set_precision(6, can_override=True)
+            elif vtype is DecimalValue:
+                primitive.set_precision(None, -1, can_override=True)
+            primitive.declare(cls.edm, name)
         geography_base = PrimitiveType()
         geography_base.set_base(primitive_base)
-        geography_base.name = "Geography"
-        geography_base.declare(cls.edm)
+        geography_base.declare(cls.edm, "Geography")
         for name, vtype in (('GeographyPoint', GeographyPointValue),
                             ('GeographyLineString', GeographyLineStringValue),
                             ('GeographyPolygon', GeographyPolygonValue),
@@ -435,13 +472,11 @@ class Schema(Annotatable, NameTable):
                             ('GeographyCollection', GeographyCollectionValue)):
             geography = PrimitiveType()
             geography.set_base(geography_base)
-            geography.name = name
             geography.value_type = vtype
-            geography.declare(cls.edm)
+            geography.declare(cls.edm, name)
         geometry_base = PrimitiveType()
         geometry_base.set_base(primitive_base)
-        geometry_base.name = "Geometry"
-        geometry_base.declare(cls.edm)
+        geometry_base.declare(cls.edm, "Geometry")
         for name, vtype in (('GeometryPoint', GeometryPointValue),
                             ('GeometryLineString', GeometryLineStringValue),
                             ('GeometryPolygon', GeometryPolygonValue),
@@ -453,9 +488,9 @@ class Schema(Annotatable, NameTable):
                             ('GeometryCollection', GeometryCollectionValue)):
             geometry = PrimitiveType()
             geometry.set_base(geometry_base)
-            geometry.name = name
             geometry.value_type = vtype
-            geometry.declare(cls.edm)
+            geometry.declare(cls.edm, name)
+        cls.edm.close()
         return cls.edm
 
 
@@ -471,19 +506,16 @@ class QualifiedAnnotation(Named):
         #: the term that defines this annotation
         self.term = None
 
-    def qualified_declare(self, annotations):
+    def qualified_declare(self, annotations, name=""):
         """Declares this annotation in an Annotations instance."""
-        if self.name is None:
-            self.name = ""
-        if self.term.qname is None:
+        if self.term is None or self.term.qname is None:
             raise ValueError("%s: associated Term was not declared" %
                              self.term.name)
         a = annotations.get(self.term.qname, None)
         if a is None:
             a = Annotation()
-            a.name = self.term.qname
-            a.declare(annotations)
-        self.declare(a)
+            a.declare(annotations, self.term.qname)
+        self.declare(a, name)
 
 
 class Annotation(NameTable):
@@ -617,10 +649,35 @@ class EntityModel(NameTable):
         return _qcallback_closure
 
     def close(self):
-        """Closing the entity model closes all namespaces it contains"""
-        for ns in self.values():
-            ns.close()
+        """Overridden to perform additional validation checks"""
         super(EntityModel, self).close()
+        for s in self.values():
+            if not s.closed:
+                raise ModelError("Schema %s is still open" % s.name)
+        # Closing the entity model triggers any pending references to
+        # undeclared schemas to be terminated.  The Schemas themselves
+        # should all be closed at this point but circular references may
+        # still be open and waiting for closure.
+        for s in self.values():
+            s.detect_circular_refs()
+        for s in self.values():
+            for item in s.values():
+                if isinstance(item, StructuredType):
+                    item.set_annotations()
+
+    def derived_types(self, base):
+        """Generates all types derived from base"""
+        for name, schema in self.items():
+            if name != schema.name:
+                # ignore aliases
+                continue
+            for n, item in schema.items():
+                # ignore type aliases too
+                if n != item.name:
+                    continue
+                if isinstance(item, StructuredType) and \
+                        item.is_derived_from(base, strict=True):
+                    yield item
 
     def resolve_nppath(self, from_type, path):
         """Resolves a navigation property path
@@ -650,9 +707,8 @@ class EntityModel(NameTable):
                     p = from_type[segment]
                     if isinstance(p, NavigationProperty):
                         if pos < len(path):
-                            raise PathError(
-                                "Can't traverse navigation property %s" %
-                                p.name)
+                            raise ModelError(
+                                Requirement.nav_partner_nav_s % p.name)
                         return p
                     else:
                         from_type = p.type_def
@@ -708,6 +764,12 @@ class NominalType(Named):
     def __call__(self):
         return self.value_type(type_def=self)
 
+    def declare(self, nametable, name):
+        try:
+            super(NominalType, self).declare(nametable, name)
+        except ValueError:
+            raise ValueError(Requirement.type_name)
+
     def set_base(self, base):
         """Sets the base type of this type
 
@@ -715,9 +777,11 @@ class NominalType(Named):
             Must be of the correct type to be the base of the current
             instance.
 
-        The default implementation raises NotImplementedError because
-        NominalType itself is an abstract class."""
-        raise NotImplementedError
+        The default implementation sets :attr:`base` while defending
+        against the introduction of inheritance cycles."""
+        if base.is_derived_from(self):
+            raise InheritanceCycleDetected
+        self.base = base
 
     def is_derived_from(self, t, strict=False):
         """Returns True if this type is derived from type t
@@ -742,38 +806,57 @@ class NominalType(Named):
         return False
 
 
-class PrimitiveType(NominalType):
+class PrimitiveType(Annotatable, NominalType):
 
     """A Primitive Type declaration
 
     Instances represent primitive type delcarations, such as those made
     by a TypeDefinition.  The built-in Edm Schema contains instances
-    representing the base primitie types themselves."""
+    representing the base primitie types themselves and properties use
+    this class to create undeclared types to constrain their values.
 
-    # used for Decimal rounding
+    The base type, and facet values are frozen when the type is first
+    declared and the methods that modify them will raise errors if
+    called after that."""
+
+    # used for Decimal rounding, overridden by instance variables for
+    # actual Decimal types.
     dec_nleft = decimal.getcontext().Emax + 1
     dec_nright = 0
     dec_digits = (1, ) * decimal.getcontext().prec
 
-    # used for temporal rounding
+    # default used for temporal rounding (no fractional seconds)
     temporal_q = decimal.Decimal((0, (1, ), 0))
 
     def __init__(self):
         super(PrimitiveType, self).__init__()
         self.value_type = PrimitiveValue
+        #: the specified MaxLength facet or None if unspecified
         self.max_length = None
+        self._max_length = 0
+        #: the specified Unicode facet or None if unspecified
         self.unicode = None
+        self._unicode = True
+        #: the specified Precision facet or None if unspecified
         self.precision = None
+        #: the specified Scale facet or None if unspecified
         self.scale = None
+        #: the specified SRID facet or None if unspecified.  The value
+        #: -1 means variable
         self.srid = None
+        self._srid = 0
 
     def set_base(self, base):
         """Sets the base type of this type
 
         The base must also be a PrimitiveType."""
+        if self.name:
+            raise ObjectDeclaredError(self.qname)
         if not isinstance(base, PrimitiveType):
             raise TypeError(
-                "%s is not a suitable base for %s" % (base.qname, self.name))
+                "%s is not a suitable base for a PrimitiveType" % base.qname)
+        if not base.name:
+            raise ObjectNotDeclaredError("Base type must be declared")
         # update the value_type, impose a further restriction that the
         # incoming value_type MUST be a subclass of the previous
         # value_type.  In other words, you can't have a type based on
@@ -782,13 +865,144 @@ class PrimitiveType(NominalType):
             raise TypeError(
                 "Mismatched value types: can't base %s on %s" %
                 (self.name, base.qname))
-        self.base = base
         self.value_type = base.value_type
+        if issubclass(self.value_type, GeographyValue) and self.srid is None:
+            # unspecified SRID, default for Geography is 4326
+            self.set_srid(4326, can_override=True)
+        elif issubclass(self.value_type,
+                        (DateTimeOffsetValue, DurationValue, TimeOfDayValue)):
+            # weak value
+            self.set_precision(0, can_override=True)
+        # now copy over strongly specified facets
+        if base.max_length is not None:
+            self.set_max_length(base.max_length)
+        if base.unicode is not None:
+            self.set_unicode(base.unicode)
+        if base.precision is not None or base.scale is not None:
+            self.set_precision(base.precision, base.scale)
+        if base.srid is not None:
+            self.set_srid(base.srid)
+        super(PrimitiveType, self).set_base(base)
 
-    def set_max_length(self, max_length):
-        self.max_length = max_length
+    def set_max_length(self, max_length, can_override=False):
+        """Sets the MaxLength facet of this type.
 
-    def set_precision(self, precision, scale=None):
+        max_length
+            A positive integer or 0 indicating 'max'
+
+        can_override
+            Used to control whether or not sub-types can override the
+            value.  Defaults to False.  The value True is used to set
+            limits on the primitives of the builtin Edm namespace which
+            can be overridden by sub-types and/or property
+            definitions.
+
+        Can only be set for primitive types with underlying type Binary,
+        Stream or String."""
+        if self.name:
+            raise ObjectDeclaredError(self.qname)
+        if not issubclass(
+                self.value_type, (BinaryValue, StreamValue, StringValue)):
+            logging.warning("MaxLength cannot be specified for %s",
+                            self.value_type.__name__)
+            return
+        if max_length < 0:
+            raise ValueError(
+                "MaxLength facet must be a positive integer or 'max': %s" %
+                repr(max_length))
+        if can_override:
+            # sets a weak value, ignored if already specified
+            if self.max_length is not None:
+                return
+        else:
+            # sets a strong value, error if already specified
+            if self.max_length is not None:
+                raise ModelError(Requirement.td_facet_s % "MaxLength")
+            self.max_length = max_length
+        self._max_length = max_length
+
+    def set_unicode(self, unicode_facet, can_override=False):
+        """Sets the Unicode facet of this type
+
+        unicode_facet
+            A boolean
+
+        can_override
+            See :meth:`set_max_length` for details
+
+        Can only be set on primitive types with underlying type
+        String."""
+        if self.name:
+            raise ObjectDeclaredError(self.qname)
+        if not issubclass(self.value_type, StringValue):
+            logging.warning("Unicode facet cannot be specified for %s",
+                            self.value_type.__name__)
+            return
+        if can_override:
+            # sets a weak value, ignored if already specified
+            if self.unicode is not None:
+                return
+        else:
+            # sets a strong value, error if already specified
+            if self.unicode is not None:
+                raise ModelError(Requirement.td_facet_s % "Unicode")
+            self.unicode = unicode_facet
+        self._unicode = unicode_facet
+
+    def set_precision(self, precision, scale=None, can_override=False):
+        """Sets the Precision and (optionally) Scale facets
+
+        precision
+            A non-negative integer
+
+        scale
+            An non-negative integer or -1 indicating variable scale
+
+        can_override
+            See :meth:`set_max_length` for details
+
+        Precision and Scale can only be set on primitive types with
+        underlying type Decimal.  Precision on its own can be set on
+        types with underlying temporal type.
+
+        There is no explicit constraint in the specification that says
+        you cannot set Scale without Precision for Decimal types.
+        Therefore we allow prevision=None and use our default internal
+        limit (typically 28 in the Python decimal module) instead.
+
+        """
+        if self.name:
+            raise ObjectDeclaredError(self.qname)
+        if issubclass(self.value_type, DecimalValue):
+            if precision is not None:
+                if precision <= 0:
+                    raise ModelError(Requirement.decimal_precision)
+                if scale is not None and scale > precision:
+                    raise ModelError(Requirement.scale_gt_precision)
+        elif issubclass(self.value_type, (DateTimeOffsetValue, DurationValue,
+                                          TimeOfDayValue)):
+            if precision is not None and (precision < 0 or precision > 12):
+                raise ModelError(Requirement.temporal_precision)
+        if can_override:
+            # weak values are overridden by existing strong values
+            if self.precision is not None:
+                precision = self.precision
+            if self.scale is not None:
+                scale = self.scale
+        else:
+            # strong values
+            if precision is None:
+                precision = self.precision
+            else:
+                if self.precision is not None:
+                    raise ModelError(Requirement.td_facet_s % "Precision")
+                self.precision = precision
+            if scale is None:
+                scale = self.scale
+            else:
+                if self.scale is not None:
+                    raise ModelError(Requirement.td_facet_s % "Scale")
+                self.scale = scale
         if issubclass(self.value_type, DecimalValue):
             # precision must be positive (or None)
             if precision is None:
@@ -808,10 +1022,6 @@ class PrimitiveType(NominalType):
                 self.dec_nleft = PrimitiveType.dec_nleft
                 self.dec_digits = PrimitiveType.dec_digits
             else:
-                if precision <= 0:
-                    raise ValueError(
-                        "Positive integer (or None) required for "
-                        "Decimal precision")
                 if scale is None:
                     # just precision specified, scale is implied 0
                     self.dec_nleft = precision
@@ -820,38 +1030,85 @@ class PrimitiveType(NominalType):
                     # variable scale, up to precision on the right
                     self.dec_nleft = PrimitiveType.dec_nleft
                     self.dec_nright = precision
-                elif scale > precision:
-                    raise ValueError("Scale exceeds precision")
                 else:
                     self.dec_nleft = precision - scale
                     self.dec_nright = scale
                 self.dec_digits = (1, ) * min(decimal.getcontext().prec,
                                               precision)
-            self.precision = precision
-            self.scale = scale
         elif issubclass(self.value_type, (DateTimeOffsetValue, DurationValue,
                                           TimeOfDayValue)):
             # precision must be non-negative (max 12)
             if precision is None:
                 # no precision = 0
                 self.temporal_q = decimal.Decimal((0, (1, ), 0))
-                self.precision = None
             else:
-                if precision < 0 or precision > 12:
-                    raise ValueError(
-                        "Integer from 1..12 required for temporal precision")
                 # overload the class attribute
                 self.temporal_q = decimal.Decimal(
                     (0, (1, ) * (precision + 1), -precision))
-                self.precision = precision
+        elif scale is not None:
+            logging.warning("Precision/Scale cannot be specified for %s",
+                            self.value_type.__name__)
+        else:
+            logging.warning("Precision cannot be specified for %s",
+                            self.value_type.__name__)
 
-    def set_unicode(self, unicode_flag):
-        if issubclass(self.value_type, StringValue):
-            self.unicode = unicode_flag
+    def set_srid(self, srid, can_override=False):
+        """Sets the SRID facet of this property
 
-    def set_srid(self, srid):
-        if issubclass(self.value_type, (GeographyValue, GeometryValue)):
+        srid
+            A non-negative integer or -1 for variable
+
+        can_override
+            See :meth:`set_max_length` for details"""
+        if self.name:
+            raise ObjectDeclaredError(self.qname)
+        if not issubclass(self.value_type, (GeographyValue, GeometryValue)):
+            logging.warning("SRID cannot be specified for %s",
+                            self.value_type.__name__)
+            return
+        if srid < -1:
+            raise ModelError(Requirement.srid_value)
+        if can_override:
+            # sets a weak value, ignored if already specified
+            if self.srid is not None:
+                return
+        else:
+            # sets a strong value, error if already specified
+            if self.srid is not None:
+                raise ModelError(Requirement.td_facet_s % "SRID")
             self.srid = srid
+        self._srid = srid
+
+    def match(self, other):
+        """Returns True if this primitive type matches other
+
+        Other must also be a PrimtiveType.  PrimitiveTypes match if they
+        use the same underlying value type and any constrained facets
+        are constrained in the same way.  If a facet is specified by
+        only one of the types they are considered matching."""
+        if not isinstance(other, PrimitiveType):
+            return False
+        if self.value_type is not other.value_type:
+            return False
+        if issubclass(self.value_type, StringValue):
+            if self.unicode is None or other.unicode is None:
+                # if either values are unspecified consider it a match
+                return True
+            if self.max_length is None or other.max_length is None:
+                return True
+            return (self.unicode == other.unicode and
+                    self.max_length == other.max_length)
+        elif issubclass(self.value_type, DecimalValue):
+            return (self.dec_nleft == other.dec_nleft and
+                    self.dec_nright == other.dec_nright and
+                    self.dec_digits == other.dec_digits)
+        elif issubclass(self.value_type, (DateTimeOffsetValue, DurationValue,
+                                          TimeOfDayValue)):
+            return self.temporal_q == other.temporal_q
+        elif issubclass(self.value_type, (GeographyValue, GeometryValue)):
+            return self.srid == other.srid
+        else:
+            return True
 
     def value_from_str(self, src):
         logging.debug("%s.value_from_str", self.value_type.edm_name)
@@ -868,8 +1125,7 @@ class EnumerationType(NameTable, NominalType):
             base = edm['Int32']
         elif base not in (edm['Byte'], edm['SByte'], edm['Int16'],
                           edm['Int32'], edm['Int64']):
-            raise ValueError("Enumeration base must be integer type")
-        self.base = base
+            raise ModelError(Requirement.ent_type_s % base.qname)
         #: whether or not values are being auto-assigned None means
         #: 'undetermined', only possible when there are no members
         self.assigned_values = None
@@ -881,6 +1137,7 @@ class EnumerationType(NameTable, NominalType):
         # value
         self._valuetable = {}
         self.value_type = EnumerationValue
+        super(EnumerationType, self).set_base(base)
 
     def set_is_flags(self):
         """Sets is_flags to True.
@@ -903,6 +1160,16 @@ class EnumerationType(NameTable, NominalType):
     def check_value(self, value):
         if not isinstance(value, Member):
             raise TypeError("Member required, found %s" % repr(value))
+        # The value of the Member must be None (for auto assigned) or a
+        # valid value of the base type
+        if value.value is not None:
+            v = self.base()
+            try:
+                v.set(value.value)
+            except ValueError as err:
+                raise ModelError(
+                    Requirement.ent_valid_value_s %
+                    ("%s: %s" % (self.qname, str(err))))
 
     def __setitem__(self, key, value):
         self.check_value(value)
@@ -922,7 +1189,14 @@ class EnumerationType(NameTable, NominalType):
                 raise
         else:
             if value.value is None:
-                raise ModelError("Enum member %s requires value" % value.name)
+                if self.is_flags:
+                    raise ModelError(
+                        Requirement.ent_nonauto_value_s %
+                        ("%s:%s" % (self.qname, value.name)))
+                else:
+                    raise ModelError(
+                        Requirement.ent_auto_value_s %
+                        ("%s:%s" % (self.qname, value.name)))
             super(EnumerationType, self).__setitem__(key, value)
         self.members.append(value)
         self._valuetable.setdefault(value.value, value)
@@ -1036,7 +1310,27 @@ class CollectionType(NominalType):
 
 class StructuredType(NameTable, NominalType):
 
-    """A Structured Type declaration"""
+    """A Structured Type declaration
+
+    Structured types are nametables in their own right, behaving as
+    dictionaries with property names as keys and :class:`Property` (or
+    :class:`NavigationProperty`) instances as the dictionary values.
+
+    While the declaration's nametable is open new properties can be
+    added but once it is closed the type is considered complete.  There
+    are some restrictions on which operations are allowed on
+    complete/incomplete type declarations.  The most important being
+    that the you can't use a type as a base type until is complete."""
+
+    #: qualified names in a structured type use path separator
+    sep = "/"
+
+    def __init__(self):
+        super(StructuredType, self).__init__()
+        #: whether or not this type is abstract
+        self.abstract = False
+        #: whether or not this is an open type, None indicates undetermined
+        self.open_type = None
 
     def check_name(self, name):
         """Checks the validity of 'name' against simple identifier"""
@@ -1055,11 +1349,30 @@ class StructuredType(NameTable, NominalType):
         """Sets the base type of this type
 
         When structured types are associated with a base type the
-        properties of the base type are copied."""
-        if not isinstance(base, StructuredType):
+        properties of the base type are copied on closure, therefore the
+        type must be incomplete when the base it set and the base MUST
+        be closed before the derived type."""
+        if not isinstance(base, type(self)):
             raise TypeError(
                 "%s is not a suitable base for %s" % (base.qname, self.name))
-        self.base = base
+        if self.closed:
+            raise ModelError(
+                "Can't set base on %s (declaration is complete)" % self.qname)
+        super(StructuredType, self).set_base(base)
+
+    def set_abstract(self, abstract):
+        if self.closed:
+            raise ModelError(
+                "Can't set abstract on %s (declaration is complete)" %
+                self.qname)
+        self.abstract = abstract
+
+    def set_open_type(self, open_type):
+        if self.closed:
+            raise ModelError(
+                "Can't set open_type on %s (declaration is complete)" %
+                self.qname)
+        self.open_type = open_type
 
     def navigation_properties(self):
         """Generates all navigation properties of this type
@@ -1076,13 +1389,140 @@ class StructuredType(NameTable, NominalType):
     def close(self):
         # before we close this nametable, add in the declarataions from
         # the base type if present
+        if self.closed:
+            return
         if self.base is not None:
+            if not self.base.closed:
+                raise ModelError("Base type is incomplete: %s" % self.qname)
+            if self.base.open_type is not None:
+                if self.base.open_type is True and self.open_type is False:
+                    if isinstance(self, EntityType):
+                        raise ModelError(
+                            Requirement.et_open_base_s % self.qname)
+                    elif isinstance(self, ComplexType):
+                        raise ModelError(
+                            Requirement.ct_open_base_s % self.qname)
+                    else:
+                        raise ModelError
+                if self.open_type is None:
+                    self.open_type = self.base.open_type
+            else:
+                # no base type
+                if self.open_type is None:
+                    self.open_type = False
+            # add the base names
             for pname, p in self.base.items():
-                self[pname] = p
+                try:
+                    p.declare(self, pname)
+                except DuplicateNameError:
+                    raise DuplicateNameError(
+                        Requirement.property_unique_s %
+                        ("%s/%s" % (self.qname, pname)))
+        # The types of all our structural properties MUST also be
+        # complete.
+        for pname, p in self.items():
+            if isinstance(p, Property):
+                t = p.type_def
+                if t is None:
+                    raise ModelError("%s is undefined" % p.qname)
+                if isinstance(t, CollectionType):
+                    t = t.item_type
+                if isinstance(t, StructuredType) and not t.closed:
+                    raise ModelError("%s is incomplete" % p.qname)
         super(StructuredType, self).close()
 
+    def set_annotations(self):
+        """Called during EntityModel closure
 
-class Property(Named):
+        Properties that refer to TypeDefinitions need to have
+        annotations copied as these Annotations "are considered applied
+        wherever the type definition is used".
+        """
+        try:
+            for pname, p in self.items():
+                if isinstance(p, Property):
+                    if p.nametable() is not self:
+                        # inherited
+                        continue
+                    t = p.type_def
+                    if isinstance(t, CollectionType):
+                        t = t.item_type
+                    # this type is just the wrapper of the real type
+                    t = t.base
+                    if isinstance(t, PrimitiveType):
+                        logging.debug("Checking %s for annotations", t.qname)
+                        for annotation in t.annotations.values():
+                            logging.debug(
+                                "Annotating %s with %s", p.qname,
+                                annotation.name)
+                            annotation.declare(p.annotations, annotation.name)
+        except DuplicateNameError as err:
+            raise ModelError(Requirement.td_annotation_s % to_text(err))
+
+    def resolve_sproperty_path(self, path, inheritance=True):
+        """Resolves a property path
+
+        path
+            An array of strings representing the path.  There must be at
+            least one segment.
+
+        inheritance (default True)
+            Whether or not to search inherited properties.  By default
+            we do search them, the use cases for searching the set of
+            limited properties defined by this entity type itself are
+            limited to validation scenarios.  This restriction on
+            applies to the entity being searched, not to the types of
+            complex properties (if any).
+
+        This method will not resolve qualified names in the path so all
+        items MUST be simple identifiers representing properties defined
+        in the correspondig structural type.  In the simplest case path
+        will comprise a single identifier of a primitive property but it
+        may refer to complex properties (recursively) though not
+        properties of derived complex properties.  The path MUST NOT
+        include navigation properties.
+
+        The upshot is that we return a property declaration of a
+        structural property that is guaranteed to be valid for all
+        instances of this structural type.
+
+        This method can only be called once the type is complete."""
+        if not self.closed:
+            raise ModelError("%s is incomplete" % self.qname)
+        if not path:
+            raise ValueError("Can't resolve empty property path")
+        pos = 0
+        t = self
+        p = None
+        try:
+            while pos < len(path):
+                logging.debug("resolve_sproperty_path searching in %s for %s",
+                              t.qname, str(path[pos:]))
+                if isinstance(t, CollectionType):
+                    raise PathError(
+                        "%s is a collection" % p.qname)
+                segment = path[pos]
+                pos += 1
+                if is_text(segment):
+                    # must resole to a property of the current type
+                    p = t[segment]
+                    if isinstance(p, NavigationProperty):
+                        raise PathError(
+                            "%s is a navigation property" % p.qname)
+                    if not inheritance:
+                        if p.nametable() is not t:
+                            raise PathError("%s is inherited" % p.qname)
+                        inheritance = True
+                    t = p.type_def
+                else:
+                    raise TypeError(
+                        "Bad path segment %s" % repr(segment))
+        except KeyError as err:
+            raise PathError("Path segment not found: %s" % str(err))
+        return p
+
+
+class Property(Annotatable, Named):
 
     """A Property declaration"""
 
@@ -1103,16 +1543,37 @@ class Property(Named):
         self.nullable = nullable
 
 
+class OnDeleteAction(xsi.Enumeration):
+
+    """An enumeration used to represent OnDelete actions.
+    ::
+
+            OnDeleteAction.Cascade
+            OnDeleteAction.DEFAULT == None
+
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
+
+    decode = {
+        "Cascade": 1,
+        "None": 2,
+        "SetNull": 3,
+        "SetDefault": 4
+    }
+
+
 class NavigationProperty(Named):
 
     """A NavigationProperty declaration"""
 
     def __init__(self):
         super(NavigationProperty, self).__init__()
-        #: the type definition for values of this property
+        #: the target entity type of this property
+        self.entity_type = None
+        #: the type definition for values of this property will be the
+        #: same as entity_type unless it's a collection
         self.type_def = None
-        #: whether or not this property is a collection
-        self.collection = False
+        #: by default, navigation properties are nullable
+        self.nullable = None
         #: whether of not the linked entities are contained
         self.containment = False
         #: the partner of this navigation property
@@ -1129,23 +1590,64 @@ class NavigationProperty(Named):
     def set_containment(self, contains_target):
         self.containment = contains_target
 
-    def set_type(self, type_def, collection):
-        self.type_def = type_def
-        self.collection = collection
+    def set_type(self, entity_type, collection):
+        self.entity_type = entity_type
+        if collection:
+            if self.nullable is not None:
+                raise ModelError(Requirement.nav_collection_exists_s %
+                                 self.qname)
+            self.type_def = CollectionType(entity_type)
+        else:
+            if self.nullable is None:
+                self.nullable = True
+            self.type_def = entity_type
 
     def set_partner(self, partner):
         if self.reverse_partners:
             if len(self.reverse_partners) > 1:
                 raise ModelError(
-                    "%s cannot specify a partner as multiple navigation "
-                    "properties already partner it" %
-                    self.name)
+                    Requirement.nav_partner_bidirection_s %
+                    ("%s has multiple partners" % self.qname))
             if self.reverse_partners[0] is not partner:
                 raise ModelError(
-                    "%s is already a partner of %s" %
-                    (self.reverse_partners[0].name, self.name))
+                    Requirement.nav_partner_bidirection_s %
+                    ("%s is already partnered" % self.qname))
         self.partner = partner
         partner.reverse_partners.append(self)
+
+    def add_constraint(self, dependent_path, principal_path):
+        if self.nametable is None:
+            raise ObjectNotDeclaredError
+        dependent_entity = self.nametable()
+        principal_entity = self.entity_type
+        try:
+            dependent_property = dependent_entity.resolve_sproperty_path(
+                dependent_path)
+        except PathError as err:
+            raise ModelError(Requirement.refcon_ppath_s %
+                             ("%s: %s" % (self.qname, str(err))))
+        try:
+            principal_property = principal_entity.resolve_sproperty_path(
+                principal_path)
+        except PathError as err:
+            raise ModelError(Requirement.refcon_rppath_s %
+                             ("%s: %s" % (self.qname, str(err))))
+        # these must be primitive properties
+        if not isinstance(dependent_property.type_def, PrimitiveType):
+            raise ModelError(Requirement.refcon_ppath_s % self.qname)
+        # the types of these properties MUST match
+        if not dependent_property.type_def.match(principal_property.type_def):
+            raise ModelError(Requirement.refcon_match_s % self.qname)
+        if ((self.nullable is True or principal_property.nullable is True) and
+                dependent_property.nullable is False):
+            raise ModelError(Requirement.refcon_match_null_s % self.qname)
+        if ((self.nullable is False and
+                principal_property.nullable is False) and
+                dependent_property.nullable is not False):
+            raise ModelError(Requirement.refcon_match_notnull_s % self.qname)
+
+    def add_action(self, action):
+        pass
 
 
 class ComplexType(StructuredType):
@@ -1156,11 +1658,149 @@ class ComplexType(StructuredType):
         super(ComplexType, self).__init__()
         self.value_type = ComplexValue
 
+    def check_name(self, name):
+        """Overridden to add a check against the declared name"""
+        if self.name is not None and self.name == name:
+            raise ValueError(Requirement.ct_same_name_s % name)
+        super(ComplexType, self).check_name(name)
+
+    def __setitem__(self, key, value):
+        if isinstance(value, Named) and value.nametable is not None and \
+                value.nametable() is self:
+            # we own this property, it must not share our name
+            if self.name is not None and self.name == value.name:
+                raise ValueError(Requirement.ct_same_name_s % self.name)
+        return super(ComplexType, self).__setitem__(key, value)
+
 
 class EntityType(StructuredType):
 
     """An EntityType declaration"""
-    pass
+
+    def __init__(self):
+        super(EntityType, self).__init__()
+        #: This entity type's key.  This attribute is only set if the
+        #: key is defined by this entity type itself, keys can also
+        #: inherited.
+        self.key = []
+        #: A dictionary mapping the short name of each key property to a
+        #: tuple of (path, Property) where path is an array of simple
+        #: identifier strings and Property is the declaration of the
+        #: property.
+        self.key_dict = {}
+        #: whether or not instances of this EntityType are contained
+        #: None indicates undetermined.
+        self.contained = None
+
+    def check_name(self, name):
+        """Overridden to add a check against the declared name"""
+        if self.name is not None and self.name == name:
+            raise ValueError(Requirement.et_same_name_s % name)
+        super(EntityType, self).check_name(name)
+
+    def __setitem__(self, key, value):
+        if isinstance(value, Named) and value.nametable is not None and \
+                value.nametable() is self:
+            # we own this property, it must not share our name
+            if self.name is not None and self.name == value.name:
+                raise ValueError(Requirement.et_same_name_s % self.name)
+        return super(EntityType, self).__setitem__(key, value)
+
+    def declare(self, nametable, name):
+        """Overridden to add a check against the declared name"""
+        p = self.get(name, None)
+        if p is not None and p.nametable() is self:
+            # A property we own cannot share our name
+            raise ValueError(Requirement.et_same_name_s % name)
+        super(EntityType, self).declare(nametable, name)
+
+    def add_key(self, path, alias=None):
+        if self.closed:
+            raise ModelError(
+                "Can't add key to complete EntityType %s" % self.qname)
+        if len(path) > 1:
+            # this is a complex path, alias is required
+            if alias is None:
+                raise ModelError(
+                    Requirement.key_alias_s %
+                    ("%s: %s" % (self.qname, "/".join(path))))
+        else:
+            if alias is not None:
+                raise ModelError(
+                    Requirement.key_noalias_s %
+                    ("%s: %s" % (self.qname, alias)))
+            alias = path[0]
+        # we'll check the validity of the key itself on closure
+        self.key.append((alias, path))
+
+    def key_defined(self):
+        """Returns True if this type defines or inherits a key"""
+        t = self
+        while isinstance(t, EntityType):
+            if t.key:
+                return True
+            else:
+                t = t.base
+        return False
+
+    def set_contained(self):
+        """Marks this entity type as being contained by another.
+
+        This property is inherited and can only be set once within an
+        entity type hierarchy.  The property can only be set *after* the
+        type has been closed (ensuring the entity hierarchy is complete
+        back to the root)"""
+        if not self.closed:
+            raise ModelError(
+                "Can't set contained on incomplete type %s" % self.qname)
+        if self.contained is False:
+            # a derived type has already indicated containment
+            raise ModelError(Requirement.nav_multi_contains_s % self.qname)
+        t = self.base
+        while isinstance(t, EntityType):
+            if t.contained:
+                raise ModelError(Requirement.nav_multi_contains_s % self.qname)
+            else:
+                t.contained = False
+                t = t.base
+        self.contained = True
+
+    def close(self):
+        """Overridden to catch additional EntityType constraints"""
+        if not self.abstract and not self.key_defined():
+            raise ModelError(Requirement.et_abstract_key_s % self.qname)
+        if self.base is not None:
+            # if we are abstract, our base MUST also be abstract
+            if self.abstract and not self.base.abstract:
+                raise ModelError(
+                    Requirement.et_abstract_base_s % self.qname)
+            if self.key and self.base.key_defined():
+                raise ModelError(Requirement.et_abstract_no_key_s % self.qname)
+        # Now ready to close
+        super(EntityType, self).close()
+        # Post-closure validity checks...
+        for name, path in self.key:
+            try:
+                kp = self.resolve_sproperty_path(path, inheritance=False)
+            except PathError as err:
+                raise ModelError(
+                    Requirement.key_path_s %
+                    ("%s: %s" % (self.qname, str(err))))
+            if isinstance(kp.type_def, EnumerationType) or (
+                    isinstance(kp.type_def, PrimitiveType) and
+                    issubclass(kp.type_def.value_type, (
+                        BooleanValue, DateValue,
+                        DateTimeOffsetValue, DecimalValue,
+                        DurationValue, GuidValue, IntegerValue,
+                        StringValue, TimeOfDayValue))):
+                if kp.nullable:
+                    raise ModelError(Requirement.key_nullable_s % kp.qname)
+                if len(path) > 1 and (name in self or name in self.key_dict):
+                    raise ModelError(Requirement.key_alias_unique_s % name)
+                # this one's OK
+                self.key_dict[name] = (path, kp)
+            else:
+                raise ModelError(Requirement.key_type_s % kp.qname)
 
 
 class Term(Named):
@@ -1225,7 +1865,15 @@ class EntityContainer(NameTable):
 
 class EntitySet(Named):
 
-    pass
+    """Represents an EntitySet in the OData model."""
+
+    def __init__(self):
+        super(EntitySet, self).__init__()
+        #: the entity type of the entities in this set
+        self.entity_type = None
+
+    def set_type(self, entity_type):
+        self.entity_type = entity_type
 
 
 class Singleton(Named):
@@ -1687,8 +2335,8 @@ class BinaryValue(PrimitiveValue):
             else:
                 new_value = bytes(value)
             # check limits
-            if self.type_def.max_length and len(new_value) > \
-                    self.type_def.max_length:
+            if self.type_def._max_length and len(new_value) > \
+                    self.type_def._max_length:
                 raise ValueError("MaxLength exceeded for binary value")
             self.value = new_value
 
@@ -2266,6 +2914,20 @@ class GuidValue(PrimitiveValue):
         return v
 
 
+class StreamValue(PrimitiveValue):
+
+    """Represents a value of type Edm.Stream
+
+    The value member of a StreamValue is either None or a StreamInfo
+    instance (TODO) containing the stream's metadata.
+
+        The values for stream properties do not appear in the entity
+        payload. Instead, the values are read or written through URLs.
+    """
+
+    edm_name = 'Stream'
+
+
 class StringValue(PrimitiveValue):
 
     """Represents a value of type Edm.String
@@ -2306,16 +2968,16 @@ class StringValue(PrimitiveValue):
             else:
                 new_value = to_text(value)
             # check limits
-            if self.type_def.unicode is False:
+            if not self.type_def._unicode:
                 try:
                     value.encode('ascii')
                 except UnicodeEncodeError:
                     raise ValueError(
-                        "Can't store non-ascii text in Edm.String type with "
-                        "Unicode=False")
-            if self.type_def.max_length and len(new_value) > \
-                    self.type_def.max_length:
-                raise ValueError("MaxLength exceeded for binary value")
+                        "Can't store non-ascii text in Edm.String type "
+                        "that " "does not accept Unicode characters")
+            if self.type_def._max_length and len(new_value) > \
+                    self.type_def._max_length:
+                raise ValueError("MaxLength exceeded for string value")
             self.value = new_value
 
     @classmethod
@@ -2412,9 +3074,7 @@ class PointValue(object):
             self.value = value
         elif isinstance(value, geo.Point):
             # a Point without a CRS acquires the default
-            srid = self.type_def.srid
-            if srid is None:
-                srid = 4326 if isinstance(self, GeographyValue) else 0
+            srid = self.type_def._srid
             self.value = geo.PointLiteral(srid, value)
         elif isinstance(value, PrimitiveValue):
             raise TypeError
@@ -2440,9 +3100,7 @@ class LineStringValue(object):
             self.value = value
         elif isinstance(value, geo.LineString):
             # a LineString without a CRS acquires the default
-            srid = self.type_def.srid
-            if srid is None:
-                srid = 4326 if isinstance(self, GeographyValue) else 0
+            srid = self.type_def._srid
             self.value = geo.LineStringLiteral(srid, value)
         elif isinstance(value, PrimitiveValue):
             raise TypeError
@@ -2469,9 +3127,7 @@ class PolygonValue(object):
             self.value = value
         elif isinstance(value, geo.Polygon):
             # a Polygon without a CRS acquires the default
-            srid = self.type_def.srid
-            if srid is None:
-                srid = 4326 if isinstance(self, GeographyValue) else 0
+            srid = self.type_def._srid
             self.value = geo.PolygonLiteral(srid, value)
         elif isinstance(value, PrimitiveValue):
             raise TypeError
@@ -2497,9 +3153,7 @@ class MultiPointValue(object):
             self.value = value
         elif isinstance(value, geo.MultiPoint):
             # a MultiPoint without a CRS acquires the default
-            srid = self.type_def.srid
-            if srid is None:
-                srid = 4326 if isinstance(self, GeographyValue) else 0
+            srid = self.type_def._srid
             self.value = geo.MultiPointLiteral(srid, value)
         elif isinstance(value, PrimitiveValue):
             raise TypeError
@@ -2525,9 +3179,7 @@ class MultiLineStringValue(object):
             self.value = value
         elif isinstance(value, geo.MultiLineString):
             # a MultiLineString without a CRS acquires the default
-            srid = self.type_def.srid
-            if srid is None:
-                srid = 4326 if isinstance(self, GeographyValue) else 0
+            srid = self.type_def._srid
             self.value = geo.MultiLineStringLiteral(srid, value)
         elif isinstance(value, PrimitiveValue):
             raise TypeError
@@ -2553,9 +3205,7 @@ class MultiPolygonValue(object):
             self.value = value
         elif isinstance(value, geo.MultiPolygon):
             # a MultiPolygon without a CRS acquires the default
-            srid = self.type_def.srid
-            if srid is None:
-                srid = 4326 if isinstance(self, GeographyValue) else 0
+            srid = self.type_def._srid
             self.value = geo.MultiPolygonLiteral(srid, value)
         elif isinstance(value, PrimitiveValue):
             raise TypeError
@@ -2581,9 +3231,7 @@ class GeoCollectionValue(object):
             self.value = value
         elif isinstance(value, geo.GeoCollection):
             # a GeoCollection without a CRS acquires the default
-            srid = self.type_def.srid
-            if srid is None:
-                srid = 4326 if isinstance(self, GeographyValue) else 0
+            srid = self.type_def._srid
             self.value = geo.GeoCollectionLiteral(srid, value)
         elif isinstance(value, PrimitiveValue):
             raise TypeError
@@ -2835,7 +3483,7 @@ class ODataParser(BasicParser):
                 [ "/" qualifiedName ]
 
         We return a list of strings and/or :class:`QualifiedName`
-        instances containing the path elements without separators. The
+        instances containing the path elements without separators. There
         is no ambiguity as the path can neither start nor end in a
         separator."""
         result = []

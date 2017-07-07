@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EnumType Name="TypeA" UnderlyingType="Edm.Int32">
+                <Member Name="A1" Value="1" />
+                <Member Name="A2" Value="2" />
+                <!-- The enumeration type MUST NOT declare two members
+                with the same name -->
+                <Member Name="A1" Value="3" />
+            </EnumType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
