@@ -7,11 +7,10 @@ import unittest
 import uuid
 
 from pyslet import iso8601 as iso
-from pyslet.odata4 import errors as errors
+from pyslet.odata4 import errors
 from pyslet.odata4 import geotypes as geo
 from pyslet.odata4 import model as odata
 from pyslet.odata4 import metadata as csdl
-from pyslet.odata4.errors import Req40
 from pyslet.rfc2396 import URI
 from pyslet.vfs import OSFilePath
 from pyslet.xml.namespace import XMLNSParser
@@ -111,13 +110,11 @@ class CSDLDocumentTests(unittest.TestCase):
 </edmx:Edmx>"""
 
     def setUp(self):        # noqa
-        self.save_req = odata.Requirement
-        odata.Requirement = Req40
-        csdl.Requirement = Req40
+        self.save_req = errors.Requirement
+        errors.Requirement = errors.Req40
 
     def tearDown(self):     # noqa
-        odata.Requirement = self.save_req
-        csdl.Requirement = self.save_req
+        errors.Requirement = self.save_req
 
     def test_container(self):
         # The metadata document contains a single entity container
@@ -396,6 +393,8 @@ class CSDLDocumentTests(unittest.TestCase):
     def test_invalid_examples(self):
         dpath = TEST_DATA_DIR.join('invalid')
         for fname in dpath.listdir():
+            # if 'dupbinding' not in str(fname):
+            #    continue
             stem, ext = fname.splitext()
             if ext != ".xml":
                 continue

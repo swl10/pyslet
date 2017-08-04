@@ -2,13 +2,9 @@
 
 import logging
 
+from . import errors
 from . import model as odata
-from .errors import (
-    DuplicateNameError,
-    InheritanceCycleDetected,
-    ModelError,
-    Requirement,
-    )
+
 from ..py2 import (
     is_text,
     to_text
@@ -157,13 +153,14 @@ srid_to_str = nonneg_variable_to_str
 
 
 def path_from_str(value):
-    # TODO
-    return value
+    p = odata.ODataParser(value)
+    path = p.require_expand_path()
+    p.require_end()
+    return path
 
 
 def path_to_str(path):
-    # TODO
-    return path
+    return odata.StructuredType.path_to_str(path)
 
 
 def path_expression_from_str(value):
@@ -281,6 +278,27 @@ class FacetsMixin(object):
         self.scale = None           # negative value indicates variable
         self.srid = None
 
+    def set_type_facets(self, ptype):
+        # sets the facets of a primitive type based on the attribute
+        # values
+        if self.max_length is not None:
+            ptype.set_max_length(self.max_length)
+        if self.precision is not None or self.scale is not None:
+            ptype.set_precision(self.precision, self.scale)
+        if self.srid is not None:
+            ptype.set_srid(self.srid)
+
+    def create_type(self, type_obj, collection):
+        if isinstance(type_obj, odata.PrimitiveType):
+            # add the facets to this type
+            ptype = odata.PrimitiveType()
+            ptype.set_base(type_obj)
+            self.set_type_facets(ptype)
+            type_obj = ptype
+        if collection:
+            type_obj = odata.CollectionType(type_obj)
+        return type_obj
+
 
 class GInlineExpressionsMixin(object):
 
@@ -349,22 +367,28 @@ class Annotation(
 
     def content_changed(self):
         if self.term_qname is None:
-            raise ModelError("Annotation.Term is required")
+            raise errors.ModelError("Annotation.Term is required")
         # we will need to look up this term
         em = self.get_entity_model()
-        if em is not None:
-            em.qualified_tell(self.term_qname, self._set_term)
+        if em is None:
+            return
 
-    def _set_term(self, term):
-        self.term = term
-        if term is not None and self.parent:
-            target = self.parent.get_annotation_target()
-            if target is not None:
-                a = odata.QualifiedAnnotation()
-                a.term = term
-                target.annotate(a, self.qualifier)
+        def term_declared(term):
+            self.term = term
+            if term is not None and self.parent:
+                target = self.parent.get_annotation_target()
+                if target is not None:
+                    a = odata.QualifiedAnnotation(
+                        term, qualifier=self.qualifier)
+                    target.annotate(a)
+                else:
+                    logging.warning("Ignored Annotation: %s" % term.qname)
             else:
-                logging.warning("Ignored Annotation: %s" % term.qname)
+                logging.warning(
+                    "Ignored Annotation with undeclared term: %s" %
+                    self.term_qname)
+
+        em.qualified_tell(self.term_qname, term_declared)
 
     def get_children(self):
         for a in self.Annotation:
@@ -501,6 +525,7 @@ class TimeOfDayConstant(ConstantExpression):
 
 class PathExpression(GExpression):
     XMLNAME = (EDM_NAMESPACE, 'Path')
+    XMLCONTENT = xml.ElementType.Mixed
 
     def get_value(self):
         return path_expression_from_str(
@@ -707,16 +732,16 @@ class Edmx(CSDLElement):
 
     def content_changed(self):
         if self.version != "4.0":
-            raise ModelError(Requirement.edmx_version)
+            raise errors.ModelError(errors.Requirement.edmx_version)
         # DataServices is instantiated automatically but if the element
         # was missing during parsing it won't be closed.
         if not self.DataServices._closed:
-            raise ModelError(Requirement.csdl_data_services)
+            raise errors.ModelError(errors.Requirement.csdl_data_services)
         been_there = set()
         for r in self.Reference:
             uri = str(r.resolve_uri(r.uri))
             if uri in been_there:
-                raise ModelError(Requirement.unique_reference)
+                raise errors.ModelError(errors.Requirement.unique_reference)
             been_there.add(uri)
         # close the entity model
         self.entity_model.close()
@@ -740,11 +765,11 @@ class DataServices(CSDLElement):
     def content_changed(self):
         if self._closed:
             # if we're already closed this means we got a second element
-            raise ModelError(Requirement.csdl_data_services)
+            raise errors.ModelError(errors.Requirement.csdl_data_services)
         else:
             self._closed = True
         if not self.Schema:
-            raise ModelError(Requirement.schemas)
+            raise errors.ModelError(errors.Requirement.schemas)
 
     def get_children(self):
         for s in self.Schema:
@@ -766,7 +791,7 @@ class Reference(CSDLElement):
 
     def get_ref_model(self):
         if self.uri is None:
-            raise ModelError(Requirement.reference_uri)
+            raise errors.ModelError(errors.Requirement.reference_uri)
         if self.ref_model is None:
             ref = self.resolve_uri(self.uri)
             ref_doc = CSDLDocument(base_uri=ref)
@@ -780,7 +805,7 @@ class Reference(CSDLElement):
             if isinstance(rc, (Include, IncludeAnnotations)):
                 got_child = True
         if not got_child:
-            raise ModelError(Requirement.reference)
+            raise errors.ModelError(errors.Requirement.reference)
 
     def get_children(self):
         for rc in self.ReferenceContent:
@@ -802,7 +827,7 @@ class Include(ReferenceContent, CSDLElement):
 
     def content_changed(self):
         if self.namespace is None:
-            raise ModelError(Requirement.include_namespace)
+            raise errors.ModelError(errors.Requirement.include_namespace)
         ref_model = self.parent.get_ref_model()
         try:
             ns = ref_model[self.namespace]
@@ -810,25 +835,26 @@ class Include(ReferenceContent, CSDLElement):
             if not ns.is_owned_by(ref_model):
                 raise KeyError
         except KeyError:
-            raise ModelError(
-                Requirement.include_schema_s % self.namespace)
+            raise errors.ModelError(
+                errors.Requirement.include_schema_s % self.namespace)
         em = self.get_entity_model()
         if em is not None:
             try:
                 if self.alias is not None:
                     if self.alias in RESERVED_ALIASES:
-                        raise ModelError(
-                            Requirement.reserved_namespace_s % self.namespace)
+                        raise errors.ModelError(
+                            errors.Requirement.reserved_namespace_s %
+                            self.namespace)
                     em[self.alias] = ns
-            except DuplicateNameError as err:
-                raise DuplicateNameError(
-                    Requirement.unique_namespace_s % str(err))
+            except errors.DuplicateNameError as err:
+                raise errors.DuplicateNameError(
+                    errors.Requirement.unique_namespace_s % to_text(err))
             try:
                 # cf Schema, we do not change the owner of ns here
                 em[ns.name] = ns
-            except DuplicateNameError:
-                raise DuplicateNameError(
-                    Requirement.unique_include_s % ns.name)
+            except errors.DuplicateNameError:
+                raise errors.DuplicateNameError(
+                    errors.Requirement.unique_include_s % ns.name)
 
 
 class IncludeAnnotations(ReferenceContent, CSDLElement):
@@ -846,7 +872,7 @@ class IncludeAnnotations(ReferenceContent, CSDLElement):
 
     def content_changed(self):
         if self.term_namespace is None:
-            raise ModelError(Requirement.term_namespace)
+            raise errors.ModelError(errors.Requirement.term_namespace)
 
 
 class Schema(CSDLElement):
@@ -865,34 +891,35 @@ class Schema(CSDLElement):
     def get_schema(self):
         if self._schema is None:
             if self.namespace is None:
-                raise ModelError(Requirement.schema_name)
+                raise errors.ModelError(errors.Requirement.schema_name)
             if self.namespace in RESERVED_ALIASES:
-                raise ModelError(
-                    Requirement.reserved_schema_s % self.namespace)
+                raise errors.ModelError(
+                    errors.Requirement.reserved_schema_s % self.namespace)
             self._schema = odata.Schema()
             em = self.get_entity_model()
             # This is the first declaration of this schema, it sets the
             # owning namespace; cf Include that merely makes a reference.
             try:
                 self._schema.declare(em, self.namespace)
-            except DuplicateNameError:
-                raise DuplicateNameError(
-                    Requirement.schema_unique_s % self.namespace)
+            except errors.DuplicateNameError:
+                raise errors.DuplicateNameError(
+                    errors.Requirement.schema_unique_s % self.namespace)
             if self.alias is not None:
                 if self.alias in RESERVED_ALIASES:
-                    raise ModelError(Requirement.reserved_alias_s % self.alias)
+                    raise errors.ModelError(
+                        errors.Requirement.reserved_alias_s % self.alias)
                 try:
                     em[self.alias] = self._schema
-                except DuplicateNameError:
+                except errors.DuplicateNameError:
                     # what are we colliding with?
                     dup = em[self.alias]
                     if self.alias == dup.name:
-                        raise ModelError(
-                            Requirement.unique_namespace_s % self.alias)
+                        raise errors.ModelError(
+                            errors.Requirement.unique_namespace_s % self.alias)
                     else:
                         # dup is an alias itself
-                        raise ModelError(
-                            Requirement.unique_alias_s % self.alias)
+                        raise errors.ModelError(
+                            errors.Requirement.unique_alias_s % self.alias)
         return self._schema
 
     def get_annotation_target(self):
@@ -923,11 +950,11 @@ class Type(CSDLElement):
         if self._type_obj is None:
             if self.name is None:
                 if isinstance(self, EntityType):
-                    raise ModelError(Requirement.et_name)
+                    raise errors.ModelError(errors.Requirement.et_name)
                 elif isinstance(self, ComplexType):
-                    raise ModelError(Requirement.ct_name)
+                    raise errors.ModelError(errors.Requirement.ct_name)
                 elif isinstance(self, EnumType):
-                    raise ModelError(Requirement.ent_name)
+                    raise errors.ModelError(errors.Requirement.ent_name)
                 else:
                     raise ValueError("Unnamed type (%s)" % repr(self))
             self._type_obj = self.get_type_obj()
@@ -935,14 +962,15 @@ class Type(CSDLElement):
             if s is not None:
                 try:
                     self._type_obj.declare(s, self.name)
-                except DuplicateNameError:
+                except errors.DuplicateNameError:
                     dup = s[self.name]
                     if isinstance(dup, odata.NominalType):
-                        raise DuplicateNameError(
-                            Requirement.type_qname_s % self.name)
+                        raise errors.DuplicateNameError(
+                            errors.Requirement.type_qname_s % self.name)
                     else:
-                        raise DuplicateNameError(
-                            Requirement.unique_schema_child_s % self.name)
+                        raise errors.DuplicateNameError(
+                            errors.Requirement.unique_schema_child_s %
+                            self.name)
         return self._type_obj
 
     def content_changed(self):
@@ -993,17 +1021,17 @@ class DerivableType(Type):
 
     def _set_base_type_callback(self, base_type_obj):
         if base_type_obj is None:
-            raise ModelError("%s is not declared" % self.base_type_name)
+            raise errors.ModelError("%s is not declared" % self.base_type_name)
         t = self.get_type()
         try:
             t.set_base(base_type_obj)
-        except InheritanceCycleDetected:
+        except errors.InheritanceCycleDetected:
             if isinstance(self, EntityType):
-                raise InheritanceCycleDetected(
-                    Requirement.et_cycle_s % t.qname)
+                raise errors.InheritanceCycleDetected(
+                    errors.Requirement.et_cycle_s % t.qname)
             elif isinstance(self, ComplexType):
-                raise InheritanceCycleDetected(
-                    Requirement.ct_cycle_s % t.qname)
+                raise errors.InheritanceCycleDetected(
+                    errors.Requirement.ct_cycle_s % t.qname)
             else:
                 raise
         # we need to wait for our base to be closed before we can be
@@ -1066,20 +1094,14 @@ class Key(EntityTypeContent, CSDLElement):
         t = self.get_type_context()
         if t is not None:
             if not self.PropertyRef:
-                raise ModelError(Requirement.et_key_ref_s % t.qname)
+                raise errors.ModelError(
+                    errors.Requirement.et_key_ref_s % t.qname)
             for pr in self.PropertyRef:
                 # convert the path into an array
                 if pr.name is None:
-                    raise ModelError(Requirement.key_name_s % t.qname)
-                p = odata.ODataParser(pr.name)
-                try:
-                    pr_path = p.require_expand_path()
-                    p.require_end()
-                except ValueError as err:
-                    raise odata.PathError(
-                        "Failed to parse Key property path in %s; %s" %
-                        (t.qname, to_text(err)))
-                t.add_key(pr_path, pr.alias)
+                    raise errors.ModelError(
+                        errors.Requirement.key_name_s % t.qname)
+                t.add_key(pr.name, pr.alias)
 
     def get_type_context(self):
         if not isinstance(self.parent, EntityType):
@@ -1099,15 +1121,27 @@ class PropertyRef(CSDLElement):
         self.alias = None
 
 
-class PropertyFacetsMixin(object):
+class PropertyFacetsMixin(FacetsMixin):
 
+    """Mixin class for property facets
+
+    In the schema this TPropertyFacetAttributes is always used
+    immediately after TFacetAttributes as if it were a dervied type.
+    For convenience we actually make it a derived class here."""
     XMLATTR_Unicode = ('unicode', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self):
+        super(PropertyFacetsMixin, self).__init__()
         self.unicode = None
 
+    def set_type_facets(self, ptype):
+        # overridden to add unicode facet
+        super(PropertyFacetsMixin, self).set_type_facets(ptype)
+        if self.unicode is not None:
+            ptype.set_unicode(self.unicode)
 
-class CommonPropertyMixin(FacetsMixin, PropertyFacetsMixin):
+
+class CommonPropertyMixin(PropertyFacetsMixin):
 
     """Mixin class for common property attributes
 
@@ -1124,7 +1158,6 @@ class CommonPropertyMixin(FacetsMixin, PropertyFacetsMixin):
     XMLATTR_DefaultValue = 'default_value'
 
     def __init__(self):
-        FacetsMixin.__init__(self)
         PropertyFacetsMixin.__init__(self)
         self.name = None
         self.type_name = None
@@ -1149,9 +1182,10 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
         if self._p is not None:
             return self._p
         if self.name is None:
-            raise ModelError(Requirement.property_name)
+            raise errors.ModelError(errors.Requirement.property_name)
         if self.type_name is None:
-            raise ModelError(Requirement.property_type_s % self.name)
+            raise errors.ModelError(
+                errors.Requirement.property_type_s % self.name)
         qname, collection = self.type_name
         if self.nullable is None and not collection:
             # default nullability
@@ -1162,13 +1196,13 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
             self._p.set_nullable(self.nullable)
             try:
                 self._p.declare(t, self.name)
-            except DuplicateNameError:
-                raise DuplicateNameError(
-                    Requirement.property_unique_s %
+            except errors.DuplicateNameError:
+                raise errors.DuplicateNameError(
+                    errors.Requirement.property_unique_s %
                     ("%s:%s" % (t.name, self.name)))
             except ValueError as err:
                 # we already validated name as a simple identifier
-                raise ModelError(err)
+                raise errors.ModelError(err)
             # look-up the type_name, will trigger type binding now or later
             em = self.get_entity_model()
             # delay closure of this type until we've resolved the type
@@ -1178,82 +1212,63 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
             # entity types can be resolved, even if they traverse
             # complex types.
             self.parent.add_dependency()
-            em.qualified_tell(qname, self._set_type_callback)
+            em.qualified_tell(qname, self.set_type)
         return self._p
 
     def get_annotation_target(self):
         return self.get_property()
 
-    def _set_type_callback(self, type_obj):
+    def set_type(self, type_obj):
         # set self.type_obj
         if type_obj is None or not isinstance(
                 type_obj, (odata.PrimitiveType, odata.ComplexType,
                            odata.EnumerationType)):
-            raise ModelError(
-                Requirement.property_type_declared_s % self.type_name[0])
+            raise errors.ModelError(
+                errors.Requirement.property_type_declared_s %
+                self.type_name[0])
         qname, collection = self.type_name
+        ptype = self.create_type(type_obj, collection)
+        self._p.set_type(ptype)
         if isinstance(type_obj, odata.PrimitiveType):
-            # add the facets to this type
-            ptype = odata.PrimitiveType()
-            ptype.set_base(type_obj)
-            if self.max_length is not None:
-                ptype.set_max_length(self.max_length)
-            if self.unicode is not None:
-                ptype.set_unicode(self.unicode)
-            if self.precision is not None or self.scale is not None:
-                ptype.set_precision(self.precision, self.scale)
-            if self.srid is not None:
-                ptype.set_srid(self.srid)
-            type_obj = ptype
-            default_value = None
-            if collection:
-                # can't specify default for a collection
-                type_obj = odata.CollectionType(type_obj)
-            else:
-                if self.default_value is not None:
-                    try:
-                        default_value = type_obj.value_from_str(
-                            self.default_value)
-                    except ValueError as err:
-                        raise ModelError(
-                            Requirement.primitive_default_s % str(err))
-            self._p.set_type(type_obj)
-            if default_value is not None:
-                self._p.default_value = default_value
+            if not collection and self.default_value is not None:
+                try:
+                    default_value = ptype.value_from_str(self.default_value)
+                except ValueError as err:
+                    raise errors.ModelError(
+                        errors.Requirement.primitive_default_s % to_text(err))
+                self._p.set_default(default_value)
+            # declaration complete (primitive and collection of primitive)
             self.parent.remove_dependency()
         else:
-            if collection:
-                self._p.set_type(odata.CollectionType(type_obj))
-            else:
-                self._p.set_type(type_obj)
             if isinstance(type_obj, odata.EnumerationType):
-                type_obj.tell_close(self._enumeration_callback)
+
+                def enumeration_callback():
+                    if not collection and self.default_value is not None:
+                        default_value = ptype.value_from_str(
+                            self.default_value)
+                        self._p.set_default(default_value)
+                    self.parent.remove_dependency()
+
+                type_obj.tell_close(enumeration_callback)
             else:
-                # ComplexType
-                type_obj.tell_close(self._complex_callback)
 
-    def _enumeration_callback(self):
-        # EnumerationType has been closed, set default and remove
-        # dependency so that our parent type can close
-        type_obj = self._p.type_def
-        if not isinstance(type_obj, odata.CollectionType):
-            if self.default_value is not None:
-                self._p.default_value = type_obj.value_from_str(
-                    self.default_value)
-        self.parent.remove_dependency()
+                def complex_callback():
+                    # ComplexType has been closed.  Check this complex
+                    # type to see if it contains a containment
+                    # navigation property.  Also remove dependency so
+                    # that our parent type can close
+                    if collection:
+                        for path, np in type_obj.navigation_properties():
+                            logging.debug(
+                                "Checking %s.%s for containment" %
+                                (self.name, path))
+                            if np.containment:
+                                raise errors.ModelError(
+                                    errors.Requirement.nav_contains_s %
+                                    self.name)
+                    self.parent.remove_dependency()
 
-    def _complex_callback(self):
-        # ComplexType has been closed.  Check this complex type to see
-        # if it contains a containment navigation property.  Remove
-        # dependency so that our parent type can close
-        type_obj = self._p.type_def
-        if isinstance(type_obj, odata.CollectionType):
-            for path, np in self._p.type_def.item_type.navigation_properties():
-                logging.debug(
-                    "Checking %s.%s for containment" % (self.name, path))
-                if np.containment:
-                    raise ModelError(Requirement.nav_contains_s % self.name)
-        self.parent.remove_dependency()
+                type_obj.tell_close(complex_callback)
 
     def get_type_context(self):
         if not isinstance(self.parent, (ComplexType, EntityType)):
@@ -1277,35 +1292,21 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
         self.type_name = None
         self.nullable = None
         self.partner = None
-        self._partner_path = None
         self.contains_target = False
         self.NavigationPropertyContent = []
         self._np = None
 
     def content_changed(self):
         if self.name is None:
-            raise ModelError(Requirement.nav_name)
+            raise errors.ModelError(errors.Requirement.nav_name)
         if self.type_name is None:
-            raise ModelError(Requirement.nav_type_s % self.name)
-        # check syntax of partner, if present
-        if self.partner is not None:
-            p = odata.ODataParser(self.partner)
-            try:
-                self._partner_path = p.require_expand_path()
-                p.require_end()
-                logging.debug("Partner %s", to_text(self._partner_path))
-            except ValueError as err:
-                raise odata.PathError(
-                    "Failed to parse Partner path in %s; %s" %
-                    (self.name, to_text(err)))
-        else:
-            self._partner_path = None
+            raise errors.ModelError(errors.Requirement.nav_type_s % self.name)
         self._np = odata.NavigationProperty()
         qname, collection = self.type_name
         if collection:
             if self.nullable is not None:
-                raise ModelError(
-                    Requirement.nav_collection_exists_s % self.name)
+                raise errors.ModelError(
+                    errors.Requirement.nav_collection_exists_s % self.name)
         elif self.nullable is None:
             # default nullability
             self.nullable = True
@@ -1315,21 +1316,21 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
         if t is not None:
             if self.partner is not None and \
                     not isinstance(t, odata.EntityType):
-                raise ModelError(
-                    Requirement.nav_partner_complex_s %
+                raise errors.ModelError(
+                    errors.Requirement.nav_partner_complex_s %
                     ("%s/%s" % (t.name, self.name)))
             try:
                 self._np.declare(t, self.name)
-            except DuplicateNameError:
-                raise DuplicateNameError(
-                    Requirement.property_unique_s %
+            except errors.DuplicateNameError:
+                raise errors.DuplicateNameError(
+                    errors.Requirement.property_unique_s %
                     ("%s/%s" % (t.name, self.name)))
             except ValueError as err:
-                raise ModelError(err)
+                raise errors.ModelError(err)
         # look-up the type_name, will trigger type binding now or later
         em = self.get_entity_model()
         em.qualified_tell(qname, self._set_type_callback)
-        if self._partner_path is not None:
+        if self.partner is not None:
             # we need to resolve the partner path, wait for all
             # declarations to have been made.
             em.tell_close(self._set_partner_callback)
@@ -1337,7 +1338,8 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
     def _set_type_callback(self, type_obj):
         # set self.type_obj
         if type_obj is None or not isinstance(type_obj, odata.EntityType):
-            raise ModelError(Requirement.nav_type_resolved_s % self.name)
+            raise errors.ModelError(
+                errors.Requirement.nav_type_resolved_s % self.name)
         self._np.set_type(type_obj, self.type_name[1])
         # now wait for both the containing type and the target type
         # to be closed before resolving referential constraints
@@ -1356,30 +1358,36 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
         em = self.get_entity_model()
         try:
             # the path resolution takes care of one of our constraints
-            target = em.resolve_nppath(
-                self._np.entity_type, self._partner_path)
-        except odata.PathError as err:
-            raise ModelError(Requirement.nav_partner_path_s %
-                             ("%s, %s" % (self.name, to_text(err))))
+            target = self._np.entity_type.resolve_nppath(
+                self.partner, em, follow_containment=False)
+        except errors.PathError as err:
+            raise errors.ModelError(
+                errors.Requirement.nav_partner_path_s %
+                ("%s, %s" % (self.name, to_text(err))))
         t = self.get_type_context()
         if not isinstance(t, odata.EntityType):
             # Unexpected: partners can only be specified for entity types
-            raise ModelError("Expected EntityType: %s" % t.qname)
+            raise errors.ModelError("Expected EntityType: %s" % t.qname)
         if not t.is_derived_from(target.entity_type):
-            raise ModelError(Requirement.nav_partner_type_s % self.name)
+            raise errors.ModelError(
+                errors.Requirement.nav_partner_type_s % self.name)
         if target.partner is not None and target.partner is not self._np:
-            raise ModelError(Requirement.nav_partner_bidirection_s % self.name)
+            raise errors.ModelError(
+                errors.Requirement.nav_partner_bidirection_s % self.name)
         if self._np.containment:
             if t.is_derived_from(self._np.entity_type) or \
                     self._np.entity_type.is_derived_from(t):
                 # this relationship is recursive
-                if isinstance(target.type_def, odata.CollectionType):
-                    raise ModelError(Requirement.nav_rcontains_s % self.name)
+                if target.collection:
+                    raise errors.ModelError(
+                        errors.Requirement.nav_rcontains_s % self.name)
                 if not target.nullable:
-                    raise ModelError(Requirement.nav_rcontains_s % self.name)
+                    raise errors.ModelError(
+                        errors.Requirement.nav_rcontains_s % self.name)
             else:
                 if target.nullable:
-                    raise ModelError(Requirement.nav_nrcontains_s % self.name)
+                    raise errors.ModelError(
+                        errors.Requirement.nav_nrcontains_s % self.name)
         if target.containment:
             # Our entity type is contained by the target
             t.set_contained()
@@ -1419,24 +1427,12 @@ class ReferentialConstraint(NavigationPropertyContent, Annotated):
         # resolved relative to the structured type that contains the
         # navigation property only.
         if self.property is None:
-            raise odata.ModelError(Requirement.refcon_property_s % np.qname)
-        p = odata.ODataParser(self.property)
-        try:
-            dpath = p.require_expand_path()
-            p.require_end()
-        except ValueError as err:
-            raise odata.ModelError(
-                Requirement.refcon_ppath_s % ("%s: %s" % (np.qname, str(err))))
+            raise odata.errors.ModelError(
+                errors.Requirement.refcon_property_s % np.qname)
         if self.referenced_property is None:
-            raise odata.ModelError(Requirement.refcon_refprop_s % np.qname)
-        p = odata.ODataParser(self.referenced_property)
-        try:
-            ppath = p.require_expand_path()
-            p.require_end()
-        except ValueError as err:
-            raise odata.ModelError(
-                Requirement.refcon_rpath_s % ("%s: %s" % (np.qname, str(err))))
-        np.add_constraint(dpath, ppath)
+            raise odata.errors.ModelError(
+                errors.Requirement.refcon_refprop_s % np.qname)
+        np.add_constraint(self.property, self.referenced_property)
 
 
 class OnDelete(NavigationPropertyContent, Annotated):
@@ -1451,12 +1447,11 @@ class OnDelete(NavigationPropertyContent, Annotated):
 
     def add_action(self, np):
         if self.action is None:
-            raise odata.ModelError(Requirement.ondelete_value)
+            raise odata.errors.ModelError(errors.Requirement.ondelete_value)
         np.add_action(self.action)
 
 
-class TypeDefinition(SchemaContent, FacetsMixin, PropertyFacetsMixin,
-                     Annotated):
+class TypeDefinition(SchemaContent, PropertyFacetsMixin, Annotated):
     XMLNAME = (EDM_NAMESPACE, 'TypeDefinition')
 
     XMLATTR_Name = ('type_name', validate_simple_identifier, None)
@@ -1464,7 +1459,6 @@ class TypeDefinition(SchemaContent, FacetsMixin, PropertyFacetsMixin,
 
     def __init__(self, parent):
         Annotated.__init__(self, parent)
-        FacetsMixin.__init__(self)
         PropertyFacetsMixin.__init__(self)
         self.type_name = None
         self._type_obj = None
@@ -1477,18 +1471,21 @@ class TypeDefinition(SchemaContent, FacetsMixin, PropertyFacetsMixin,
         # trigger declaration
         if self._type_obj is None:
             if self.type_name is None:
-                raise ModelError(Requirement.td_name)
+                raise errors.ModelError(errors.Requirement.td_name)
             if self.underlying_type is None:
-                raise ModelError(Requirement.td_qname_s % self.type_name)
+                raise errors.ModelError(
+                    errors.Requirement.td_qname_s % self.type_name)
             em = self.get_entity_model()
             # we are only interested in the Edm namespace which will
             # already be loaded, no need wait...
             base_type = em.qualified_get(self.underlying_type)
             if not isinstance(base_type, odata.PrimitiveType):
-                raise ModelError(Requirement.td_qname_s % self.type_name)
+                raise errors.ModelError(
+                    errors.Requirement.td_qname_s % self.type_name)
             # Must be in the Edm namespace
             if not base_type.nametable() is odata.edm:
-                raise ModelError(Requirement.td_redef_s % self.type_name)
+                raise errors.ModelError(
+                    errors.Requirement.td_redef_s % self.type_name)
             self._type_obj = odata.PrimitiveType()
             self._type_obj.set_base(base_type)
             if self.max_length is not None:
@@ -1503,14 +1500,15 @@ class TypeDefinition(SchemaContent, FacetsMixin, PropertyFacetsMixin,
             if s is not None:
                 try:
                     self._type_obj.declare(s, self.type_name)
-                except DuplicateNameError:
+                except errors.DuplicateNameError:
                     dup = s[self.type_name]
                     if isinstance(dup, odata.NominalType):
-                        raise DuplicateNameError(
-                            Requirement.type_qname_s % self.type_name)
+                        raise errors.DuplicateNameError(
+                            errors.Requirement.type_qname_s % self.type_name)
                     else:
-                        raise DuplicateNameError(
-                            Requirement.unique_schema_child_s % self.type_name)
+                        raise errors.DuplicateNameError(
+                            errors.Requirement.unique_schema_child_s %
+                            self.type_name)
         return self._type_obj
 
     def get_annotation_target(self):
@@ -1549,12 +1547,13 @@ class EnumType(SchemaContent, Type):
             em = self.get_entity_model()
             qname, collection = self.underlying_type
             if collection:
-                raise ModelError(Requirement.ent_type_s % self.underlying_type)
+                raise errors.ModelError(
+                    errors.Requirement.ent_type_s % self.underlying_type)
             # we are only interested in the Edm namespace which will
             # already be loaded, no need wait...
             base_type = em.qualified_get(qname)
             if base_type is None:
-                raise ModelError(Requirement.ent_type_s % qname)
+                raise errors.ModelError(errors.Requirement.ent_type_s % qname)
         else:
             base_type = None
         self._ent = odata.EnumerationType(base_type)
@@ -1577,16 +1576,16 @@ class Member(EnumTypeContent, Annotated):
 
     def content_changed(self):
         if self.name is None:
-            raise ModelError(Requirement.ent_member_name)
+            raise errors.ModelError(errors.Requirement.ent_member_name)
         m = odata.Member()
         m.value = self.value
         t = self.get_type_context()
         if t is not None:
             try:
                 m.declare(t, self.name)
-            except DuplicateNameError:
-                raise DuplicateNameError(
-                    Requirement.ent_member_unique_s %
+            except errors.DuplicateNameError:
+                raise errors.DuplicateNameError(
+                    errors.Requirement.ent_member_unique_s %
                     ("%s:%s" % (t.name, self.name)))
 
     def get_type_context(self):
@@ -1664,7 +1663,7 @@ class Function(SchemaContent, ActionFunction):
     def __init__(self, parent):
         ActionFunction.__init__(self, parent)
         # ReturnType is required
-        self.ReturnType = ReturnType()
+        self.ReturnType = ReturnType(self)
         self.name = None
         self.entity_set_path = None
         self.is_bound = False
@@ -1689,13 +1688,67 @@ class Term(SchemaContent, FacetsMixin, Annotated):
         self.nullable = None
         self.default_value = None
         self.applies_to = None
+        self._term = None
 
     def content_changed(self):
+        if self._term is not None:
+            return
+        if self.name is None:
+            raise errors.ModelError(errors.Requirement.term_name)
+        if self.type_name is None:
+            raise errors.ModelError(errors.Requirement.term_type_s % self.name)
+        em = self.get_entity_model()
         s = self.get_schema()
-        if s is not None:
-            # declare this Term within the namespace
-            term = odata.Term()
-            term.declare(s, self.name)
+        qname, collection = self.type_name
+        if self.nullable is None and not collection:
+            # default nullability
+            self.nullable = True
+        self._term = odata.Term()
+        self._term.set_nullable(self.nullable)
+
+        def set_type(type_obj):
+            # delay declaration of the term until the type is defined
+            # this ensures that annotations that refer to this
+            # definition can use declaration as a trigger
+            if type_obj is None or not isinstance(
+                    type_obj, (odata.PrimitiveType, odata.ComplexType,
+                               odata.EnumerationType)):
+                raise errors.ModelError(
+                    errors.Requirement.term_type_s %
+                    ("%s not declared" % qname))
+            ttype = self.create_type(type_obj, collection)
+            self._term.set_type(ttype)
+            if isinstance(type_obj, odata.PrimitiveType):
+                if not collection and self.default_value is not None:
+                    try:
+                        default_value = ttype.value_from_str(
+                            self.default_value)
+                    except ValueError as err:
+                        raise errors.ModelError(
+                            errors.Requirement.primitive_default_s %
+                            to_text(err))
+                    self._term.set_default(default_value)
+                if s is not None:
+                    # declare this Term within the namespace
+                    self._term.declare(s, self.name)
+            else:
+                # structured types and enumerations must be closed
+                # before we declare this term so that we can create
+                # values from them straight away (default enum values
+                # also require the enum to be closed!)
+
+                def type_closed():
+                    if isinstance(ttype, odata.EnumerationType):
+                        if self.default_value is not None:
+                            default_value = ttype.value_from_str(
+                                self.default_value)
+                        self._term.set_default(default_value)
+                    if s is not None:
+                        self._term.declare(s, self.name)
+
+                type_obj.tell_close(type_closed)
+
+        em.qualified_tell(qname, set_type)
 
 
 class Annotations(SchemaContent, Annotated):
@@ -1743,13 +1796,13 @@ class EntityContainer(SchemaContent, CSDLElement):
 
     def _set_extends_callback(self, extends_obj):
         if extends_obj is None:
-            raise ModelError("%s is not declared" % self.extends)
+            raise errors.ModelError("%s is not declared" % self.extends)
         ec = self.get_container()
         try:
             ec.set_extends(extends_obj)
-        except DuplicateNameError as err:
-            raise DuplicateNameError(
-                "[%s] TBC" % str(err))
+        except errors.DuplicateNameError as err:
+            raise errors.DuplicateNameError(
+                "[%s] TBC" % to_text(err))
         # close this container when the 'base' container closes
         extends_obj.tell_close(ec.close)
 
@@ -1759,11 +1812,9 @@ class EntityContainer(SchemaContent, CSDLElement):
             schema = self.get_schema()
             try:
                 self._container.declare(schema, self.name)
-            except DuplicateNameError:
-                raise ModelError(
-                    "P3 13.1 Entity set, singleton, action import, and "
-                    "function import names MUST be unique within an entity "
-                    "container (%s)" % self.name)
+            except errors.DuplicateNameError:
+                raise errors.ModelError(
+                    errors.Requirement.container_name_s % self.name)
         return self._container
 
 
@@ -1793,54 +1844,47 @@ class EntitySet(EntityContainerContent, AnnotatedNavigation):
         AnnotatedNavigation.__init__(self, parent)
         self.name = None
         self.type_name = None
+        self._type_obj = None
         self.include_in_service_document = True
         self._es = None
 
     def content_changed(self):
+        self.get_entity_set()
+
+    def get_entity_set(self):
+        if self._es is not None:
+            return self._es
         if self.name is None:
-            raise ModelError(
-                "P3 13.2.1 Missing or invalid Name for EntitySet %s" %
-                self.name)
+            raise errors.ModelError(errors.Requirement.entity_set_name)
         if self.type_name is None:
-            raise ModelError(
-                "P3 13.2.2 The EntitySet element MUST include an EntityType "
-                "attribute whose value is [a] QualifiedName")
+            raise errors.ModelError(
+                errors.Requirement.entity_set_type_s % self.name)
         container = self.get_container()
         if container is not None:
             # declare this EntitySet within the container
             self._es = odata.EntitySet()
             try:
                 self._es.declare(container, self.name)
-            except DuplicateNameError as err:
-                raise ModelError(
-                    "P3 13.1 Entity set, singleton, action import, and "
-                    "function import names MUST be unique within an entity "
-                    "container (%s)" % str(err))
+            except errors.DuplicateNameError as err:
+                raise errors.ModelError(
+                    errors.Requirement.container_names_s % to_text(err))
+        self._es.set_in_service(self.include_in_service_document)
         # look-up the type_name, will trigger type binding now or later
         em = self.get_entity_model()
-        em.qualified_tell(self.type_name, self._set_type_callback)
+        em.qualified_tell(self.type_name, self._find_type_callback)
+        return self._es
 
-    def _set_type_callback(self, type_obj):
+    def _find_type_callback(self, type_obj):
         # set self.type_obj
         if type_obj is None or not isinstance(type_obj, odata.EntityType):
-            raise ModelError(
-                "P3 13.2.2 The EntitySet element MUST include an EntityType "
-                "attribute whose value is the QualifiedName of an entity "
-                "type in scope [%s]" % self.type_name)
-        # An EntityType is only closed after it's base type has closed.
-        # Therefore, we can safely determine if a key has been defined.
-        if not type_obj.key_defined():
-            raise ModelError(
-                "P3 13.2.2 The entity type named by the EntityType attribute "
-                "MAY be abstract but MUST have a key defined [%s]" %
-                self.type_name)
-        self._es.set_type(type_obj)
+            raise errors.ModelError(
+                errors.Requirement.entity_set_type_s %
+                ("%s(%s)" % (self.name, self.type_name)))
+        self._type_obj = type_obj
+        type_obj.tell_close(self._set_type_callback)
 
-    def get_type(self):
-        if self._es is None:
-            return None
-        else:
-            return self._es.entity_type
+    def _set_type_callback(self):
+        self._es.set_type(self._type_obj)
 
 
 class NavigationPropertyBinding(AnnotatedNavigationContent, CSDLElement):
@@ -1852,50 +1896,20 @@ class NavigationPropertyBinding(AnnotatedNavigationContent, CSDLElement):
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
         self.path = None
-        self._navpath = None
         self.target = None
 
     def content_changed(self):
-        """Triggers the resolution of this binding
-
-        The binding itself cannot be resolved until the entire entity
-        model is complete as it involves traversing a navigation path."""
-        em = self.get_entity_model()
+        """Adds this binding to the parent entity set"""
         if self.path is None:
-            raise ModelError(
-                "P3 13.4.2 A navigation property binding MUST name a "
-                "navigation property in the Path attribute")
-        p = odata.ODataParser(self.path)
-        try:
-            self._navpath = p.require_expand_path()
-            p.require_end()
-            logging.debug("Path %s", to_text(self._navpath))
-        except ValueError as err:
-            raise odata.PathError(
-                "Failed to parse Navigation path from %s; %s" %
-                (self.path, to_text(err)))
-        em.tell_close(self.resolve_path)
-
-    def resolve_path(self):
-        em = self.get_entity_model()
-        t = self.get_type_context()
-        if t is None:
-            raise ModelError("Can't bind navigation in undeclared type")
-        try:
-            # the path resolution takes care of one of our constraints
-            np = em.resolve_nppath(t, self._navpath)
-        except odata.PathError as err:
-            raise ModelError(
-                "P3 13.4.2 A navigation property binding MUST name a "
-                "navigation property in the Path attribute (%s)" %
-                to_text(err))
-        if np.containment:
-            raise ModelError(Requirement.nav_contains_binding_s % self.path)
-
-    def get_type_context(self):
+            raise errors.ModelError(
+                errors.Requirement.navbinding_path_s % "None")
+        if self.target is None:
+            raise errors.ModelError(
+                errors.Requirement.navbinding_target_s % "None")
         if not isinstance(self.parent, EntitySet):
             return None
-        return self.parent.get_type()
+        entity_set = self.parent.get_entity_set()
+        entity_set.add_navigation_binding(self.path, self.target)
 
 
 class ActionFunctionImportMixin(object):
@@ -1946,19 +1960,39 @@ class Singleton(EntityContainerContent, AnnotatedNavigation):
         AnnotatedNavigation.__init__(self, parent)
         self.name = None
         self.type_name = None
+        self._s = None
+        self._type_obj = None
 
     def content_changed(self):
+        if self.name is None:
+            raise errors.ModelError(errors.Requirement.singleton_name)
+        if self.type_name is None:
+            raise errors.ModelError(
+                errors.Requirement.singleton_type_s % self.name)
         container = self.get_container()
         if container is not None:
             # declare this Singleton within the container
-            s = odata.Singleton()
+            self._s = odata.Singleton()
             try:
-                s.declare(container, self.name)
-            except DuplicateNameError as err:
-                raise ModelError(
-                    "P3 13.1 Entity set, singleton, action import, and "
-                    "function import names MUST be unique within an entity "
-                    "container (%s)" % str(err))
+                self._s.declare(container, self.name)
+            except errors.DuplicateNameError as err:
+                raise errors.ModelError(
+                    errors.Requirement.container_names_s % to_text(err))
+        # look-up the type_name, will trigger type binding now or later
+        em = self.get_entity_model()
+        em.qualified_tell(self.type_name, self._find_type_callback)
+
+    def _find_type_callback(self, type_obj):
+        # set self.type_obj
+        if type_obj is None or not isinstance(type_obj, odata.EntityType):
+            raise errors.ModelError(
+                errors.Requirement.singleton_type_s %
+                ("%s(%s)" % (self.name, self.type_name)))
+        self._type_obj = type_obj
+        type_obj.tell_close(self._set_type_callback)
+
+    def _set_type_callback(self):
+        self._s.set_type(self._type_obj)
 
 
 class CSDLDocument(xmlns.XMLNSDocument):
@@ -1983,7 +2017,7 @@ class CSDLDocument(xmlns.XMLNSDocument):
 
     def add_child(self, child_class, name=None):
         if child_class is not Edmx:
-            raise ModelError(Requirement.csdl_root)
+            raise errors.ModelError(errors.Requirement.csdl_root)
         return super(CSDLDocument, self).add_child(child_class, name=name)
 
 

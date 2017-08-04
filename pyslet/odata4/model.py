@@ -10,18 +10,10 @@ import sys
 import uuid
 import weakref
 
+from . import errors
 from . import geotypes as geo
-from .errors import (
-    DuplicateNameError,
-    InheritanceCycleDetected,
-    ModelError,
-    NameTableClosed,
-    ObjectDeclaredError,
-    ObjectNotDeclaredError,
-    PathError,
-    Requirement,
-    UndeclarationError,
-    )
+
+from .. import rfc2396 as uri
 from ..iso8601 import (
     Date,
     DateTimeError,
@@ -63,12 +55,14 @@ class QualifiedName(
 
 class Named(UnicodeMixin):
 
-    """An abstract class for a named object"""
+    """An abstract class for a named object
+
+    For more information see :class:`NameTable`."""
 
     def __init__(self):
         #: the name of this object, set by :meth:`declare`
         self.name = None
-        #: a weak reference to the nametable in which this object is
+        #: a weak reference to the nametable in which this object was
         #: first declared (or None if the object has not been declared)
         self.nametable = None
         #: the qualified name of this object (if declared) as a string
@@ -77,20 +71,18 @@ class Named(UnicodeMixin):
     def __unicode__(self):
         if self.qname is not None:
             return self.qname
-        elif self.name is not None:
-            return self.name
         else:
             return type(self).__name__
 
     def is_owned_by(self, nametable):
-        """Checks the owning nametable
+        """Checks the owning NameTable
 
-        A named object may appear in multiple nametables (e.g., a Schema
+        A named object may appear in multiple nametables, a Schema
         may be defined in one entity model (the owner) but referenced in
         other entity models.  This method returns True if the nametable
         argument is the nametable in which the named object was first
         declared (see :meth:`declare`)."""
-        return self.nametable() is nametable
+        return self.nametable is not None and self.nametable() is nametable
 
     def declare(self, nametable, name):
         """Declares this object in the given nametable
@@ -101,10 +93,14 @@ class Named(UnicodeMixin):
         Subsequent declarations represent aliases and do not change the
         object's attributes::
 
-            schema.name = "my.long.schema.namespace"
             schema.declare(model, "my.long.schema.namespace")
-            schema.declare(model, "mlsn")       # assign the alias 'mlsn'
-            schema.name == "my.long.schema.namespace"   """
+            # assign the alias 'mlsn'
+            schema.declare(model, "mlsn")
+            # declare in a different model
+            schema.declare(model2, "my.long.schema.namespace")
+            schema.name == "my.long.schema.namespace"   # True
+            schema.nametable() is model                 # True
+        """
         if self.nametable is None:
             if name is None:
                 raise ValueError("%s declared with no name" % repr(self))
@@ -112,10 +108,7 @@ class Named(UnicodeMixin):
             # the owner now, even if the declaration later fails.
             self.nametable = weakref.ref(nametable)
             self.name = name
-            if nametable.name:
-                self.qname = nametable.name + nametable.sep + name
-            else:
-                self.qname = name
+            self.qname = nametable.qualify_name(name)
             try:
                 nametable[name] = self
             except:
@@ -130,8 +123,8 @@ class Named(UnicodeMixin):
         """Returns the root table of a nametable hierarchy
 
         Uses the :attr:`nametable` attribute to trace back through a
-        chain of containing namespaces until it finds one that has not
-        been declared.
+        chain of containing NameTables until it finds one that has not
+        itself been declared.
 
         If this object has not been declared then None is returned."""
         if self.nametable is None:
@@ -153,9 +146,10 @@ class NameTable(Named, collections.MutableMapping):
     be modified.
 
     To declare a value use the :meth:`Named.declare` method.  Direct use
-    of dictionary assignment declares an alias only.  Names (keys) and
-    values are checked on assignment using abstract methods (see below)
-    for validity.
+    of dictionary assignment declares an alias only (the declare method
+    of a Named object will automaticaly declare an alias if the object
+    has already been declared).  Names (keys) and values are checked on
+    assignment using methods that must be implemented in derived classes.
 
     NameTables define names case-sensitively in accordance with the
     OData specification.
@@ -164,27 +158,28 @@ class NameTable(Named, collections.MutableMapping):
     new declarations.  They can also be closed, after which they will
     not accept any new declarations (raising
     :class:`NameTabelClosedError` if you attempt to assign or modify a
-    new key)."""
+    new key).  Model objects typically remain open during the model
+    creation process (i.e., while parsing metadata files) and are closed
+    before they can be used to access data using a data service.  The
+    act of closing a model object may fail if model violations are
+    detected."""
 
-    #: qualified names use a dot separator
-    sep = "."
-
-    def __init__(self):
+    def __init__(self, **kwargs):
         self._name_table = {}
         #: whether or not this name table is closed
         self.closed = False
         self._callbacks = {}
         self._close_callbacks = []
-        super(NameTable, self).__init__()
+        super(NameTable, self).__init__(**kwargs)
 
     def __getitem__(self, key):
         return self._name_table[key]
 
     def __setitem__(self, key, value):
         if self.closed:
-            raise NameTableClosed(to_text(self.name))
+            raise errors.NameTableClosed(to_text(self.name))
         if key in self._name_table:
-            raise DuplicateNameError("%s in %s" % (key, to_text(self)))
+            raise errors.DuplicateNameError("%s in %s" % (key, to_text(self)))
         self.check_name(key)
         self.check_value(value)
         self._name_table[key] = value
@@ -192,7 +187,7 @@ class NameTable(Named, collections.MutableMapping):
             c(value)
 
     def __delitem__(self, key):
-        raise UndeclarationError("%s in %s" % (key, to_text(self.name)))
+        raise errors.UndeclarationError("%s in %s" % (key, to_text(self.name)))
 
     def __iter__(self):
         return iter(self._name_table)
@@ -206,6 +201,17 @@ class NameTable(Named, collections.MutableMapping):
         This method must raise ValueError if name is not a valid name
         for an object in this name table."""
         raise NotImplementedError
+
+    def qualify_name(self, name):
+        """Returns the qualified version of a name
+
+        By default we qualify name by prefixing with the name of this
+        NameTable and ".", if this NameTable has not been declared then
+        name is returned unchanged."""
+        if self.name:
+            return self.name + "." + name
+        else:
+            return name
 
     def check_value(self, value):
         """Abstract method to check validity of a value
@@ -288,11 +294,8 @@ class NameTable(Named, collections.MutableMapping):
             for c in cbs:
                 c()
 
-    def reopen(self):
-        """reopens this name table
-
-        Not usually called but allows further definitions to be added to
-        a closed name table."""
+    def _reopen(self):
+        # reopens this name table (for unit testing only)
         self.closed = False
         self._callbacks = {}
         self._close_callbacks = []
@@ -302,14 +305,17 @@ class NameTable(Named, collections.MutableMapping):
 
     @classmethod
     def is_simple_identifier(cls, identifier):
-        return cls.simple_identifier_re.match(identifier) and \
-            len(identifier) <= 128
+        """Returns True if identifier is a valid SimpleIdentifier"""
+        return (identifier is not None and
+                cls.simple_identifier_re.match(identifier) and
+                len(identifier) <= 128)
 
     @classmethod
     def is_namespace(cls, identifier):
-        parts = identifier.split(".")
-        if not parts:
+        """Returns True if identifier is a valid namespace name"""
+        if identifier is None:
             return False
+        parts = identifier.split(".")
         for id in parts:
             if not cls.is_simple_identifier(id):
                 return False
@@ -317,6 +323,9 @@ class NameTable(Named, collections.MutableMapping):
 
     @classmethod
     def is_qualified_name(cls, identifier):
+        """Returns True if identifier is a valid qualified name"""
+        if identifier is None:
+            return False
         parts = identifier.split(".")
         if len(parts) < 2:
             return False
@@ -325,29 +334,484 @@ class NameTable(Named, collections.MutableMapping):
                 return False
         return True
 
+    @staticmethod
+    def split_qname(qname):
+        """Splits a qualified name string
+
+        Returns a :class:`QualifiedName` instance, a tuple of
+        (namespace, name).  There is no validity checking other than
+        that namespace and name must be non-empty otherwise ValueError
+        is raised."""
+        dot = qname.rfind('.')
+        if dot < 1 or dot >= len(qname) - 1:
+            # ".name" and "name." don't count!
+            raise ValueError("qualified name required: %s" % qname)
+        return QualifiedName(qname[:dot], qname[dot + 1:])
+
+
+class EntityModel(NameTable):
+
+    """An EntityModel is the starting point for an OData service
+
+    The EntityModel behaves like a mapping of namespace names (as text
+    strings) on to :class:`Schema` instances.  """
+
+    def __init__(self, **kwargs):
+        super(EntityModel, self).__init__(**kwargs)
+        #: a weak reference to the service this model is bound to
+        self.service = None
+        # all entity models have the built-in Edm namespace in scope
+        self['Edm'] = edm
+        self['odata'] = odata
+
+    def check_name(self, name):
+        """EntityModels contain schemas that define namespaces
+
+        The syntax for a namespace is a dot-separated list of simple
+        identifiers."""
+        if name is None:
+            raise ValueError("unnamed schema")
+        if not self.is_namespace(name):
+            raise ValueError("%s is not a valid namespace" % name)
+
+    def check_value(self, value):
+        """EntityModels can only contain Schemas"""
+        if not isinstance(value, Schema):
+            raise TypeError(
+                "%s can't be declared in %s" %
+                (repr(value),
+                 "<EntityModel>" if self.name is None else self.name))
+
+    def qualified_get(self, qname, default=None):
+        """Looks up qualified name in this entity model.
+
+        qname
+            A string or a :class:`QualifiedName` instance.
+
+        default (None)
+            The value to return if the name is not declared."""
+        if isinstance(qname, QualifiedName):
+            namespace, name = qname
+        else:
+            namespace, name = self.split_qname(qname)
+        try:
+            return self[namespace][name]
+        except KeyError:
+            return default
+
+    def qualified_tell(self, qname, callback):
+        """Deferred qualified name lookup.
+
+        Similar to :meth:`Nametable.tell` except that it waits until
+        both the Schema containing qname is defined *and* the target
+        name is defined within that Schema.
+
+        If the entity model or the indicated Schema is closed without
+        qname being declared then the callback is called passing None."""
+        nsname, name = self.split_qname(qname)
+
+        def _callback(ns):
+            if ns is None:
+                callback(None)
+            else:
+                ns.tell(name, callback)
+
+        self.tell(nsname, _callback)
+
+    def close(self):
+        """Overridden to perform additional validation checks
+
+        The EntityModel is always closed to prevent the caller making
+        future declarations in this model.  The following conditions
+        will result in an error being raised.
+
+            1. All declared Schema objects MUST be closed
+            2. There MUST NOT be any disallowed circular type references
+        """
+        super(EntityModel, self).close()
+        for s in self.values():
+            if not s.closed:
+                raise errors.ModelError("Schema %s is still open" % s.name)
+        # Closing the entity model triggers any pending references to
+        # undeclared schemas to be terminated.  The Schemas themselves
+        # should all be closed at this point but circular references may
+        # still be open and waiting for closure.
+        for s in self.values():
+            s.detect_circular_refs()
+        for s in self.values():
+            for item in s.values():
+                if isinstance(item, StructuredType):
+                    item.set_annotations()
+
+    def derived_types(self, base):
+        """Generates all types derived from base"""
+        for name, schema in self.items():
+            if name != schema.name:
+                # ignore schema aliases
+                continue
+            for n, item in schema.items():
+                if isinstance(item, StructuredType) and \
+                        item.is_derived_from(base, strict=True):
+                    yield item
+
+    def bind_to_service(self, service):
+        """Binds this EntityModel to a data service
+
+        The act of binding an EntityModel to a data service binds
+        all type definitions within the model to the same service
+        enabling these types to be referred to with globally unique
+        identifiers (the URLs used for @odata.type annotations) in
+        OData payloads.
+
+        The service should not be confused with the metadata document
+        that contains a type definition.  Although every service must
+        have a metadata document the reverse is not true: a metadata
+        document may just be a CSDL document with a URL that contains
+        common definitions included by reference.  (The standard OData
+        vocabularies are an example.)
+
+        On a more technical note: a common type defined in a metadata
+        document that is reused by multiple services will have a
+        different identity in each service, as represented by the
+        @odata.type value used to describe the type of values.  As a
+        result, each type definition can only be bound to one service!
+        The CSDL parser in the metadata module handles this for you by
+        creating separate instances of each Schema object loaded by
+        reference so that applications that manage multiple services
+        sharing common definitions do not violate this constraint.
+
+        There is one special case: the Edm Schema object is only loaded
+        once and the definitions within it are *never* bound to the
+        service.  This is consistent with the way these types are handled
+        by the specification:
+
+            For built-in primitive types the value is the unqualified
+            name of the primitive type, specified as a URI fragment
+
+        In other words, types like Edm.String have the *same* identity
+        in all services and are represented by the URL fragment
+        #String."""
+        self.service = weakref.ref(service)
+        for sname, schema in self.items():
+            if schema.name != sname or schema.name in ("Edm", "odata"):
+                # skip aliases and reserved schemas
+                continue
+            for item in schema.values():
+                if isinstance(item, NominalType):
+                    logging.debug("Binding type: %s", item.qname)
+                    item.bind_to_service(self.service)
+        for item in self.get_container().values():
+            if isinstance(item, EntitySet):
+                item.bind_to_service(self.service)
+
+    def get_context_url(self):
+        """Returns the context URL of this model
+
+        The model *must* have been bound to a service for have a context
+        url."""
+        if self.service is None or self.service() is None:
+            raise errors.UnboundValue("Unbound EntityModel has no context")
+        return self.service().context_base
+
+    def get_container(self):
+        """Returns the required container for this model
+
+        The requirement to define an entity container is not applied to
+        all entity models.  Models only designed to be included by
+        reference do not need to define a container."""
+        container = None
+        for name, schema in self.items():
+            if name != schema.name or not schema.is_owned_by(self):
+                # ignore aliases and schemas included by reference
+                continue
+            for n, item in schema.items():
+                if isinstance(item, EntityContainer):
+                    if container is not None:
+                        raise errors.ModelError(
+                            errors.Requirement.one_container)
+                    container = item
+        return container
+
 
 class Annotatable(object):
 
     """Abstract class for model elements that can be annotated"""
 
-    def __init__(self):
-        super(Annotatable, self).__init__()
+    def __init__(self, **kwargs):
+        super(Annotatable, self).__init__(**kwargs)
         self.annotations = Annotations()
 
-    def annotate(self, qa, qualifier=None):
+    def annotate(self, qa):
         """Annotate this element with a qualified annotation
 
-        The qualifier is optional, if it is None then the annotation is
-        declared with an empty string for its qualifier, representing an
-        unqualified annotation."""
+        If the qualified annotation has a specified target then the
+        target must exist and it must not be another Annotable object.
+
+        """
+        if qa.target:
+            # will raise TypeError or KeyError if not found
+            target = self[qa.target]
+            if isinstance(target, Annotatable):
+                raise TypeError("Annotation target is Annotatable")
         try:
+            qualifier = qa.qualifier
             if qualifier is None:
                 qualifier = ""
             qa.qualified_declare(self.annotations, qualifier)
-        except DuplicateNameError:
-            raise DuplicateNameError(
-                Requirement.annotations_s %
+        except errors.DuplicateNameError:
+            raise errors.DuplicateNameError(
+                errors.Requirement.annotations_s %
                 ("%s:%s)" % (qa.term.qname, qualifier)))
+
+
+class Annotations(NameTable):
+
+    """The set of Annotations applied to a model element.
+
+    A name table that contains :class:`Annotation` instances keyed on
+    the qualified name of the defining term.  The vocabulary is
+    confusing here because the qualified name of an annotation is a
+    namespace-qualified name such as "odata.context", meaning the term
+    "context" in the (built-in) namespace "odata".  Annotations
+    themselves can be further qualified using 'qualifiers' that have
+    nothing to do with the qualified name!  These qualifiers act more
+    like filters on the annotations allowing the annotations themselves
+    to be multi-valued.  One possible use of these qualifiers might be
+    to allow for language tags on human-readable annotations (though the
+    restriction that qualifiers are simple identifiers is problematic in
+    this regard).
+
+    To give an example, when they appear in JSON payloads annotations
+    appear as <object>@<qualified name>#qualifier -- in many cases the
+    <object> is empty as the annotation is attached to the object itself
+    as a name/value pair so you might see something like::
+
+        @Org.OData.Core.V1.Description#en
+
+    The qualified name of the annotation is the name of a defined Term,
+    in this case "Description" in the "Org.OData.Core.V1" namespace.
+    The qualifier "en" has been added, perhaps to indicate that the
+    language used is "English".
+
+    The Annotations object contains all annotations associated with an
+    object.  In contrast, the Annotation object contains all annotations
+    that share the same qualified name (i.e., they differ only in the
+    optional qualifier).  To obtain an actual qualified annotation (with
+    its associated value) therefore requires two index lookups, for the
+    example above::
+
+        annotations["Org.OData.Core.V1.Description"]["en"]
+        # a convenience method is also provided that returns None rather
+        # than raise KeyError if the lookup fails...
+        annotations.qualified_get("Org.OData.Core.V1.Description", "en")
+
+    The result is a :class:`QualifiedAnnotation` instance.  For
+    unqualified annotations just use the empty string as the second
+    index.
+
+    There is one further complication: some objects that are annotatable
+    in the specification are not directly annotatable when represented
+    in JSON payloads.  For example, an instance of a property called
+    "FirstName" with a primitive value ("Steve" of type Edm.String) is
+    represented in JSON as::
+
+        "FirstName": "Steve"
+
+    Annotations of this value appear adjacent to the value itself using
+    the optional object prefix described above::
+
+        "FirstName": "Steve"
+        "FirstName@Core.Description": "Abbreviated form of actual name"
+
+    To keep the Pyslet classes more closely aligned with the JSON
+    representation the primitive values do *not* inherit from
+    :class:`Annotatable`.  Instead, annotations are declared in the
+    containing object's :attr:`Annotatable.annotations` attribute using
+    the object prefix.
+
+    ..  note::  *Unlike* the JSON representation, annotations that
+                apply to the object itself are declared *without* the
+                leading '@' because they do not share a namespace with
+                the declared children of the object.  The prefixed form
+                is, however, stored in the :attr:`Annotation.qname`
+                attribute of the Annotation object on declaration."""
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against QualifiedName
+
+        Raises ValueError if the name is not valid (or is None)."""
+        if name is None:
+            raise ValueError("Annotation with no name")
+        if '@' in name:
+            parts = name.split('@')
+            target = parts[0]
+            name = '@'.join(parts[1:])
+            if not self.is_simple_identifier(target):
+                raise ValueError("%s is not a simplie identifier" % target)
+        if not self.is_qualified_name(name):
+            raise ValueError("%s is not a valid qualified name" % name)
+
+    def qualify_name(self, name):
+        """Returns the qualified version of a name
+
+        The name is already a qualified name (of the annotation term)
+        optionally prefixed with a target identifier.  If there is no
+        target object prefix than "@" is prepended to the name to
+        indicate that the annotation applies to the current object."""
+        if '@' in name:
+            return name
+        else:
+            return '@' + name
+
+    def check_value(self, value):
+        if not isinstance(value, Annotation):
+            raise TypeError(
+                "Annotation required, found %s" % repr(value))
+
+    def qualified_get(self, term, qualifier=None, default=None):
+        """Looks up an annotation
+
+        term
+            The qualified name of an annotation Term
+
+        qualifier
+            An optional qualifier to search for, if None then
+            the definition with an empty qualifier is returned.
+
+            The qualifier may also be an iterable of qualifiers in
+            preference order.  For example::
+
+                annotations.qualified_get(
+                    "Org.OData.Core.V1.Description", ("de", "en", ""))
+
+            Extending the example above, this call might be used to
+            search for a German language string, failing that an English
+            language string, failing that a string with unspecified
+            language.
+
+        default (None)
+            The value to return if the annotation is not found."""
+        if qualifier is None:
+            qualifier = ('', )
+        elif is_text(qualifier):
+            qualifier = (qualifier, )
+        for q in qualifier:
+            try:
+                a = self[term]
+                return a[q]
+            except KeyError:
+                continue
+        return default
+
+
+class Annotation(NameTable):
+
+    """An Annotation (applied to a model element).
+
+    The name of this object is the qualified name of the term that
+    defines this annotation.  The Annnotation is itself a name table
+    comprising the :class:`QualifiedAnnotation` instances."""
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against simple identifier
+
+        Raises ValueError if the name is not valid (or is None).
+        Empty string is allowed, as it represents no qualifier."""
+        if name is None:
+            raise ValueError("None is not a valid qualifier (use '')")
+        elif name and not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid qualifier" % name)
+
+    def qualify_name(self, name):
+        """Returns the qualified version of a name
+
+        In this NameTable, names are qualifier for annotations.  We
+        create a qualified name by taking the *qualified* name of this
+        Annotation and adding "#" followed by the qualifier (the name
+        argument).  If this annotation has not been declared then we
+        simply return name prefixed with '#'."""
+        if self.qname:
+            return self.qname + "#" + name
+        else:
+            return "#" + name
+
+    def check_value(self, value):
+        if not isinstance(value, QualifiedAnnotation):
+            raise TypeError(
+                "QualifiedAnnotation required, found %s" % repr(value))
+
+
+class QualifiedAnnotation(Named):
+
+    """A Qualified Annotation (applied to a model element)
+
+    The name of this object is the qualifier used or *an empty string*
+    if the annotation was applied without a qualifier."""
+
+    def __init__(self, term, qualifier=None, target=None, **kwargs):
+        super(QualifiedAnnotation, self).__init__(**kwargs)
+        #: the simple identifier of the annotation target or None if
+        #: this annotation applies to the object that contains it.
+        self.target = target
+        #: the term that defines this annotation
+        if term is None or term.type_def is None:
+            raise ValueError(
+                "Qualified annnotation with no defined term")
+        self.term = term
+        #: the qualifier associated with this annotation or None the
+        #: annotation has no qualifier.
+        self.qualifier = qualifier
+        #: the value of this annotation, a :class:`Value` instance
+        self.value = term.type_def()
+
+    @classmethod
+    def from_json_name(cls, name, context):
+        """Creates a new instance from a name and context
+
+        name
+            The name of an annotation as presented in a JSON payload.
+            Names containing '@' and '.' are treated as annotation names.
+
+        context
+            The entity model within which to look up the associated
+            term definition.
+
+        Returns the QualifiedAnnotation instance or None if the
+        definition of the term could not be found."""
+        target = None
+        qualifier = None
+        apos = name.find('@')
+        if apos < 0:
+            raise ValueError("Annotation name must contain '@': %s" % name)
+        fpos = name.find('#', apos)
+        if fpos >= 0:
+            qname = name[apos + 1: fpos]
+            qualifier = name[fpos + 1:]
+        else:
+            qname = name[apos + 1:]
+        if apos >= 1:
+            target = name[:apos]
+        # lookup qname in the context
+        term = context.qualified_get(qname)
+        if not isinstance(term, Term):
+            return None
+        return cls(term, target=target, qualifier=qualifier)
+
+    def qualified_declare(self, annotations, name=""):
+        """Declares this qualified annotation in an Annotations instance
+
+        The """
+        if self.term is None or self.term.name is None:
+            raise ValueError(
+                "Can't declare annotation: Term is missing or undeclared")
+        tname = self.term.qname
+        if self.target:
+            tname = self.target + '@' + tname
+        a = annotations.get(tname, None)
+        if a is None:
+            a = Annotation()
+            a.declare(annotations, tname)
+        self.declare(a, name)
 
 
 class Schema(Annotatable, NameTable):
@@ -404,12 +868,20 @@ class Schema(Annotatable, NameTable):
                 if isinstance(item, (ComplexType, EntityType)):
                     try:
                         item.is_derived_from(item, strict=True)
-                    except InheritanceCycleDetected:
-                        raise InheritanceCycleDetected(
-                            (Requirement.et_cycle_s if
+                    except errors.InheritanceCycleDetected:
+                        raise errors.InheritanceCycleDetected(
+                            (errors.Requirement.et_cycle_s if
                              isinstance(item, EntityType) else
-                             Requirement.ct_cycle_s) % item.qname)
+                             errors.Requirement.ct_cycle_s) % item.qname)
                 item.close()
+
+    def get_model(self):
+        """Returns the entity model that defines this Schema.
+
+        If this Schema has not been declared yet then None is
+        returned."""
+        if self.nametable is not None:
+            return self.nametable()
 
     edm = None
     """The Edm schema.
@@ -422,7 +894,9 @@ class Schema(Annotatable, NameTable):
         """Creates and returns the built-in Edm schema"""
         cls.edm = Schema()
         cls.edm.name = "Edm"
+        cls.edm.qname = "Edm"
         primitive_base = PrimitiveType()
+        primitive_base.set_abstract(True)
         primitive_base.declare(cls.edm, "PrimitiveType")
         complex_base = ComplexType()
         complex_base.declare(cls.edm, "ComplexType")
@@ -460,6 +934,7 @@ class Schema(Annotatable, NameTable):
             primitive.declare(cls.edm, name)
         geography_base = PrimitiveType()
         geography_base.set_base(primitive_base)
+        geography_base.set_abstract(True)
         geography_base.declare(cls.edm, "Geography")
         for name, vtype in (('GeographyPoint', GeographyPointValue),
                             ('GeographyLineString', GeographyLineStringValue),
@@ -476,6 +951,7 @@ class Schema(Annotatable, NameTable):
             geography.declare(cls.edm, name)
         geometry_base = PrimitiveType()
         geometry_base.set_base(primitive_base)
+        geometry_base.set_abstract(True)
         geometry_base.declare(cls.edm, "Geometry")
         for name, vtype in (('GeometryPoint', GeometryPointValue),
                             ('GeometryLineString', GeometryLineStringValue),
@@ -493,253 +969,42 @@ class Schema(Annotatable, NameTable):
         cls.edm.close()
         return cls.edm
 
+    odata = None
+    """The odata schema.
 
-class QualifiedAnnotation(Named):
+    This schema contains the builtin term definitions."""
 
-    """A Qualified Annotation (applied to a model element)
-
-    The name of this object is the qualifier used or *an empty string*
-    if the annotation was applied without a qualifier."""
-
-    def __init__(self):
-        Named.__init__(self)
-        #: the term that defines this annotation
-        self.term = None
-
-    def qualified_declare(self, annotations, name=""):
-        """Declares this annotation in an Annotations instance."""
-        if self.term is None or self.term.qname is None:
-            raise ValueError("%s: associated Term was not declared" %
-                             self.term.name)
-        a = annotations.get(self.term.qname, None)
-        if a is None:
-            a = Annotation()
-            a.declare(annotations, self.term.qname)
-        self.declare(a, name)
-
-
-class Annotation(NameTable):
-
-    """An Annotation (applied to a model element).
-
-    The name of this object is the qualified name of the term that
-    defines this annotation.  The Annnotation is itself a name table
-    comprising the :class:`QualifiedAnnotation` instances."""
-
-    def check_name(self, name):
-        """Checks the validity of 'name' against simple identifier
-
-        Raises ValueError if the name is not valid (or is None).
-        Empty string is allowed, as it represents no qualifier."""
-        if name is None:
-            raise ValueError("None is not a valid qualifier (use '')")
-        elif name and not self.is_simple_identifier(name):
-            raise ValueError("%s is not a valid qualifier" % name)
-
-    def check_value(self, value):
-        if not isinstance(value, QualifiedAnnotation):
-            raise TypeError(
-                "QualifiedAnnotation required, found %s" % repr(value))
-
-
-class Annotations(NameTable):
-
-    """The set of Annotations applied to a model element.
-
-    A name table that contains :class:`Annotation` instances keyed on
-    the qualified name of the defining term."""
-
-    def check_name(self, name):
-        """Checks the validity of 'name' against QualifiedName
-
-        Raises ValueError if the name is not valid (or is None)."""
-        if name is None:
-            raise ValueError("Annotation with no name")
-        elif not self.is_qualified_name(name):
-            raise ValueError("%s is not a valid qualified name" % name)
-
-    def check_value(self, value):
-        if not isinstance(value, Annotation):
-            raise TypeError(
-                "Annotation required, found %s" % repr(value))
-
-    def qualified_get(self, term, qualifier=None):
-        """Looks up an annotation
-
-        Returns None if no annotation has been declared for the given
-        term (and optional qualifier)."""
-        try:
-            a = self[term]
-            return a['' if qualifier is None else qualifier]
-        except KeyError:
-            return None
-
-
-class EntityModel(NameTable):
-
-    """An EntityModel is a name table of OData Schemas"""
-    def __init__(self):
-        super(EntityModel, self).__init__()
-        # all entity models have the built-in Edm namespace in scope
-        self['Edm'] = edm
-
-    def check_name(self, name):
-        """EntityModels contain schemas that define namespaces
-
-        The syntax for a namespace is a dot-separated list of simple
-        identifiers."""
-        if name is None:
-            raise ValueError("unnamed schema")
-        if not self.is_namespace(name):
-            raise ValueError("%s is not a valid namespace" % name)
-
-    def check_value(self, value):
-        """EntityModels contain Schemas"""
-        if not isinstance(value, Schema):
-            raise TypeError(
-                "%s can't be declared in %s" %
-                (repr(value),
-                 "<EntityModel>" if self.name is None else self.name))
-
-    @staticmethod
-    def split_qname(qname):
-        dot = qname.rfind('.')
-        if dot < 1 or dot > len(qname) - 1:
-            # ".name" and "name." don't count!
-            raise ValueError("qualified name required: %s" % qname)
-        return qname[:dot], qname[dot + 1:]
-
-    def qualified_get(self, qname):
-        """Looks up qname in this entity model.
-
-        qname
-            A string or a :class:`QualifiedName` instance.
-
-        Returns the object it points to or raises KeyError."""
-        if isinstance(qname, QualifiedName):
-            namespace, name = qname
-        else:
-            namespace, name = self.split_qname(qname)
-        return self[namespace][name]
-
-    def qualified_tell(self, qname, callback):
-        """Deferred qualified name lookup.
-
-        Similar to :meth:`Nametable.tell` except that it waits until
-        both the Schema containing qname is defined *and* the target
-        name is defined within that Schema.
-
-        If the entity model or the indicated Schema is closed without
-        qname being declared then the callback is called passing None."""
-        nsname, name = self.split_qname(qname)
-        ns = self.get(nsname, None)
-        if ns is None:
-            self.tell(nsname, self._qcallback(name, callback))
-        else:
-            ns.tell(name, callback)
-
-    def _qcallback(self, name, callback):
-
-        def _qcallback_closure(ns):
-            if ns is None:
-                callback(None)
-            else:
-                ns.tell(name, callback)
-
-        return _qcallback_closure
-
-    def close(self):
-        """Overridden to perform additional validation checks"""
-        super(EntityModel, self).close()
-        for s in self.values():
-            if not s.closed:
-                raise ModelError("Schema %s is still open" % s.name)
-        # Closing the entity model triggers any pending references to
-        # undeclared schemas to be terminated.  The Schemas themselves
-        # should all be closed at this point but circular references may
-        # still be open and waiting for closure.
-        for s in self.values():
-            s.detect_circular_refs()
-        for s in self.values():
-            for item in s.values():
-                if isinstance(item, StructuredType):
-                    item.set_annotations()
-
-    def derived_types(self, base):
-        """Generates all types derived from base"""
-        for name, schema in self.items():
-            if name != schema.name:
-                # ignore aliases
-                continue
-            for n, item in schema.items():
-                # ignore type aliases too
-                if n != item.name:
-                    continue
-                if isinstance(item, StructuredType) and \
-                        item.is_derived_from(base, strict=True):
-                    yield item
-
-    def resolve_nppath(self, from_type, path):
-        """Resolves a navigation property path
-
-        from_type
-            The object to start resolving from, must be a structured
-            type.
-
-        path
-            An array of strings and QualifiedName instances representing
-            the path.
-
-        The rules for following navigation property paths are different
-        depending on the context. In Part 3, 7.1.4 they are defined
-        as follows:
-
-            The path may traverse complex types, including derived
-            complex types, but MUST NOT traverse any navigation
-            properties"""
-        pos = 0
-        try:
-            while pos < len(path):
-                segment = path[pos]
-                pos += 1
-                if is_text(segment):
-                    # must resole to a property of this type
-                    p = from_type[segment]
-                    if isinstance(p, NavigationProperty):
-                        if pos < len(path):
-                            raise ModelError(
-                                Requirement.nav_partner_nav_s % p.name)
-                        return p
-                    else:
-                        from_type = p.type_def
-                        # must be a structured type, not a primitive or
-                        # collection
-                        if not isinstance(from_type, StructuredType):
-                            raise PathError(
-                                "Can't resolve path containing: %s" %
-                                repr(from_type))
-                elif isinstance(segment, QualifiedName):
-                    # a type-cast
-                    new_type = self.qualified_get(segment)
-                    if not isinstance(new_type, StructuredType):
-                        raise PathError(
-                            "Can't resolve path containing: %s" %
-                            repr(new_type))
-                    # for type-casting we allow derived types
-                    if new_type.is_derived_from(from_type, strict=False):
-                        from_type = new_type
-                    else:
-                        raise PathError(
-                            "Can't resolve cast from %s to %s" %
-                            (from_type.qname, new_type.qname))
-                else:
-                    raise TypeError(
-                        "Bad path segment %s" % repr(segment))
-        except KeyError as err:
-            raise PathError("Path segment not found: %s" % str(err))
-        # if we get here then the path finished at a complex property
-        # of type-cast segment.
-        raise PathError("Path did not resolve to a navigation property")
+    @classmethod
+    def odata_init(cls):
+        """Creates and returns the built-in odata schema"""
+        cls.odata = Schema()
+        cls.odata.name = "odata"
+        cls.odata.qname = "odata"
+        for tname in (
+                "associationLink",
+                "bind",
+                "context",
+                "deltaLink",
+                "editLink",
+                "etag",
+                "id",
+                "mediaContentType",
+                "mediaEditLink",
+                "mediaEtag",
+                "mediaReadLink",
+                "metadataEtag",
+                "navigationLink",
+                "nextLink",
+                "type",
+                ):
+            term = Term()
+            term.set_type(cls.edm["String"])
+            term.declare(cls.odata, tname)
+        term = Term()
+        term.set_type(cls.edm["Int64"])
+        term.declare(cls.odata, "count")
+        cls.odata.close()
+        return cls.odata
 
 
 class NominalType(Named):
@@ -750,16 +1015,22 @@ class NominalType(Named):
     *instances* of NominalType.  Nominal types all have a :attr:`name`
     and typically a base type.
 
-    NominalType instances are callable, returning a :class:`Value` instance
-    of an appropriate class for representing a value of the type.  The
-    instance returned is a null value of this of type."""
+    NominalType instances are callable, returning a :class:`Value`
+    instance of an appropriate class for representing a value of the
+    type.  The instance returned is a null value of this of type.  When
+    calling a type object you *may* pass an optional service argument to
+    bind the value to a specific :class:`service.DataService`."""
 
-    def __init__(self):
-        super(NominalType, self).__init__()
+    def __init__(self, **kwargs):
+        super(NominalType, self).__init__(**kwargs)
         #: the base type (may be None for built-in abstract types)
         self.base = None
         # the class used for values of this type
         self.value_type = Value
+        #: whether or not this type is abstract
+        self.abstract = False
+        #: the service this type is bound to
+        self.service = None
 
     def __call__(self):
         return self.value_type(type_def=self)
@@ -768,7 +1039,16 @@ class NominalType(Named):
         try:
             super(NominalType, self).declare(nametable, name)
         except ValueError:
-            raise ValueError(Requirement.type_name)
+            raise ValueError(errors.Requirement.type_name)
+
+    def get_qname(self):
+        """Returns a :class:`QualifiedName` named tuple"""
+        if self.name is None:
+            raise errors.ObjectNotDeclaredError
+        return QualifiedName(namespace=self.nametable().name, name=self.name)
+
+    def set_abstract(self, abstract):
+        self.abstract = abstract
 
     def set_base(self, base):
         """Sets the base type of this type
@@ -780,8 +1060,18 @@ class NominalType(Named):
         The default implementation sets :attr:`base` while defending
         against the introduction of inheritance cycles."""
         if base.is_derived_from(self):
-            raise InheritanceCycleDetected
+            raise errors.InheritanceCycleDetected
         self.base = base
+
+    def bind_to_service(self, service_ref):
+        """Binds this type definition to a specific OData service
+
+        service
+            A *weak reference* to the service we're binding to."""
+        if self.service is not None:
+            raise errors.ModelError(
+                "%s is already bound to a context" % self.qname)
+        self.service = service_ref
 
     def is_derived_from(self, t, strict=False):
         """Returns True if this type is derived from type t
@@ -804,6 +1094,240 @@ class NominalType(Named):
             if curr_type is t:
                 return True
         return False
+
+    def get_odata_type_fragment(self):
+        """Returns the fragment identifier representing this type
+
+        This fragment can be appended to the URL of the metadata
+        document to make the value for the @odata.type annotation for an
+        oject.  By implication, you cannot refer to an absract type this
+        way (because that type cannot be instantiated as an object) so
+        we raise an error for abstract types.
+
+        The default implementation returns #qname if the type has been
+        declared (and #name for items in the Edm namespace), otherwise
+        it raises ObjectNotDeclaredError."""
+        if self.abstract:
+            raise errors.ModelError("Abstract type %s has no context URL" %
+                                    to_text(self))
+        elif self.qname:
+            if self.namespace() is edm:
+                return "#" + self.name
+            else:
+                return "#" + self.qname
+        else:
+            raise errors.ObjectNotDeclaredError
+
+    def get_odata_type_url(self, service=None):
+        """Returns an odata.type URL identifier relative to service
+
+        service (None)
+            A service to use as a base context.
+
+        If this is the same service that this type is bound to then a
+        URI consisting of just the fragment is returned, otherwise a URI
+        consisting of this type's service context URL + this type's
+        fragment is returned."""
+        if self.service is None:
+            svc = None
+        else:
+            svc = self.service()
+        if svc is service:
+            return uri.URI.from_octets(self.get_odata_type_fragment)
+        elif svc is not None:
+            return uri.URI.from_octets(
+                self.get_odata_type_fragment).resolve(svc.context_base)
+        else:
+            raise errors.ModelError("%s has no context" % to_text(self))
+
+
+class Value(BoolMixin, UnicodeMixin):
+
+    """Abstract class to represent a value in OData.
+
+    All values processed by OData classes are reprsented by instances of
+    this class.  All values have an associated type definition that
+    controls the range of values it can represent (see
+    :class:`NominalType` and its sub-classes).
+
+    Values are mutable so cannot be used as dictionary keys (they are
+    not hashable).  By default they evaluate to True unless they are
+    null, in which case they evaluate to False but you *should* use the
+    :meth:`is_null` test when you want to test for null as per the OData
+    specification as there are some special cases where the two
+    diverge."""
+
+    def __init__(self, type_def, **kwargs):
+        super(Value, self).__init__(**kwargs)
+        #: the type definition that controls the current value space
+        self.type_def = type_def
+        #: a weak reference to the service we're bound to
+        self.service = None
+        #: whether or not this value is frozen
+        self.frozen = False
+        #: whether or not this value has been modified since it was
+        #: created or the last call to :meth:`clean`.
+        self.dirty = False
+        #: if this value is part of a structured type then we keep a
+        #: weak reference to the parent value
+        self.parent = None
+        #: the fully qualified type name of this value's type if it is
+        #: of a type derived from the declared type for the property
+        #: that we are a value of
+        self.type_cast = None
+        #: the name of this value within the parent (property name)
+        self.name = None
+
+    __hash__ = None
+
+    def __bool__(self):
+        return not self.is_null()
+
+    def is_null(self):
+        """Returns True if this object is null.
+
+        You can use simple Python boolean evaluation with primitive
+        value instances but in general, to test for null as per the
+        definition in the specification you should use this method."""
+        return True
+
+    def get_value(self):
+        """Returns a python 'native' value representation
+
+        The default implementation will return None if the object
+        represents a null value."""
+        if self.is_null():
+            return None
+        else:
+            raise NotImplementedError
+
+    def set_value(self, value):
+        """Sets the value from a python 'native' value representation
+
+        This is an abstract method that is overridden in each value
+        type."""
+        raise NotImplementedError
+
+    def freeze(self):
+        """Makes this value read-only
+
+        The interpretation of read only depends on the type but in
+        general primitive and enumeration values will become completely
+        immutable whereas collections will have the set of values they
+        represent fixed but the values themselves are still free to
+        change just as a tuple behaves like a frozen list in Python.
+
+        There is no 'thaw' operation, frozen objects are frozen forever
+        indicating that attempting to modify them is futile.  For example,
+        a value returned by an OData function or action.  A bound value
+        that is frozen *may* still change if its value is reloaded from the
+        original data service, for example, after a local cached copy
+        is cleared."""
+        self.frozen = True
+
+    def touch(self):
+        """Marks this value as dirty (modified)
+
+        Each time a value is modified using :meth:`set_value` or one of
+        the type-specific modification methods the value is marked as
+        being modified using the :attr:`dirty` flag. This method sets
+        the dirty flag to True explicitly making it dirty.
+
+        In general, if an operation will fail on a frozen value then it
+        will set the dirty flag and if it succeeds on a frozen value
+        then it will not."""
+        self.dirty = True
+
+    def clean(self):
+        """Marks this value as clean (unmodified)
+
+        This method sets the dirty flag back to False, 'cleaning' the
+        value again."""
+        self.dirty = False
+
+    def assign(self, value):
+        """Sets this value from another Value instance.
+
+        If value is null then this instance is set to null.  Otherwise
+        the incoming value must be of the same type, or a type derived
+        from, the object being assigned."""
+        if value.is_null():
+            self.set_value(None)
+        elif value.type_def.is_derived_from(self.type_def):
+            self.set_value(value.get_value())
+        else:
+            raise TypeError(
+                "Can't assign %s from %s" %
+                (to_text(self.type_def), to_text(value.type_def)))
+
+    def cast(self, type_def):
+        """Implements the cast function
+
+        type_def
+            An instance of :class:`NominalType`.
+
+        Returns a new instance casting the current value to the type
+        specified.  The default implementation implements 3 rules:
+
+            1.  any null value can be cast to another null value
+            2.  a value can be cast to a value of the same type
+            3.  casting to an abstract type fails (returns null of the
+                abstract type)
+
+        Any other cast results in a null value representing a failed
+        cast."""
+        result = type_def()
+        if type_def.abstract:
+            result.set_value(None)
+        elif self.type_def.is_derived_from(type_def):
+            result.assign(self)
+        else:
+            result.set_value(None)
+        return result
+
+    def set_parent(self, parent_ref, name):
+        """Sets the parent (owner) of this value.
+
+        A value is owned if it is a named property of another value."""
+        if self.parent is not None:
+            raise ValueError("Object already owned")
+        self.parent = parent_ref
+        p = parent_ref()
+        self.name = name
+        if name not in p.base_def:
+            # we weren't declared in the base type of the parent so we
+            # need a type cast to the type we were declared in (not
+            # necessarily the type of our parent which may be further
+            # derived).
+            self.type_cast = p.type_def[name].nametable().qname
+        if p.service is not None:
+            self.bind_to_service(p.service)
+
+    def bind_to_service(self, service_ref):
+        """Binds this value to a specific OData service
+
+        service
+            A weak reference to the service we're binding to.
+
+        There are basically two types of Value instances in Pyslet's
+        OData model: dynamic values that provide a local view of an
+        object bound to a shared data service and static values that are
+        not.  (In this sense, a collection might be static even if its
+        items are dynamic.)  This method binds a value to a service
+        making it dynamic.
+
+        In normal use you won't need to bind values yourself.  All
+        values are created static.  Values are bound automatically by
+        the data service when deserlizing data service responses and may
+        also be bound as an indirect consequence of an operation.  For
+        example, if you create an EntityValue by calling an EntityType
+        instance you get a static entity but if you (successfully)
+        insert that entity into a dynamic EntitySetValue it will become
+        bound to the same service as the EntitySetValue value as you
+        would expect."""
+        if self.service is not None:
+            raise errors.ModelError("Value is already bound" % to_text(self))
+        self.service = service_ref
 
 
 class PrimitiveType(Annotatable, NominalType):
@@ -828,8 +1352,8 @@ class PrimitiveType(Annotatable, NominalType):
     # default used for temporal rounding (no fractional seconds)
     temporal_q = decimal.Decimal((0, (1, ), 0))
 
-    def __init__(self):
-        super(PrimitiveType, self).__init__()
+    def __init__(self, **kwargs):
+        super(PrimitiveType, self).__init__(**kwargs)
         self.value_type = PrimitiveValue
         #: the specified MaxLength facet or None if unspecified
         self.max_length = None
@@ -851,12 +1375,12 @@ class PrimitiveType(Annotatable, NominalType):
 
         The base must also be a PrimitiveType."""
         if self.name:
-            raise ObjectDeclaredError(self.qname)
+            raise errors.ObjectDeclaredError(self.qname)
         if not isinstance(base, PrimitiveType):
             raise TypeError(
                 "%s is not a suitable base for a PrimitiveType" % base.qname)
         if not base.name:
-            raise ObjectNotDeclaredError("Base type must be declared")
+            raise errors.ObjectNotDeclaredError("Base type must be declared")
         # update the value_type, impose a further restriction that the
         # incoming value_type MUST be a subclass of the previous
         # value_type.  In other words, you can't have a type based on
@@ -900,7 +1424,7 @@ class PrimitiveType(Annotatable, NominalType):
         Can only be set for primitive types with underlying type Binary,
         Stream or String."""
         if self.name:
-            raise ObjectDeclaredError(self.qname)
+            raise errors.ObjectDeclaredError(self.qname)
         if not issubclass(
                 self.value_type, (BinaryValue, StreamValue, StringValue)):
             logging.warning("MaxLength cannot be specified for %s",
@@ -917,7 +1441,8 @@ class PrimitiveType(Annotatable, NominalType):
         else:
             # sets a strong value, error if already specified
             if self.max_length is not None:
-                raise ModelError(Requirement.td_facet_s % "MaxLength")
+                raise errors.ModelError(
+                    errors.Requirement.td_facet_s % "MaxLength")
             self.max_length = max_length
         self._max_length = max_length
 
@@ -933,7 +1458,7 @@ class PrimitiveType(Annotatable, NominalType):
         Can only be set on primitive types with underlying type
         String."""
         if self.name:
-            raise ObjectDeclaredError(self.qname)
+            raise errors.ObjectDeclaredError(self.qname)
         if not issubclass(self.value_type, StringValue):
             logging.warning("Unicode facet cannot be specified for %s",
                             self.value_type.__name__)
@@ -945,7 +1470,8 @@ class PrimitiveType(Annotatable, NominalType):
         else:
             # sets a strong value, error if already specified
             if self.unicode is not None:
-                raise ModelError(Requirement.td_facet_s % "Unicode")
+                raise errors.ModelError(
+                    errors.Requirement.td_facet_s % "Unicode")
             self.unicode = unicode_facet
         self._unicode = unicode_facet
 
@@ -972,17 +1498,20 @@ class PrimitiveType(Annotatable, NominalType):
 
         """
         if self.name:
-            raise ObjectDeclaredError(self.qname)
+            raise errors.ObjectDeclaredError(self.qname)
         if issubclass(self.value_type, DecimalValue):
             if precision is not None:
                 if precision <= 0:
-                    raise ModelError(Requirement.decimal_precision)
+                    raise errors.ModelError(
+                        errors.Requirement.decimal_precision)
                 if scale is not None and scale > precision:
-                    raise ModelError(Requirement.scale_gt_precision)
+                    raise errors.ModelError(
+                        errors.Requirement.scale_gt_precision)
         elif issubclass(self.value_type, (DateTimeOffsetValue, DurationValue,
                                           TimeOfDayValue)):
             if precision is not None and (precision < 0 or precision > 12):
-                raise ModelError(Requirement.temporal_precision)
+                raise errors.ModelError(
+                    errors.Requirement.temporal_precision)
         if can_override:
             # weak values are overridden by existing strong values
             if self.precision is not None:
@@ -995,13 +1524,15 @@ class PrimitiveType(Annotatable, NominalType):
                 precision = self.precision
             else:
                 if self.precision is not None:
-                    raise ModelError(Requirement.td_facet_s % "Precision")
+                    raise errors.ModelError(
+                        errors.Requirement.td_facet_s % "Precision")
                 self.precision = precision
             if scale is None:
                 scale = self.scale
             else:
                 if self.scale is not None:
-                    raise ModelError(Requirement.td_facet_s % "Scale")
+                    raise errors.ModelError(
+                        errors.Requirement.td_facet_s % "Scale")
                 self.scale = scale
         if issubclass(self.value_type, DecimalValue):
             # precision must be positive (or None)
@@ -1061,13 +1592,13 @@ class PrimitiveType(Annotatable, NominalType):
         can_override
             See :meth:`set_max_length` for details"""
         if self.name:
-            raise ObjectDeclaredError(self.qname)
+            raise errors.ObjectDeclaredError(self.qname)
         if not issubclass(self.value_type, (GeographyValue, GeometryValue)):
             logging.warning("SRID cannot be specified for %s",
                             self.value_type.__name__)
             return
         if srid < -1:
-            raise ModelError(Requirement.srid_value)
+            raise errors.ModelError(errors.Requirement.srid_value)
         if can_override:
             # sets a weak value, ignored if already specified
             if self.srid is not None:
@@ -1075,7 +1606,7 @@ class PrimitiveType(Annotatable, NominalType):
         else:
             # sets a strong value, error if already specified
             if self.srid is not None:
-                raise ModelError(Requirement.td_facet_s % "SRID")
+                raise errors.ModelError(errors.Requirement.td_facet_s % "SRID")
             self.srid = srid
         self._srid = srid
 
@@ -1115,815 +1646,7 @@ class PrimitiveType(Annotatable, NominalType):
         return self.value_type.from_str(src)
 
 
-class EnumerationType(NameTable, NominalType):
-
-    """An EnumerationType declaration"""
-
-    def __init__(self, base=None):
-        super(EnumerationType, self).__init__()
-        if base is None:
-            base = edm['Int32']
-        elif base not in (edm['Byte'], edm['SByte'], edm['Int16'],
-                          edm['Int32'], edm['Int64']):
-            raise ModelError(Requirement.ent_type_s % base.qname)
-        #: whether or not values are being auto-assigned None means
-        #: 'undetermined', only possible when there are no members
-        self.assigned_values = None
-        #: whether or not this type is a flags-based enumeration
-        self.is_flags = False
-        #: the list of members in the order they were declared
-        self.members = []
-        # a mapping from values to the first declared member with that
-        # value
-        self._valuetable = {}
-        self.value_type = EnumerationValue
-        super(EnumerationType, self).set_base(base)
-
-    def set_is_flags(self):
-        """Sets is_flags to True.
-
-        If the Enumeration already has members declared will raise
-        ModelError."""
-        if self.members:
-            raise ModelError(
-                "Can't set is_flags on Enumeration with existing members")
-        self.assigned_values = False
-        self.is_flags = True
-
-    def check_name(self, name):
-        """Checks the validity of 'name' against simple identifier"""
-        if name is None:
-            raise ValueError("unnamed member")
-        elif not self.is_simple_identifier(name):
-            raise ValueError("%s is not a valid SimpleIdentifier" % name)
-
-    def check_value(self, value):
-        if not isinstance(value, Member):
-            raise TypeError("Member required, found %s" % repr(value))
-        # The value of the Member must be None (for auto assigned) or a
-        # valid value of the base type
-        if value.value is not None:
-            v = self.base()
-            try:
-                v.set(value.value)
-            except ValueError as err:
-                raise ModelError(
-                    Requirement.ent_valid_value_s %
-                    ("%s: %s" % (self.qname, str(err))))
-
-    def __setitem__(self, key, value):
-        self.check_value(value)
-        if self.assigned_values is None:
-            self.assigned_values = value.value is None
-        if self.assigned_values:
-            if value.value is not None:
-                raise ModelError(
-                    "Enum member %s declared with unexpected value" %
-                    value.name)
-            value.value = len(self.members)
-            try:
-                super(EnumerationType, self).__setitem__(key, value)
-            except (ValueError, TypeError):
-                # remove the auto-assigned value
-                value.value = None
-                raise
-        else:
-            if value.value is None:
-                if self.is_flags:
-                    raise ModelError(
-                        Requirement.ent_nonauto_value_s %
-                        ("%s:%s" % (self.qname, value.name)))
-                else:
-                    raise ModelError(
-                        Requirement.ent_auto_value_s %
-                        ("%s:%s" % (self.qname, value.name)))
-            super(EnumerationType, self).__setitem__(key, value)
-        self.members.append(value)
-        self._valuetable.setdefault(value.value, value)
-
-    def lookup(self, name_or_value):
-        """Looks up a Member by name or value
-
-        Returns the :class:`Member` instance.  If name_or_value is not
-        the name or the value of a member then ValueError is raised. If
-        name_or_value is an integer and multiple Members match then the
-        first declared Member is returned."""
-        try:
-            if is_text(name_or_value):
-                return self[name_or_value]
-            elif isinstance(name_or_value, (int, long2)):
-                return self._valuetable[name_or_value]
-            else:
-                raise ValueError("integer or string required")
-        except KeyError:
-            raise ValueError(
-                "%s is not defined in %s" % (name_or_value, self.name))
-
-    def lookup_flags(self, value):
-        """Returns a list of Members that comprise this value
-
-        For use with Enumerations that have :attr:`is_flags` set to
-        True. Returns a compact list of members (in declaration order)
-        that combine to make the input value.
-
-        In the simplest case, where flags are defined using 1, 2, 4,
-        etc. then this will just be the list of flags corresponding to
-        the bits set in value.  In more complex examples where
-        Enumerations define Members that combine flags then powerful
-        Members are favoured over less powerful ones.  I.e., a Member
-        with value 3 will be returned in preference to a list of two
-        members with values 1 and 2.
-
-        If :attr:`is_flags` is False, throws TypeError."""
-        result = []
-        rmask = 0
-        for m in self.members:
-            if m.value & value == m.value:
-                # m is a candidate for adding to the result but does it
-                # add any value?  Don't add superfluous multi-flags for
-                # the sake of it.
-                add_m = (m.value & rmask != m.value)
-                i = 0
-                while i < len(result):
-                    match = result[i]
-                    # if match is masked by (but not equal to m) then
-                    # remove it from the result.  This rule ensures that
-                    # 1 and 2 will be removed in favour or 3
-                    if match.value & m.value == match.value:
-                        del result[i]
-                        # but we better add m now!
-                        add_m = True
-                    else:
-                        i += 1
-                if add_m:
-                    result.append(m)
-                    # expand rmask
-                    rmask |= m.value
-        return result
-
-    def value_from_str(self, src):
-        """Constructs an enumeration value from a source string"""
-        p = ODataParser(src)
-        v = self()
-        mlist = p.require_enum_value()
-        if not self.is_flags:
-            if len(mlist) != 1:
-                raise ModelError("Enum member: expected single name or value")
-            v.set(mlist[0])
-        else:
-            v.set(mlist)
-        p.require_end()
-        return v
-
-
-class Member(Named):
-
-    """Represents a member of an enumeration"""
-
-    def __init__(self):
-        super(Member, self).__init__()
-        #: the integer value corresponding to this member
-        #: defaults to None: auto-assigned when declared
-        self.value = None
-
-
-class CollectionType(NominalType):
-
-    """Collections are treated as types in the model
-
-    In fact, OData does not allow you to declare a named type to be a
-    collection, instead, properties, navigation properties and entity
-    collections define collections in terms of single-valued named types.
-
-    To make implementing the model easier we treat these as private type
-    definitions.  That is, type definitions which are never declared in
-    the associated schema but are used as the type of other elements
-    that are part of the model."""
-
-    def __init__(self, item_type):
-        super(CollectionType, self).__init__()
-        #: the type being collected, we do not allow collections of
-        #: collections
-        self.item_type = item_type
-        self.value_type = CollectionValue
-
-
-class StructuredType(NameTable, NominalType):
-
-    """A Structured Type declaration
-
-    Structured types are nametables in their own right, behaving as
-    dictionaries with property names as keys and :class:`Property` (or
-    :class:`NavigationProperty`) instances as the dictionary values.
-
-    While the declaration's nametable is open new properties can be
-    added but once it is closed the type is considered complete.  There
-    are some restrictions on which operations are allowed on
-    complete/incomplete type declarations.  The most important being
-    that the you can't use a type as a base type until is complete."""
-
-    #: qualified names in a structured type use path separator
-    sep = "/"
-
-    def __init__(self):
-        super(StructuredType, self).__init__()
-        #: whether or not this type is abstract
-        self.abstract = False
-        #: whether or not this is an open type, None indicates undetermined
-        self.open_type = None
-
-    def check_name(self, name):
-        """Checks the validity of 'name' against simple identifier"""
-        if name is None:
-            raise ValueError("unnamed property")
-        elif not self.is_simple_identifier(name):
-            raise ValueError("%s is not a valid SimpleIdentifier" % name)
-
-    def check_value(self, value):
-        if not isinstance(value, (Property, NavigationProperty)):
-            raise TypeError(
-                "Property or NavigationProperty required, found %s" %
-                repr(value))
-
-    def set_base(self, base):
-        """Sets the base type of this type
-
-        When structured types are associated with a base type the
-        properties of the base type are copied on closure, therefore the
-        type must be incomplete when the base it set and the base MUST
-        be closed before the derived type."""
-        if not isinstance(base, type(self)):
-            raise TypeError(
-                "%s is not a suitable base for %s" % (base.qname, self.name))
-        if self.closed:
-            raise ModelError(
-                "Can't set base on %s (declaration is complete)" % self.qname)
-        super(StructuredType, self).set_base(base)
-
-    def set_abstract(self, abstract):
-        if self.closed:
-            raise ModelError(
-                "Can't set abstract on %s (declaration is complete)" %
-                self.qname)
-        self.abstract = abstract
-
-    def set_open_type(self, open_type):
-        if self.closed:
-            raise ModelError(
-                "Can't set open_type on %s (declaration is complete)" %
-                self.qname)
-        self.open_type = open_type
-
-    def navigation_properties(self):
-        """Generates all navigation properties of this type
-
-        This iterator will traverse complex types but *not* collections
-        of complex types.  It yields tuples of (path, nav property)."""
-        for n, p in self.items():
-            if isinstance(p, NavigationProperty):
-                yield n, p
-            elif isinstance(p.type_def, ComplexType):
-                for nn, np in p.type_def.navigation_properties():
-                    yield "%s/%s" % (n, nn), np
-
-    def close(self):
-        # before we close this nametable, add in the declarataions from
-        # the base type if present
-        if self.closed:
-            return
-        if self.base is not None:
-            if not self.base.closed:
-                raise ModelError("Base type is incomplete: %s" % self.qname)
-            if self.base.open_type is not None:
-                if self.base.open_type is True and self.open_type is False:
-                    if isinstance(self, EntityType):
-                        raise ModelError(
-                            Requirement.et_open_base_s % self.qname)
-                    elif isinstance(self, ComplexType):
-                        raise ModelError(
-                            Requirement.ct_open_base_s % self.qname)
-                    else:
-                        raise ModelError
-                if self.open_type is None:
-                    self.open_type = self.base.open_type
-            else:
-                # no base type
-                if self.open_type is None:
-                    self.open_type = False
-            # add the base names
-            for pname, p in self.base.items():
-                try:
-                    p.declare(self, pname)
-                except DuplicateNameError:
-                    raise DuplicateNameError(
-                        Requirement.property_unique_s %
-                        ("%s/%s" % (self.qname, pname)))
-        # The types of all our structural properties MUST also be
-        # complete.
-        for pname, p in self.items():
-            if isinstance(p, Property):
-                t = p.type_def
-                if t is None:
-                    raise ModelError("%s is undefined" % p.qname)
-                if isinstance(t, CollectionType):
-                    t = t.item_type
-                if isinstance(t, StructuredType) and not t.closed:
-                    raise ModelError("%s is incomplete" % p.qname)
-        super(StructuredType, self).close()
-
-    def set_annotations(self):
-        """Called during EntityModel closure
-
-        Properties that refer to TypeDefinitions need to have
-        annotations copied as these Annotations "are considered applied
-        wherever the type definition is used".
-        """
-        try:
-            for pname, p in self.items():
-                if isinstance(p, Property):
-                    if p.nametable() is not self:
-                        # inherited
-                        continue
-                    t = p.type_def
-                    if isinstance(t, CollectionType):
-                        t = t.item_type
-                    # this type is just the wrapper of the real type
-                    t = t.base
-                    if isinstance(t, PrimitiveType):
-                        logging.debug("Checking %s for annotations", t.qname)
-                        for annotation in t.annotations.values():
-                            logging.debug(
-                                "Annotating %s with %s", p.qname,
-                                annotation.name)
-                            annotation.declare(p.annotations, annotation.name)
-        except DuplicateNameError as err:
-            raise ModelError(Requirement.td_annotation_s % to_text(err))
-
-    def resolve_sproperty_path(self, path, inheritance=True):
-        """Resolves a property path
-
-        path
-            An array of strings representing the path.  There must be at
-            least one segment.
-
-        inheritance (default True)
-            Whether or not to search inherited properties.  By default
-            we do search them, the use cases for searching the set of
-            limited properties defined by this entity type itself are
-            limited to validation scenarios.  This restriction on
-            applies to the entity being searched, not to the types of
-            complex properties (if any).
-
-        This method will not resolve qualified names in the path so all
-        items MUST be simple identifiers representing properties defined
-        in the correspondig structural type.  In the simplest case path
-        will comprise a single identifier of a primitive property but it
-        may refer to complex properties (recursively) though not
-        properties of derived complex properties.  The path MUST NOT
-        include navigation properties.
-
-        The upshot is that we return a property declaration of a
-        structural property that is guaranteed to be valid for all
-        instances of this structural type.
-
-        This method can only be called once the type is complete."""
-        if not self.closed:
-            raise ModelError("%s is incomplete" % self.qname)
-        if not path:
-            raise ValueError("Can't resolve empty property path")
-        pos = 0
-        t = self
-        p = None
-        try:
-            while pos < len(path):
-                logging.debug("resolve_sproperty_path searching in %s for %s",
-                              t.qname, str(path[pos:]))
-                if isinstance(t, CollectionType):
-                    raise PathError(
-                        "%s is a collection" % p.qname)
-                segment = path[pos]
-                pos += 1
-                if is_text(segment):
-                    # must resole to a property of the current type
-                    p = t[segment]
-                    if isinstance(p, NavigationProperty):
-                        raise PathError(
-                            "%s is a navigation property" % p.qname)
-                    if not inheritance:
-                        if p.nametable() is not t:
-                            raise PathError("%s is inherited" % p.qname)
-                        inheritance = True
-                    t = p.type_def
-                else:
-                    raise TypeError(
-                        "Bad path segment %s" % repr(segment))
-        except KeyError as err:
-            raise PathError("Path segment not found: %s" % str(err))
-        return p
-
-
-class Property(Annotatable, Named):
-
-    """A Property declaration"""
-
-    def __init__(self):
-        super(Property, self).__init__()
-        #: the type definition for values of this property
-        self.type_def = None
-        #: whether or not the property value can be null (or contain
-        #: null in the case of a collection)
-        self.nullable = True
-        #: the default value of the property (primitive/enums only)
-        self.default_value = None
-
-    def set_type(self, type_def):
-        self.type_def = type_def
-
-    def set_nullable(self, nullable):
-        self.nullable = nullable
-
-
-class OnDeleteAction(xsi.Enumeration):
-
-    """An enumeration used to represent OnDelete actions.
-    ::
-
-            OnDeleteAction.Cascade
-            OnDeleteAction.DEFAULT == None
-
-    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
-
-    decode = {
-        "Cascade": 1,
-        "None": 2,
-        "SetNull": 3,
-        "SetDefault": 4
-    }
-
-
-class NavigationProperty(Named):
-
-    """A NavigationProperty declaration"""
-
-    def __init__(self):
-        super(NavigationProperty, self).__init__()
-        #: the target entity type of this property
-        self.entity_type = None
-        #: the type definition for values of this property will be the
-        #: same as entity_type unless it's a collection
-        self.type_def = None
-        #: by default, navigation properties are nullable
-        self.nullable = None
-        #: whether of not the linked entities are contained
-        self.containment = False
-        #: the partner of this navigation property
-        self.partner = None
-        #: reverse partners are navigation properties that point back to
-        #: us, there can be more than one but if the relationship is
-        #: bidirectional there will *exactly* one and it will be the
-        #: same object as self.partner.
-        self.reverse_partners = []
-
-    def set_nullable(self, nullable):
-        self.nullable = nullable
-
-    def set_containment(self, contains_target):
-        self.containment = contains_target
-
-    def set_type(self, entity_type, collection):
-        self.entity_type = entity_type
-        if collection:
-            if self.nullable is not None:
-                raise ModelError(Requirement.nav_collection_exists_s %
-                                 self.qname)
-            self.type_def = CollectionType(entity_type)
-        else:
-            if self.nullable is None:
-                self.nullable = True
-            self.type_def = entity_type
-
-    def set_partner(self, partner):
-        if self.reverse_partners:
-            if len(self.reverse_partners) > 1:
-                raise ModelError(
-                    Requirement.nav_partner_bidirection_s %
-                    ("%s has multiple partners" % self.qname))
-            if self.reverse_partners[0] is not partner:
-                raise ModelError(
-                    Requirement.nav_partner_bidirection_s %
-                    ("%s is already partnered" % self.qname))
-        self.partner = partner
-        partner.reverse_partners.append(self)
-
-    def add_constraint(self, dependent_path, principal_path):
-        if self.nametable is None:
-            raise ObjectNotDeclaredError
-        dependent_entity = self.nametable()
-        principal_entity = self.entity_type
-        try:
-            dependent_property = dependent_entity.resolve_sproperty_path(
-                dependent_path)
-        except PathError as err:
-            raise ModelError(Requirement.refcon_ppath_s %
-                             ("%s: %s" % (self.qname, str(err))))
-        try:
-            principal_property = principal_entity.resolve_sproperty_path(
-                principal_path)
-        except PathError as err:
-            raise ModelError(Requirement.refcon_rppath_s %
-                             ("%s: %s" % (self.qname, str(err))))
-        # these must be primitive properties
-        if not isinstance(dependent_property.type_def, PrimitiveType):
-            raise ModelError(Requirement.refcon_ppath_s % self.qname)
-        # the types of these properties MUST match
-        if not dependent_property.type_def.match(principal_property.type_def):
-            raise ModelError(Requirement.refcon_match_s % self.qname)
-        if ((self.nullable is True or principal_property.nullable is True) and
-                dependent_property.nullable is False):
-            raise ModelError(Requirement.refcon_match_null_s % self.qname)
-        if ((self.nullable is False and
-                principal_property.nullable is False) and
-                dependent_property.nullable is not False):
-            raise ModelError(Requirement.refcon_match_notnull_s % self.qname)
-
-    def add_action(self, action):
-        pass
-
-
-class ComplexType(StructuredType):
-
-    """A ComplexType declaration"""
-
-    def __init__(self):
-        super(ComplexType, self).__init__()
-        self.value_type = ComplexValue
-
-    def check_name(self, name):
-        """Overridden to add a check against the declared name"""
-        if self.name is not None and self.name == name:
-            raise ValueError(Requirement.ct_same_name_s % name)
-        super(ComplexType, self).check_name(name)
-
-    def __setitem__(self, key, value):
-        if isinstance(value, Named) and value.nametable is not None and \
-                value.nametable() is self:
-            # we own this property, it must not share our name
-            if self.name is not None and self.name == value.name:
-                raise ValueError(Requirement.ct_same_name_s % self.name)
-        return super(ComplexType, self).__setitem__(key, value)
-
-
-class EntityType(StructuredType):
-
-    """An EntityType declaration"""
-
-    def __init__(self):
-        super(EntityType, self).__init__()
-        #: This entity type's key.  This attribute is only set if the
-        #: key is defined by this entity type itself, keys can also
-        #: inherited.
-        self.key = []
-        #: A dictionary mapping the short name of each key property to a
-        #: tuple of (path, Property) where path is an array of simple
-        #: identifier strings and Property is the declaration of the
-        #: property.
-        self.key_dict = {}
-        #: whether or not instances of this EntityType are contained
-        #: None indicates undetermined.
-        self.contained = None
-
-    def check_name(self, name):
-        """Overridden to add a check against the declared name"""
-        if self.name is not None and self.name == name:
-            raise ValueError(Requirement.et_same_name_s % name)
-        super(EntityType, self).check_name(name)
-
-    def __setitem__(self, key, value):
-        if isinstance(value, Named) and value.nametable is not None and \
-                value.nametable() is self:
-            # we own this property, it must not share our name
-            if self.name is not None and self.name == value.name:
-                raise ValueError(Requirement.et_same_name_s % self.name)
-        return super(EntityType, self).__setitem__(key, value)
-
-    def declare(self, nametable, name):
-        """Overridden to add a check against the declared name"""
-        p = self.get(name, None)
-        if p is not None and p.nametable() is self:
-            # A property we own cannot share our name
-            raise ValueError(Requirement.et_same_name_s % name)
-        super(EntityType, self).declare(nametable, name)
-
-    def add_key(self, path, alias=None):
-        if self.closed:
-            raise ModelError(
-                "Can't add key to complete EntityType %s" % self.qname)
-        if len(path) > 1:
-            # this is a complex path, alias is required
-            if alias is None:
-                raise ModelError(
-                    Requirement.key_alias_s %
-                    ("%s: %s" % (self.qname, "/".join(path))))
-        else:
-            if alias is not None:
-                raise ModelError(
-                    Requirement.key_noalias_s %
-                    ("%s: %s" % (self.qname, alias)))
-            alias = path[0]
-        # we'll check the validity of the key itself on closure
-        self.key.append((alias, path))
-
-    def key_defined(self):
-        """Returns True if this type defines or inherits a key"""
-        t = self
-        while isinstance(t, EntityType):
-            if t.key:
-                return True
-            else:
-                t = t.base
-        return False
-
-    def set_contained(self):
-        """Marks this entity type as being contained by another.
-
-        This property is inherited and can only be set once within an
-        entity type hierarchy.  The property can only be set *after* the
-        type has been closed (ensuring the entity hierarchy is complete
-        back to the root)"""
-        if not self.closed:
-            raise ModelError(
-                "Can't set contained on incomplete type %s" % self.qname)
-        if self.contained is False:
-            # a derived type has already indicated containment
-            raise ModelError(Requirement.nav_multi_contains_s % self.qname)
-        t = self.base
-        while isinstance(t, EntityType):
-            if t.contained:
-                raise ModelError(Requirement.nav_multi_contains_s % self.qname)
-            else:
-                t.contained = False
-                t = t.base
-        self.contained = True
-
-    def close(self):
-        """Overridden to catch additional EntityType constraints"""
-        if not self.abstract and not self.key_defined():
-            raise ModelError(Requirement.et_abstract_key_s % self.qname)
-        if self.base is not None:
-            # if we are abstract, our base MUST also be abstract
-            if self.abstract and not self.base.abstract:
-                raise ModelError(
-                    Requirement.et_abstract_base_s % self.qname)
-            if self.key and self.base.key_defined():
-                raise ModelError(Requirement.et_abstract_no_key_s % self.qname)
-        # Now ready to close
-        super(EntityType, self).close()
-        # Post-closure validity checks...
-        for name, path in self.key:
-            try:
-                kp = self.resolve_sproperty_path(path, inheritance=False)
-            except PathError as err:
-                raise ModelError(
-                    Requirement.key_path_s %
-                    ("%s: %s" % (self.qname, str(err))))
-            if isinstance(kp.type_def, EnumerationType) or (
-                    isinstance(kp.type_def, PrimitiveType) and
-                    issubclass(kp.type_def.value_type, (
-                        BooleanValue, DateValue,
-                        DateTimeOffsetValue, DecimalValue,
-                        DurationValue, GuidValue, IntegerValue,
-                        StringValue, TimeOfDayValue))):
-                if kp.nullable:
-                    raise ModelError(Requirement.key_nullable_s % kp.qname)
-                if len(path) > 1 and (name in self or name in self.key_dict):
-                    raise ModelError(Requirement.key_alias_unique_s % name)
-                # this one's OK
-                self.key_dict[name] = (path, kp)
-            else:
-                raise ModelError(Requirement.key_type_s % kp.qname)
-
-
-class Term(Named):
-
-    """Represents a defined term in the OData model"""
-    pass
-
-
-class EntityContainer(NameTable):
-
-    """An EntityContainer is a container for OData entities."""
-
-    def __init__(self):
-        super(EntityContainer, self).__init__()
-        #: the entity container we are extending
-        self.extends = None
-
-    def check_name(self, name):
-        """Checks the validity of 'name' against SimpleIdentifier
-
-        Raises ValueError if the name is not valid (or is None).
-
-        From the spec:
-
-            The edm:EntityContainer element MUST provide a unique
-            SimpleIdentifier value for the Name attribute."""
-        if name is None:
-            raise ValueError("unnamed container")
-        elif not self.is_simple_identifier(name):
-            raise ValueError("%s is not a valid SimpleIdentifier" % name)
-
-    def check_value(self, value):
-        """The following types may be declared in an EntityContainer:
-
-        EntitySet, Singleton, ActionImport and FunctionImport."""
-        if not isinstance(value, (EntitySet, Singleton)):
-            raise TypeError(
-                "%s can't be declared in %s" %
-                (repr(value),
-                 "<EntityContainer>" if self.name is None else self.name))
-
-    def set_extends(self, extends):
-        """Sets the container that this container extends"""
-        if not isinstance(extends, EntityContainer):
-            raise TypeError(
-                "%s must be an entity container" % extends.qname)
-        self.extends = extends
-
-    def close(self):
-        # before we close this nametable, add in the declarataions from
-        # the extended container if present
-        if self.extends is not None:
-            for name, item in self.extends.items():
-                # we tolerate cycles, which means that if an item is
-                # already declared we ignore it
-                old_item = self.get(name, None)
-                if old_item is item:
-                    continue
-                self[name] = item
-        super(EntityContainer, self).close()
-
-
-class EntitySet(Named):
-
-    """Represents an EntitySet in the OData model."""
-
-    def __init__(self):
-        super(EntitySet, self).__init__()
-        #: the entity type of the entities in this set
-        self.entity_type = None
-
-    def set_type(self, entity_type):
-        self.entity_type = entity_type
-
-
-class Singleton(Named):
-
-    pass
-
-
-class Value(BoolMixin):
-
-    """Abstract class to represent a value in OData.
-
-    All values processed by OData classes are reprsented by instances of
-    this class.  All values have an associated type definition that
-    controls the range of values it can represent (see
-    :class:`NominalType` and its sub-classes).
-
-    Values are mutable so cannot be used as dictionary keys (they are
-    not hashable).  They evaluate to True unless they are null, in which
-    case they evaluate to False."""
-
-    def __init__(self, type_def):
-        #: the type definition that controls the value space
-        self.type_def = type_def
-
-    __hash__ = None
-
-    def __bool__(self):
-        return not self.is_null()
-
-    def is_null(self):
-        """Returns True if this object is null.
-
-        You can use simple Python boolean evaluation with instances, the
-        purpose of this method is to allow derived classes to implement
-        an appropriate null test."""
-        return True
-
-    def cast(self, type_def):
-        """Implements the cast function
-
-        type_def
-            An instance of :class:`NominalType`.
-
-        Returns a new instance casting the current value to the type
-        specified.  The default catch-all implementation generates
-        a null value of the target type representing a failed cast."""
-        return type_def()
-
-
-class PrimitiveValue(UnicodeMixin, Value):
+class PrimitiveValue(Value):
 
     """Class to represent a primitive value in OData.
 
@@ -1945,12 +1668,13 @@ class PrimitiveValue(UnicodeMixin, Value):
 
     edm_name = 'PrimitiveType'
 
-    def __init__(self, pvalue=None, type_def=None):
-        Value.__init__(
-            self, edm[self.edm_name] if type_def is None else type_def)
+    def __init__(self, pvalue=None, type_def=None, **kwargs):
+        super(PrimitiveValue, self).__init__(
+            type_def=edm[self.edm_name] if type_def is None else type_def,
+            **kwargs)
         self.value = None
         if pvalue is not None:
-            self.set(pvalue)
+            self.set_value(pvalue)
 
     def is_null(self):
         """Returns True if this object is null."""
@@ -1971,7 +1695,11 @@ class PrimitiveValue(UnicodeMixin, Value):
             raise ValueError("null value has no text representation")
         return to_text(self.value)
 
-    def set(self, value):
+    def get_value(self):
+        """Returns a python 'native' value representation"""
+        return self.value
+
+    def set_value(self, value):
         """Sets the value from a python 'native' value representation
 
         The default implementation raises TypeError if value is anything
@@ -1987,10 +1715,14 @@ class PrimitiveValue(UnicodeMixin, Value):
         primitive value instance then TypeError is raised.  If it is a
         suitable type but has a value out of the range permitted then
         ValueError is raised."""
-        if value is None:
+        if self.frozen:
+            raise errors.FrozenValueError
+        elif value is None:
             self.value = None
+            self.dirty = True
         else:
-            raise TypeError
+            raise TypeError("Can't set %s from %s" %
+                            (str(self.type_def), repr(value)))
 
     @classmethod
     def from_value(cls, value):
@@ -2085,61 +1817,61 @@ class PrimitiveValue(UnicodeMixin, Value):
         # warning: datetime() is derived from date(), check this first!
         elif isinstance(value, (TimePoint, datetime.datetime)):
             result = DateTimeOffsetValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, (Date, datetime.date)):
             result = DateValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, (Time, datetime.time)):
             result = TimeOfDayValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, xsi.Duration):
             result = DurationValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, uuid.UUID):
             result = GuidValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, geo.PointLiteral):
             if value.srid:
                 result = GeographyPointValue()
             else:
                 result = GeometryPointValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, geo.LineStringLiteral):
             if value.srid:
                 result = GeographyLineStringValue()
             else:
                 result = GeometryLineStringValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, geo.PolygonLiteral):
             if value.srid:
                 result = GeographyPolygonValue()
             else:
                 result = GeometryPolygonValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, geo.MultiPointLiteral):
             if value.srid:
                 result = GeographyMultiPointValue()
             else:
                 result = GeometryMultiPointValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, geo.MultiLineStringLiteral):
             if value.srid:
                 result = GeographyMultiLineStringValue()
             else:
                 result = GeometryMultiLineStringValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, geo.MultiPolygonLiteral):
             if value.srid:
                 result = GeographyMultiPolygonValue()
             else:
                 result = GeometryMultiPolygonValue()
-            result.set(value)
+            result.set_value(value)
         elif isinstance(value, geo.GeoCollectionLiteral):
             if value.srid:
                 result = GeographyCollectionValue()
             else:
                 result = GeometryCollectionValue()
-            result.set(value)
+            result.set_value(value)
         else:
             raise TypeError
         return result
@@ -2169,21 +1901,1875 @@ class PrimitiveValue(UnicodeMixin, Value):
 
         Any primitive type can be cast to a String using the ABNF
         format."""
-        result = type_def()
-        if isinstance(result, type(self)):
+        if type_def.is_derived_from(edm['String']):
+            result = type_def()
             try:
-                result.set(self.value)
+                result.set_value(to_text(self))
             except ValueError:
-                # bounds exceeded perhaps
-                pass
-        elif isinstance(result, StringValue):
-            try:
-                result.set(to_text(self))
-            except ValueError:
-                # bounds must be exceeded
+                # bounds must be exceeded, return typed null
                 pass
             return result
+        else:
+            return super(PrimitiveValue, self).cast(type_def)
+
+
+class EnumerationType(NameTable, NominalType):
+
+    """An EnumerationType declaration"""
+
+    def __init__(self, base=None, **kwargs):
+        super(EnumerationType, self).__init__(**kwargs)
+        if base is None:
+            base = edm['Int32']
+        elif base not in (edm['Byte'], edm['SByte'], edm['Int16'],
+                          edm['Int32'], edm['Int64']):
+            raise errors.ModelError(errors.Requirement.ent_type_s % base.qname)
+        #: whether or not values are being auto-assigned None means
+        #: 'undetermined', only possible when there are no members
+        self.assigned_values = None
+        #: whether or not this type is a flags-based enumeration
+        self.is_flags = False
+        #: the list of members in the order they were declared
+        self.members = []
+        # a mapping from values to the first declared member with that
+        # value
+        self._valuetable = {}
+        self.value_type = EnumerationValue
+        super(EnumerationType, self).set_base(base)
+
+    def set_is_flags(self):
+        """Sets is_flags to True.
+
+        If the Enumeration already has members declared will raise
+        ModelError."""
+        if self.members:
+            raise errors.ModelError(
+                "Can't set is_flags on Enumeration with existing members")
+        self.assigned_values = False
+        self.is_flags = True
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against simple identifier"""
+        if name is None:
+            raise ValueError("unnamed member")
+        elif not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid SimpleIdentifier" % name)
+
+    def check_value(self, value):
+        if not isinstance(value, Member):
+            raise TypeError("Member required, found %s" % repr(value))
+        # The value of the Member must be None (for auto assigned) or a
+        # valid value of the base type
+        if value.value is not None:
+            v = self.base()
+            try:
+                v.set_value(value.value)
+            except ValueError as err:
+                raise errors.ModelError(
+                    errors.Requirement.ent_valid_value_s %
+                    ("%s: %s" % (self.qname, str(err))))
+
+    def __setitem__(self, key, value):
+        self.check_value(value)
+        if self.assigned_values is None:
+            self.assigned_values = value.value is None
+        if self.assigned_values:
+            if value.value is not None:
+                raise errors.ModelError(
+                    "Enum member %s declared with unexpected value" %
+                    value.name)
+            value.value = len(self.members)
+            try:
+                super(EnumerationType, self).__setitem__(key, value)
+            except (ValueError, TypeError):
+                # remove the auto-assigned value
+                value.value = None
+                raise
+        else:
+            if value.value is None:
+                if self.is_flags:
+                    raise errors.ModelError(
+                        errors.Requirement.ent_nonauto_value_s %
+                        ("%s:%s" % (self.qname, value.name)))
+                else:
+                    raise errors.ModelError(
+                        errors.Requirement.ent_auto_value_s %
+                        ("%s:%s" % (self.qname, value.name)))
+            super(EnumerationType, self).__setitem__(key, value)
+        self.members.append(value)
+        self._valuetable.setdefault(value.value, value)
+
+    def lookup(self, name_or_value):
+        """Looks up a Member by name or value
+
+        Returns the :class:`Member` instance.  If name_or_value is not
+        the name or the value of a member then ValueError is raised. If
+        name_or_value is an integer and multiple Members match then the
+        first declared Member is returned."""
+        try:
+            if is_text(name_or_value):
+                return self[name_or_value]
+            elif isinstance(name_or_value, (int, long2)):
+                return self._valuetable[name_or_value]
+            else:
+                raise ValueError("integer or string required")
+        except KeyError:
+            raise ValueError(
+                "%s is not defined in %s" % (name_or_value, self.name))
+
+    def lookup_flags(self, value):
+        """Returns a list of Members that comprise this value
+
+        For use with Enumerations that have :attr:`is_flags` set to
+        True. Returns a compact list of members (in declaration order)
+        that combine to make the input value.
+
+        In the simplest case, where flags are defined using 1, 2, 4,
+        etc. then this will just be the list of flags corresponding to
+        the bits set in value.  In more complex examples where
+        Enumerations define Members that combine flags then powerful
+        Members are favoured over less powerful ones.  I.e., a Member
+        with value 3 will be returned in preference to a list of two
+        members with values 1 and 2.
+
+        If :attr:`is_flags` is False, throws TypeError."""
+        result = []
+        rmask = 0
+        for m in self.members:
+            if m.value & value == m.value:
+                # m is a candidate for adding to the result but does it
+                # add any value?  Don't add superfluous multi-flags for
+                # the sake of it.
+                add_m = (m.value & rmask != m.value)
+                i = 0
+                while i < len(result):
+                    match = result[i]
+                    # if match is masked by (but not equal to m) then
+                    # remove it from the result.  This rule ensures that
+                    # 1 and 2 will be removed in favour or 3
+                    if match.value & m.value == match.value:
+                        del result[i]
+                        # but we better add m now!
+                        add_m = True
+                    else:
+                        i += 1
+                if add_m:
+                    result.append(m)
+                    # expand rmask
+                    rmask |= m.value
         return result
+
+    def value_from_str(self, src):
+        """Constructs an enumeration value from a source string"""
+        p = ODataParser(src)
+        v = self()
+        mlist = p.require_enum_value()
+        if not self.is_flags:
+            if len(mlist) != 1:
+                raise errors.ModelError(
+                    "Enum member: expected single name or value")
+            v.set_value(mlist[0])
+        else:
+            v.set_value(mlist)
+        p.require_end()
+        return v
+
+
+class Member(Named):
+
+    """Represents a member of an enumeration"""
+
+    def __init__(self, **kwargs):
+        super(Member, self).__init__(**kwargs)
+        #: the integer value corresponding to this member
+        #: defaults to None: auto-assigned when declared
+        self.value = None
+
+
+class EnumerationValue(Value):
+
+    """Represents the value of an Enumeration type"""
+
+    def __init__(self, type_def, pvalue=None, **kwargs):
+        super(EnumerationValue, self).__init__(type_def, **kwargs)
+        self.value = None
+        if pvalue is not None:
+            self.set_value(pvalue)
+
+    def __unicode__(self):
+        if self.value is None:
+            raise ValueError("null value has no text representation")
+        elif self.type_def.is_flags:
+            return ul(',').join([v.name for
+                                 v in self.type_def.lookup_flags(self.value)])
+        else:
+            return self.type_def.lookup(self.value).name
+
+    def set_value(self, value):
+        """Sets the value from a python 'native' value representation
+
+        Accepts None (meaning null), integer, string or iterable objects
+        that yield integer and/or strings (mixtures are acceptable).
+        Other types raise TypeError.
+
+        Strings and values are converted to enum members through look-up
+        and (for flags) bitwise OR operation.  If a value is not
+        defined in the enumeration then ValueError is raised.  Note
+        that with flags enumerations you may *only* set the (integer) value
+        to an integer representing multiple flags *if* that value has
+        a defined name.  For example, if you have Red=1 and Blue=2 as
+        members then you may::
+
+            v.set_value(1)
+            v.set_value(2)
+            v.set_value((1, 2))
+
+        however, you may *not*::
+
+            v.set_value(3)
+
+        This rule has implications for the use of 0 which, for a flags
+        enumeration, means no flags are set.  You *must* define a member
+        with value of 0 if you want to use this value.  E.g., extending
+        the above example define Black=0 if you want to do this::
+
+            v.set_value(0)"""
+        if value is None:
+            self.value = value
+        elif is_text(value) or isinstance(value, (int, long2)):
+            self.value = self.type_def.lookup(value).value
+        elif self.type_def.is_flags:
+            # iterate over the values
+            total_value = 0
+            count = 0
+            try:
+                for v in value:
+                    count += 1
+                    total_value |= self.type_def.lookup(v).value
+            except TypeError:
+                raise TypeError("int, str or iterable thereof required")
+            if not count:
+                raise ValueError("Enum member name or value expected")
+            self.value = total_value
+        else:
+            raise TypeError("Enum member or value expected")
+
+
+class CollectionType(NominalType):
+
+    """Collections are treated as types in the model
+
+    In fact, OData does not allow you to declare a named type to be a
+    collection, instead, properties, navigation properties and entity
+    collections define collections in terms of single-valued named types.
+
+    To make implementing the model easier we treat these as private type
+    definitions.  That is, type definitions which are never declared in
+    the associated schema but are used as the type of other elements
+    that are part of the model."""
+
+    def __init__(self, item_type, **kwargs):
+        super(CollectionType, self).__init__(**kwargs)
+        #: the type being collected, we do not allow collections of
+        #: collections
+        self.item_type = item_type
+        self.value_type = CollectionValue
+
+
+class CollectionValue(Annotatable, collections.MutableSequence, Value):
+
+    """Represents the value of a Collection
+
+    The type_def is required on construction.  There is no default
+    collection type.
+
+    The CollectionValue object is blessed with Python's Sequence
+    behaviour and is also :class:`Annotatable`."""
+
+    def __init__(self, **kwargs):
+        super(CollectionValue, self).__init__(**kwargs)
+        self._fullycached = True
+        self._cache = []
+
+    def bind_to_service(self, service_ref):
+        """Binds this CollectionValue to a data service
+
+        This collection must be empty to be bound.
+
+        Once bound, the CollectionValue automatically creates and
+        executes requests to the underlying data service and caches the
+        resulting information for speed."""
+        if self._cache:
+            raise errors.ServiceError("Collection must be empty to be bound")
+        self._fullycached = False
+        self._cache.clear()
+        super(CollectionValue, self).bind_to_service(service_ref)
+
+    def clear_cache(self):
+        """Clears the local cache for this collection
+
+        If this collection is bound to a service then any locally cached
+        information about the entities is cleared."""
+        if self.service is not None:
+            self._fullycached = False
+            del self._cache[:]
+
+    def reload(self):
+        """Reload the contents of this collection from source
+
+        This collection must be bound to a service.  The cache is cleared
+        and reloaded from the service."""
+        if self.service is None:
+            raise errors.UnboundValue
+        self.clear_cache()
+        self._load()
+
+    def is_null(self):
+        """CollectionValues are *never* null
+
+        CollectionValues highlight the distinction between the default
+        Python boolean test and the OData definition of null.  The
+        native Python Sequence behaviour overrides the default
+        :class:`Value` implementation of the boolean test.  In other
+        words::
+
+            if collection_value:
+                # do something if a CollectionValue instance is 'True'
+
+        will test whether or not the collection is empty, not if it's
+        null."""
+        return False
+
+    def __len__(self):
+        if self._fullycached:
+            return len(self._cache)
+        else:
+            # we need to determine our contextual object and iterate it
+            raise NotImplementedError
+
+    def _is_cached(self, index):
+        if isinstance(index, slice):
+            if index.stop is None or index.stop < 0:
+                return False
+            else:
+                return index.stop < len(self._cache)
+        elif index < 0:
+            return False
+        else:
+            return index < len(self._cache)
+
+    def _check_type(self, value):
+        if not value.type_def.is_derived_from(self.type_def.item_type):
+            raise ValueError
+        return value
+
+    def __getitem__(self, index):
+        if self._fullycached or self._is_cached(index):
+            return self._cache[index]
+        else:
+            self._load(index)
+            return self._cache[index]
+
+    def __setitem__(self, index, value):
+        if self.frozen:
+            raise errors.FrozenValueError
+        if not self._fullycached:
+            # must be fully cached to be writeable
+            self._load(index)
+        if isinstance(index, slice):
+            # value must be an iterable of appropriate values
+            self._cache[index] = [self._check_item(item) for item in value]
+        else:
+            self._cache[index] = self._check_type(value)
+        self.dirty = True
+
+    def __delitem__(self, index):
+        if self.frozen:
+            raise errors.FrozenValueError
+        if isinstance(index, slice):
+            if index.stop is None and index.step is None:
+                # special case: delete everything past start.  We
+                # optimise here as we don't need to load the remote data
+                # just to mark it as being deleted, we everything cached
+                # that needs to be cached!
+                if index.start is None or self._is_cached(index.start):
+                    self._fullycached = True
+        if not self._fullycached:
+            # must be fully cached to be writeable
+            self._load(index)
+        del self._cache[index]
+        self.dirty = True
+
+    def insert(self, index, value):
+        if self.frozen:
+            raise errors.FrozenValueError
+        if not self._fullycached:
+            # must be fully cached to be writeable
+            self._load(index)
+        self._cache.insert(index, value)
+        self.dirty = True
+
+    def _load(self, index=None):
+        # Load the cache up to and including index,  If index is None
+        # then load the entire collection.  We always start from the
+        # beginning because the remote data may have changed.
+        raise NotImplementedError
+
+
+class StructuredType(NameTable, NominalType):
+
+    """A Structured Type declaration
+
+    Structured types are nametables in their own right, behaving as
+    dictionaries with property names as keys and :class:`Property` (or
+    :class:`NavigationProperty`) instances as the dictionary values.
+
+    While the declaration's nametable is open new properties can be
+    added but once it is closed the type is considered complete.  There
+    are some restrictions on which operations are allowed on
+    complete/incomplete type declarations.  The most important being
+    that the you can't use a type as a base type until is complete."""
+
+    def __init__(self, **kwargs):
+        super(StructuredType, self).__init__(**kwargs)
+        #: whether or not this is an open type, None indicates undetermined
+        self.open_type = None
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against simple identifier"""
+        if name is None:
+            raise ValueError("unnamed property")
+        elif not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid SimpleIdentifier" % name)
+
+    def qualify_name(self, name):
+        """Returns the qualified version of a name
+
+        By default we qualify name by prefixing with the name of this
+        NameTable (type) and "/" as per the representation of property
+        paths. If this NameTable has not been declared then name is
+        returned unchanged."""
+        if self.name:
+            return self.name + "/" + name
+        else:
+            return name
+
+    def check_value(self, value):
+        if not isinstance(value, (Property, NavigationProperty)):
+            raise TypeError(
+                "Property or NavigationProperty required, found %s" %
+                repr(value))
+
+    def set_base(self, base):
+        """Sets the base type of this type
+
+        When structured types are associated with a base type the
+        properties of the base type are copied on closure, therefore the
+        type must be incomplete when the base it set and the base MUST
+        be closed before the derived type."""
+        if not isinstance(base, type(self)):
+            raise TypeError(
+                "%s is not a suitable base for %s" % (base.qname, self.name))
+        if self.closed:
+            raise errors.ModelError(
+                "Can't set base on %s (declaration is complete)" % self.qname)
+        super(StructuredType, self).set_base(base)
+
+    def set_abstract(self, abstract):
+        if self.closed:
+            raise errors.ModelError(
+                "Can't set abstract on %s (declaration is complete)" %
+                self.qname)
+        self.abstract = abstract
+
+    def set_open_type(self, open_type):
+        if self.closed:
+            raise errors.ModelError(
+                "Can't set open_type on %s (declaration is complete)" %
+                self.qname)
+        self.open_type = open_type
+
+    def navigation_properties(self):
+        """Generates all navigation properties of this type
+
+        This iterator will traverse complex types but *not* collections
+        of complex types.  It yields tuples of (path, nav property)."""
+        for n, p in self.items():
+            if isinstance(p, NavigationProperty):
+                yield n, p
+            elif isinstance(p.type_def, ComplexType):
+                for nn, np in p.type_def.navigation_properties():
+                    yield "%s/%s" % (n, nn), np
+
+    def close(self):
+        # before we close this nametable, add in the declarataions from
+        # the base type if present
+        if self.closed:
+            return
+        if self.base is not None:
+            if not self.base.closed:
+                raise errors.ModelError(
+                    "Base type is incomplete: %s" % self.qname)
+            if self.base.open_type is not None:
+                if self.base.open_type is True and self.open_type is False:
+                    if isinstance(self, EntityType):
+                        raise errors.ModelError(
+                            errors.Requirement.et_open_base_s % self.qname)
+                    elif isinstance(self, ComplexType):
+                        raise errors.ModelError(
+                            errors.Requirement.ct_open_base_s % self.qname)
+                    else:
+                        raise errors.ModelError
+                if self.open_type is None:
+                    self.open_type = self.base.open_type
+            else:
+                # no base type
+                if self.open_type is None:
+                    self.open_type = False
+            # add the base names
+            for pname, p in self.base.items():
+                try:
+                    p.declare(self, pname)
+                except errors.DuplicateNameError:
+                    raise errors.DuplicateNameError(
+                        errors.Requirement.property_unique_s %
+                        ("%s/%s" % (self.qname, pname)))
+        # The types of all our structural properties MUST also be
+        # complete.
+        for pname, p in self.items():
+            if isinstance(p, Property):
+                t = p.type_def
+                if t is None:
+                    raise errors.ModelError("%s is undefined" % p.qname)
+                if isinstance(t, CollectionType):
+                    t = t.item_type
+                if isinstance(t, StructuredType) and not t.closed:
+                    raise errors.ModelError("%s is incomplete" % p.qname)
+        super(StructuredType, self).close()
+
+    def set_annotations(self):
+        """Called during EntityModel closure
+
+        Properties that refer to TypeDefinitions need to have
+        annotations copied as these Annotations "are considered applied
+        wherever the type definition is used".
+        """
+        try:
+            for pname, p in self.items():
+                if isinstance(p, Property):
+                    if not p.is_owned_by(self):
+                        # inherited
+                        continue
+                    t = p.type_def
+                    if isinstance(t, CollectionType):
+                        t = t.item_type
+                    # this type is just the wrapper of the real type
+                    t = t.base
+                    if isinstance(t, PrimitiveType):
+                        logging.debug("Checking %s for annotations", t.qname)
+                        for annotation in t.annotations.values():
+                            logging.debug(
+                                "Annotating %s with %s", p.qname,
+                                annotation.name)
+                            annotation.declare(p.annotations, annotation.name)
+        except errors.DuplicateNameError as err:
+            raise errors.ModelError(
+                errors.Requirement.td_annotation_s % to_text(err))
+
+    def resolve_sproperty_path(self, path, inheritance=True):
+        """Resolves a property path
+
+        path
+            An array of strings representing the path.  There must be at
+            least one segment.
+
+        inheritance (default True)
+            Whether or not to search inherited properties.  By default
+            we do search them, the use cases for searching the set of
+            limited properties defined by this entity type itself are
+            limited to validation scenarios.  This restriction applies
+            to the entity being searched, not to the types of complex
+            properties (if any).
+
+        This method will not resolve qualified names in the path so all
+        items MUST be simple identifiers representing properties defined
+        in the correspondig structural type.  In the simplest case path
+        will comprise a single identifier of a primitive property but it
+        may refer to complex properties (recursively) though not
+        properties of derived complex properties.  The path MUST NOT
+        include navigation properties.
+
+        The upshot is that we return a property declaration of a
+        structural property that is guaranteed to be valid for all
+        instances of this structural type.
+
+        This method can only be called once the type is complete."""
+        if not self.closed:
+            raise errors.ModelError("%s is incomplete" % self.qname)
+        if not path:
+            raise ValueError("Can't resolve empty property path")
+        pos = 0
+        t = self
+        p = None
+        try:
+            while pos < len(path):
+                logging.debug("resolve_sproperty_path searching in %s for %s",
+                              t.qname, str(path[pos:]))
+                if isinstance(t, CollectionType):
+                    raise errors.PathError(
+                        "%s is a collection" % p.qname)
+                segment = path[pos]
+                pos += 1
+                if is_text(segment):
+                    # must resole to a property of the current type
+                    p = t[segment]
+                    if isinstance(p, NavigationProperty):
+                        raise errors.PathError(
+                            "%s is a navigation property" % p.qname)
+                    if not inheritance:
+                        if not p.is_owned_by(t):
+                            raise errors.PathError("%s is inherited" % p.qname)
+                        inheritance = True
+                    t = p.type_def
+                else:
+                    raise TypeError(
+                        "Bad path segment %s" % repr(segment))
+        except KeyError as err:
+            raise errors.PathError("Path segment not found: %s" % str(err))
+        return p
+
+    def resolve_nppath(self, path, context, follow_containment=False,
+                       require_containment=False):
+        """Resolves a navigation property path
+
+        path
+            A list of strings and QualifiedName instances representing
+            the path.  Any redundant segments are removed from the path
+            during resolution ensuring that, on success, it is the
+            canonical path to the returned navigation property.
+
+        context
+            The entity model within which to resolve qualified names.
+            This won't necessarily be the entity model containing the
+            definition of the EntityType itself as the type may be used
+            through a reference in a separate schema that defines
+            addition sub-types, changing the outcome of the path
+            resolution algorithm.
+
+        follow_containment
+            A boolean, defaulting to False: don't traverse containinment
+            navigation properties.  In this configuration the method
+            behaves as per the resolution of partner paths in entity
+            type definitions.  When set to True containment navigation
+            properties are traversed (but will only be returned subject
+            to require_containment below) as per the resolution of
+            navigation binding paths.
+
+        require_containment
+            A boolean, defaulting to False: the resulting path must be a
+            containment navigation property.  With both
+            follow_containment and require_containment set the method
+            behaves as per the resolution of a target path (excluding
+            the entity set or singleton segments).
+
+        The rules for following navigation property paths are different
+        depending on the context. In Part 3, 7.1.4 they are defined
+        as follows:
+
+            The path may traverse complex types, including derived
+            complex types, but MUST NOT traverse any navigation
+            properties
+
+        Whereas in Part 3, 13.4.1:
+
+            The path can traverse one or more containment navigation
+            properties but the last segment MUST be a non-containment
+            navigation property and there MUST NOT be any
+            non-containment navigation properties prior to the final
+            segment"""
+        pos = 0
+        old_type = None
+        from_type = self
+        try:
+            while pos < len(path):
+                segment = path[pos]
+                pos += 1
+                if is_text(segment):
+                    # must resolve to a property of this type
+                    p = from_type[segment]
+                    if old_type is not None:
+                        # check the previous cast
+                        best_type = from_type
+                        base_type = from_type.base
+                        while (best_type is not old_type and
+                                segment in base_type):
+                            best_type = base_type
+                            base_type = base_type.base
+                        if best_type is old_type:
+                            # unnecessary cast
+                            pos -= 1
+                            del path[pos - 1]
+                            from_type = old_type
+                        elif best_type is not from_type:
+                            # cast was over-specific, modify it
+                            path[pos - 2] = best_type.get_qname()
+                            from_type = best_type
+                        old_type = None
+                    if isinstance(p, NavigationProperty):
+                        if follow_containment:
+                            # navigation binding path
+                            if p.containment:
+                                if pos >= len(path):
+                                    if require_containment:
+                                        return p
+                                    # or last segment can't be containment
+                                    raise errors.ModelError(
+                                        errors.Requirement.
+                                        nav_contains_binding_s % self.qname)
+                                from_type = p.entity_type
+                                # continue to resolve
+                            else:
+                                # must be last segment
+                                if pos < len(path):
+                                    raise errors.ModelError(
+                                        errors.Requirement.
+                                        navbind_noncontain_s % self.qname)
+                                if require_containment:
+                                    raise errors.PathError(self.qname)
+                                return p
+                        else:
+                            # partner path
+                            if pos < len(path):
+                                raise errors.ModelError(
+                                    errors.Requirement.nav_partner_nav_s %
+                                    p.name)
+                            return p
+                    else:
+                        from_type = p.type_def
+                        # must be a structured type, not a primitive or
+                        # collection
+                        if not isinstance(from_type, StructuredType):
+                            raise errors.PathError(
+                                "Can't resolve path containing: %s" %
+                                repr(from_type))
+                elif isinstance(segment, QualifiedName):
+                    # a type-cast
+                    new_type = context.qualified_get(segment)
+                    if not isinstance(new_type, StructuredType):
+                        raise errors.PathError(
+                            "Can't resolve path containing: %s" %
+                            repr(new_type))
+                    if new_type.is_derived_from(from_type, strict=False):
+                        # any derived type or the same type at this stage
+                        old_type = from_type
+                        from_type = new_type
+                    else:
+                        raise errors.PathError(
+                            "Can't resolve cast from %s to %s" %
+                            (from_type.qname, new_type.qname))
+                else:
+                    raise TypeError(
+                        "Bad path segment %s" % repr(segment))
+        except KeyError as err:
+            raise errors.PathError("Path segment not found: %s" % str(err))
+        # if we get here then the path finished at a complex property
+        # or type-cast segment.
+        raise errors.PathError("Path did not resolve to a navigation property")
+
+    @staticmethod
+    def path_to_str(path):
+        """Static method for converting a path to a string
+
+        path
+            An array of strings and/or :class:`QualifiedName` named
+            tuples.
+
+        Returns a simple string representation with all components
+        separated by "/"
+        """
+        return "/".join(
+            [segment if is_text(segment) else
+             (segment.namespace + "." + segment.name) for segment in path])
+
+
+class Property(Annotatable, Named):
+
+    """A Property declaration"""
+
+    def __init__(self, **kwargs):
+        super(Property, self).__init__(**kwargs)
+        #: the type definition for values of this property
+        self.type_def = None
+        #: whether or not the property value can be null (or contain
+        #: null in the case of a collection)
+        self.nullable = True
+        #: the default value of the property (primitive/enums only)
+        self.default_value = None
+
+    def set_type(self, type_def):
+        self.type_def = type_def
+
+    def set_nullable(self, nullable):
+        self.nullable = nullable
+
+    def set_default(self, default_value):
+        self.default_value = default_value
+
+    def __call__(self, parent_ref):
+        value = self.type_def()
+        if self.default_value:
+            value.assign(self.default_value)
+            value.clean()
+        value.set_parent(parent_ref, self.name)
+        return value
+
+
+class OnDeleteAction(xsi.Enumeration):
+
+    """An enumeration used to represent OnDelete actions.
+    ::
+
+            OnDeleteAction.Cascade
+            OnDeleteAction.DEFAULT == None
+
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
+
+    decode = {
+        "Cascade": 1,
+        "None": 2,
+        "SetNull": 3,
+        "SetDefault": 4
+    }
+
+
+class NavigationProperty(Named):
+
+    """A NavigationProperty declaration"""
+
+    def __init__(self, **kwargs):
+        super(NavigationProperty, self).__init__(**kwargs)
+        #: the target entity type of this property
+        self.entity_type = None
+        #: whether or not this property points to a collection
+        self.collection = None
+        #: by default, navigation properties are nullable
+        self.nullable = None
+        #: whether of not the linked entities are contained
+        self.containment = False
+        #: the partner of this navigation property
+        self.partner = None
+        #: reverse partners are navigation properties that point back to
+        #: us, there can be more than one but if the relationship is
+        #: bidirectional there will *exactly* one and it will be the
+        #: same object as self.partner.
+        self.reverse_partners = []
+
+    def set_nullable(self, nullable):
+        self.nullable = nullable
+
+    def set_containment(self, contains_target):
+        self.containment = contains_target
+
+    def set_type(self, entity_type, collection):
+        self.entity_type = entity_type
+        if collection:
+            if self.nullable is not None:
+                raise errors.ModelError(
+                    errors.Requirement.nav_collection_exists_s % self.qname)
+        else:
+            if self.nullable is None:
+                self.nullable = True
+        self.collection = collection
+
+    def set_partner(self, partner):
+        if self.reverse_partners:
+            if len(self.reverse_partners) > 1:
+                raise errors.ModelError(
+                    errors.Requirement.nav_partner_bidirection_s %
+                    ("%s has multiple partners" % self.qname))
+            if self.reverse_partners[0] is not partner:
+                raise errors.ModelError(
+                    errors.Requirement.nav_partner_bidirection_s %
+                    ("%s is already partnered" % self.qname))
+        self.partner = partner
+        partner.reverse_partners.append(self)
+
+    def add_constraint(self, dependent_path, principal_path):
+        if self.nametable is None:
+            raise errors.ObjectNotDeclaredError
+        dependent_entity = self.nametable()
+        principal_entity = self.entity_type
+        try:
+            dependent_property = dependent_entity.resolve_sproperty_path(
+                dependent_path)
+        except errors.PathError as err:
+            raise errors.ModelError(
+                errors.Requirement.refcon_ppath_s %
+                ("%s: %s" % (self.qname, str(err))))
+        try:
+            principal_property = principal_entity.resolve_sproperty_path(
+                principal_path)
+        except errors.PathError as err:
+            raise errors.ModelError(
+                errors.Requirement.refcon_rppath_s %
+                ("%s: %s" % (self.qname, str(err))))
+        # these must be primitive properties
+        if not isinstance(dependent_property.type_def, PrimitiveType):
+            raise errors.ModelError(
+                errors.Requirement.refcon_ppath_s % self.qname)
+        # the types of these properties MUST match
+        if not dependent_property.type_def.match(principal_property.type_def):
+            raise errors.ModelError(
+                errors.Requirement.refcon_match_s % self.qname)
+        if ((self.nullable is True or principal_property.nullable is True) and
+                dependent_property.nullable is False):
+            raise errors.ModelError(
+                errors.Requirement.refcon_match_null_s % self.qname)
+        if ((self.nullable is False and
+                principal_property.nullable is False) and
+                dependent_property.nullable is not False):
+            raise errors.ModelError(
+                errors.Requirement.refcon_match_notnull_s % self.qname)
+
+    def add_action(self, action):
+        pass
+
+    def __call__(self, parent_ref):
+        p = parent_ref()
+        path = [self.name]
+        if self.name not in p.base_def:
+            path.insert(0, p.nametable().qname)
+        entity = p.get_entity(path)
+        if not self.containment and entity.entity_set is not None:
+            target_set = entity.entity_set.resolve_binding(tuple(path))
+        else:
+            target_set = None
+        if self.collection:
+            if self.containment:
+                # this value defines an entity set in its own right
+                value = EntitySetValue(type_def=self.entity_type)
+            else:
+                if target_set is None:
+                    # unbound navigation, can't assume an entity set
+                    value = CollectionType(self.entity_type)()
+                else:
+                    value = EntitySetValue(
+                        type_def=self.entity_type, entity_set=target_set)
+        else:
+            # a single entity (related to the parent)
+            value = EntityValue(
+                type_def=self.entity_type, entity_set=target_set)
+        return value.set_parent(parent_ref)
+
+
+class StructuredValue(collections.MutableMapping, Annotatable, Value):
+
+    """Abstract class that represents the value of a structured type
+
+    Instances behave like dictionaries of property values keyed on
+    property name.
+
+    Instances may be null, this can be achieved using set(None).  They
+    are created in a non-null state with all properties set to default
+    values.
+
+    The type definition used to create a structured value instance is
+    considered special and is remembered as the :attr:`base_def` of the
+    value throughout the value's life.  The actual type may change to a
+    value derived from it but it may never be changed to a type that is
+    more abstract."""
+
+    def __init__(self, **kwargs):
+        super(StructuredValue, self).__init__(**kwargs)
+        #: the base type definition that controls the value space
+        self.base_def = self.type_def
+        self.null = False
+        self._pvalues = {}
+        self_ref = weakref.ref(self)
+        for pname, ptype in self.type_def.items():
+            # we call Property instances to create values
+            if isinstance(ptype, Property):
+                self._pvalues[pname] = ptype(self_ref)
+
+    def __len__(self):
+        return len(self._pvalues)
+
+    def __getitem__(self, key):
+        return self._pvalues[key]
+
+    def __setitem__(self, key, value):
+        if self.frozen:
+            raise errors.FrozenValueError
+        raise NotImplementedError
+
+    def __delitem__(self, key):
+        if self.frozen:
+            raise errors.FrozenValueError
+        raise NotImplementedError
+
+    def __iter__(self):
+        for k in self._pvalues:
+            yield k
+
+    def is_null(self):
+        """Returns True if this object is null."""
+        return self.null
+
+    def clear_null(self):
+        """Marks this value as being non-null"""
+        if self.frozen:
+            raise errors.FrozenValueError
+        self.null = False
+        self.dirty = True
+
+    def set_value(self, value):
+        """Sets the value from a python 'native' value representation
+
+        Anything other than None raises TypeError.  Setting a structured
+        value to null removes all properties from the dictionary and
+        sets the :attr:`dirty` flag."""
+        if self.frozen:
+            raise errors.FrozenValueError
+        if value is None:
+            self.null = True
+            self._pvalues.clear()
+            self.dirty = True
+        else:
+            raise TypeError
+
+    def assign(self, value):
+        """Sets this value from another Value instance.
+
+        If value is null then this instance is set to null.  Otherwise
+        the incoming value must be of the same type, or a type derived
+        from, the object being assigned.  The values of all properties
+        present in the dictionary are assigned from the values with the
+        same name in the other value instance.  Missing values are set
+        to null.
+
+        The assign operation does not change the type of a value.  You
+        can do that using :meth:`set_type`."""
+        if self.frozen:
+            raise errors.FrozenValueError
+        if value.is_null():
+            self.set_value(None)
+        elif value.type_def.is_derived_from(self.type_def):
+            for pname, pvalue in self.items():
+                new_value = value.get(pname, None)
+                if new_value is None:
+                    pvalue.set(None)
+                else:
+                    pvalue.assign(new_value)
+            self.clear_null()
+            self.dirty = True
+        else:
+            return super(StructuredValue, self).assign(value)
+
+    def set_type(self, type_def):
+        """Sets the type of this value
+
+        type_def
+            An instance of :class:`StructuredType` that *must* be in the
+            same type hierarchy as the existing type and *must* be
+            derived from the :attr:`base_def` used to create the value.
+
+        This function is used to implement a dynamic type-cast such as
+        when an entity (or complex value) is cast to a type derived from
+        the type stipulated by the original declaration.
+
+        If the new type is derived from the *current* type then any
+        additional structural properties defined only in the derived
+        type are created in the property diectionary with null/default
+        values and marked clean.
+
+        If the current type is derived from the new type then the change
+        is to a more general value and any properties that are not
+        defined in the new type are *removed* from the property
+        dictionary."""
+        if self.frozen:
+            raise errors.FrozenValueError
+        if type_def is self.type_def:
+            # nothing to do
+            return
+        if not type_def.is_derived_from(self.base_def):
+            raise TypeError("Incompatible types: %s -> %s" %
+                            (self.base_type.qname, type_def.qname))
+        if type_def.is_derived_from(self.type_def, strict=True):
+            # we are extending this value, need to add missing properties
+            old_def = self.type_def
+            self.type_def = type_def
+            self_ref = weakref.ref(self)
+            for pname, ptype in self.type_def.items():
+                if pname in old_def:
+                    continue
+                if isinstance(ptype, Property):
+                    self._pvalues[pname] = ptype(self_ref)
+        else:
+            old_def = self.type_def
+            self.type_def = type_def
+            # we are re-generalizing this value so remove some properties
+            for pname in old_def:
+                if pname in self.type_def:
+                    continue
+                if pname in self._pvalues:
+                    del self._pvalues[pname]
+        self.dirty = True
+
+    def bind_to_service(self, service_ref):
+        """Binds this value to a specific OData service
+
+        Binds all properties recursively."""
+        if self.service is not None:
+            raise errors.ModelError("Value is already bound" % to_text(self))
+        self.service = service_ref
+        for pvalue in self._pvalues.values():
+            if isinstance(pvalue, EntityValue) and pvalue.service is not None:
+                # it's OK for a navigation property in an unbound value
+                # to be bound to an entity that is already bound (e.g.,
+                # while waiting for a deep insert operation).
+                continue
+            pvalue.bind_to_service(service_ref)
+
+    def get_entity(self, path, ignore_containment=True):
+        """Returns the entity that contains this structured value
+
+        For values with no parent entity, None is returned; for
+        entities, the current object is returned and for complex values
+        the chain of parents is followed until an entity is found (by
+        calling get_entity recursively).
+
+        path
+            A list of strings that will be updated to represent the path
+            to this value by pre-pending the required path segments to
+            navigate from the context of the entity returned back to
+            this value.
+
+        ignore_containment
+            If True (the default) then an entity that is contained by a
+            parent entity (by a containment navigation property) will
+            not be returned and the method will continue to follow the
+            chain of parents until an entity that is not contained is
+            found.
+
+        For example, if an entity has a complex property with name 'A'
+        then calling get_entity on the value of A returns the entity and
+        pre-pends 'A' to path.
+
+        More complex situations requiring type-casts are also handled.
+        To extend the previous example, if the entity in question is of
+        type Y, derived from type X, and is in an entity set or
+        collection declared to be of type X *and* the property A is
+        defined only for type Y, then a type cast segment is also
+        pre-prended.  The path list will then start: ['schema.Y',
+        'A',...].
+
+        The upshot is that path is prefixed with the target path of this
+        value. This path could then be used in expressions that require
+        a property path."""
+        # TODO: traversing entities contained in entity sets (rather
+        # than as single entities) does not include the key in the path
+        if self.parent_ref is None:
+            return None
+        p = self.parent_ref()
+        path.insert(0, self.name)
+        if self.type_cast:
+            path.insert(0, self.type_cast)
+        return p.get_entity(path)
+
+
+class ComplexType(StructuredType):
+
+    """A ComplexType declaration"""
+
+    def __init__(self, **kwargs):
+        super(ComplexType, self).__init__(**kwargs)
+        self.value_type = ComplexValue
+
+    def check_name(self, name):
+        """Overridden to add a check against the declared name"""
+        if self.name is not None and self.name == name:
+            raise ValueError(errors.Requirement.ct_same_name_s % name)
+        super(ComplexType, self).check_name(name)
+
+    def __setitem__(self, key, value):
+        if isinstance(value, Named) and value.is_owned_by(self):
+            # we own this property, it must not share our name
+            if self.name is not None and self.name == value.name:
+                raise ValueError(errors.Requirement.ct_same_name_s % self.name)
+        return super(ComplexType, self).__setitem__(key, value)
+
+
+class ComplexValue(StructuredValue):
+
+    """Represents the value of a Complex type
+
+    Instances behave like dictionaries of property values."""
+
+    def __init__(self, type_def=None, **kwargs):
+        if type_def is not None and not isinstance(type_def, ComplexType):
+            raise errors.ModelError(
+                "ComplexValue required ComplexType: %s" % repr(type_def))
+        super(ComplexValue, self).__init__(
+            type_def=edm['ComplexType'] if type_def is None else type_def,
+            **kwargs)
+
+
+class EntityType(StructuredType):
+
+    """An EntityType declaration"""
+
+    def __init__(self, **kwargs):
+        super(EntityType, self).__init__(**kwargs)
+        self.value_type = EntityValue
+        #: This entity type's key.  This attribute is only set if the
+        #: key is defined by this entity type itself, keys can also
+        #: be inherited.
+        self.key = []
+        #: A dictionary mapping the short name of each key property to a
+        #: tuple of (path, Property) where path is an array of simple
+        #: identifier strings and Property is the declaration of the
+        #: property.
+        self.key_dict = {}
+        #: whether or not instances of this EntityType are contained
+        #: None indicates undetermined.
+        self.contained = None
+
+    def check_name(self, name):
+        """Overridden to add a check against the declared name"""
+        if self.name is not None and self.name == name:
+            raise ValueError(errors.Requirement.et_same_name_s % name)
+        super(EntityType, self).check_name(name)
+
+    def __setitem__(self, key, value):
+        if isinstance(value, Named) and value.is_owned_by(self):
+            # we own this property, it must not share our name
+            if self.name is not None and self.name == value.name:
+                raise ValueError(errors.Requirement.et_same_name_s % self.name)
+        return super(EntityType, self).__setitem__(key, value)
+
+    def declare(self, nametable, name):
+        """Overridden to add a check against the declared name"""
+        p = self.get(name, None)
+        if p is not None and p.is_owned_by(self):
+            # A property we own cannot share our name
+            raise ValueError(errors.Requirement.et_same_name_s % name)
+        super(EntityType, self).declare(nametable, name)
+
+    def add_key(self, path, alias=None):
+        if self.closed:
+            raise errors.ModelError(
+                "Can't add key to complete EntityType %s" % self.qname)
+        if len(path) > 1:
+            # this is a complex path, alias is required
+            if alias is None:
+                raise errors.ModelError(
+                    errors.Requirement.key_alias_s %
+                    ("%s: %s" % (self.qname, "/".join(path))))
+        else:
+            if alias is not None:
+                raise errors.ModelError(
+                    errors.Requirement.key_noalias_s %
+                    ("%s: %s" % (self.qname, alias)))
+            alias = path[0]
+        # we'll check the validity of the key itself on closure
+        self.key.append((alias, path))
+
+    def key_defined(self):
+        """Returns True if this type defines or inherits a key"""
+        t = self
+        while isinstance(t, EntityType):
+            if t.key:
+                return True
+            else:
+                t = t.base
+        return False
+
+    def set_contained(self):
+        """Marks this entity type as being contained by another.
+
+        This property is inherited and can only be set once within an
+        entity type hierarchy.  The property can only be set *after* the
+        type has been closed (ensuring the entity hierarchy is complete
+        back to the root)"""
+        if not self.closed:
+            raise errors.ModelError(
+                "Can't set contained on incomplete type %s" % self.qname)
+        if self.contained is False:
+            # a derived type has already indicated containment
+            raise errors.ModelError(
+                errors.Requirement.nav_multi_contains_s % self.qname)
+        t = self.base
+        while isinstance(t, EntityType):
+            if t.contained:
+                raise errors.ModelError(
+                    errors.Requirement.nav_multi_contains_s % self.qname)
+            else:
+                t.contained = False
+                t = t.base
+        self.contained = True
+
+    def close(self):
+        """Overridden to catch additional EntityType constraints"""
+        if not self.abstract and not self.key_defined():
+            raise errors.ModelError(
+                errors.Requirement.et_abstract_key_s % self.qname)
+        if self.base is not None:
+            # if we are abstract, our base MUST also be abstract
+            if self.abstract and not self.base.abstract:
+                raise errors.ModelError(
+                    errors.Requirement.et_abstract_base_s % self.qname)
+            if self.key and self.base.key_defined():
+                raise errors.ModelError(
+                    errors.Requirement.et_abstract_no_key_s % self.qname)
+        # Now ready to close
+        super(EntityType, self).close()
+        # Post-closure validity checks...
+        for name, path in self.key:
+            try:
+                kp = self.resolve_sproperty_path(path, inheritance=False)
+            except errors.PathError as err:
+                raise errors.ModelError(
+                    errors.Requirement.key_path_s %
+                    ("%s: %s" % (self.qname, str(err))))
+            if isinstance(kp.type_def, EnumerationType) or (
+                    isinstance(kp.type_def, PrimitiveType) and
+                    issubclass(kp.type_def.value_type, (
+                        BooleanValue, DateValue,
+                        DateTimeOffsetValue, DecimalValue,
+                        DurationValue, GuidValue, IntegerValue,
+                        StringValue, TimeOfDayValue))):
+                if kp.nullable:
+                    raise errors.ModelError(
+                        errors.Requirement.key_nullable_s % kp.qname)
+                if len(path) > 1 and (name in self or name in self.key_dict):
+                    raise errors.ModelError(
+                        errors.Requirement.key_alias_unique_s % name)
+                # this one's OK
+                self.key_dict[name] = (path, kp)
+            else:
+                raise errors.ModelError(
+                    errors.Requirement.key_type_s % kp.qname)
+
+
+class EntityValue(StructuredValue):
+
+    """Represents the value of an Entity type, i.e., an Entity.
+
+    entity_set
+        An optional EntitySet that contains this value."""
+
+    def __init__(self, type_def=None, entity_set=None, **kwargs):
+        if type_def is not None and not isinstance(type_def, EntityType):
+            raise errors.ModelError(
+                "EntityValue requires EntityType: %s" % repr(type_def))
+        super(EntityValue, self).__init__(
+            type_def=edm['EntityType'] if type_def is None else type_def,
+            **kwargs)
+        self.entity_set = entity_set
+
+    def get_entity(self, path, ignore_containment=True):
+        """Returns self
+
+        See: :meth:`StructuredType.get_entity` for more information."""
+        if self.parent_ref is None or not ignore_containment:
+            return self
+        else:
+            return super(EntityValue, self).get_entity(
+                path, ignore_containment)
+
+    def get_path(self, path):
+        """Returns the value of the property pointed to by path
+
+        path
+            A list of strings."""
+        v = self
+        for p in path:
+            v = self[p]
+        return v
+
+    def get_key(self):
+        """Returns this entity's key (as a tuple if composite)"""
+        t = self.type_def
+        key = None
+        while isinstance(t, EntityType):
+            if t.key:
+                key = t.key
+                break
+            else:
+                t = t.base
+        if not key:
+            raise errors.ModelError("Entity has no key!")
+        if len(key) > 1:
+            return tuple(self.get_path(p).value for a, p in key)
+        else:
+            return self.get_path(key[0][1]).value
+
+    def get_read_url(self):
+        """Returns the read URL of this entity
+
+        If this is a transient entity, None is returned."""
+        raise NotImplementedError
+
+    def get_edit_url(self, path=None):
+        """Returns the edit URL of this entity.
+
+        path
+            A property path, if None the edit URL of the entity itself
+            is returned.
+
+        If this is a transient entity, None is returned."""
+        raise NotImplementedError
+
+
+class Term(Named):
+
+    """Represents a defined term in the OData model
+
+    In many ways Annotations can be thought of as custom property values
+    associated with an object and Terms can be thought of as custom
+    property definitions.  Like property definitions, they have an
+    associated type that can be called to create a new :class:`Value`
+    instance of the correct type for the Term."""
+
+    def __init__(self, **kwargs):
+        super(Term, self).__init__(**kwargs)
+        #: the type definition for values of this property
+        self.type_def = None
+        #: the base term of this term
+        self.base = None
+        #: whether or not the term can be null (or contain null in the
+        #: case of a collection)
+        self.nullable = True
+        #: the default value of the term (primitive/enums only)
+        self.default_value = None
+
+    def set_type(self, type_def):
+        self.type_def = type_def
+
+    def set_nullable(self, nullable):
+        self.nullable = nullable
+
+    def set_default(self, default_value):
+        self.default_value = default_value
+
+
+class EntityContainer(NameTable):
+
+    """An EntityContainer is a container for OData entities."""
+
+    def __init__(self, **kwargs):
+        super(EntityContainer, self).__init__(**kwargs)
+        #: the entity container we are extending
+        self.extends = None
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against SimpleIdentifier
+
+        Raises ValueError if the name is not valid (or is None).
+
+        From the spec:
+
+            The edm:EntityContainer element MUST provide a unique
+            SimpleIdentifier value for the Name attribute."""
+        if name is None:
+            raise ValueError("unnamed container")
+        elif not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid SimpleIdentifier" % name)
+
+    def check_value(self, value):
+        """The following types may be declared in an EntityContainer:
+
+        EntitySet, Singleton, ActionImport and FunctionImport."""
+        if not isinstance(value, (EntitySet, Singleton)):
+            raise TypeError(
+                "%s can't be declared in %s" %
+                (repr(value),
+                 "<EntityContainer>" if self.name is None else self.name))
+
+    def set_extends(self, extends):
+        """Sets the container that this container extends"""
+        if not isinstance(extends, EntityContainer):
+            raise TypeError(
+                "%s must be an entity container" % extends.qname)
+        self.extends = extends
+
+    def close(self):
+        # before we close this nametable, add in the declarataions from
+        # the extended container if present
+        logging.debug("Closing EntityContainer %s", self.qname)
+        if self.extends is not None:
+            for name, item in self.extends.items():
+                # we tolerate cycles, which means that if an item is
+                # already declared we ignore it
+                old_item = self.get(name, None)
+                if old_item is item:
+                    continue
+                self[name] = item
+        super(EntityContainer, self).close()
+        # resolve the navigation bindings of each entity set relative
+        # to the defining model.
+        model = self.get_model()
+        for name, item in self.items():
+            if isinstance(item, EntitySet):
+                item.bind_navigation(model)
+
+    def get_model(self):
+        """Returns the entity model that defines this container.
+
+        The container must have been declared within a Schema which, in
+        turn, must have been declared within an EntityModel.  Otherwise
+        None is returned."""
+        if self.nametable is not None:
+            schema = self.nametable()
+            return schema.get_model()
+
+
+class NavigationBinding(object):
+
+    """Represents a navigation property binding"""
+
+    def __init__(self):
+        #: the navigation property path
+        self.np_path = None
+        #: the navigation property definition
+        self.np = None
+        #: the target (an EntitySet or Singleton)
+        self.target = None
+        #: the target path within instances of the target
+        self.target_path = None
+
+
+class EntitySet(Named):
+
+    """Represents an EntitySet in the OData model."""
+
+    def __init__(self, **kwargs):
+        super(EntitySet, self).__init__(**kwargs)
+        #: the entity type of the entities in this set
+        self.entity_type = None
+        #: the service we're bound to
+        self.service = None
+        #: whether to advertise in the service document
+        self.in_service = True
+        self._nb_list = []
+        #: navigation bindings, mapping from path tuple to
+        #: NavigationBinding instance
+        self.navigation_bindings = {}
+        # the URL of this entity set
+        self.url = None
+
+    def set_type(self, entity_type):
+        """Sets the entity type for this entity set
+
+        The entity_type must be closed before it can be used as the type
+        of an entity set."""
+        if not entity_type.closed:
+            raise errors.ModelError(
+                "Type %s is still open" % entity_type.qname)
+        if not entity_type.key_defined():
+            raise errors.ModelError(
+                errors.Requirement.entity_set_abstract_s % self.qname)
+        self.entity_type = entity_type
+
+    def set_in_service(self, in_service):
+        """Sets whether or not to advertise this entity set
+
+        in_service
+            Boolean value, True meaning advertise in the service
+            document"""
+        self.in_service = in_service
+
+    def add_navigation_binding(self, path, target):
+        """Adds a navigation binding to this entity set
+
+        path
+            An array of strings/QualifiedName instances that define a
+            path to the navigation property being bound.
+
+        target
+            An array of strings that define a path to the target entity
+            set."""
+        nb = NavigationBinding()
+        nb.np_path = path
+        nb.target_path = target
+        self._nb_list.append(nb)
+
+    def bind_navigation(self, model):
+        """Binds navigation paths to target entity sets
+
+        This method is called when the enclosing EntityContainer is
+        closed but we must wait for the model itself to close before we
+        can resolve the navigation bindings to ensure that qualified
+        names can be resolved in the paths."""
+
+        def model_closed():
+            logging.debug("Resolving EntitySet bindings for %s", self.qname)
+            if self.entity_type is None:
+                raise errors.ModelError("%s has no EntityType" % self.qname)
+            for nb in self._nb_list:
+                try:
+                    self.entity_type.resolve_nppath(
+                        nb.np_path, model, follow_containment=True)
+                    # freeze the path into a tuple
+                    nb.np_path = tuple(nb.np_path)
+                    if nb.np_path in self.navigation_bindings:
+                        raise errors.ModelError(
+                            errors.Requirement.navbinding_unique_s % (
+                                self.qname + "/" +
+                                StructuredType.path_to_str(nb.np_path)))
+                    nb.target = self.resolve_target_path(
+                        nb.target_path, model)
+                    logging.debug("Binding %s to %s/%s", to_text(nb.np_path),
+                                  nb.target.qname,
+                                  StructuredType.path_to_str(nb.target_path))
+                    self.navigation_bindings[nb.np_path] = nb
+                except errors.PathError as err:
+                    # takes care of most of our constraints at once
+                    raise errors.ModelError(
+                        errors.Requirement.navbinding_path_s % to_text(err))
+
+        if self.nametable is not None:
+            model = self.nametable().get_model()
+            model.tell_close(model_closed)
+
+    def resolve_target_path(self, path, context):
+        """Resolves a target path relative to this entity set
+
+        path
+            A list of string and/or :class:`QualifiedName` that resolves
+            to an entity set.  Redundant path segments will be removed
+            so that this becomes a canonical path on return (see below).
+
+        context
+            The model within which to resolve qualified names.
+
+        Returns the EntitySet or Singleton object the path resolves to
+        and updates path so that it contains a path from that item's
+        entity type to the target containment navigation property.  The
+        path list will be empty on return if the target is the EntitySet
+        or Singleton itself."""
+        if self.name is None or self.nametable is None:
+            return errors.ObjectNotDeclaredError
+        if len(path) == 1 and is_text(path[0]):
+            # a SimpleIdentifier, must be in the same container
+            container = self.nametable()
+            if path[0] not in container:
+                raise errors.ModelError(
+                    errors.Requirement.navbinding_simple_target_s %
+                    ("%s => %s" % (self.qname, path[0])))
+            target = container[path[0]]
+            del path[0]
+            return target
+        else:
+            # a QualifiedName refers to a container, it must be followed
+            # by the simple identifier of an EntitySet or a Singleton
+            if len(path) < 2 or not isinstance(path[0], QualifiedName) or \
+                    not is_text(path[1]):
+                raise errors.ModelError(
+                    errors.Requirement.navbinding_simple_target_s %
+                    ("%s => %s" %
+                     (self.qname, StructuredType.path_to_str(path))))
+            try:
+                container = context.qualified_get(path[0])
+                target = container[path[1]]
+                del path[0:2]
+                if len(path):
+                    # we need to find a containment navigation property
+                    # we don't need to retain the definition at this point
+                    target.entity_type.resolve_nppath(
+                        path, context, follow_containment=True,
+                        require_containment=True)
+                return target
+            except errors.PathError as err:
+                raise errors.ModelError(
+                    errors.Requirement.navbinding_simple_target_s %
+                    to_text(err))
+            except KeyError as err:
+                raise errors.ModelError(
+                    errors.Requirement.navbinding_simple_target_s %
+                    ("%s => %s (%s)" %
+                     (self.qname, StructuredType.path_to_str(path),
+                      to_text(err))))
+
+    def resolve_binding(self, path):
+        """Returns the target entity set of a navigation property
+
+        path
+            A tuple of strings that specifies the canonical path to the
+            navigation property."""
+        nb = self.navigation_bindings(path)
+        return nb.target
+
+    def bind_to_service(self, service_ref):
+        """Binds this EntitySet to an data service
+
+        service_ref
+            A weak reference to the service
+
+        An EntitySet can only be bound to a single service."""
+        self.service = service_ref
+
+    def get_url(self):
+        """Return a URI for this entity set
+
+        An EntitySet has a URL if it is advertised by the service,
+        otherwise it does not have a URL and None is returned.  By
+        default the URI is a relative URI consisting of just the entity
+        set name.  The default url may be overridden using
+        :meth:`set_url`."""
+        if not self.in_service:
+            return None
+        elif self.url is not None:
+            return self.url
+        else:
+            return uri.URI.from_octets(
+                uri.escape_data(self.name.encode('utf-8')))
+
+    def set_url(self, url):
+        if not self.in_service:
+            raise errors.ModelError("EntitySet not advertised in service")
+        else:
+            self.url = url
+
+    def open(self):
+        """Opens this EntitySet
+
+        Returns an EntitySetValue bound to the same service as the
+        EntitySet."""
+        esv = EntitySetValue(entity_set=self, type_def=self.entity_type)
+        if self.service is not None:
+            esv.bind_to_service(self.service)
+        return esv
+
+
+class EntitySetValue(collections.Mapping, Value):
+
+    """Represents the value of an entity set
+
+    This class is used to represent *any* set of entities.  This could
+    be the set of entities exposed directly by an EntitySet in a
+    service's container or a restricted set of entities obtained by
+    navigation.  You can even instantiate it directly to create a
+    temporary entity set that is not backed by a data service at all.
+
+    The implementation inherits from Python's abstract MutableMapping
+    with the Entity keys as keys and the Entity instances as values.
+    The difference between an ordinary mapping and an EntitySet is that
+    iterating the items results in a predictable order."""
+
+    def __init__(self, entity_set=None, **kwargs):
+        super(EntitySetValue, self).__init__(**kwargs)
+        self.entity_set = entity_set
+        self._fullycached = True
+        self._keys = []
+        self._cache = {}
+
+    def bind_to_service(self, service_ref):
+        """Binds this EntitySetValue to a data service
+
+        This entity set value must be empty to be bound.
+
+        Once bound, the EntitySetValue automatically creates and
+        executes requests to the underlying data service and caches the
+        resulting information for speed."""
+        if self._keys:
+            raise errors.ServiceError(
+                "EntitySetValue must be empty to be bound")
+        self._fullycached = False
+        self._cache.clear()
+        super(EntitySetValue, self).bind_to_service(service_ref)
+
+    def clear_cache(self):
+        """Clears the local cache for this entity set
+
+        If this entity set value is bound to a service then any locally
+        cached information about the entities is cleared.  If not, it
+        does nothing."""
+        if self.service is not None:
+            self._fullycached = False
+            self._cache.clear()
+            del self._keys[:]
+
+    def __len__(self):
+        if self._fullycached:
+            return len(self._keys)
+        else:
+            request = self.service().get_item_count(self)
+            request.execute_request()
+            if isinstance(request.result, Exception):
+                raise request.result
+            return request.result
+
+    def __getitem__(self, key):
+        result = self._cache.get(key, None)
+        if result is None:
+            if self._fullycached:
+                raise KeyError
+            else:
+                # cache fault, load from source
+                raise NotImplementedError
+        return result
+
+    def __iter__(self):
+        if self._fullycached:
+            for k in self._keys:
+                yield k
+        else:
+            self._keys = []
+            request = self.service().get_entity_collection(self)
+            while request is not None:
+                request.execute_request()
+                if isinstance(request.result, Exception):
+                    raise request.result
+                # the result is a list of entities
+                for e in request.result:
+                    k = e.get_key()
+                    self._keys.append(k)
+                    self._cache[k] = e
+                    yield k
+                request = request.next_request
+
+    def get_url(self):
+        """Returns the context URL for this entity collection"""
+        return self.entity_set.get_url()
+
+
+class Singleton(Named):
+
+    """Represents a Singleton in the OData model."""
+
+    def __init__(self, **kwargs):
+        super(Singleton, self).__init__(**kwargs)
+        #: the entity type of this entity
+        self.entity_type = None
+        # the URL of this entity set
+        self.url = None
+
+    def set_type(self, entity_type):
+        """Sets the entity type for this entity
+
+        The entity_type must be closed before it can be used as the type
+        of a singleton."""
+        if not entity_type.closed:
+            raise errors.ModelError(
+                "Type %s is still open" % entity_type.qname)
+        self.entity_type = entity_type
+
+    def get_url(self):
+        """Return a URI for this singleton
+
+        Singletons are always advertised by the service so always have a
+        URL.  By default the URI is a relative URI consisting of just
+        the singleton's name.  The default url may be overridden using
+        :meth:`set_url`."""
+        if self.url is not None:
+            return self.url
+        else:
+            return uri.URI.from_octets(
+                uri.escape_data(self.name.encode('utf-8')))
+
+    def set_url(self, url):
+        self.url = url
 
 
 class NumericValue(PrimitiveValue):
@@ -2205,7 +3791,7 @@ class NumericValue(PrimitiveValue):
         if issubclass(type_def.value_type, NumericValue):
             result = type_def()
             try:
-                result.set(self.value)
+                result.set_value(self.value)
                 if issubclass(type_def.value_type, FloatValue) and \
                         result.value is not None:
                     if math.isinf(result.value):
@@ -2218,7 +3804,7 @@ class NumericValue(PrimitiveValue):
                 pass
             return result
         else:
-            return PrimitiveValue.cast(self, type_def)
+            return super(NumericValue, self).cast(type_def)
 
 
 class IntegerValue(NumericValue):
@@ -2240,7 +3826,7 @@ class IntegerValue(NumericValue):
 
     _pytype = None      # override for each integer type
 
-    def set(self, value):
+    def set_value(self, value):
         if isinstance(value, self._num_types):
             v = self._pytype(value)
             if v < self.MIN or v > self.MAX:
@@ -2274,7 +3860,7 @@ class FloatValue(NumericValue):
     _inf = float('inf')
     _negative_inf = float('-inf')
 
-    def set(self, value):
+    def set_value(self, value):
         if value is None:
             self.value = None
         elif isinstance(value, decimal.Decimal):
@@ -2322,7 +3908,7 @@ class BinaryValue(PrimitiveValue):
 
     edm_name = 'Binary'
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = None
         else:
@@ -2368,7 +3954,7 @@ class BooleanValue(PrimitiveValue):
 
     edm_name = 'Boolean'
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None or value is True or value is False:
             self.value = value
         elif isinstance(value, PrimitiveValue):
@@ -2449,7 +4035,7 @@ class DecimalValue(NumericValue):
             q = decimal.Decimal((0, self.type_def.dec_digits, -rdigits))
         return value.quantize(q, rounding=decimal.ROUND_HALF_UP)
 
-    def set(self, value):
+    def set_value(self, value):
         if value is None:
             self.value = None
         elif isinstance(value, (int, bool, long2)):
@@ -2649,7 +4235,7 @@ class DateValue(PrimitiveValue):
 
     edm_name = 'Date'
 
-    def set(self, value):
+    def set_value(self, value):
         if isinstance(value, Date):
             # force xdigits=-1, must be complete
             if not value.complete():
@@ -2717,7 +4303,7 @@ class DateTimeOffsetValue(PrimitiveValue):
 
     edm_name = 'DateTimeOffset'
 
-    def set(self, value):
+    def set_value(self, value):
         if value is None:
             self.value = None
         elif isinstance(value, TimePoint):
@@ -2839,7 +4425,7 @@ class DurationValue(PrimitiveValue):
 
     edm_name = 'Duration'
 
-    def set(self, value):
+    def set_value(self, value):
         if value is None:
             self.value = None
         elif isinstance(value, xsi.Duration):
@@ -2891,7 +4477,7 @@ class GuidValue(PrimitiveValue):
 
     edm_name = 'Guid'
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = None
         elif isinstance(value, bytes) and len(value) == 16:
@@ -2950,7 +4536,7 @@ class StringValue(PrimitiveValue):
 
     edm_name = 'String'
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = None
         else:
@@ -3012,7 +4598,7 @@ class TimeOfDayValue(PrimitiveValue):
 
     edm_name = 'TimeOfDay'
 
-    def set(self, value):
+    def set_value(self, value):
         if isinstance(value, Time):
             # no zone allowed
             if not value.complete():
@@ -3067,7 +4653,7 @@ class TimeOfDayValue(PrimitiveValue):
 
 class PointValue(object):
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = value
         elif isinstance(value, geo.PointLiteral):
@@ -3093,7 +4679,7 @@ class PointValue(object):
 
 class LineStringValue(object):
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = value
         elif isinstance(value, geo.LineStringLiteral):
@@ -3119,7 +4705,7 @@ class LineStringValue(object):
 
 class PolygonValue(object):
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = value
         elif isinstance(value, geo.PolygonLiteral):
@@ -3146,7 +4732,7 @@ class PolygonValue(object):
 
 class MultiPointValue(object):
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = value
         elif isinstance(value, geo.MultiPointLiteral):
@@ -3172,7 +4758,7 @@ class MultiPointValue(object):
 
 class MultiLineStringValue(object):
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = value
         elif isinstance(value, geo.MultiLineStringLiteral):
@@ -3198,7 +4784,7 @@ class MultiLineStringValue(object):
 
 class MultiPolygonValue(object):
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = value
         elif isinstance(value, geo.MultiPolygonLiteral):
@@ -3224,7 +4810,7 @@ class MultiPolygonValue(object):
 
 class GeoCollectionValue(object):
 
-    def set(self, value=None):
+    def set_value(self, value=None):
         if value is None:
             self.value = value
         elif isinstance(value, geo.GeoCollectionLiteral):
@@ -3324,135 +4910,6 @@ class GeometryMultiPolygonValue(MultiPolygonValue, GeometryValue):
 class GeometryCollectionValue(GeoCollectionValue, GeometryValue):
 
     edm_name = 'GeometryCollection'
-
-
-class EnumerationValue(UnicodeMixin, Value):
-
-    """Represents the value of an Enumeration type"""
-
-    def __init__(self, type_def, pvalue=None):
-        Value.__init__(self, type_def)
-        self.value = None
-        if pvalue is not None:
-            self.set(pvalue)
-
-    def __unicode__(self):
-        if self.value is None:
-            raise ValueError("null value has no text representation")
-        elif self.type_def.is_flags:
-            return ul(',').join([v.name for
-                                 v in self.type_def.lookup_flags(self.value)])
-        else:
-            return self.type_def.lookup(self.value).name
-
-    def set(self, value):
-        """Sets the value from a python 'native' value representation
-
-        Accepts None (meaning null), integer, string or iterable objects
-        that yield integer and/or strings (mixtures are acceptable).
-        Other types raise TypeError.
-
-        Strings and values are converted to enum members through look-up
-        and (for flags) bitwise OR operation.  If a value is not
-        defined in the enumeration then ValueError is raised.  Note
-        that with flags enumerations you may *only* set the (integer) value
-        to an integer representing multiple flags *if* that value has
-        a defined name.  For example, if you have Red=1 and Blue=2 as
-        members then you may::
-
-            v.set(1)
-            v.set(2)
-            v.set((1, 2))
-
-        however, you may *not*::
-
-            v.set(3)
-
-        This rule has implications for the use of 0 which, for a flags
-        enumeration, means no flags are set.  You *must* define a member
-        with value of 0 if you want to use this value.  E.g., extending
-        the above example define Black=0 if you want to do this::
-
-            v.set(0)"""
-        if is_text(value) or isinstance(value, (int, long2)):
-            self.value = self.type_def.lookup(value).value
-        elif self.type_def.is_flags:
-            # iterate over the values
-            total_value = 0
-            count = 0
-            try:
-                for v in value:
-                    count += 1
-                    total_value |= self.type_def.lookup(v).value
-            except TypeError:
-                raise TypeError("int, str or iterable thereof required")
-            if not count:
-                raise ValueError("Enum member name or value expected")
-            self.value = total_value
-        else:
-            raise TypeError("Enum member or value expected")
-
-
-class CollectionValue(Value):
-
-    """Represents the value of a Collection
-
-    The type_def is required on construction.  There is no default
-    collection type.
-
-    It is important to understand the distinction between the object
-    that represents a value in the OData model and the Python-like
-    object that can be used to access a native representation of that
-    value.
-
-    In the case of primitive types the distinction is made using the
-    :attr:`PrimitiveValue.value` attribute that contains a Python-native
-    value representing the value (or None if the value is a null).  For
-    collections we retain the same sort of distinction.  The
-    CollectionValue object is not blessed with Python's Collection
-    behaviour but must be *opened* in order to obtain such a
-    representation.
-
-    This distinction has important implications for the use of the null
-    test.  A collection value is never null, so it always returns True
-    in simple boolean logic tests even if the collection is empty. On
-    the other hand, the object returned by :meth:`open` behaves like a
-    python Collection object and will evaluate to False if it is
-    empty."""
-
-    def __init__(self, type_def):
-        Value.__init__(self, type_def)
-
-    def is_null(self):
-        """CollectionValues are *never* null"""
-        return False
-
-
-class ComplexValue(Value, collections.Mapping):
-
-    """Represents the value of a Complex type
-
-    Instances behave like dictionaries of property values."""
-
-    def __init__(self, type_def=None):
-        if type_def is not None and not isinstance(type_def, ComplexType):
-            raise ModelError("ComplexValue required ComplexType: %s" %
-                             repr(type_def))
-        Value.__init__(self, type_def=edm['ComplexType'] if type_def is None
-                       else type_def)
-        self._value_table = {}
-        # create all the values
-        for name, property in type_def.items():
-            self._value_table[name] = property.type_def()
-
-    def __getitem__(self, key):
-        return self._value_table[key]
-
-    def __iter__(self):
-        return iter(self._value_table)
-
-    def __len__(self):
-        return len(self._value_table)
 
 
 _oid_start_char = CharClass("_")
@@ -3600,9 +5057,9 @@ class ODataParser(BasicParser):
         error."""
         v = BooleanValue()
         if self.parse_insensitive("true"):
-            v.set(True)
+            v.set_value(True)
         elif self.parse_insensitive("false"):
-            v.set(False)
+            v.set_value(False)
         else:
             self.parser_error("booleanValue")
         return v
@@ -3620,9 +5077,9 @@ class ODataParser(BasicParser):
         if self.parse('.'):
             rdigits = self.require_production(self.parse_digits(1),
                                               "decimal fraction")
-            v.set(decimal.Decimal(sign + ldigits + '.' + rdigits))
+            v.set_value(decimal.Decimal(sign + ldigits + '.' + rdigits))
         else:
-            v.set(decimal.Decimal(sign + ldigits))
+            v.set_value(decimal.Decimal(sign + ldigits))
         return v
 
     # Line 869
@@ -3635,14 +5092,14 @@ class ODataParser(BasicParser):
         sign = self.parse_one('+-')
         if not sign:
             if self.parse('INF'):
-                v.set(float('inf'))
+                v.set_value(float('inf'))
                 return v
             elif self.parse('NaN'):
-                v.set(float('nan'))
+                v.set_value(float('nan'))
                 return v
             sign = ''
         elif sign == '-' and self.parse('INF'):
-            v.set(float('-inf'))
+            v.set_value(float('-inf'))
             return v
         ldigits = self.require_production(self.parse_digits(1),
                                           "decimal digits")
@@ -3660,7 +5117,7 @@ class ODataParser(BasicParser):
             exp = 'E' + sign + edigits
         else:
             exp = ''
-        v.set(float(dec + exp))
+        v.set_value(float(dec + exp))
         return v
 
     # Line 870
@@ -3670,7 +5127,7 @@ class ODataParser(BasicParser):
         Returns a :class:`SingleValue` instance or raises a parser
         error."""
         v = SingleValue()
-        v.set(self.require_double_value().value)
+        v.set_value(self.require_double_value().value)
         return v
 
     # Line 873
@@ -3696,7 +5153,7 @@ class ODataParser(BasicParser):
             self.parser_error("12HEXDIG")
         hex_parts.append(part)
         result = GuidValue()
-        result.set(uuid.UUID(hex=''.join(hex_parts)))
+        result.set_value(uuid.UUID(hex=''.join(hex_parts)))
         return result
 
     # Line 875
@@ -3709,7 +5166,7 @@ class ODataParser(BasicParser):
         digits = self.require_production(self.parse_digits(1, 3), "byteValue")
         v = ByteValue()
         try:
-            v.set(int(digits))
+            v.set_value(int(digits))
         except ValueError:
             self.parser_error('byte in range [0, 255]')
         return v
@@ -3724,7 +5181,7 @@ class ODataParser(BasicParser):
         digits = self.require_production(self.parse_digits(1, 3), "sbyteValue")
         v = SByteValue()
         try:
-            v.set(int(sign + digits))
+            v.set_value(int(sign + digits))
         except ValueError:
             self.parser_error('sbyte in range [-128, 127]')
         return v
@@ -3739,7 +5196,7 @@ class ODataParser(BasicParser):
         digits = self.require_production(self.parse_digits(1, 5), "int16Value")
         v = Int16Value()
         try:
-            v.set(int(sign + digits))
+            v.set_value(int(sign + digits))
         except ValueError:
             self.parser_error('int16Value in range [-32768, 32767]')
         return v
@@ -3755,7 +5212,7 @@ class ODataParser(BasicParser):
             self.parse_digits(1, 10), "int32Value")
         v = Int32Value()
         try:
-            v.set(int(sign + digits))
+            v.set_value(int(sign + digits))
         except ValueError:
             self.parser_error('int32Value in range [-2147483648, 2147483647]')
         return v
@@ -3771,7 +5228,7 @@ class ODataParser(BasicParser):
                                          "int64Value")
         v = Int64Value()
         try:
-            v.set(int(sign + digits))
+            v.set_value(int(sign + digits))
         except ValueError:
             self.parser_error('int64Value in range [-9223372036854775808, '
                               '9223372036854775807]')
@@ -3816,8 +5273,8 @@ class ODataParser(BasicParser):
         bce, c, y = Date.split_year(year)
         result = DateValue()
         try:
-            result.set(Date(bce=bce, century=c, year=y, month=month, day=day,
-                            xdigits=-1))
+            result.set_value(Date(bce=bce, century=c, year=y, month=month,
+                                  day=day, xdigits=-1))
             return result
         except DateTimeError:
             self.parser_error("valid dateValue")
@@ -3860,7 +5317,7 @@ class ODataParser(BasicParser):
             zminute = self.require_minute()
         result = DateTimeOffsetValue()
         try:
-            result.set(
+            result.set_value(
                 TimePoint(
                     date=Date(bce=bce, century=c, year=y, month=month, day=day,
                               xdigits=-1),
@@ -3935,7 +5392,7 @@ class ODataParser(BasicParser):
             second = 0
         result = TimeOfDayValue()
         try:
-            result.set(Time(hour=hour, minute=minute, second=second))
+            result.set_value(Time(hour=hour, minute=minute, second=second))
             return result
         except DateTimeError:
             self.parser_error("valid timeOfDayValue")
@@ -4367,6 +5824,7 @@ class ODataParser(BasicParser):
 
 
 edm = Schema.edm_init()
+odata = Schema.odata_init()
 
 
 class DocumentSchemas(NameTable):

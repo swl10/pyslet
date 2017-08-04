@@ -8,7 +8,8 @@
                     <PropertyRef Name="ID"/>
                 </Key>
                 <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-                <NavigationProperty Name="AB" Type="test.pyslet.org.TypeB"/> 
+                <NavigationProperty Name="AC"
+                    Type="test.pyslet.org.TypeC" ContainsTarget="true"/> 
             </EntityType>
             <EntityType Name="TypeB">
                 <Key>
@@ -23,22 +24,24 @@
                 <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
             </EntityType>
             <EntityType Name="TypeD" BaseType="test.pyslet.org.TypeC">
-                <NavigationProperty Name="DB"
-                    Type="test.pyslet.org.TypeB" ContainsTarget="true"/> 
+                <Property Name="DInfo" Type="Edm.String" Nullable="false"/>                
+                <NavigationProperty Name="CB" Type="test.pyslet.org.TypeB"/> 
+            </EntityType>
+            <EntityType Name="TypeE" BaseType="test.pyslet.org.TypeD">
+                <Property Name="EInfo" Type="Edm.String" Nullable="false"/>                
             </EntityType>
             <EntityContainer Name="MyDB">
                 <EntitySet Name="A" EntityType="test.pyslet.org.TypeA">
-                    <!-- If the value of the Target attribute is a
-                    TargetPath, it MUST resolve to an entity set,
-                    singleton, or containment navigation property in
-                    scope -->
-                    <NavigationPropertyBinding Path="AB"
-                        Target="test.pyslet.org.YourDB/B/test.pyslet.org.TypeC"/>
+                    <NavigationPropertyBinding
+                        Path="AC/test.pyslet.org.TypeD/CB" Target="B1" />
+                    <!-- A navigation property MUST NOT be named in more
+                    than one navigation property binding -->
+                    <NavigationPropertyBinding
+                        Path="AC/test.pyslet.org.TypeE/CB" Target="B2" />
                 </EntitySet>
+                <EntitySet Name="B1" EntityType="test.pyslet.org.TypeB"/>
+                <EntitySet Name="B2" EntityType="test.pyslet.org.TypeB"/>
             </EntityContainer>
-            <EntityContainer Name="YourDB">
-                <EntitySet Name="C" EntityType="test.pyslet.org.TypeC"/>
-            </EntityContainer>            
         </Schema>
     </edmx:DataServices>
 </edmx:Edmx>

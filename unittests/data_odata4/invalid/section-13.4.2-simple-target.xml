@@ -16,28 +16,17 @@
                 </Key>
                 <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
             </EntityType>
-            <EntityType Name="TypeC">
-                <Key>
-                    <PropertyRef Name="ID"/>
-                </Key>
-                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-            </EntityType>
-            <EntityType Name="TypeD" BaseType="test.pyslet.org.TypeC">
-                <NavigationProperty Name="DB"
-                    Type="test.pyslet.org.TypeB" ContainsTarget="true"/> 
-            </EntityType>
             <EntityContainer Name="MyDB">
                 <EntitySet Name="A" EntityType="test.pyslet.org.TypeA">
                     <!-- If the value of the Target attribute is a
-                    TargetPath, it MUST resolve to an entity set,
-                    singleton, or containment navigation property in
-                    scope -->
-                    <NavigationPropertyBinding Path="AB"
-                        Target="test.pyslet.org.YourDB/B/test.pyslet.org.TypeC"/>
+                    SimpleIdentifier, it MUST resolve to an entity set
+                    or singleton defined in the same entity container as
+                    the enclosing element. -->
+                    <NavigationPropertyBinding Path="AB" Target="B"/>
                 </EntitySet>
             </EntityContainer>
             <EntityContainer Name="YourDB">
-                <EntitySet Name="C" EntityType="test.pyslet.org.TypeC"/>
+                <EntitySet Name="B" EntityType="test.pyslet.org.TypeB"/>
             </EntityContainer>            
         </Schema>
     </edmx:DataServices>

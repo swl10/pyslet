@@ -3,14 +3,14 @@
     xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
     <edmx:DataServices>
         <Schema Namespace="test.pyslet.org">
-            <EntityType Name="TypeA" Abstract="true">
-                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
-            </EntityType>
             <EntityContainer Name="MyDB">
                 <!-- The entity type named by the EntityType attribute
                 MAY be abstract but MUST have a key defined -->
                 <EntitySet Name="A" EntityType="test.pyslet.org.TypeA"/>
             </EntityContainer>
+            <EntityType Name="TypeA" Abstract="true">
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
         </Schema>
     </edmx:DataServices>
 </edmx:Edmx>

@@ -33,7 +33,7 @@
                     singleton, or containment navigation property in
                     scope -->
                     <NavigationPropertyBinding Path="AB"
-                        Target="test.pyslet.org.YourDB/B/test.pyslet.org.TypeC"/>
+                        Target="test.pyslet.org.YourDB/C/DB"/>
                 </EntitySet>
             </EntityContainer>
             <EntityContainer Name="YourDB">

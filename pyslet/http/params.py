@@ -527,6 +527,9 @@ class MediaType(SortableParameter):
             raise KeyError("MediaType instance has no parameter %s" %
                            repr(key))
 
+    def __contains__(self, key):
+        return key in self.parameters
+
     def sortkey(self):
         return (self.type.lower(), self.subtype.lower(), self._hp)
 

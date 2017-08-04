@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="test.pyslet.org">
+            <EntityType Name="TypeA">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="B" Type="test.pyslet.org.TypeB" />
+            </EntityType>
+            <ComplexType Name="TypeB">
+                <NavigationProperty Name="AC"
+                    Type="test.pyslet.org.TypeC" /> 
+            </ComplexType>
+            <EntityType Name="TypeC">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>            
+            <EntityContainer Name="MyDB">
+                <EntitySet Name="A" EntityType="test.pyslet.org.TypeA">
+                    <!-- If the navigation property is defined on a
+                    complex type used in the definition of the entity
+                    set’s entity type, the path attribute MUST contain a
+                    forward-slash separated list of complex property
+                    names -->
+                    <NavigationPropertyBinding Path="AC" Target="C" />
+                </EntitySet>
+                <EntitySet Name="C" EntityType="test.pyslet.org.TypeC"/>
+            </EntityContainer>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

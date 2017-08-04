@@ -24,7 +24,7 @@
             </EntityType>
             <EntityType Name="TypeD" BaseType="test.pyslet.org.TypeC">
                 <NavigationProperty Name="DB"
-                    Type="test.pyslet.org.TypeB" ContainsTarget="true"/> 
+                    Type="test.pyslet.org.TypeB" /> 
             </EntityType>
             <EntityContainer Name="MyDB">
                 <EntitySet Name="A" EntityType="test.pyslet.org.TypeA">
@@ -33,7 +33,7 @@
                     singleton, or containment navigation property in
                     scope -->
                     <NavigationPropertyBinding Path="AB"
-                        Target="test.pyslet.org.YourDB/B/test.pyslet.org.TypeC"/>
+                        Target="test.pyslet.org.YourDB/C/test.pyslet.org.TypeD/DB"/>
                 </EntitySet>
             </EntityContainer>
             <EntityContainer Name="YourDB">

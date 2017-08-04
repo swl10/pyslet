@@ -13,6 +13,32 @@ class ModelError(ODataError):
     pass
 
 
+class ServiceError(ODataError):
+
+    """General error in the data service
+
+    ServiceErrors define two additional fields, the equivalent HTTP code
+    and message string.  This saves having to define a lookup table in
+    the specific case of the HTTP binding."""
+
+    def __init__(self, message, http_code, http_msg):
+        super(ServiceError, self).__init__(message)
+        self.http_code = http_code
+        self.http_msg = http_msg
+
+
+class UnboundValue(ODataError):
+
+    """Raised when an operation is not permitted on an unbound value"""
+    pass
+
+
+class FrozenValueError(ODataError):
+
+    """Raised when an operation is not permitted on a frozen value"""
+    pass
+
+
 class DuplicateNameError(ModelError):
 
     """Raised when a duplicate name is encountered in a name table"""
@@ -53,9 +79,21 @@ class InheritanceCycleDetected(ModelError):
     pass
 
 
-class PathError(Exception):
+class PathError(ODataError):
 
     """Raised during path traversal"""
+    pass
+
+
+class URLError(ODataError):
+
+    """Base error for URL format exceptions"""
+    pass
+
+
+class FormatError(ODataError):
+
+    """Raised when a payload formatting error is encountered."""
     pass
 
 
@@ -80,7 +118,400 @@ class Req40(object):
     generated for invalid CSDL test cases."""
     pass
 
+#
+#  Part 1: Protocol
+#
+# Section 4: Service Model
 
+# TODO
+Requirement.entity_id_iri = (
+    "The entity-id MUST be an IRI")
+Req40.entity_id_iri = "4.0 P1 4.1 #1"
+
+# Never raised as we don't validate clients
+Requirement.entity_id_anyiri = (
+    "The client MUST be prepared to accept any IRI for an entity-id")
+Req40.entity_id_anyiri = "4.0 P1 4.1 #2"
+
+# TODO
+Requirement.entity_id_uri = (
+    "Services MUST use valid URIs for entity ids")
+Req40.entity_id_uri = "4.0 P1 4.1 #3"
+
+
+# Section 5: Versioning
+
+# TODO
+Requirement.user_dependent = (
+    "If a Service's data model is user or user group dependent, all "
+    "changes MUST be safe changes")
+Req40.user_dependent = "4.0 P1 5.2"
+
+
+# Section 6: Extensibility
+
+# TODO
+Requirement.custom_option_name = (
+    'Custom query options MUST NOT begin with the "$" or "@" character')
+Req40.custom_option_name = "4.0 P1 6.1 #1"
+
+# TODO
+Requirement.unsupported_option_s = (
+    "Services MUST fail any request that contains unsupported OData query "
+    "options (%s)")
+Req40.unsupported_option_s = "4.0 P1 6.1 #2 (%s)"
+
+# TODO
+Requirement.addition_content = (
+    "Additional content MUST NOT be present if it needs to be understood "
+    "by the receiver in order to correctly interpret the payload")
+Req40.addition_content = "4.0 P1 6.2 #1"
+
+# Not validated
+Requirement.addition_content_ignored = (
+    "Clients and services MUST be prepared to handle or safely ignore any "
+    "content not specifically defined in the version of the payload")
+Req40.addition_content_ignored = "4.0 P1 6.2 #2"
+
+# Not validated
+Requirement.function_side_effects = (
+    "Functions MUST NOT have side-effects")
+Req40.function_side_effects = "4.0 P1 6.3 #1"
+
+# TODO
+Requirement.unknown_function = (
+    "An OData service MUST fail any request that contains actions or "
+    "functions that it does not understand")
+Req40.unknown_function = "4.0 P1 6.3 #2"
+
+# Not validated
+Requirement.custom_annotation_required = (
+    "A service MUST NOT require the client to understand custom annotations "
+    "in order to accurately interpret a response")
+Req40.custom_annotation_required = "4.0 P1 6.4"
+
+# TODO
+Requirement.custom_header_name = (
+    "Custom headers MUST NOT begin with OData")
+Req40.custom_header_name = "4.0 P1 6.5 #1"
+
+# Not validated
+Requirement.custom_header_required = (
+    "A service MUST NOT require the client to understand custom headers "
+    "to accurately interpret the response")
+Req40.custom_header_required = "4.0 P1 6.5 #2"
+
+# Not validated
+Requirement.service_format = (
+    "An OData service MUST support at least one of [OData-JSON] or "
+    "[OData-Atom]")
+Req40.service_format = "4.0 P1 6.6"
+
+
+# Section 7: Formats
+
+# Not validated
+Requirement.service_format = (
+    "If both the Accept header and the $format query option are specified "
+    "the $format query option MUST be used")
+Req40.service_format = "4.0 P1 7 #1"
+
+# Not validated
+Requirement.array_order = (
+    "Client libraries MUST retain the order of objects within an array in "
+    "JSON responses")
+Req40.array_order = "4.0 P1 7 #2"
+
+# Not validated
+Requirement.element_order = (
+    "Client libraries MUST retain the order of elements in document order "
+    "for Atom and XML responses, including CSDL documents")
+Req40.element_order = "4.0 P1 7 #3"
+
+
+# Section 8: Header Fields
+
+# TODO
+Requirement.element_order = (
+    "The format of a non-empty individual request or response body MUST "
+    "be specified in the Content-Type header")
+Req40.element_order = "4.0 P1 8.1.1 #1"
+
+# Not validated
+Requirement.unexpected_format_param = (
+    "Clients MUST be prepared for the service to return custom format "
+    "parameters not specified in OData")
+Req40.unexpected_format_param = "4.0 P1 8.1.1 #2"
+
+# TODO
+Requirement.format_param_name = (
+    'Custom format parameters MUST NOT start with "odata"')
+Req40.format_param_name = "4.0 P1 8.1.1 #3"
+
+# Not validated
+Requirement.custom_format_param_required = (
+    "Services MUST NOT require generic OData consumers to understand "
+    "custom format parameters in order to correctly interpret the payload")
+Req40.custom_format_param_required = "4.0 P1 8.1.1 #4"
+
+# TODO
+Requirement.version_header = (
+    "If an OData-Version header is present on a request, the service MUST "
+    "interpret the request according to the specified version of the "
+    "protocol, or fail the request")
+Req40.version_header = "4.0 P1 8.1.5 #1"
+
+# TODO
+Requirement.no_version_header = (
+    "If an OData-Version header is not specified in a request, the service "
+    "MUST assume the minimum of the OData-MaxVersion and the maximum version "
+    "of the protocol that the service understands")
+Req40.no_version_header = "4.0 P1 8.1.5 #2"
+
+# TODO
+Requirement.version_required = (
+    "OData services MUST include the OData-Version header on a response")
+Req40.version_required = "4.0 P1 8.1.5 #3"
+
+# Not validated
+Requirement.version_processed = (
+    "The client MUST interpret the response according to the rules "
+    "defined by the OData-Version header")
+Req40.version_processed = "4.0 P1 8.1.5 #4"
+
+# TODO
+Requirement.format_param_rejected = (
+    "Services MUST reject formats that specify unknown or unsupported "
+    "format parameters")
+Req40.format_param_rejected = "4.0 P1 8.2.1 #1"
+
+# TODO
+Requirement.accept_charset = (
+    "If the Accept header includes a charset format parameter and the "
+    "request contains an Accept-Charset header, then the Accept-Charset "
+    "header MUST be used")
+Req40.accept_charset = "4.0 P1 8.2.1 #2"
+
+# TODO
+Requirement.charset_format_param = (
+    "If the Accept header does not include a charset format parameter, "
+    "then the Content-Type header of the response MUST NOT contain a "
+    "charset format parameter")
+Req40.charset_format_param = "4.0 P1 8.2.1 #3"
+
+# TODO
+Requirement.if_match = (
+    "The value of the If-Match request header MUST be an ETag value "
+    'previously retrieved for the entity, or "*" to match any value')
+Req40.if_match = "4.0 P1 8.2.4 #1"
+
+# TODO
+Requirement.no_if_match = (
+    "If an operation requires an ETag and the client does not specify an "
+    "If-Match request header the service MUST ensure that no observable "
+    "change occurs")
+Req40.no_if_match = "4.0 P1 8.2.4 #2"
+
+# TODO
+Requirement.etag_match = (
+    "If If-Match is specified, the request MUST only be processed if the "
+    "specified value matches the current ETag of the target entity")
+Req40.etag_match = "4.0 P1 8.2.4 #3"
+
+# TODO
+Requirement.etag_nomatch = (
+    "If the If-Match value does not match the current ETag of the entity "
+    "the service MUST respond with 412 Precondition Failed")
+Req40.etag_match = "4.0 P1 8.2.4 #4"
+
+# TODO
+Requirement.etag_nomatch_change = (
+    "If the If-Match value does not match the current ETag of the entity "
+    "the service MUST ensure that no observable change occurs as a "
+    "result of the request")
+Req40.etag_match = "4.0 P1 8.2.4 #5"
+
+# TODO
+Requirement.if_none_match = (
+    "The value of the If-None-Match request header MUST be an ETag value "
+    'previously retrieved for the entity, or "*"')
+Req40.if_none_match = "4.0 P1 8.2.5 #1"
+
+# TODO
+Requirement.not_etag_nomatch = (
+    "If If-None-Match is specified the request MUST only be processed if "
+    "the specified value does not match the current ETag of the entity")
+Req40.not_etag_nomatch = "4.0 P1 8.2.5 #2"
+
+# TODO
+Requirement.not_etag_match = (
+    "If the If-None-Match value matches the current ETag of the entity "
+    "for a Data Modification Request or Action Request, the service MUST "
+    "respond with 412 Precondition Failed")
+Req40.not_etag_match = "4.0 P1 8.2.5 #3"
+
+# TODO
+Requirement.not_etag_match_change = (
+    "If the If-None-Match value matches the current ETag of the entity "
+    "for a Data Modification Request or Action Request, the service MUST "
+    "ensure that no observable change occurs")
+Req40.not_etag_match_change = "4.0 P1 8.2.5 #4"
+
+# TODO
+Requirement.isolation = (
+    "If the service doesn't support OData-Isolation:snapshot the service "
+    "MUST NOT process the request")
+Req40.isolation = "4.0 P1 8.2.6 #1"
+
+# TODO
+Requirement.isolation_response = (
+    "If the service doesn't support OData-Isolation:snapshot the service "
+    "MUST respond with 412 Precondition Failed.")
+Req40.isolation_response = "4.0 P1 8.2.6 #2"
+
+# TODO
+Requirement.max_version = (
+    "If OData-MaxVersion is specified the service MUST generate a response "
+    "with an OData-Version less than or equal to that version")
+Req40.max_version = "4.0 P1 8.2.6 #3"
+
+# TODO
+Requirement.preferences = (
+    "The service MUST ignore preference values that are not supported "
+    "or known")
+Req40.preferences = "4.0 P1 8.2.8"
+
+# TODO
+Requirement.allow_entityreferences = (
+    "The service MUST NOT return entity references in place of requested "
+    "entities if odata.allow-entityreferences has not been specified in "
+    "the request")
+Req40.allow_entityreferences = "4.0 P1 8.2.8.1 #1"
+
+# TODO
+Requirement.allow_entityreferences_applied = (
+    "If the service applies the odata.allow-entityreferences preference it "
+    "MUST include a Preference-Applied response header containing the "
+    "odata.allow-entityreferences preference")
+Req40.allow_entityreferences_applied = "4.0 P1 8.2.8.1 #2"
+
+# TODO
+Requirement.callback = (
+    "The odata.callback preference MUST include the parameter url of a "
+    "callback endpoint")
+Req40.callback = "4.0 P1 8.2.8.2 #1"
+
+# TODO
+Requirement.callback_applied = (
+    "If the service applies the odata.callback preference it MUST "
+    "include the odata.callback preference in the Preference-Applied "
+    "response header")
+Req40.callback_applied = "4.0 P1 8.2.8.2 #2"
+
+# Not validated
+Requirement.multiple_callbacks = (
+    "If the consumer specifies the same URL as callback endpoint in "
+    "multiple requests it MUST be prepared to deal with receiving up to "
+    "as many notifications as it requested")
+Req40.multiple_callbacks = "4.0 P1 8.2.8.2 #3"
+
+# Not validated
+Requirement.batch_error = (
+    "If odata.continue-on-error is not specified, upon encountering an "
+    "error the service MUST return the error within the batch and stop")
+Req40.batch_error = "4.0 P1 8.2.8.3"
+
+
+# Section 11: Data Service Requests
+
+# TODO
+Requirement.service_document = (
+    "OData services MUST support returning a service document from the "
+    "root URL of the service")
+Req40.service_document = "4.0 P1 11.1.1"
+
+# TODO
+Requirement.metadata_document = (
+    "OData services MUST expose a metadata document that describes the "
+    "data model exposed by the service")
+Req40.metadata_document = "4.0 P1 11.1.2 #1"
+
+# TODO
+Requirement.metadata_url = (
+    "The Metadata Document URL MUST be the root URL of the service with "
+    "$metadata appended")
+Req40.metadata_url = "4.0 P1 11.1.2 #2"
+
+# TODO
+Requirement.metadata_format = (
+    "If a request for metadata does not specify a format preference "
+    "then the XML representation MUST be returned")
+Req40.metadata_format = "4.0 P1 11.1.2 #3"
+
+# TODO
+Requirement.metadata_service = (
+    "A metadata service MUST use the schema defined by the CSDL")
+Req40.metadata_service = "4.0 P1 11.1.3"
+
+# TODO
+Requirement.resource_expired = (
+    "If a client subsequently requests an expired resource and it is "
+    "not feasible to return 410 Gone then the service MUST respond with "
+    "404 Not Found")
+Req40.resource_expired = "4.0 P1 11.2 #1"
+
+# TODO
+Requirement.query_option_order = (
+    "The result of a data request MUST be as if the system query options "
+    "were evaluated in the specified order: search, filter, count, "
+    "orderby, skip, top, expand, select and format")
+Req40.query_option_order = "4.0 P1 11.2 #2"
+
+# TODO
+Requirement.additional_properties = (
+    "Clients MUST be prepared to receive additional properties in an "
+    "entity or complex type instance that are not advertised in metadata")
+Req40.additional_properties = "4.0 P1 11.2.1 #1"
+
+# TODO
+Requirement.property_denied = (
+    "The Core.Permissions annotation MUST be returned with a value of "
+    "Core.Permission'None' for properties that are not available due to "
+    "permissions")
+Req40.property_denied = "4.0 P1 11.2.1 #2"
+
+#
+#  Part 2:
+#
+# Section 2: URL Components
+
+# See test_odata4_service.URITests.test_from_str
+Requirement.url_split = (
+    "RFC3986 defined URL processing MUST be performed before "
+    "percent-decoding")
+Req40.url_split = "4.0 P2 2 #1"
+
+# See test_odata4_service.URITests.test_from_str
+Requirement.path_split = (
+    'The undecoded path MUST be split into segments at "/"')
+Req40.path_split = "4.0 P2 2 #2"
+
+# See test_odata4_service.URITests.test_from_str
+Requirement.query_split = (
+    'The undecoded query MUST be split at "&" into query options, and '
+    'each query option at the first "=" into query option name and query '
+    'option value')
+Req40.query_split = "4.0 P2 2 #3"
+
+# See test_odata4_service.URITests.test_from_str
+Requirement.percent_decode = (
+    "Path segments, query option names, and query option values MUST be "
+    "percent decoded exactly once")
+Req40.percent_decode = "4.0 P2 2 #4"
+
+#
+# Part 3:
+#
 # Section 3: Entity Model Wrapper
 
 Requirement.csdl_root = (
@@ -368,7 +799,7 @@ Req40.nav_contains_s = "4.0 P3 7.1.5 #1 (%s)"
 Requirement.nav_contains_binding_s = (
     "Containment navigation properties MUST NOT be specified as the last "
     "path segment in the Path attribute of a navigation property binding (%s)")
-Req40.nav_contains_binding_s = "4.0 P3 7.1.5 #2 (%s)"
+Req40.nav_contains_binding_s = "4.0 P3 7.1.5 #2; 4.0 P3 13.4.1 #4 (%s)"
 
 Requirement.nav_rcontains_s = (
     "If the containment is recursive, the partner navigation property MUST "
@@ -684,3 +1115,141 @@ Requirement.td_annotation_s = (
     "The use of a type definition MUST NOT specify an annotation specified "
     "in the type definition (%s)")
 Req40.td_annotation_s = "4.0 P3 11.1.3 #2 (%s)"
+
+
+# Section 13: Entity Container
+
+Requirement.one_container = (
+    "Each metadata document used to describe an OData service MUST define "
+    "exactly one entity container")
+Req40.one_container = "4.0 P3 13"
+
+Requirement.container_names_s = (
+    "Entity set, singleton, action import, and function import names MUST "
+    "be unique within an entity container (%s)")
+Req40.container_names_s = "4.0 P3 13.1 (%s)"
+
+Requirement.container_name_s = (
+    "The edm:EntityContainer element MUST provide a unique SimpleIdentifier "
+    "value for the Name attribute (%s)")
+Req40.container_name_s = "4.0 P3 13.1.1 (%s)"
+
+Requirement.entity_set_name = (
+    "The edm:EntitySet element MUST include a Name attribute whose value "
+    "is a SimpleIdentifier")
+Req40.entity_set_name = "4.0 P3 13.2.1"
+
+Requirement.entity_set_type_s = (
+    "The edm:EntitySet element MUST include an EntityType attribute whose "
+    "value is the QualifiedName of an entity type in scope (%s)")
+Req40.entity_set_type_s = "4.0 P3 13.2.2 #1 (%s)"
+
+# TODO - validate response from badly behaved service
+Requirement.entity_set_instances = (
+    "An entity set MUST contain only instances of the entity type specified "
+    "by the EntityType attribute or its subtypes")
+Req40.entity_set_instances = "4.0 P3 13.2.2 #2"
+
+Requirement.entity_set_abstract_s = (
+    "The entity type named by the EntityType attribute MAY be abstract but "
+    "MUST have a key defined (%s)")
+Req40.entity_set_abstract_s = "4.0 P3 13.2.2 #3 (%s)"
+
+Requirement.singleton_name = (
+    "The edm:Singleton element MUST include a Name attribute whose value is "
+    "a SimpleIdentifier")
+Req40.singleton_name = "4.0 P3 13.3.1"
+
+Requirement.singleton_type_s = (
+    "The edm:Singleton element MUST include a Type attribute whose value "
+    "is the QualifiedName of an entity type in scope (%s)")
+Req40.singleton_type_s = "4.0 P3 13.3.2 #1 (%s)"
+
+# TODO - validate response from badly behaved service
+Requirement.singleton_instance = (
+    "A singleton MUST reference an instance of the entity type specified "
+    "by the Type attribute")
+Req40.singleton_instance = "4.0 P3 13.3.2 #2"
+
+# TODO - issue with non-uniqueness of keys!
+Requirement.unbound_navigation = (
+    "If the navigation property binding is omitted, clients MUST assume "
+    "that the target entity set or singleton can vary per related entity")
+Req40.unbound_navigation = "4.0 P3 13.4"
+
+Requirement.navbinding_path_s = (
+    "A navigation property binding MUST name a navigation property of "
+    "the entity set's, singleton's, or containment navigation property's "
+    "entity type or one of its subtypes in the Path attribute (%s)")
+Req40.navbinding_path_s = "4.0 P3 13.4.1 #1-#3 (%s)"
+
+# Never raised: caught by Requirement.navbinding_path_s
+Requirement.navbinding_path_qname_s = (
+    "If the navigation property is defined on a subtype, the path attribute "
+    "MUST contain the QualifiedName of the subtype (%s)")
+Req40.navbinding_path_qname_s = "4.0 P3 13.4.1 #2 (%s)"
+
+# Never raised: caught by Requirement.navbinding_path_s
+Requirement.navbinding_path_complex_s = (
+    "If the navigation property is defined on a complex type used in the "
+    "definition of the entity set's entity type, the path attribute MUST "
+    "contain a forward-slash separated list of complex property names (%s)")
+Req40.navbinding_path_complex_s = "4.0 P3 13.4.1 #3 (%s)"
+
+# identical to Requirement.nav_contains_binding_s
+Requirement.navbind_contain_s = (
+    "The navigation binding path can traverse one or more containment "
+    "navigation properties but the last segment MUST be a non-containment "
+    "navigation property (%s)")
+Req40.navbind_contain_s = "4.0 P3 13.4.1 #4 (%s)"
+
+Requirement.navbind_noncontain_s = (
+    "In the navigation binding path there MUST NOT be any non-containment "
+    "navigation properties prior to the final segment (%s)")
+Req40.navbind_noncontain_s = "4.0 P3 13.4.1 #5; 4.0 P3 13.4.2 #3 (%s)"
+
+Requirement.navbinding_unique_s = (
+    "A navigation property MUST NOT be named in more than one navigation "
+    "property binding (%s)")
+Req40.navbinding_unique_s = "4.0 P3 13.4.1 #6 (%s)"
+
+Requirement.navbinding_target_s = (
+    "A navigation property binding MUST specify a SimpleIdentifier or "
+    "TargetPath value for the Target attribute (%s)")
+Req40.navbinding_target_s = "4.0 P3 13.4.2 #1 (%s)"
+
+Requirement.navbinding_simple_target_s = (
+    "If the value of the Target attribute is a SimpleIdentifier, it MUST "
+    "resolve to an entity set or singleton defined in the same entity "
+    "container as the enclosing element (%s)")
+Req40.navbinding_simple_target_s = "4.0 P3 13.4.2 #2 (%s)"
+
+# Never raised, simply a restatement of Requirement.navbind_noncontain_s
+Requirement.navbinding_noncontain_path = (
+    "If the value of the Target attribute is a TargetPath there MUST not "
+    "be any noncontainment navigation properties prior to the final segment")
+Req40.navbinding_noncontain_path = "4.0 P3 13.4.2 #3"
+
+
+# Section 14 Vocabulary and Annotation
+
+Requirement.term_name = (
+    "The edm:Term element MUST include a Name attribute whose value is "
+    "a SimpleIdentifier")
+Req40.term_name = "4.0 P3 14.1.1"
+
+Requirement.term_type_s = (
+    "The edm:Term element MUST include a Type attribute whose value is "
+    "a TypeName (%s)")
+Req40.term_type_s = "4.0 P3 14.1.2 (%s)"
+
+
+#
+#  JSON Format
+#
+# Section 5: Service Document
+
+Requirement.service_context = (
+    "The value of the odata.context property MUST be the URL of the "
+    "metadata document, without any fragment part")
+Req40.service_context = "4.0 JSON 5 #1"

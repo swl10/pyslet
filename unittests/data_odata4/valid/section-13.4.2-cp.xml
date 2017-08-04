@@ -28,12 +28,8 @@
             </EntityType>
             <EntityContainer Name="MyDB">
                 <EntitySet Name="A" EntityType="test.pyslet.org.TypeA">
-                    <!-- If the value of the Target attribute is a
-                    TargetPath, it MUST resolve to an entity set,
-                    singleton, or containment navigation property in
-                    scope -->
                     <NavigationPropertyBinding Path="AB"
-                        Target="test.pyslet.org.YourDB/B/test.pyslet.org.TypeC"/>
+                        Target="test.pyslet.org.YourDB/C/test.pyslet.org.TypeD/DB"/>
                 </EntitySet>
             </EntityContainer>
             <EntityContainer Name="YourDB">
