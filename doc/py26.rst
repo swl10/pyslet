@@ -21,9 +21,17 @@ wsgiref.simple_server
 zipfile
     Patches is_zipfile to add support for passing open files which is
     allowed under Python 2.7 but not under 2.6.
-    
+
 
 Module Reference
 ----------------
 
 ..	autodata::	py26
+
+..  class:: RawIOBase
+
+    There is a bug in the implementation of RawIOBase.read in Python 2.6
+    that means it never returns None, even if the stream is non-blocking
+    and the underlying readinto method returns None.  By importing
+    RawIOBase from this module instead you will get a patched version of
+    the class with correct read behaviour in Python 2.6.

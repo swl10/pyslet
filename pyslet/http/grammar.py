@@ -506,7 +506,7 @@ class BadSyntax(ValueError):
             if parser.match_end():
                 self.pos = len(parser.source)
             else:
-                self.pos = parser.word_pos[parser.pos]
+                self.pos = parser.src_pos[parser.pos]
             #: up to 40 characters/bytes to the left of pos
             self.left = parser.source[max(0, self.pos - 40):self.pos]
             #: up to 40 characters/bytes to the right of pos
@@ -566,7 +566,7 @@ class WordParser(ParserMixin):
     def __init__(self, source, ignore_sp=True):
         self.source = source
         self.words = []
-        self.word_pos = []
+        self.src_pos = []
         #: a pointer to the current word in the list
         self.pos = 0
         #: the current word or None
@@ -578,14 +578,14 @@ class WordParser(ParserMixin):
         p = OctetParser(source)
         while p.the_char is not None:
             sp = False
-            word_pos = p.pos
+            src_pos = p.pos
             while p.parse_lws():
                 if not ignore_sp:
                     sp = True
             if sp:
                 self.words.append(SP)
-                self.word_pos.append(word_pos)
-                word_pos = p.pos
+                self.src_pos.append(src_pos)
+                src_pos = p.pos
             if is_separator(p.the_char):
                 if p.the_char == LEFT_PARENTHESIS:
                     self.words.append(p.parse_comment(True))
@@ -594,13 +594,13 @@ class WordParser(ParserMixin):
                 else:
                     self.words.append(p.the_char)
                     p.next_char()
-                self.word_pos.append(word_pos)
+                self.src_pos.append(src_pos)
             elif p.the_char is None:
                 break
             else:
                 self.words.append(p.require_production(p.parse_token(),
                                                        "TEXT"))
-                self.word_pos.append(word_pos)
+                self.src_pos.append(src_pos)
         self.pos = 0
         if self.words:
             self.the_word = self.words[0]

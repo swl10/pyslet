@@ -3374,7 +3374,10 @@ class XMLEntity(MigratedClass):
             self.char_source = codecs.getreader(
                 self.encoding)(self.data_source)
         self.chunk = 1
-        self.base_pos = self.char_source.tell()
+        try:
+            self.base_pos = self.char_source.tell()
+        except io.UnsupportedOperation:
+            self.base_pos = None
         self.reset()
 
     def open_uri(self, src, encoding=None, req_manager=None, **kws):
@@ -3483,8 +3486,10 @@ class XMLEntity(MigratedClass):
         if self.char_source is None:
             self.the_char = None
             self.base_pos = None
-        else:
+        elif self.base_pos is not None:
             self.char_source.seek(self.base_pos)
+            self.the_char = ''
+        else:
             self.the_char = ''
         self.line_num = 1
         self.line_pos = 0
@@ -3518,7 +3523,8 @@ class XMLEntity(MigratedClass):
         self.char_pos = self.char_pos + 1
         self.line_pos = self.line_pos + 1
         if self.char_pos >= len(self.chars):
-            self.char_seek = self.char_source.tell()
+            if self.char_seek is not None:
+                self.char_seek = self.char_source.tell()
             self.chars = self.char_source.read(self.chunk)
             self.char_pos = 0
         if self.char_pos >= len(self.chars):
@@ -3618,9 +3624,9 @@ class XMLEntity(MigratedClass):
         has been guessed incorrectly initially. This method allows the
         XML parser to notify the entity that a new encoding has been
         declared and that future characters should be interpreted with
-        this new encoding.  (There are some situations where the
-        request is ignored, such as when the encoding has already
-        been detected to be UCS-2 or UCS-4.)
+        this new encoding.  (There are some situations where the request
+        is ignored, such as when the encoding has already been detected
+        to be UCS-2 or UCS-4 or when the source stream is not seekable.)
 
         You can only change the encoding once.  This method calls
         :py:meth:`keep_encoding` once the encoding has been changed."""
@@ -3638,7 +3644,7 @@ class XMLEntity(MigratedClass):
             # UTF-16 and UTF-32 we don't want to reset the stream
             # because that will force BOM detection and we may not have
             # a BOM to detect.
-            if not keep_existing:
+            if not keep_existing and self.char_seek is not None:
                 self.encoding = encoding
                 # Need to rewind and re-read the current buffer
                 self.char_source.seek(self.char_seek)

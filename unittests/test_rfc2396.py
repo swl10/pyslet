@@ -794,7 +794,9 @@ class FileURLTests(unittest.TestCase):
         d = uri.URI.from_path(os.path.join(dirname, self.sys_path(os.curdir)))
         c = sys.getfilesystemencoding()
         for name in names:
-            if name.startswith(self.sys_path('??')):
+            # on windows, c will be mbcs even if strings are unicode
+            bname = name.encode(c) if is_unicode(name) else name
+            if bname.startswith(b'??'):
                 logging.warn("8-bit path tests limited to ASCII file names "
                              "by %s encoding", c)
                 continue

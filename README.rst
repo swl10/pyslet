@@ -23,7 +23,7 @@ Python applications.
 
 Full documentation is hosted at http://pyslet.readthedocs.org
 
-Pyslet currently supports Python 2.6 and 2.7, see docs for details.
+Pyslet currently supports Python 2.6, 2.7 and 3.3+, see docs for details.
 
   
 
@@ -45,11 +45,11 @@ branch using TravisCI_:
 
 .. _TravisCI: https://travis-ci.org/swl10/pyslet
 
-Users of older Python builds (e.g., the current Python 2.6 installed on
-OS X as of August 2014) should be aware that pip may well fail to
-install itself or other modules due to a failure to connect to the PyPi
-repository.  Fixing this is hard and installing from source is
-recommended instead if you are afflicted by this issue.
+Users of older Python builds (e.g., Python 2.6 installed on older OS X
+versions) should be aware that pip may well fail to install itself or
+other modules due to a failure to connect to the PyPi repository. 
+Fixing this is hard and installing from source is recommended instead if
+you are afflicted by this issue.
 
 
 Installing from Source
@@ -82,22 +82,15 @@ OData service which can be found at http://odata.pyslet.org/weather
 
 What's next?
 
-*   Python 3 support (70% complete)
-
+*   OData version 4: this will be a rewrite of the OData modules though
+    they will ultimately behave in a similar way to the existing
+    sub-package.
+    
 *   MySQL shim for the OData SQL storage model (90% complete and
     functional)
 
 *   Improved support for LTI to take it beyond 'basic' (60% complete)
 
-I'm also slowly transforming the code for better PEP-8 compliance as
-reported by the fantastic flake8_.  For important information about how
-this affects existing Pyslet users see the What's New? section of the
-documentation or the CHANGES.rst file in the distribution package. 
-
-..  _flake8: https://pypi.python.org/pypi/flake8
-
-Once Pyslet works under Python 3 I will start work on updating the
-existing OData package to support OData versions 3 and 4.
 
 I also write about Pyslet on my blog:
 http://swl10.blogspot.co.uk/search/label/Pyslet
@@ -127,6 +120,9 @@ basis and is not connected to my current employer.
 
 Acknowledgements
 ~~~~~~~~~~~~~~~~
+
+Thank you to everyone who has raised issues, questions and pull requests
+on GitHub!
 
 Some historical information is available on the QTI Migration tool's
 Google Code project:

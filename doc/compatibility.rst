@@ -9,39 +9,13 @@ Compatibility
    pep8
 
 
-Pyslet requires Python 2.6 or Python 2.7, with Python 2.7 being
-preferred.
+Pyslet requires Python 2.6, Python 2.7 or Python 3.3+.
 
-Python 2.6
-~~~~~~~~~~
-
-When run under Python 2.6 Pyslet will patch some modules to make them
-more compatible with Python 2.7 code.  For details see:
-
-:doc:`py26`
-
-Earlier versions of Python 2.6 have typically been built with a version
-of sqlite3 that does not support validation of foreign key constraints,
-the unittests have been designed to skip these tests when such a version
-is encountered.
-
-    .. note::
-
-        When run under Python 2.6, Pyslet may not support certificate
-        validation of HTTP connections properly, this seems to depend
-        on the version of OpenSSL that Python is linked to.  If you
-        have successfully used pip to install Pyslet then your Python
-        is probably unaffected though.
-
-Please be aware of the following bug in Python 2.6:
-http://bugs.python.org/issue2531  this problem caused a number of
-Pyslet's tests to fail initially and remains a potential source of problems
-if you are using Decimal types in OData models.
 
 Python 3
 ~~~~~~~~
 
-Pyslet support in Python 3 is at an alpha stage.  All unittests are now
+Pyslet support in Python 3 is at a beta stage.  All unittests are now
 running under Python 3 and the setup script can be used to install
 Pyslet in Python 3 without errors.  Try running your own code that uses
 Pyslet with python options -3Wd to expose any issues that you are likely
@@ -74,6 +48,37 @@ system.
                 collections of entities.  If you are using OData in
                 Pyslet you are likely to need to use "-x dict" to
                 prevent these automatic transformations.
+
+
+Python 2.6
+~~~~~~~~~~
+
+When run under Python 2.6 Pyslet will patch some modules to make them
+more compatible with Python 2.7 code.  For details see:
+
+:doc:`py26`
+
+Earlier versions of Python 2.6 have typically been built with a version
+of sqlite3 that does not support validation of foreign key constraints,
+the unittests have been designed to skip these tests when such a version
+is encountered.
+
+    .. note::
+
+        When run under Python 2.6, Pyslet may not support certificate
+        validation of HTTP connections properly, this seems to depend
+        on the version of OpenSSL that Python is linked to.  If you
+        have successfully used pip to install Pyslet then your Python
+        is probably unaffected though.
+
+Please be aware of the following bug in Python 2.6:
+http://bugs.python.org/issue2531  this problem caused a number of
+Pyslet's tests to fail initially and remains a potential source of problems
+if you are using Decimal types in OData models.
+
+Python 2.6 support will be withdrawn in a future version, the Travis
+continuous integration service no longer supports Python 2.6.
+
 
 PEP-8
 ~~~~~

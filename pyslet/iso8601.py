@@ -184,7 +184,7 @@ class Date(PEP8Compatibility, SortableMixin, UnicodeMixin):
 
     By default the calendar used supports dates in the range 0001-01-01
     through to 9999-12-31.  ISO 8601 allows this range to be extended
-    _by agreement_ using a fixed number of additional digits in the
+    *by agreement* using a fixed number of additional digits in the
     century specification.  These dates are referred to as *expanded*
     dates and they include provision for negative, as well as larger
     positive, years using the astronomical convention of including a

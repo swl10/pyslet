@@ -1,29 +1,21 @@
 What's New?
 ===========
 
-As part of moving towards PEP-8 compliance a number of name changes are
-being made to methods and class attributes with each release.  There is
-a module, pyslet.pep8, which contains a compatibility class for
-remapping missing class attribute names to their new forms and
-generating deprecation warnings, run your code with "python -Wd" to
-force these warnings to appear.  As Pyslet makes the transition to
-Python 3 some of the old names may go away completely.  The warning
-messages explain any changes you need to make.  Although backwards
-compatible, using the new names is slightly faster as they don't go
-through the extra deprecation wrapper.
+To improve PEP-8 compliance a number of name changes are being made to
+methods and class attributes with each release.  There is a module,
+pyslet.pep8, which contains a compatibility class for remapping missing
+class attribute names to their new forms and generating deprecation
+warnings, run your code with "python -Wd" to force these warnings to
+appear.  As Pyslet makes the transition to Python 3 some of the old
+names may go away completely.  The warning messages explain any changes
+you need to make.  Although backwards compatible, using the new names is
+slightly faster as they don't go through the extra deprecation wrapper.
  
 It is still possible that some previously documented names could now
 fail (module level functions, function arguments, etc.) but I've tried
 to include wrappers or aliases so please raise an issue on Github_ if you
 discover a bug caused by the renaming.  I'll restore any missing
 old-style names to improve backwards compatibility on request.
-
-Finally, in some cases you are encouraged to derive classes from those
-defined by Pyslet and to override default method implementations.  If
-you have done this using old-style names you will *have* to update your
-method names to prevent ambiguity.  I have added code to automatically
-detect most problems and force fatal errors at runtime on construction,
-the error messages should explain which methods need to be renamed.
  
 ..  _Github: https://github.com/swl10/pyslet
 
@@ -45,127 +37,51 @@ Not sure which version you are using?  Try::
     print version
 
 
-Version 0.7
------------
+Version 0.7.20170805
+--------------------
 
-Warning: for future compatibility with Python 3 you should ensure that
-you use the bytes type (and the 'b' prefix on any string constants) when
-initialising OData entity properties of type Edm.Binary.  Failure to do
-so will raise an error in Python 3.
+Summary of new features
+~~~~~~~~~~~~~~~~~~~~~~~
 
-*Build 20170805*
-
-#74 Preparing for PyPi release
-
-Merged bug fixes from odata4-project branch:
-    Bug in HTTP client when following relative path redirects
-    Refactoring of second truncation in iso8601 to use Python decimals
-    Fix for comparison of midnight TimePoints not in canonical form 
-
-
-*Build 20170524*
-
-LTI sample app regression issue fixed following wsgi changes for #72
-
-
-*Build 20170522*
-
-#72 Travis CI tests failing in Python 3.5
-
-Tests now running without errors in Posix environments, Travis CI checks
-on Python 3.5 re-enabled.
-
-Also includes untracked fix in XML parser.
-
-
-*Build 20170520*
-
-#72 Travis CI tests failing in Python 3.5
-
-Updates to vfs module to deal with errors on Linux in Python 3.
-
-Changed wsgi module to use the OSFilePath wrapper for file paths for
-better compatibility with Posix file systems that use binary strings for
-file paths.  This module was causing test failures due to some use of
-os.path module with mixed string types.
-
-
-*Build 20170519*
+Pyslet now supports Python 3, all tests are passing in Python 3.
 
 Travis now builds and tests Python 2.7 and Python 3.5, I've dropped 2.6
 from the continuous integration testing because the latest Ubuntu images
 have dropped Python2.6 but you can still run tox on your own
 environments as it includes 2.6 in tox.ini.
 
-#70 OData parsing error for "(not false)"
+Various bug fixes in OData and HTTP code.
 
-Issue in parser fixed.  Thanks to @torokokill for spotting the issue.
-
-
-#71 OData $filter fails with expressions matching literal types
-
-The names that introduce typed literals such as time, datetime, guid,
-binary, X, etc. can now be used in URL expressions without raising
-parser errors.  The reserved names null, true and false continue to be
-interpreted as literals so properties with any of those names cannot be
-referred to in expressions.  Thanks to @soundstripe for reporting this.
-
-*Build 20170430*
-
-Added support for expanded dates to iso8601 module (merged from OData
-v4 branch).
+Warning: for future compatibility with Python 3 you should ensure that
+you use the bytes type (and the 'b' prefix on any string constants) when
+initialising OData entity properties of type Edm.Binary.  Failure to do
+so will raise an error in Python 3.
 
 
-*Build 20170419*
+Tracked issues
+~~~~~~~~~~~~~~
 
-#61 Experimental support for NTLM authentication
-
-Improved handling of error responses (includes a Python 3 bug fix) to
-enable the connection to be kept open more easily during pipelined
-requests that are terminated early by a final response from the server.
-This allows a large POST that generates a 401 response to abort sending
-of chunked bodies and retry without opening a new connection - vital for
-NTLM which is connection based.
-
-Added automated resend after 417 Expectation failed responses as per
-latest HTTP guidance.  (Even for POST requests!)
+The following issues are resolved (or substantially resolved) in this
+release.
 
 
-*Build 20170417*
+#3 PEP-8 Compliance
 
-#23 Framework for WSGI-basd LTI Applications
+The pep8-regression.py script now checks all source files using flake8;
+all reported errors have been resolved
 
-Documentation and sample code fixes.
-
-#60 HTTP Authentication examples
-
-Added a first cut at a documentation page for HTTP auth.
-
-#61 Experimental support for NTLM authentication
-
-Using the python-ntlm3 module from pip/GitHub which must be installed
-before you can use NTLM.  The module is in pyslet.ntlmauth and it can
-be used in a similar way to Basic auth (see set_ntlm_credentials for
-details.)
-
-#65 syntax error in sqlds.SQLCollectionBase.sql_expression_substring
-
-Also added an override for SQLite given the lack of support for the
-standard substring syntax.
-
-Untracked fixes
-
-Fixed an issue with HTTP resends (e.g., when following redirects) that
-meant that the retry algorithm was causing the client to back off when
-more than 1 resend was required.
-
-Fixed a bug where the HTTP client would fail if it received multiple
-WWW-Authenticate headers in the same response (parser bug).
+Added a new metaclass-based solution to enable method renaming while
+maintaining support for derived classes that override using the old
+names.  Crazy I know, but it works.
 
 
-*Build 20161205*
+#12 Bug in odata2/sqlds.py
 
-#23 Framework for WSGI-basd LTI Applications
+Bug when using numeric or named parameters in DB API.  Added support for
+pyformat in DB APIs as part of enabling support for PyMySQL.
+
+
+#23 Framework for WSGI-based LTI Applications (beta quality)
 
 Re-engineered Session support in the wsgi module to reduce database
 load, replacing the Session table completely with signed cookies.  If
@@ -178,6 +94,111 @@ Changed from Django templates to use Jinja2 (this requires almost no
 changes to the actual sample code templates and makes the intention of
 the samples much clearer).  Thanks to Christopher Lee for recommending
 this change.
+
+Possible breaking change to wsgi module to refactor authority setting to
+"canonical_root", modified WSGIContext object to accept an optional
+canonical_root argument and removed the optional authority argument from
+get_app_root and get_url.  The authority setting was previously a
+misnomer and the wsgi sammples were not working properly with localhost.
+
+Changed wsgi module to use the OSFilePath wrapper for file paths for
+better compatibility with Posix file systems that use binary strings for
+file paths.  This module was causing test failures due to some use of
+os.path module with mixed string types.
+
+
+#29 https connections fail on POST after remote server hangup
+
+The currently implemented solution is to allow an open ssl socket to be
+idle in the 'blocked' state for a maximum of 2s before sending a new
+request. After that time we tear down the socket and build a new one.
+This may now be a bit aggressive given the newer SSL behaviour (which
+differentiates issues in the underlying socket with different SSL
+exceptions).
+
+
+#30 Provide http connection clean-up thread
+
+The implementation is not as intelligent as I'd like it to be. The
+protocol version that a server last used is stored on the connection
+object and is lost when we clean up idle connections. Although it is
+likely that a new connection will speak the same protocol as the
+previous one there is little harm in going in to protocol detection mode
+again (we declare ourselves HTTP/1.1) other than the problem of using
+transfer encodings on an initial POST. In particular, we only drop out
+of keep-alive mode when the server has actually responded with an
+HTTP/1.0 response.
+
+
+#38 Make Pyslet run under Python 3
+
+See above for details.
+
+
+#43 Fixes for Python running on Windows
+
+This issue came back again, both unicode file name problems and further
+problems due to timing in unittests.  Fixed this time by mocking and
+monkey-patching the time.time function in the QTI tests.
+
+
+#47 Improve CharClass-derived doc strings
+
+Fixed - no functional changes.
+
+
+#49 Typo in pyslet/odata2/csdl.py
+
+Fixed OData serialisation of LongDescription element - thanks to
+@thomaseitler
+
+
+#51 Fix processing of dates in JSON format OData communication by the
+#server
+
+We now accept ISO string formatted dates for both DateTime and
+DateTimeOffset.  Note that providing a timezone other than Z (+00:00)
+when setting a DateTime will cause the time to be zone-shifted to UTC
+*before* the value is set.  Thanks to @ianwj5int.
+
+
+#53 Use datetime.date to create datetime object 
+
+You can now set DateTimeValue using a standard python datetime.date, the
+value is extended to be 00:00:00 on that date.  Thanks to @nmichaud
+
+
+#54 Fix use of super to remove self
+
+Fixed Atom Date handling bug, thanks to @nmichaud
+
+
+#55 Replace `print_exception` with logging (this includes the traceback)
+
+Thanks to @ianwj5int for reporting.
+
+
+#56 Garbage received when server delays response
+
+This was caused by a bug when handling 401 responses in HTTP client
+
+The issue affected any response that was received as a result of a
+resend (after a redirect or 401 response). The stream used to receive
+the data in the follow-up request was not being reset correctly and this
+resulted in a chunk of 0x00 bytes being written before the actual
+content.
+
+This bug was discovered following changes in the 20160209 build when
+StringIO was replaced with BytesIO for Python 3 compatibility.
+StringIO.truncate moves the stream pointer, BytesIO.truncate does not.
+As a result all resends where the 3xx or 401 response had a non-zero
+length body were being affected.  Previously the bug only affected the
+rarer use case of resends of streamed downloads to real files, i.e.,
+requests created by passing an open file in the res_body argument of
+ClientRequest.
+
+With thanks to @karurosu for reporting.
+
 
 #58 OData default values (PUT/PATCH/MERGE)
 
@@ -198,243 +219,101 @@ from the incoming request.
 Improved error handling to reduce log noise in SQL layer.
 
 
-*Build 20161113*
+#60 authentication example in docs
 
-#47 Improve CharClass-derived doc strings
+Added a first cut at a documentation page for HTTP auth.
 
-Fixed - no functional changes.
 
-*Build 20161112*
+#61 Add support for NTLM
 
-#38 Python 3 compatibility work (ongoing)
+Experimental support for NTLM authentication now available using the
+python-ntlm3 module from pip/GitHub which must be installed before you
+can use NTLM.  The module is in pyslet.ntlmauth and it can be used in a
+similar way to Basic auth (see set_ntlm_credentials for details.)
 
-Possible breaking change to wsgi module to refactor authority setting to
-"canonical_root", modified WSGIContext object to accept an optional
-canonical_root argument and removed the optional authority argument from
-get_app_root and get_url.  The authority setting was previously a
-misnomer and the wsgi sammples were not working properly with localhost.
+Improved handling of error responses in all HTTP requests (includes a
+Python 3 bug fix) to enable the connection to be kept open more easily
+during pipelined requests that are terminated early by a final response
+from the server. This allows a large POST that generates a 401 response
+to abort sending of chunked bodies and retry without opening a new
+connection - vital for NTLM which is connection based.
 
-scihub.esa.int has been renamed to scihub.copernicus.eu and the sample
-code has been updated accordingly with the latest metadata-fixes and
-tested using Python 3.
+Added automated resend after 417 Expectation failed responses as per
+latest HTTP guidance.  (Even for POST requests!)
 
-#56 Bug when handling 401 responses in HTTP client
 
-Reported as "Garbage received when server delays response" - the issue
-affected any response that was received as a result of a resend (after a
-redirect or 401 response). The stream used to receive the data in the
-follow-up request was not being reset correctly and this resulted in a
-chunk of 0x00 bytes being written before the actual content.
+#64 Add a LICENSE file
 
-This bug was discovered following changes in the 20160209 build when
-StringIO was replaced with BytesIO for Python 3 compatibility.
-StringIO.truncate moves the stream pointer, BytesIO.truncate does not.
-As a result all resends where the 3xx or 401 response had a non-zero
-length body were being affected.  Previously the bug only affected the
-rarer use case of resends of streamed downloads to real files, i.e.,
-requests created by passing an open file in the res_body argument of
-ClientRequest.
+Added to distribution
 
-With thanks to @karurosu for reporting.
 
-Untracked:
+#65 syntax error in sqlds.SQLCollectionBase.sql_expression_substring
+
+Also added an override for SQLite given the lack of support for the
+standard substring syntax.
+
+
+#70 Fix for grouped unary expressions
+
+The bug is best illustrated by attempting to parse OData expressions
+containing "(not false)".  Thanks to @torokokill for spotting the issue.
+
+
+#71 $filter fails when querying fieldnames matching OData literal types
+
+The names that introduce typed literals such as time, datetime, guid,
+binary, X, etc. can now be used in URL expressions without raising
+parser errors.  The reserved names null, true and false continue to be
+interpreted as literals so properties with any of those names cannot be
+referred to in expressions.  Thanks to @soundstripe for reporting this.
+
+
+#72 Travis CI tests failing in Python 3.5
+
+Resolved but Travis no longer builds Python 2.6, see above for details.
+
+
+#74 New release with bugfixes?
+
+Resolved with the release of 0.7
+
+
+Untracked Fixes
+~~~~~~~~~~~~~~~
+
+HTTP related:
+
+Fixed an issue with HTTP resends (e.g., when following redirects) that
+meant that the retry algorithm was causing the client to back off when
+more than 1 resend was required.
 
 Added compatibility in HTTP client for parsing dates from headers where
 the server uses the zone designator "UTC" instead of the required "GMT".
 
+Fixed a bug where the HTTP client would fail if it received multiple
+WWW-Authenticate headers in the same response (parser bug).
 
-*Build 20161110*
+Better handling of non-blocking io in HTTP client fixing issues when a
+message body is being received to a local stream that is itself blocked.
+Includes a new wrapper for RawIOBase in Python 2.6 (with a fix for
+blocking stream bug)
 
-#12 bug when using numeric or named parameters in DB API
+Fixed bug in HTTP client when following relative path redirects
 
-Added support for pyformat in DB APIs as part of enabling support for
-PyMySQL.
 
-#38 Python 3 compatibility work (ongoing)
-
-Updated more samples to work in Python 3, including the weather OData
-service using MySQL connected through PyMySQL as MySQLdb is not
-supported in Python 3.
-
-Untracked:
-
-Caught bug in autodetection of character set in XML parser when running
-under Python 3 and attempting to parse empty files.
-
-
-*Build 20161109*
-
-#3 PEP-8 driven refactoring (complete)
-
-Updated pep8-regression checker to walk all source files (including
-unittests and samples) - implemented final fixes to files previously
-missed.
-
-#38 Python 3 compatibility work (ongoing)
-
-Added output function to py2 module to assist with examples.
-
-Updated memcache.py sample code and documentation and tested in Python 3.
-
-
-*Build 20161108*
-
-#38 Python 3 compatibility work (ongoing)
-
-IMS LTI module tests passing in Python 3, setup.py install and all unit
-tests also now succeed making this build the first version workable in
-Python 3.
-
-
-*Build 20161106*
-
-#38 Python 3 compatibility work (ongoing)
-
-IMS CC modules, qml, rtf (placeholder) and wsgi modules: tests passing
-in Python 3.
-
-Untracked fixes:
-
-vfs: VirtualFilePath objects are now sortable.
-
-http.cookie: caught nasty bug in cookie generation code (Python 3 only)
-
-py2: added to_bytes and is_ascii functions and various re-mapped
-standard url functions
-
-
-*Build 20161104*
-
-#38 Python 3 compatibility work (ongoing)
-
-QTI v1 modules (including migration code): tests passing in Python 3.
-
-
-*Build 20161103*
-
-#38 Python 3 compatibility work (ongoing)
-
-IMS Content Packaging and Metadata modules: tests passing in Python 3
-
-
-*Build 20161102*
-
-#38 Python 3 compatibility work (ongoing)
-
-QTI v2 modules: tests passing in Python 3.
-
-
-*Build 20161030*
-
-#49 Fixed OData serialisation of LongDescription element
-
-Typo in pyslet/odata2/csdl.py - thanks to @thomaseitler
-
-#51 Bug fixes and improvements to OData JSON date formats
-
-We now accept ISO string formatted dates for both DateTime and
-DateTimeOffset.  Note that providing a timezone other than Z (+00:00)
-when setting a DateTime will cause the time to be zone-shifted to UTC
-*before* the value is set.  Thanks to @ianwj5int.
-
-#53 Extended OData DateTimeValue to be set from datetime.date
-
-You can now set DateTimeValue using a standard python datetime.date, the
-value is extended to be 00:00:00 on that date.  Thanks to @nmichaud
-
-#54 Fixed Atom Date handling bug
-
-Thanks to @nmichaud
-
-#55 Replaced `print_exception` with proper logging
-
-Thanks to @ianwj5int for reporting.
-
-Untracked changes:
-
-Fixed a bug in the XML tests that shows up on Windows if the xml test
-files are checked out with auto-translation of line ends.
-
-
-*Build 20160405*
-
-#38 Python 3 compatibility work (ongoing)
-
-OData v2 memds/sqlds/client/server and blockstore modules: tests passing
-in Python 3.
-
-Untracked changes:
-
-Fixed a bug in the detect_encoding function in unicode5 module (most
-likely benign).
-
-
-*Build 20160327*
-
-#3 PEP-8 driven refactoring (ongoing)
-
-OData v2 core, csdl, edmx and metadata modules refactored to use new
-method decorators and for PEP-8 compliance.
-
-OData v2 docs reorganised into a separate directory for clarity.
-
-#38 Python 3 compatibility work (ongoing)
-
-OData v2 core, csdl, edmx and metadata modules refactored, Python 3
-tests passing
-
-
-*Build 20160313*
-
-#3 PEP-8 driven refactoring (ongoing)
-
-HTML module renamed to html401 and refactored with significantly
-increased test coverage.  Atom module (rfc4287) refactored.
-
-#38 Python 3 compatibility work (ongoing)
-
-rfc4287, rfc5023 and html401 modules migrated and tests passing.
-
-
-Untracked fixes:
+XML/HTML Parser:
 
 Deprecated XML Element construction with name override to improve
 handling of super.
 
-Fixed broken legacy name Expand in OData package.  Bug introduced with
-improvements to method decorators in 20160223 Build.
-
 Fixed a bug in the parsing of HTML content where unexpected elements
 that belong in the <head> were causing any preceding <body> content to
 be ignored.  Added the get_or_add_child method to XML Elements to deal
-with cases where add_child's 'reset' of the elements children is
+with cases where add_child's 'reset' of the element's children is
 undesired.
 
 Fixed a bug in the XML parser where the parsed DTD was not being set
 in the Document instance.
-
- 
-*Build 20160225*
- 
-#3 PEP-8 driven refactoring (ongoing)
-
-Refactored the xml namespace and xsdatatyeps modules into the xml
-sub-package.
-
-Removed any in-package deprecation warnings caused by previous method
-renaming in xml sub-package.
-
-Updated and completed move to new decorators for method renames. 
-Modified metaclass to surpress inherited documentation for renamed
-methods.  This was causing legacy names to be documented for all
-sub-classes and not just the class using the @old_method decorator.
-
-#38 Python 3 compatibility work (ongoing)
-
-Added namespace and xsdatatypes modules in xml sub-package to list of
-Python 3 compatible modules.
-
-Untracked fixes:
 
 CDATA sections were not being generated properly by the (old) function
 :meth:`pyslet.xml.structures.EscapeCDSect`, causing the HTML style
@@ -446,54 +325,34 @@ XMLEntity class is now a context manager to help ensure that files are
 closed before garbage collection.  Unittests were triggering resource
 leak warnings in Python 3.
 
+Fixed a bug in the XML tests that shows up on Windows if the xml test
+files are checked out with auto-translation of line ends.
+
+
+Misc:
+
+Fixed a bug in the detect_encoding function in unicode5 module (most
+likely benign).
+
+Added support for expanded dates to iso8601 module (merged from OData v4
+branch).
+
+Refactoring of second truncation in iso8601 to use Python decimals.
+
+Fix for comparison of midnight TimePoints not in canonical form
+
+vfs: VirtualFilePath objects are now sortable.
+
 Use of nested generators was triggering future warnings in Python 3,
 refactored to catch StopIteration as per:
 https://www.python.org/dev/peps/pep-0479/
-
-
-*Build 20160221*
-
-#3 PEP-8 driven refactoring (ongoing)
-
-Added a new metaclass-based solution to enable method renaming while
-maintaining support for derived classes that override using the old
-names.  Crazy I know, but it works.
-
-Refactored xml sub-package, including renaming it.  The old name is
-supported through a small compatibility module.
-
-
-#38 Python 3 compatibility work
-
-http sub-package.  All tests now passing, including cookie module.
-Overall, Python 3 support in this sub-package should be considered alpha
-standard.  It is likely that some further fix-ups will be needed once
-the higher-level modules are also converted.
-
-xml sub-package.  All tests now passing, though namespaces are not yet
-migrated and rely on the automated method renames (see #3 above) which
-will result in deprecation warnings and a slight performance impact. You
-may wish to wait before upgrading until that module is also converted
-(coming soon).
-
-
-*Build 20160209*
-
-#38 Python 3 compatibility work
-
-http sub-package: auth, client, messages, params and grammar modules now
-work in Python 3
-
-urn module now works in Python 3
-
-Untracked changes:
 
 Added SortableMixin to emulate Python 3 TypeErrors in comparisons and to
 simplify implementation of comparison/hash operators in custom classes.
 As a result, some Time/TimePoint comparisons which used to raise
 ValueError (e.g., due to incompatible precision) now return False for ==
-and != operators and raise TypeError for inequalities (<, >, etc). 
-OData is unaffected as OData time values of the same EDM type are always
+and != operators and raise TypeError for inequalities (<, >, etc). OData
+is unaffected as OData time values of the same EDM type are always
 comparable.
 
 Re-factored previously undocumented stream classes into their own
@@ -501,6 +360,17 @@ module, in particular the Pipe implementation used for inter-thread
 communication.  Adding documentation for them.
 
 Re-factored the WSGI InputWrapper from rfc5023 into the http modules.
+
+
+Sample code:
+
+The sample code has also been updated to work in Python 3, including the
+weather OData service using MySQL but this now connects through PyMySQL
+as MySQLdb is not supported in Python 3.
+
+scihub.esa.int has been renamed to scihub.copernicus.eu and the sample
+code has been updated accordingly with the latest metadata-fixes and
+tested using Python 3.
 
 
 Version 0.6.20160201

@@ -504,7 +504,13 @@ class MediaType(SortableParameter):
         Enforces the following rule from the specification:
 
             Linear white space (LWS) MUST NOT be used between the type
-            and subtype, nor between an attribute and its value"""
+            and subtype, nor between an attribute and its value
+
+        The source may be either characters or bytes.  Character strings
+        must consist of iso-8859-1 characters only and should be plain
+        ascii."""
+        if is_unicode(source):
+            source = source.encode('iso-8859-1')
         p = ParameterParser(source, ignore_sp=False)
         mt = p.require_media_type()
         p.parse_sp()
