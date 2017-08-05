@@ -627,9 +627,9 @@ class DocumentTests(unittest.TestCase):
         # bytes always formats using unix-style newlines
         dlines = bytes(d).split(b'\n')
         self.assertTrue(dlines == flines, "XML output: %s" % bytes(d))
-        d = structures.Document(base_uri='ascii.xml')
+        d = structures.Document(base_uri='ascii.bin')
         d.read()
-        f = open('ascii.xml', 'rb')
+        f = open('ascii.bin', 'rb')
         fdata = f.read()
         f.close()
         self.assertTrue(bytes(d) == fdata, "XML output: %s" % bytes(d))
