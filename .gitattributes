@@ -1,0 +1,2 @@
+# Force LF in this test data file
+unittests/data_xml20081126/ascii.bin text eol=lf
