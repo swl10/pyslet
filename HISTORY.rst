@@ -53,6 +53,16 @@ you use the bytes type (and the 'b' prefix on any string constants) when
 initialising OData entity properties of type Edm.Binary.  Failure to do
 so will raise an error in Python 3.
 
+*Build 20170805*
+
+#74 Preparing for PyPi release
+
+Merged bug fixes from odata4-project branch:
+    Bug in HTTP client when following relative path redirects
+    Refactoring of second truncation in iso8601 to use Python decimals
+    Fix for comparison of midnight TimePoints not in canonical form 
+
+
 *Build 20170524*
 
 LTI sample app regression issue fixed following wsgi changes for #72

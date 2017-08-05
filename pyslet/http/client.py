@@ -2015,8 +2015,10 @@ class ClientRequest(messages.Request):
             # confirmed by the user
             location = self.response.get_location()
             if location:
-                if not location.host:
+                if not location.authority:
                     # This is an error but a common one (thanks IIS!)
+                    logging.warning(
+                        "Relative Location header: %s", str(location))
                     location = location.resolve(self.url)
                 self.resend(location)
         elif self.status == 401:

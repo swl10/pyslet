@@ -527,6 +527,9 @@ class MediaType(SortableParameter):
             raise KeyError("MediaType instance has no parameter %s" %
                            repr(key))
 
+    def __contains__(self, key):
+        return key in self.parameters
+
     def sortkey(self):
         return (self.type.lower(), self.subtype.lower(), self._hp)
 
@@ -995,7 +998,7 @@ class ParameterParser(WordParser):
         found."""
         self.parse_sp()
         tag = [t.decode('ascii') for t in
-               self.require_token("languaget-tag").split(b'-')]
+               self.require_token("language-tag").split(b'-')]
         self.parse_sp()
         return LanguageTag(tag[0], *tag[1:])
 

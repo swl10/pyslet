@@ -300,7 +300,7 @@ class VirtualFilePath(SortableMixin):
 
         Returns a tuple of (root, ext) where root is an instance
         containing just the root file path and ext is a string of
-        characters (or bytes) representing the orignal path's extension.
+        *characters* representing the orignal path's extension.
 
         For details see Python's os.path.splitext."""
         if self.is_dirlike():

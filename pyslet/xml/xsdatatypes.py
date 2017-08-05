@@ -52,7 +52,7 @@ def boolean_from_str(src):
     elif src == "0":
         return False
     else:
-        raise ValueError
+        raise ValueError("Can't read boolean from %s" % src)
 
 
 @old_function("EncodeBoolean")
@@ -417,7 +417,8 @@ class Duration(iso8601.Duration):
 
     def __unicode__(self):
         """Formats this duration."""
-        result = force_text(self.get_string())
+        result = force_text(
+            self.get_string(truncate_zeros=1, ndp=None, dp='.'))
         if self.sign < 0:
             return "-" + result
         else:
