@@ -43,6 +43,18 @@ def suite():
     ))
 
 
+class MockTime:
+
+    def __init__(self):
+        self.now = long2(time.time()) + 0.5
+
+    def __call__(self):
+        return self.now
+
+    def elapse(self, t):
+        self.now += t
+
+
 class QTITests(unittest.TestCase):
 
     def test_constants(self):
@@ -367,6 +379,13 @@ class QTIElementTests(unittest.TestCase):
 
 
 class VariableTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        self.save_time = time.time
+        time.time = MockTime()
+
+    def tearDown(self):     # noqa
+        time.time = self.save_time
 
     def test_value(self):
         sample = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -905,11 +924,10 @@ class VariableTests(unittest.TestCase):
         session_state.begin_session(session_state.key)
         self.assertTrue(session_state['duration'].value == 0.0,
                         "duration must initially be 0")
-        self.assertTrue(
-            session_state.t <= time.time() and
-            session_state.t >= time.time() - 1.0,
-            "test session took more than 1s to start: %f" %
-            (time.time() - session_state.t))
+        self.assertTrue(session_state.t > time.time() and
+                        session_state.t < time.time() + 0.1,
+                        "test session time on start: %f" %
+                        (session_state.t - time.time()))
         self.assertTrue(is_unicode(session_state.key),
                         "key should be a string")
         self.assertTrue(len(session_state.key) >= 56,
@@ -3469,8 +3487,11 @@ class BasicAssessmentTests(unittest.TestCase):
         os.chdir(self.dataPath)
         self.doc = qtixml.QTIDocument(baseURI="basic/assessment.xml")
         self.doc.read()
+        self.save_time = time.time
+        time.time = MockTime()
 
     def tearDown(self):     # noqa
+        time.time = self.save_time
         os.chdir(self.cwd)
 
     def test_assessment_test(self):
@@ -3554,8 +3575,8 @@ class BasicAssessmentTests(unittest.TestCase):
                             "unknown action name")
             self.assertTrue(i.value == state.key,
                             "button actions should have key as their value")
-        # sleep for 1s to ensure we register a duration
-        time.sleep(1)
+        # sleep for 1s+ to ensure we register a duration
+        time.time.elapse(1.1)
         # Now construct a fake form response for save....
         response = {
             "SAVE": save_key,
@@ -3583,7 +3604,8 @@ class BasicAssessmentTests(unittest.TestCase):
                 i.checked is (i.value == "C"), "Saved value is checked")
         # Now check durations
         self.assertTrue(
-            state["Q1.duration"].value > 1.0, "Duration of question")
+            state["Q1.duration"].value > 1.0,
+            "Duration of question: %f" % state["Q1.duration"].value)
         self.assertTrue(state["SectionA1.duration"].value > 1.0,
                         "Duration of section A1: %s" %
                         repr(state["SectionA1.duration"].value))
@@ -3594,7 +3616,8 @@ class BasicAssessmentTests(unittest.TestCase):
         self.assertTrue(
             state["PartI.duration"].value > 1.0, "Duration of test part")
         self.assertTrue(state["duration"].value > 1.0, "Duration of test")
-        time.sleep(1)
+        # sleep for another 1s+
+        time.time.elapse(1.1)
         response = {
             "SUBMIT": state.key,
             "Q1.RESPONSE": "D"
@@ -3622,7 +3645,7 @@ class BasicAssessmentTests(unittest.TestCase):
                 "<input> must have the value of a choice identifier")
             self.assertTrue(i.checked is (i.value == "E"),
                             "Default box initially checked")
-        time.sleep(1)
+        time.time.elapse(1.1)
         response = {
             "SUBMIT": state.key,
             "Q2.RESPONSE": ["B", "C", "D"]

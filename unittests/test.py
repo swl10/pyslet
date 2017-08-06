@@ -14,6 +14,7 @@ import test_http_client
 import test_http_cookie
 import test_http_grammar
 import test_http_messages
+import test_http_multipart
 import test_http_params
 import test_http_server
 import test_imsbltiv1p0
@@ -64,6 +65,7 @@ all_tests.addTest(test_http_client.suite())
 all_tests.addTest(test_http_cookie.suite())
 all_tests.addTest(test_http_grammar.suite())
 all_tests.addTest(test_http_messages.suite())
+all_tests.addTest(test_http_multipart.suite())
 all_tests.addTest(test_http_params.suite())
 all_tests.addTest(test_http_server.suite())
 all_tests.addTest(test_imsbltiv1p0.suite())

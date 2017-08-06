@@ -368,6 +368,12 @@ class Connection(SortableMixin):
                                     close_connection = True
                             if close_connection:
                                 self.close()
+                        else:
+                            # not waiting for the source, we might be
+                            # blocked writing out data locally so ask to
+                            # be called again immediately
+                            tbusy = 0
+                            break
                         # Any data received on the connection could
                         # change the request state, so we loop round
                         # again - this is critical to ensure that
@@ -421,6 +427,7 @@ class Connection(SortableMixin):
         connection will not send the data until instructed to do so by a
         call to this method, or
         :py:attr:`continue_waitmax` seconds have elapsed."""
+        logging.debug("100 Continue received... ready to send request")
         if (request is self.request and
                 self.request_mode == self.REQ_BODY_WAITING):
             self.request_mode = self.REQ_BODY_SENDING
@@ -817,9 +824,31 @@ class Connection(SortableMixin):
         return (False, False)
 
     def _recv_task(self):
-        #   We ask the response what it is expecting and try and
-        #   satisfy that, we return True when the response has been
-        #   received completely, False otherwise"""
+        # We ask the response what it is expecting and try and satisfy
+        # that, we return True when the response has been received
+        # completely, False otherwise.
+        #
+        # The return result is a 3-tuple of flags:
+        #   [0] indicates if the message is complete
+        #   [1] indicates the socket is blocked on recv
+        #   [2] indicates the socket is blocked on send
+        #
+        # The last case is possible with SSL sockets as they require
+        # handshaking in the protocol.
+        recv_needs = self.response.recv_mode()
+        if recv_needs == 0:
+            # If the response message is write-blocked we won't read the
+            # socket at all because don't want data piling up in our
+            # buffer.  There's also the case of a message that is
+            # finished but blocked on flush.
+            logging.debug("Response blocked on write")
+            self.response.recv(None)
+            if self.response.recv_mode() == 0:
+                # if we're still blocked, return
+                return (False, False, False)
+        elif recv_needs is None:
+            # make it safe to call _recv_task in this mode
+            return (True, False, False)
         err = None
         try:
             data = self.socket.recv(io.DEFAULT_BUFFER_SIZE)
@@ -852,8 +881,18 @@ class Connection(SortableMixin):
         else:
             logging.debug("%s: closing connection after recv returned no "
                           "data on ready to read socket", self.host)
-            self.close()
-            return (True, False, False)
+            if not self.recv_buffer:
+                # empty buffer - check for read until close use case
+                if self.response.recv_mode() == messages.Message.RECV_ALL:
+                    # send an empty string indicating EOF
+                    self.response.recv(b'')
+            # TODO: split close into two phases - socket/response right
+            # now we have to keep the socket open (and will continue to
+            # read from it - failing each time) while the response is
+            # write blocked.
+            if self.response.recv_mode() != 0:
+                self.close()
+                return (True, False, False)
         # Now loop until we can't satisfy the response anymore (or the response
         # is done)
         while self.response is not None:
@@ -931,6 +970,9 @@ class Connection(SortableMixin):
                 # we're blocked
                 logging.debug("Response blocked on write")
                 self.response.recv(None)
+                if self.response.recv_mode() == 0:
+                    # if we're still blocked, exit the loop
+                    break
             elif recv_needs > 0:
                 if self.recv_buffer_size:
                     logging.debug("Response waiting for %s bytes",

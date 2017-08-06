@@ -8,7 +8,7 @@ import os
 import threading
 import time
 
-from .py26 import memoryview
+from .py26 import memoryview, RawIOBase
 
 
 if hasattr(errno, 'WSAEWOULDBLOCK'):
@@ -47,7 +47,7 @@ def io_timedout(err):
     return err.errno in _timeouts
 
 
-class BufferedStreamWrapper(io.RawIOBase):
+class BufferedStreamWrapper(RawIOBase):
 
     """A buffered wrapper for file-like objects.
 
@@ -160,7 +160,7 @@ class BufferedStreamWrapper(io.RawIOBase):
             return b''
 
 
-class Pipe(io.RawIOBase):
+class Pipe(RawIOBase):
 
     """Buffered pipe for inter-thread communication
 

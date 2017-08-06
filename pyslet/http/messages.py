@@ -12,13 +12,13 @@ from .. import rfc2396 as uri
 from ..pep8 import PEP8Compatibility
 from ..py2 import force_bytes, is_string, dict_keys
 from ..py26 import *    # noqa
-from ..streams import BufferedStreamWrapper, io_blocked
+from ..streams import BufferedStreamWrapper, io_blocked, Pipe
 
 from . import grammar, params, auth, cookie
 from .grammar import SEMICOLON, COMMA, SOLIDUS, EQUALS_SIGN
 
 
-class GzipEncoder(io.RawIOBase):
+class GzipEncoder(RawIOBase):
 
     """Wrapper to provide Gzip encoding of streams
 
@@ -67,7 +67,7 @@ class GzipEncoder(io.RawIOBase):
                 return 0
 
 
-class GzipDecoder(io.RawIOBase):
+class GzipDecoder(RawIOBase):
 
     """Wrapper to provide Gzip decoding of streams
 
@@ -140,7 +140,7 @@ class GzipDecoder(io.RawIOBase):
         return wbytes
 
 
-class ChunkedReader(io.RawIOBase):
+class ChunkedReader(RawIOBase):
 
     def __init__(self, src):
         self.src = src
@@ -445,11 +445,13 @@ class Message(PEP8Compatibility, object):
 
     def __init__(self, entity_body=None, protocol=params.HTTP_1p1,
                  send_stream=None, recv_stream=None):
-        #: the lock used to protect multi-threaded access
         PEP8Compatibility.__init__(self)
+        #: the lock used to protect multi-threaded access
         self.lock = threading.RLock()
         self.protocol = protocol
         self.headers = {}
+        #: boolean indicating that all headers have been received
+        self.got_headers = False
         if isinstance(entity_body, bytes):
             self.entity_body = io.BytesIO(entity_body)
             self.body_start = 0
@@ -733,6 +735,7 @@ class Message(PEP8Compatibility, object):
     BLOCKED_MODE = 5
     CHUNK_END_MODE = 6
     CHUNK_TRAILER_MODE = 7
+    FLUSH_MODE = 8
 
     def start_receiving(self):
         """Starts receiving this message
@@ -743,6 +746,7 @@ class Message(PEP8Compatibility, object):
             self.transfermode = self.START_MODE
             self.protcolVersion = None
             self.headers = {}
+            self.got_headers = False
             self._curr_header = None
             if self.body_started:
                 if self.body_start is not None:
@@ -798,7 +802,7 @@ class Message(PEP8Compatibility, object):
             string of up to but not exceeding *integer* number of bytes
 
         0
-            we are currently write-blocked but still need more data, the
+            we are currently write-blocked but may need more data, the
             next call to recv must pass None to give the message time to
             write out existing buffered data.
 
@@ -817,7 +821,7 @@ class Message(PEP8Compatibility, object):
                     return self.transferlength - self.transferPos
                 else:
                     return self.RECV_ALL
-            elif self.transfermode == self.BLOCKED_MODE:
+            elif self.transfermode in (self.BLOCKED_MODE, self.FLUSH_MODE):
                 return 0
             elif self.transfermode in (self.HEADER_MODE,
                                        self.CHUNK_TRAILER_MODE):
@@ -914,9 +918,13 @@ class Message(PEP8Compatibility, object):
                         self.recv_buffer = data
                     self._recv_buffered()
                 else:
-                    self.transfer_mode = None
+                    # we only receive empty string when receive mode is
+                    # ALL (transferLength None) indicating EOF on source
+                    self._flush_buffered()
             elif self.transfermode == self.BLOCKED_MODE:
                 self._recv_buffered()
+            elif self.transfermode == self.FLUSH_MODE:
+                self._flush_buffered()
             elif self.transfermode == self.CHUNK_END_MODE:
                 # must be a naked CRLF
                 if data != grammar.CRLF:
@@ -925,21 +933,15 @@ class Message(PEP8Compatibility, object):
             elif self.transfermode == self.CHUNK_TRAILER_MODE:
                 for line in data:
                     self._recv_header(line)
-                try:
-                    self.transferbody.flush()
-                    self.transfermode = None
-                except IOError as e:
-                    if io_blocked(e):
-                        self.transfermode = self.BLOCKED_MODE
-                    else:
-                        raise
+                self._flush_buffered()
             else:
                 raise HTTPException(
                     "recv_line when in unknown mode: %i" % self.transfermode)
             if self.transfermode is None:
                 logging.debug("Message complete")
-                if self.transferbody:
-                    self.transferbody.flush()
+                # flushing now taken care of elsewhere
+                # if self.transferbody:
+                #    self.transferbody.flush()
                 self.handle_message()
 
     def recv_start(self, start_line):
@@ -1007,18 +1009,21 @@ class Message(PEP8Compatibility, object):
             self.transfermode = self.DATA_MODE
         elif self.transferPos >= self.transferlength:
             # not chunked, defined message body length
-            # we need a flushing mode here
-            try:
-                self.transferbody.flush()
-                self.transfermode = None
-            except IOError as e:
-                if io_blocked(e):
-                    self.transfermode = self.BLOCKED_MODE
-                else:
-                    raise
+            # we flush before saying we're done
+            self._flush_buffered()
         else:
             # not chunked, still reading
             self.transfermode = self.DATA_MODE
+
+    def _flush_buffered(self):
+        try:
+            self.transferbody.flush()
+            self.transfermode = None
+        except IOError as e:
+            if io_blocked(e):
+                self.transfermode = self.FLUSH_MODE
+            else:
+                raise
 
     def handle_headers(self):
         """Hook for processing the message headers
@@ -1027,7 +1032,10 @@ class Message(PEP8Compatibility, object):
         before the message body (if any) is received.  Derived classes
         should always call this implementation first (using super) to
         ensure basic validation is performed on the message before the
-        body is received."""
+        body is received.
+
+        The default implementation sets :attr:`got_headers` to True."""
+        self.got_headers = True
         content_type = self.get_content_type()
         if content_type is not None and content_type.type == "multipart":
             # there must be boundary parameter
@@ -1581,6 +1589,262 @@ class Message(PEP8Compatibility, object):
         self.set_header("Host", server)
 
 
+class RecvWrapperBase(RawIOBase):
+
+    def __init__(self, src):
+        io.RawIOBase.__init__(self)
+        self.src = src
+        self.buffer = bytearray()
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def write(self, b):
+        raise IOError(errno.EPERM, os.strerror(errno.EPERM),
+                      "stream not writable")
+
+    def fill_buffer(self, nbytes=io.DEFAULT_BUFFER_SIZE):
+        """Fills the buffer with bytes from the source
+
+        nbytes
+            The number of bytes to read.  The method won't necessarily
+            read nbytes of data but it won't read more than nbytes.
+
+        Returns False if we're blocked on read, True if we successfully
+        read at least *some* bytes.  The bytes read are added to the
+        existing :attr:`buffer`.
+
+        If we encounter an EOF condition on the input stream then we
+        raise an exception."""
+        data = self.src.read(nbytes)
+        if data is None:
+            return False
+        elif data:
+            self.buffer.extend(data)
+            return True
+        else:
+            # EOF condition
+            raise ProtocolError("unexpected end of message")
+
+
+class RecvWrapper(RecvWrapperBase):
+
+    """A stream wrapper for reading HTTP Messages
+
+    src
+        The source stream from which the HTTP message will be read, must
+        be an object supporting the RawIOBase interface.
+
+    message_class
+        A subclass of :class:`Message` that will be read from the source
+        stream.  An instance is created on construction and used to set
+        :attr:`message`.
+
+    The RecvWrapper instance itself behaves like a stream allowing you
+    to read the body of the message.  The headers are automatically read
+    into the :attr:`message` object.
+
+    An internal buffer is maintained which may cause the source stream
+    to be read past the end of the actual message.  Although HTTP
+    messages may be self-delimitting the cost of reading a byte at a
+    time is too high to be practicable."""
+
+    def __init__(self, src, message_class):
+        RecvWrapperBase.__init__(self, src)
+        self.p = Pipe(rblocking=False, wblocking=False)
+        self.message = message_class(entity_body=self.p)
+        self._got_headers = False
+        self.message.start_receiving()
+        self.buffer = bytearray()
+
+    def close(self):
+        super(RecvWrapper, self).close()
+        self.p.close()
+
+    def _read_task_done(self):
+        # True if there is nothing more to do reading this message
+        # False if we should be called again
+        # None if we are blocked on reading from source
+        mode = self.message.recv_mode()
+        if mode is None:
+            # we're done, pipe empty and message complete
+            return True
+        elif mode == Message.RECV_HEADERS:
+            pos = self.buffer.find(b"\r\n\r\n")
+            if pos < 0:
+                if self.buffer.startswith(b"\r\n"):
+                    # catch a degenerate case, no headers
+                    pos = 0
+            if pos < 0:
+                # fill the buffer and loop
+                if not self.fill_buffer():
+                    # blocked on our read
+                    return None
+            else:
+                headers = []
+                base = 0
+                while base <= pos:
+                    i = self.buffer.find(b"\r\n", base)
+                    headers.append(bytes(self.buffer[base:i + 2]))
+                    base = i + 2
+                headers.append(b"\r\n")
+                self.message.recv(headers)
+                self.buffer = self.buffer[pos + 4:]
+        elif mode == Message.RECV_LINE:
+            pos = self.buffer.find(b"\r\n")
+            if pos < 0:
+                # fill the buffer and loop
+                if not self.fill_buffer():
+                    return None
+            else:
+                self.message.recv(bytes(self.buffer[:pos + 2]))
+                del self.buffer[:pos + 2]
+        elif mode == Message.RECV_ALL:
+            if self.buffer:
+                self.message.recv(bytes(self.buffer))
+                self.buffer = bytearray()
+            else:
+                try:
+                    if not self.fill_buffer():
+                        return None
+                except ProtocolError:
+                    # end of message is just that
+                    return True
+        elif mode == 0:
+            # just yield time, the Pipe is full and blocking
+            self.message.recv(None)
+        elif mode > 0:
+            if len(self.buffer) >= mode:
+                # send the requested bytes
+                self.message.recv(bytes(self.buffer[:mode]))
+                del self.buffer[:mode]
+            elif self.buffer:
+                # send the buffer
+                self.message.recv(bytes(self.buffer))
+                del self.buffer[:]
+            else:
+                # fill the buffer with mode bytes
+                if not self.fill_buffer(mode):
+                    return None
+        else:
+            raise RuntimeError("Unexpected message mode")
+        return False
+
+    def read_message_header(self):
+        """Read the message headers
+
+        Returns the :class:`~pyslet.http.Message` object after all the
+        headers have been set from the source stream.  If the source
+        stream is blocked on reading and is in non-blocking mode then
+        None may be returned.
+
+        Subsequent calls just return the previously parsed message
+        object which is also available in the :attr:`message`
+        attribute."""
+        while not self._got_headers:
+            if self.p.canread():
+                break
+            done = self._read_task_done()
+            if done is True:
+                # empty body, message complete
+                break
+            elif done is None:
+                return None
+        self._got_headers = True
+        return self.message
+
+    def readinto(self, b):
+        if self.closed:
+            raise IOError(errno.EBADF, os.strerror(errno.EBADF),
+                          "stream is closed")
+        while True:
+            if self.p.canread():
+                return self.p.readinto(b)
+            done = self._read_task_done()
+            if done is True:
+                # message complete
+                return 0
+            elif done is None:
+                return None
+
+
+class SendWrapper(RawIOBase):
+
+    """A stream wrapper for sending HTTP Messages
+
+    message
+        An instance of :class:`Message` that will be serialised.
+        The sending process starts immediately with a call to
+        the message's :meth:`Message.start_sending` method.
+
+    protocol
+        An optional argument used to determine the protocol used in
+        start_sending, defaults to HTTP/1.1.
+
+    The SendWrapper instance itself behaves like a stream allowing you
+    to read the serialised version of the message including the headers
+    and any applicable start line (e.g., the status line in an HTTP
+    response).
+
+    If the message has a body that is itself read from a stream then
+    that stream will be read as needed with limited buffering."""
+
+    def __init__(self, message, protocol=params.HTTP_1p1):
+        io.RawIOBase.__init__(self)
+        self.message = message
+        self.message.start_sending(protocol)
+        self.buffer = self.message.send_start() + self.message.send_header()
+        self.bpos = 0
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def write(self, b):
+        raise IOError(errno.EPERM, os.strerror(errno.EPERM),
+                      "stream not writable")
+
+    def readinto(self, b):
+        if self.closed:
+            raise IOError(errno.EBADF, os.strerror(errno.EBADF),
+                          "stream is closed")
+        while True:
+            if self.buffer is None:
+                # end of file condition
+                return 0
+            nbytes = len(b)
+            bbytes = len(self.buffer) - self.bpos
+            if bbytes <= 0:
+                # attempt to refill the buffer
+                new_buffer = self.message.send_body()
+                if new_buffer is None:
+                    # read blocked
+                    return None
+                elif not new_buffer:
+                    # EOF
+                    self.buffer = None
+                    return 0
+                else:
+                    bbytes = len(new_buffer)
+                    self.buffer = new_buffer
+                    self.bpos = 0
+            if bbytes > 0:
+                # return the remains of the buffer
+                if nbytes > bbytes:
+                    nbytes = bbytes
+                b[:nbytes] = self.buffer[self.bpos:self.bpos + nbytes]
+                self.bpos += nbytes
+                return nbytes
+            else:
+                # buffer was not refilled but not EOF
+                return None
+
+
 class Request(Message):
 
     # a mapping from upper case method name to True/False with True
@@ -1867,10 +2131,13 @@ class Response(Message):
         505: "HTTP Version not supported"
     }
 
-    def __init__(self, request, **kwargs):
+    def __init__(self, request=None, **kwargs):
         super(Response, self).__init__(**kwargs)
-        self.request = request
-        request.response = self
+        if request is None:
+            self.request = Request()
+        else:
+            self.request = request
+        self.request.response = self
         self.status = None
         self.reason = None
 
