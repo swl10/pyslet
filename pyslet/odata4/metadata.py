@@ -4,6 +4,9 @@ import logging
 
 from . import errors
 from . import model as odata
+from . import parser
+from . import primitive
+from . import types
 
 from ..py2 import (
     is_text,
@@ -60,7 +63,7 @@ def edm_version(ns):
 
 
 def validate_simple_identifier(value):
-    if odata.NameTable.is_simple_identifier(value):
+    if types.NameTable.is_simple_identifier(value):
         return value
     else:
         raise ValueError(
@@ -68,7 +71,7 @@ def validate_simple_identifier(value):
 
 
 def validate_namespace(value):
-    if odata.NameTable.is_namespace(value):
+    if types.NameTable.is_namespace(value):
         return value
     else:
         raise ValueError(
@@ -76,7 +79,7 @@ def validate_namespace(value):
 
 
 def validate_qualified_name(value):
-    if odata.NameTable.is_namespace(value) and "." in value:
+    if types.NameTable.is_namespace(value) and "." in value:
         return value
     else:
         raise ValueError(
@@ -153,7 +156,7 @@ srid_to_str = nonneg_variable_to_str
 
 
 def path_from_str(value):
-    p = odata.ODataParser(value)
+    p = parser.Parser(value)
     path = p.require_expand_path()
     p.require_end()
     return path
@@ -289,9 +292,9 @@ class FacetsMixin(object):
             ptype.set_srid(self.srid)
 
     def create_type(self, type_obj, collection):
-        if isinstance(type_obj, odata.PrimitiveType):
+        if isinstance(type_obj, primitive.PrimitiveType):
             # add the facets to this type
-            ptype = odata.PrimitiveType()
+            ptype = primitive.PrimitiveType()
             ptype.set_base(type_obj)
             self.set_type_facets(ptype)
             type_obj = ptype
@@ -308,20 +311,21 @@ class GInlineExpressionsMixin(object):
     handling of default attributes in XML elements."""
 
     # constant expressions
-    XMLATTR_Binary = ('binary_value', odata.BinaryValue.from_str, str)
-    XMLATTR_Bool = ('bool_value', odata.BooleanValue.from_str, str)
-    XMLATTR_Date = ('date_value', odata.DateValue.from_str, str)
+    XMLATTR_Binary = ('binary_value', primitive.BinaryValue.from_str, str)
+    XMLATTR_Bool = ('bool_value', primitive.BooleanValue.from_str, str)
+    XMLATTR_Date = ('date_value', primitive.DateValue.from_str, str)
     XMLATTR_DateTimeOffset = ('date_time_offset_value',
-                              odata.DateTimeOffsetValue.from_str, str)
-    XMLATTR_Decimal = ('decimal_value', odata.DecimalValue.from_str, str)
-    XMLATTR_Duration = ('duration_value', odata.DurationValue.from_str, str)
+                              primitive.DateTimeOffsetValue.from_str, str)
+    XMLATTR_Decimal = ('decimal_value', primitive.DecimalValue.from_str, str)
+    XMLATTR_Duration = (
+        'duration_value', primitive.DurationValue.from_str, str)
     XMLATTR_EnumMember = ('enum_member', None, None, list)
-    XMLATTR_Float = ('float_value', odata.FloatValue.from_str, str)
-    XMLATTR_Guid = ('guid_value', odata.GuidValue.from_str, str)
-    XMLATTR_Int = ('int_value', odata.Int64Value.from_str, str)
-    XMLATTR_String = ('string_value', odata.StringValue.from_str, str)
-    XMLATTR_TimeOfDay = ('time_of_day_value', odata.TimeOfDayValue.from_str,
-                         str)
+    XMLATTR_Float = ('float_value', primitive.FloatValue.from_str, str)
+    XMLATTR_Guid = ('guid_value', primitive.GuidValue.from_str, str)
+    XMLATTR_Int = ('int_value', primitive.Int64Value.from_str, str)
+    XMLATTR_String = ('string_value', primitive.StringValue.from_str, str)
+    XMLATTR_TimeOfDay = (
+        'time_of_day_value', primitive.TimeOfDayValue.from_str, str)
     # dynamic expressions
     XMLATTR_AnnotationPath = ('annotation_path', path_expression_from_str, str)
     XMLATTR_NavigationPropertyPath = (
@@ -378,7 +382,7 @@ class Annotation(
             if term is not None and self.parent:
                 target = self.parent.get_annotation_target()
                 if target is not None:
-                    a = odata.QualifiedAnnotation(
+                    a = types.QualifiedAnnotation(
                         term, qualifier=self.qualifier)
                     target.annotate(a)
                 else:
@@ -422,7 +426,7 @@ class BinaryConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Binary')
 
     def get_value(self):
-        return odata.BinaryValue.from_str(
+        return primitive.BinaryValue.from_str(
             super(BinaryConstant, self).get_value())
 
 
@@ -430,7 +434,7 @@ class BoolConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Bool')
 
     def get_value(self):
-        return odata.BooleanValue.from_str(
+        return primitive.BooleanValue.from_str(
             super(BoolConstant, self).get_value())
 
 
@@ -438,7 +442,7 @@ class DateConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Date')
 
     def get_value(self):
-        return odata.DateValue.from_str(
+        return primitive.DateValue.from_str(
             super(DateConstant, self).get_value())
 
 
@@ -446,7 +450,7 @@ class DateTimeOffsetConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'DateTimeOffset')
 
     def get_value(self):
-        return odata.DateTimeOffsetValue.from_str(
+        return primitive.DateTimeOffsetValue.from_str(
             super(DateTimeOffsetConstant, self).get_value())
 
 
@@ -454,7 +458,7 @@ class DecimalConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Decimal')
 
     def get_value(self):
-        return odata.DecimalValue.from_str(
+        return primitive.DecimalValue.from_str(
             super(DecimalConstant, self).get_value())
 
 
@@ -462,7 +466,7 @@ class DurationConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Duration')
 
     def get_value(self):
-        return odata.DurationValue.from_str(
+        return primitive.DurationValue.from_str(
             super(DurationConstant, self).get_value())
 
 
@@ -487,7 +491,7 @@ class FloatConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Float')
 
     def get_value(self):
-        return odata.DoubleValue.from_str(
+        return primitive.DoubleValue.from_str(
             super(FloatConstant, self).get_value())
 
 
@@ -495,7 +499,7 @@ class GuidConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Guid')
 
     def get_value(self):
-        return odata.GuidValue.from_str(
+        return primitive.GuidValue.from_str(
             super(GuidConstant, self).get_value())
 
 
@@ -503,7 +507,7 @@ class IntConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Int')
 
     def get_value(self):
-        return odata.Int64Value.from_str(
+        return primitive.Int64Value.from_str(
             super(IntConstant, self).get_value())
 
 
@@ -511,7 +515,7 @@ class StringConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'String')
 
     def get_value(self):
-        return odata.StringValue.from_str(
+        return primitive.StringValue.from_str(
             super(StringConstant, self).get_value())
 
 
@@ -519,7 +523,7 @@ class TimeOfDayConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'TimeOfDay')
 
     def get_value(self):
-        return odata.TimeOfDayValue.from_str(
+        return primitive.TimeOfDayValue.from_str(
             super(TimeOfDayConstant, self).get_value())
 
 
@@ -964,7 +968,7 @@ class Type(CSDLElement):
                     self._type_obj.declare(s, self.name)
                 except errors.DuplicateNameError:
                     dup = s[self.name]
-                    if isinstance(dup, odata.NominalType):
+                    if isinstance(dup, types.NominalType):
                         raise errors.DuplicateNameError(
                             errors.Requirement.type_qname_s % self.name)
                     else:
@@ -1221,7 +1225,7 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
     def set_type(self, type_obj):
         # set self.type_obj
         if type_obj is None or not isinstance(
-                type_obj, (odata.PrimitiveType, odata.ComplexType,
+                type_obj, (primitive.PrimitiveType, odata.ComplexType,
                            odata.EnumerationType)):
             raise errors.ModelError(
                 errors.Requirement.property_type_declared_s %
@@ -1229,10 +1233,11 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
         qname, collection = self.type_name
         ptype = self.create_type(type_obj, collection)
         self._p.set_type(ptype)
-        if isinstance(type_obj, odata.PrimitiveType):
+        if isinstance(type_obj, primitive.PrimitiveType):
             if not collection and self.default_value is not None:
                 try:
-                    default_value = ptype.value_from_str(self.default_value)
+                    default_value = ptype.value_type.from_str(
+                        self.default_value)
                 except ValueError as err:
                     raise errors.ModelError(
                         errors.Requirement.primitive_default_s % to_text(err))
@@ -1253,19 +1258,8 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
             else:
 
                 def complex_callback():
-                    # ComplexType has been closed.  Check this complex
-                    # type to see if it contains a containment
-                    # navigation property.  Also remove dependency so
+                    # ComplexType has been closed, remove dependency so
                     # that our parent type can close
-                    if collection:
-                        for path, np in type_obj.navigation_properties():
-                            logging.debug(
-                                "Checking %s.%s for containment" %
-                                (self.name, path))
-                            if np.containment:
-                                raise errors.ModelError(
-                                    errors.Requirement.nav_contains_s %
-                                    self.name)
                     self.parent.remove_dependency()
 
                 type_obj.tell_close(complex_callback)
@@ -1311,7 +1305,6 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
             # default nullability
             self.nullable = True
         self._np.set_nullable(self.nullable)
-        self._np.set_containment(self.contains_target)
         t = self.get_type_context()
         if t is not None:
             if self.partner is not None and \
@@ -1340,11 +1333,11 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
         if type_obj is None or not isinstance(type_obj, odata.EntityType):
             raise errors.ModelError(
                 errors.Requirement.nav_type_resolved_s % self.name)
-        self._np.set_type(type_obj, self.type_name[1])
+        self._np.set_type(type_obj, self.type_name[1], self.contains_target)
         # now wait for both the containing type and the target type
         # to be closed before resolving referential constraints
         t = self.get_type_context()
-        odata.NameTable.tell_all_closed(
+        types.NameTable.tell_all_closed(
             (t, type_obj), self._resolve_constraints)
 
     def _resolve_constraints(self):
@@ -1479,14 +1472,14 @@ class TypeDefinition(SchemaContent, PropertyFacetsMixin, Annotated):
             # we are only interested in the Edm namespace which will
             # already be loaded, no need wait...
             base_type = em.qualified_get(self.underlying_type)
-            if not isinstance(base_type, odata.PrimitiveType):
+            if not isinstance(base_type, primitive.PrimitiveType):
                 raise errors.ModelError(
                     errors.Requirement.td_qname_s % self.type_name)
             # Must be in the Edm namespace
             if not base_type.nametable() is odata.edm:
                 raise errors.ModelError(
                     errors.Requirement.td_redef_s % self.type_name)
-            self._type_obj = odata.PrimitiveType()
+            self._type_obj = primitive.PrimitiveType()
             self._type_obj.set_base(base_type)
             if self.max_length is not None:
                 self._type_obj.set_max_length(self.max_length)
@@ -1502,7 +1495,7 @@ class TypeDefinition(SchemaContent, PropertyFacetsMixin, Annotated):
                     self._type_obj.declare(s, self.type_name)
                 except errors.DuplicateNameError:
                     dup = s[self.type_name]
-                    if isinstance(dup, odata.NominalType):
+                    if isinstance(dup, types.NominalType):
                         raise errors.DuplicateNameError(
                             errors.Requirement.type_qname_s % self.type_name)
                     else:
@@ -1703,7 +1696,7 @@ class Term(SchemaContent, FacetsMixin, Annotated):
         if self.nullable is None and not collection:
             # default nullability
             self.nullable = True
-        self._term = odata.Term()
+        self._term = types.Term()
         self._term.set_nullable(self.nullable)
 
         def set_type(type_obj):
@@ -1711,14 +1704,14 @@ class Term(SchemaContent, FacetsMixin, Annotated):
             # this ensures that annotations that refer to this
             # definition can use declaration as a trigger
             if type_obj is None or not isinstance(
-                    type_obj, (odata.PrimitiveType, odata.ComplexType,
+                    type_obj, (primitive.PrimitiveType, odata.ComplexType,
                                odata.EnumerationType)):
                 raise errors.ModelError(
                     errors.Requirement.term_type_s %
                     ("%s not declared" % qname))
             ttype = self.create_type(type_obj, collection)
             self._term.set_type(ttype)
-            if isinstance(type_obj, odata.PrimitiveType):
+            if isinstance(type_obj, primitive.PrimitiveType):
                 if not collection and self.default_value is not None:
                     try:
                         default_value = ttype.value_from_str(

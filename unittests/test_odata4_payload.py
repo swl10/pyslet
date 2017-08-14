@@ -7,6 +7,7 @@ import unittest
 from pyslet.http import params as http
 from pyslet.odata4 import model as csdl
 from pyslet.odata4 import payload
+from pyslet.odata4 import primitive
 from pyslet.odata4 import service
 from pyslet.rfc2396 import URI
 
@@ -159,7 +160,7 @@ class ParserTests(unittest.TestCase):
 
     def test_null(self):
         # any primitive value
-        v = csdl.StringValue()
+        v = primitive.StringValue()
         v.set_value("Hello")
         self.assertFalse(v.is_null())
         p = payload.Payload(self.service)
@@ -168,7 +169,7 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(v.is_null())
 
     def test_boolean(self):
-        v = csdl.BooleanValue()
+        v = primitive.BooleanValue()
         p = payload.Payload(self.service)
         obj = p.obj_from_bytes(v, b"null")
         self.assertTrue(obj is v)
@@ -181,7 +182,7 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(v.value is False)
 
     def test_int32(self):
-        v = csdl.Int32Value()
+        v = primitive.Int32Value()
         p = payload.Payload(self.service)
         obj = p.obj_from_bytes(v, b"null")
         self.assertTrue(obj is v)
@@ -242,7 +243,7 @@ class FormatTests(unittest.TestCase):
 
     def test_null(self):
         # any primitive value
-        v = csdl.PrimitiveValue()
+        v = primitive.PrimitiveValue()
         self.assertTrue(v.is_null())
         p = payload.Payload(self.service)
         data = p.to_json(v)
@@ -250,7 +251,7 @@ class FormatTests(unittest.TestCase):
 
     def test_boolean(self):
         # any primitive value
-        v = csdl.BooleanValue()
+        v = primitive.BooleanValue()
         p = payload.Payload(self.service)
         data = p.to_json(v)
         self.assertTrue(data == b"null")
@@ -262,7 +263,7 @@ class FormatTests(unittest.TestCase):
         self.assertTrue(data == b"false")
 
     def test_int32(self):
-        v = csdl.Int32Value()
+        v = primitive.Int32Value()
         p = payload.Payload(self.service)
         data = p.to_json(v)
         self.assertTrue(data == b"null")

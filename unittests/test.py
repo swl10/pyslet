@@ -36,8 +36,11 @@ import test_odata2_sqlds
 import test_odata4_client
 import test_odata4_metadata
 import test_odata4_model
+import test_odata4_parser
 import test_odata4_payload
+import test_odata4_primitive
 import test_odata4_service
+import test_odata4_types
 import test_pep8
 import test_py2
 import test_py26
@@ -87,8 +90,11 @@ all_tests.addTest(test_odata2_sqlds.suite())
 all_tests.addTest(test_odata4_client.suite())
 all_tests.addTest(test_odata4_metadata.suite())
 all_tests.addTest(test_odata4_model.suite())
+all_tests.addTest(test_odata4_parser.suite())
 all_tests.addTest(test_odata4_payload.suite())
+all_tests.addTest(test_odata4_primitive.suite())
 all_tests.addTest(test_odata4_service.suite())
+all_tests.addTest(test_odata4_types.suite())
 all_tests.addTest(test_pep8.suite())
 all_tests.addTest(test_py2.suite())
 all_tests.addTest(test_py26.suite())

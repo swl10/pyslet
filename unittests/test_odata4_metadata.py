@@ -11,6 +11,7 @@ from pyslet.odata4 import errors
 from pyslet.odata4 import geotypes as geo
 from pyslet.odata4 import model as odata
 from pyslet.odata4 import metadata as csdl
+from pyslet.odata4 import primitive
 from pyslet.rfc2396 import URI
 from pyslet.vfs import OSFilePath
 from pyslet.xml.namespace import XMLNSParser
@@ -245,27 +246,29 @@ class CSDLDocumentTests(unittest.TestCase):
         em = doc.root.entity_model
         s = em['test.pyslet.org']
         data = (
-            ('BinaryTest', odata.BinaryValue, b'Caf\xc3\xa9'),
-            ('BooleanTest', odata.BooleanValue, True),
-            ('ByteTest', odata.ByteValue, 239),
-            ('DateTest', odata.DateValue, iso.Date(
+            ('BinaryTest', primitive.BinaryValue, b'Caf\xc3\xa9'),
+            ('BooleanTest', primitive.BooleanValue, True),
+            ('ByteTest', primitive.ByteValue, 239),
+            ('DateTest', primitive.DateValue, iso.Date(
                 century=20, year=17, month=5, day=30)),
-            ('DateTimeOffsetTest', odata.DateTimeOffsetValue, iso.TimePoint(
+            ('DateTimeOffsetTest', primitive.DateTimeOffsetValue,
+             iso.TimePoint(
                 date=iso.Date(century=20, year=17, month=5, day=30),
                 time=iso.Time(hour=4, minute=20, second=00, zdirection=1,
                               zhour=1, zminute=0))),
-            ('DecimalTest', odata.DecimalValue, decimal.Decimal('3.14159')),
-            ('DoubleTest', odata.DoubleValue, 3.1416015625),
-            ('DurationTest', odata.DurationValue, Duration("PT1S")),
-            ('GeographyPointTest', odata.GeographyPointValue,
+            ('DecimalTest', primitive.DecimalValue,
+             decimal.Decimal('3.14159')),
+            ('DoubleTest', primitive.DoubleValue, 3.1416015625),
+            ('DurationTest', primitive.DurationValue, Duration("PT1S")),
+            ('GeographyPointTest', primitive.GeographyPointValue,
              geo.PointLiteral(
                 srid=4326, point=geo.Point(-1.00244140625, 51.44775390625))),
-            ('GeographyLineStringTest', odata.GeographyLineStringValue,
+            ('GeographyLineStringTest', primitive.GeographyLineStringValue,
              geo.LineStringLiteral(
                 srid=4326, line_string=geo.LineString(
                     ((-1.00244140625, 51.44775390625),
                      (-0.9964599609375, 51.455810546875))))),
-            ('GeographyPolygonTest', odata.GeographyPolygonValue,
+            ('GeographyPolygonTest', primitive.GeographyPolygonValue,
              geo.PolygonLiteral(srid=4326, polygon=geo.Polygon(
                 (((-1.003173828125, 51.439697265625),
                   (-1.0029296875, 51.4437255859375),
@@ -273,19 +276,19 @@ class CSDLDocumentTests(unittest.TestCase):
                   (-1.001708984375, 51.439697265625),
                   (-1.003173828125, 51.439697265625)),
                  )))),
-            ('GeographyMultiPointTest', odata.GeographyMultiPointValue,
+            ('GeographyMultiPointTest', primitive.GeographyMultiPointValue,
              geo.MultiPointLiteral(
                 srid=4326, multipoint=(
                     geo.Point(-1.00244140625, 51.44775390625),
                     geo.Point(-0.9964599609375, 51.455810546875)))),
             ('GeographyMultiLineStringTest',
-             odata.GeographyMultiLineStringValue,
+             primitive.GeographyMultiLineStringValue,
              geo.MultiLineStringLiteral(
                 srid=4326, multi_line_string=(
                     geo.LineString(((-1.00244140625, 51.44775390625),
                                     (-0.9964599609375, 51.455810546875))),
                     ))),
-            ('GeographyMultiPolygonTest', odata.GeographyMultiPolygonValue,
+            ('GeographyMultiPolygonTest', primitive.GeographyMultiPolygonValue,
              geo.MultiPolygonLiteral(
                 srid=4326, multi_polygon=(
                     geo.Polygon((((-1.003173828125, 51.439697265625),
@@ -295,36 +298,36 @@ class CSDLDocumentTests(unittest.TestCase):
                                   (-1.003173828125, 51.439697265625)),
                                  )),
                     ))),
-            ('GeographyCollectionTest', odata.GeographyCollectionValue,
+            ('GeographyCollectionTest', primitive.GeographyCollectionValue,
              geo.GeoCollectionLiteral(
                 srid=4326, items=(
                     geo.Point(-1.00244140625, 51.44775390625),
                     geo.LineString(((-1.00244140625, 51.44775390625),
                                     (-0.9964599609375, 51.455810546875)))
                     ))),
-            ('GeometryPointTest', odata.GeometryPointValue,
+            ('GeometryPointTest', primitive.GeometryPointValue,
              geo.PointLiteral(srid=0, point=geo.Point(1.0, -1.0))),
-            ('GeometryLineStringTest', odata.GeometryLineStringValue,
+            ('GeometryLineStringTest', primitive.GeometryLineStringValue,
              geo.LineStringLiteral(
                 srid=0, line_string=geo.LineString(
                     ((1.0, -1.0), (-1.0, 1.0))))),
-            ('GeometryPolygonTest', odata.GeometryPolygonValue,
+            ('GeometryPolygonTest', primitive.GeometryPolygonValue,
              geo.PolygonLiteral(srid=0, polygon=geo.Polygon(
                 (((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0),
                   (1.0, -1.0)), )
                 ))),
-            ('GeometryMultiPointTest', odata.GeometryMultiPointValue,
+            ('GeometryMultiPointTest', primitive.GeometryMultiPointValue,
              geo.MultiPointLiteral(
                 srid=0, multipoint=(
                     geo.Point(1.0, -1.0), geo.Point(-1.0, 1.0)))),
             ('GeometryMultiLineStringTest',
-             odata.GeometryMultiLineStringValue,
+             primitive.GeometryMultiLineStringValue,
              geo.MultiLineStringLiteral(
                 srid=0, multi_line_string=(
                     geo.LineString(((1.0, -1.0), (-1.0, 1.0))),
                     geo.LineString(((1.0, 1.0), (-1.0, -1.0))),
                     ))),
-            ('GeometryMultiPolygonTest', odata.GeometryMultiPolygonValue,
+            ('GeometryMultiPolygonTest', primitive.GeometryMultiPolygonValue,
              geo.MultiPolygonLiteral(
                 srid=0, multi_polygon=(
                     geo.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
@@ -332,7 +335,7 @@ class CSDLDocumentTests(unittest.TestCase):
                     geo.Polygon((((4.0, -1.0), (4.0, 1.0), (2.0, 1.0),
                                   (2.0, -1.0), (4.0, -1.0)), ))
                     ))),
-            ('GeometryCollectionTest', odata.GeometryCollectionValue,
+            ('GeometryCollectionTest', primitive.GeometryCollectionValue,
              geo.GeoCollectionLiteral(
                 srid=0, items=(
                     geo.LineString(((1.0, -1.0), (-1.0, 1.0))),
@@ -340,14 +343,14 @@ class CSDLDocumentTests(unittest.TestCase):
                     geo.Polygon((((1.0, -1.0), (1.0, 1.0), (-1.0, 1.0),
                                   (-1.0, -1.0), (1.0, -1.0)), )),
                     ))),
-            ('GuidTest', odata.GuidValue, uuid.UUID(int=0xdeadbeef)),
-            ('Int16Test', odata.Int16Value, -16657),
-            ('Int32Test', odata.Int32Value, -559038737),
-            ('Int64Test', odata.Int64Value, 3735928559),
-            ('SByteTest', odata.SByteValue, -17),
-            ('SingleTest', odata.SingleValue, 3.1416015625),
-            ('StringTest', odata.StringValue, "Fish&Chips"),
-            ('TimeOfDayTest', odata.TimeOfDayValue,
+            ('GuidTest', primitive.GuidValue, uuid.UUID(int=0xdeadbeef)),
+            ('Int16Test', primitive.Int16Value, -16657),
+            ('Int32Test', primitive.Int32Value, -559038737),
+            ('Int64Test', primitive.Int64Value, 3735928559),
+            ('SByteTest', primitive.SByteValue, -17),
+            ('SingleTest', primitive.SingleValue, 3.1416015625),
+            ('StringTest', primitive.StringValue, "Fish&Chips"),
+            ('TimeOfDayTest', primitive.TimeOfDayValue,
              iso.Time(hour=4, minute=20, second=0)),
             ('EnumTest', odata.EnumerationValue, 1)
             )

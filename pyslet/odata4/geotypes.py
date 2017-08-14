@@ -7,6 +7,7 @@ from ..py2 import (
     to_text,
     UnicodeMixin,
     )
+from ..xml import xsdatatypes as xsi
 
 
 class GeoItem(object):
@@ -17,6 +18,16 @@ class GeoItem(object):
     :class:`GeoCollection` covering points, line strings, polygons,
     multi-points, multi-line strings, multi-polygons and geo collections
     themselves."""
+
+    pass
+
+
+class GeoLiteral(object):
+
+    """Abstract mixin class used to identify GeoLiteral objects.
+
+    The difference between a GeoLiteral object and a GeoItem is that
+    GeoLiterals have a srid as their first value."""
 
     pass
 
@@ -64,7 +75,7 @@ class Point(GeoItem, UnicodeMixin,
 
 
 class PointLiteral(
-        UnicodeMixin,
+        GeoLiteral, UnicodeMixin,
         collections.namedtuple('PointLiteral', ['srid', 'point'])):
 
     """Represents a Point literal in OData
@@ -112,7 +123,7 @@ class LineString(GeoItem, UnicodeMixin, tuple):
 
 
 class LineStringLiteral(
-        UnicodeMixin,
+        GeoLiteral, UnicodeMixin,
         collections.namedtuple('LineStringLiteral', ['srid', 'line_string'])):
 
     """Represents a LineString literal in OData.
@@ -206,7 +217,7 @@ class Polygon(GeoItem, UnicodeMixin, tuple):
 
 
 class PolygonLiteral(
-        UnicodeMixin,
+        GeoLiteral, UnicodeMixin,
         collections.namedtuple('PolygonLiteral', ['srid', 'polygon'])):
     """Represents a Polygon literal in OData.
 
@@ -251,7 +262,7 @@ class MultiPoint(GeoItem, UnicodeMixin, tuple):
 
 
 class MultiPointLiteral(
-        UnicodeMixin,
+        GeoLiteral, UnicodeMixin,
         collections.namedtuple('MultiPointLiteral', ['srid', 'multipoint'])):
 
     """Represents a MultiPoint literal in OData.
@@ -299,7 +310,7 @@ class MultiLineString(GeoItem, UnicodeMixin, tuple):
 
 
 class MultiLineStringLiteral(
-        UnicodeMixin,
+        GeoLiteral, UnicodeMixin,
         collections.namedtuple('MultiLineStringLiteral',
                                ['srid', 'multi_line_string'])):
 
@@ -348,7 +359,7 @@ class MultiPolygon(GeoItem, UnicodeMixin, tuple):
 
 
 class MultiPolygonLiteral(
-        UnicodeMixin,
+        GeoLiteral, UnicodeMixin,
         collections.namedtuple('MultiPolygonLiteral',
                                ['srid', 'multi_polygon'])):
 
@@ -406,7 +417,7 @@ class GeoCollection(GeoItem, UnicodeMixin, tuple):
 
 
 class GeoCollectionLiteral(
-        UnicodeMixin,
+        GeoLiteral, UnicodeMixin,
         collections.namedtuple('GeoCollection', ['srid', 'items'])):
 
     """Represents a Geo Collection literal in OData.
@@ -429,3 +440,50 @@ class GeoCollectionLiteral(
 
     def __unicode__(self):
         return force_text("SRID=%i;%s" % self)
+
+
+class GeoType(xsi.Enumeration):
+
+    """An enumeration used to represent a geo type qualifier
+
+    ::
+
+            GeoType.geography
+            GeoType.DEFAULT == None
+
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
+
+    decode = {
+        "geography": 1,
+        "geometry": 2,
+    }
+
+
+class GeoTypeLiteral(
+        UnicodeMixin,
+        collections.namedtuple('GeoType', ['type', 'item'])):
+
+    """Represents a Geo literal of arbitrary type.
+
+    This is a Python namedtuple consisting of an integer 'type' (one of
+    the two :class:`GeoType` constants) followed by a single 'item' that
+    is an instance of one of the :class:`GeoLiteral` namedtuples.
+
+    When formatted as a string the primitiveLiteral form is used, that
+    is, the literal form quoted and prefixed with *geography* or
+    *geometry* as appropriate."""
+
+    __slots__ = ()
+
+    def __new__(cls, type, item):
+        # check that args are valid
+        if type not in (GeoType.geography, GeoType.geometry):
+            raise ValueError("type must be a GeoType constant")
+        if not isinstance(item, GeoLiteral):
+            raise ValueError("item must be a GeoLiteral instance")
+        self = super(GeoTypeLiteral, cls).__new__(
+            cls, type, item)
+        return self
+
+    def __unicode__(self):
+        return force_text("%s'%s'" % (GeoType.to_str(self.type), self.item))

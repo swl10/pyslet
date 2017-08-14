@@ -11,7 +11,7 @@
                 <!-- complex types declaring a containment navigation
                 property, either directly or indirectly via a property
                 of complex type, MUST NOT be used as the type of a
-                collection-valued property-->
+                collection-valued property -->
                 <Property Name="A1" Type="Collection(test.pyslet.org.TypeX)" />
             </EntityType>
             <ComplexType Name="TypeX">

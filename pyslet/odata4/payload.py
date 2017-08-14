@@ -4,8 +4,6 @@ import io
 import json
 import logging
 
-from . import errors
-from . import model as csdl
 from ..http import params as http
 from ..py2 import (
     is_text,
@@ -14,6 +12,11 @@ from ..py2 import (
     )
 from ..rfc2396 import URI
 from ..xml import xsdatatypes as xsi
+
+from . import errors
+from . import model as csdl
+from . import primitive
+from . import types
 
 
 class MetadataAmount(xsi.Enumeration):
@@ -109,7 +112,6 @@ class Payload(object):
 
     def obj_from_json_value(self, obj, jvalue):
         if isinstance(jvalue, dict):
-            been_there = set()
             if isinstance(obj, csdl.EntityModel):
                 # we are parsing a service document
                 logging.info("Service root format: %s", str(jvalue))
@@ -127,21 +129,25 @@ class Payload(object):
                     item = container[name]
                     item.set_url(url)
                 return None
-            if isinstance(obj, csdl.Annotatable):
+            if isinstance(obj, types.Annotatable):
                 # first pass, object annotations
                 for name, value in jvalue.items():
                     if name.startswith('@'):
-                        qa = csdl.QualifiedAnnotation.from_json_name(
-                            name, self.service.model)
+                        t, qname, q = \
+                            types.QualifiedAnnotation.split_json_name(name)
+                        qa = types.QualifiedAnnotation.from_qname(
+                            qname, self.service.model)
                         self.obj_from_json_value(qa.value, value)
                         obj.annotate(qa)
-                        been_there.add(name)
             if isinstance(obj, csdl.EntitySetValue):
-                # we are parsing an entity set
-                result = csdl.CollectionType(obj.entity_set.entity_type)()
+                # we are parsing a simple (ordered) collection create a
+                # type object on the fly
+                result = obj.type_def.collection_type()
                 for item in jvalue["value"]:
                     # create a new value of the type used in the collection
-                    value = obj.type_def()
+                    value = result.type_def.item_type()
+                    value.set_entity_set(obj.entity_set)
+                    value.bind_to_service(obj.service)
                     if isinstance(item, dict):
                         type_override = item.get('@odata.type', None)
                     else:
@@ -169,17 +175,23 @@ class Payload(object):
                     result.append(value)
                 return result
             elif isinstance(obj, csdl.StructuredValue):
+                ta = []
                 for name, value in jvalue.items():
-                    if '@' in name:
-                        if name not in been_there:
-                            qa = csdl.QualifiedAnnotation.from_json_name(
-                                name, self.service.model)
-                            self.obj_from_json_value(qa.value, value)
-                            obj.annotate(qa)
-                    else:
-                        pvalue = obj.get(name, None)
-                        if pvalue is not None:
-                            self.obj_from_json_value(pvalue, value)
+                    if '@' in name and not name[0] == '@':
+                        ta.append((name, value))
+                        continue
+                    pvalue = obj.get(name, None)
+                    if pvalue is not None:
+                        self.obj_from_json_value(pvalue, value)
+                # second pass for annotations
+                for name, value in ta:
+                    target, qname, q = \
+                        types.QualifiedAnnotation.split_json_name(name)
+                    qa = types.QualifiedAnnotation.from_qname(
+                        qname, self.service.model, qualifier=q)
+                    if qa:
+                        self.obj_from_json_value(qa.value, value)
+                        obj.annotate(qa, target=target)
         elif jvalue is None:
             obj.set_value(None)
             obj.clean()
@@ -202,10 +214,12 @@ class Payload(object):
             obj.clean()
         elif isinstance(jvalue, list):
             if isinstance(obj, csdl.CollectionValue):
-                for item in jvalue:
-                    value = obj.type_def.item_type()
-                    self.obj_from_json_value(value, item)
-                    obj.append(value)
+                next_link = obj.annotations.qualified_get("odata.nextLink")
+                with obj.loading(next_link is None) as new_values:
+                    for item in jvalue:
+                        value = obj.type_def.item_type()
+                        self.obj_from_json_value(value, item)
+                        new_values.append(value)
                 obj.clean()
             else:
                 raise errors.FormatError(
@@ -227,14 +241,15 @@ class Payload(object):
         if isinstance(obj, csdl.EntityModel):
             # return a service document
             return self.generate_service_document(obj)
-        elif isinstance(obj, (csdl.PrimitiveValue, csdl.EnumerationValue)):
+        elif isinstance(obj, (primitive.PrimitiveValue,
+                              csdl.EnumerationValue)):
             if obj.is_null():
                 return (b'null', )
-            elif isinstance(obj, csdl.BooleanValue):
+            elif isinstance(obj, primitive.BooleanValue):
                 return (b'true' if obj.value else b'false', )
-            elif isinstance(obj, csdl.StringValue):
+            elif isinstance(obj, primitive.StringValue):
                 return (json.dumps(obj.value).encode(self.charset), )
-            elif isinstance(obj, csdl.NumericValue):
+            elif isinstance(obj, primitive.NumericValue):
                 return (str(obj.value).encode(self.charset), )
             else:
                 return (json.dumps(to_text(obj)).encode(self.charset), )

@@ -1,14 +1,12 @@
 #! /usr/bin/env python
 
 import logging
+import weakref
 
+from . import errors
 from . import metadata as csdlxml
 from . import model as csdl
-from .errors import (
-    ODataError,
-    ServiceError,
-    URLError,
-    )
+from . import parser
 from .payload import Payload
 from .service import (
     DataRequest,
@@ -25,8 +23,6 @@ from ..py2 import (
     u8,
     )
 from ..rfc2396 import (
-    escape_data,
-    unescape_data,
     URI,
     )
 from ..xml.structures import XMLEntity
@@ -35,106 +31,18 @@ from ..xml.structures import XMLEntity
 BOM = u8(b'\xef\xbb\xbf')
 
 
-class ClientError(ODataError):
+class ClientError(errors.ODataError):
 
     """Base class for all client-specific exceptions."""
     pass
 
 
-class UnexpectedHTTPResponse(ServiceError):
+class UnexpectedHTTPResponse(errors.ServiceError):
 
     """The server returned an unexpected response code, typically a 500
     internal server error.  The error message contains details of the
     error response returned."""
     pass
-
-
-class ODataURL(object):
-
-    """Represents an OData URL"""
-
-    def __init__(self):
-        #: the service root of this URL, an encoded URL string
-        self.service_root = "/"
-        #: the resource path, an array of decoded text strings
-        self.resource_path = []
-        #: the query options, a dictionary mapping text -> text strings
-        self.query_options = {}
-        #: the fragment
-        self.fragment = None
-
-    def __str__(self):
-        url = self.service_root + "/".join(
-            escape_data(p) for p in self.resource_path)
-        if self.query_options:
-            url = url + "?" + "&".join(
-                escape_data(n) + "=" + escape_data(v)
-                for n, v in self.query_options.items())
-        if self.fragment:
-            url = url + '#' + self.fragment
-        return url
-
-    @classmethod
-    def from_str(cls, src):
-        try:
-            split = src.index(":")
-        except ValueError:
-            raise URLError("Service root must end in '/' (%s)" % src)
-        scheme = src[:split]
-        rest = src[split + 1:]
-        split = rest.find("?")
-        if split < 0:
-            # no query
-            query = ""
-            split = rest.find("#")
-            if split < 0:
-                # no fragment
-                fragment = ""
-                hpart = rest
-            else:
-                hpart = rest[:split]
-                fragment = rest[split + 1:]
-
-        else:
-            hpart = rest[:split]
-            rest = rest[split + 1:]
-            split = rest.find("#")
-            if split < 0:
-                fragment = ""
-                query = rest
-            else:
-                query = rest[:split]
-                fragment = rest[split + 1:]
-        if hpart.startswith("//"):
-            # authority is present
-            path = hpart[2:].split("/")
-            if len(path) < 2:
-                raise URLError("Service root must end in '/' (%s)" % src)
-            authority = "//" + path[0]
-        else:
-            authority = ""
-            path = hpart.split("/")
-            if len(path) < 2:
-                raise URLError("Service root must end in '/' (%s)" % src)
-        path = path[1:]
-        url = cls()
-        url.service_root = scheme + ':' + authority + '/'
-        url.resource_path = [unescape_data(p).decode('utf-8') for p in path]
-        url.fragment = fragment
-        # second stage, split the query
-        if query:
-            options = query.split('&')
-            for nv in options:
-                split = nv.find('=')
-                if split < 0:
-                    name = nv
-                    value = ""
-                else:
-                    name = nv[:split]
-                    value = nv[split + 1:]
-                url.query_options[unescape_data(name).decode('utf-8')] = \
-                    unescape_data(value).decode('utf-8')
-        return url
 
 
 class Client(DataService):
@@ -190,8 +98,8 @@ class Client(DataService):
             # the request may have been redirected so read back
             # the service root from the request
             self.svc_root = request.url
-            self.context_base = URI.from_octets(
-                '$metadata').resolve(self.svc_root)
+            self.set_context_base(
+                URI.from_octets('$metadata').resolve(self.svc_root))
             if is_text(metadata):
                 metadata = URI.from_octets(metadata)
             if isinstance(metadata, URI) and not metadata.is_absolute():
@@ -235,7 +143,7 @@ class Client(DataService):
             raise NotImplementedError
         if isinstance(doc.root, csdlxml.Edmx):
             self.model = doc.root.entity_model
-            self.container = self.model.get_container()
+            self.set_container(self.model.get_container())
             self.metadata = doc
 
     def resolve_type(self, type_url):
@@ -260,7 +168,15 @@ class Client(DataService):
                 else:
                     raise NotImplemented("Cross-service type references")
         else:
-            raise ServiceError("Invalid odata.type: %s" % str(type_url))
+            raise errors.ServiceError("Invalid odata.type: %s" % str(type_url))
+
+    def get_entity_by_key(
+            self, entity_set_value, key, select=None, expand=None):
+        """Creates a request to get an entity by key"""
+        request = EntityByKeyRequest(self, (entity_set_value, key))
+        # request.set_select(select)
+        # request.set_expand(expand)
+        return request
 
     def get_item_count(
             self, collection, filter=None, params=None, search=None):
@@ -310,9 +226,8 @@ class ClientDataRequest(DataRequest):
 class CountRequest(ClientDataRequest):
 
     def create_request(self):
-        self.url = ODataURL.from_str(to_text(self.target.get_url()))
-        # target is an addressable Collection
-        self.url.resource_path.append("$count")
+        self.url = self.get_value_url(self.target)
+        self.url.add_path_segment("$count")
         # add in any specified query options...
         if self.filter is not None:
             self.request_url.query_options["$filter"] = to_text(filter)
@@ -336,17 +251,17 @@ class CountRequest(ClientDataRequest):
                 charset = "utf_8_sig"
             text_data = self.http_request.res_body.decode(charset)
             # now read a primitive value
-            p = csdl.ODataParser(text_data)
+            p = parser.Parser(text_data)
             v = p.require_int64_value()
             p.require_end()
-            self.result = v.value
+            self.result = v
 
 
 class IterateRequest(ClientDataRequest):
 
     def create_request(self):
-        # target is an entity set
-        self.url = ODataURL.from_str(to_text(self.target.get_url()))
+        # target is an entity set value
+        self.url = self.get_value_url(self.target)
         # add in any specified query options...
         if self.filter is not None:
             self.request_url.query_options["$filter"] = to_text(filter)
@@ -373,3 +288,54 @@ class IterateRequest(ClientDataRequest):
             self.next_request.url = self.url
             self.next_request.http_request = http.ClientRequest(
                 str(next_link.value))
+
+
+class EntityByKeyRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is a tuple of entity set and key
+        target_set_value, target_key = self.target
+        entity_type = target_set_value.type_def.entity_type
+        key = entity_type.get_key_dict(target_key)
+        if target_set_value.entity_set and \
+                target_set_value.entity_set.indexable_by_key:
+            # we are bound to an entity set (even if we are actually a
+            # navigation property) that is indexable by key so we will
+            # just use the key-predicate form of index look-up
+            self.url = self.get_value_url(target_set_value)
+            self.url.add_key_predicate(key)
+        elif not self.service.conventional_ids or target_set_value.name:
+            # Problem #1: we don't know the id of the entity or we
+            # are indexing a navigation property
+            # turn the key dictionary into a filter and filter the
+            # entity set, it's the only way
+            raise NotImplementedError("Entity by key without conventional IDs")
+        else:
+            id = self.get_value_url(target_set_value)
+            id.add_key_predicate(key)
+            if self.service.derefenceable_ids:
+                self.url = id
+            else:
+                # Problem #2: we don't know the read URL so we need to use the
+                # $entity endpoint to resolve this as if it were an entity
+                # reference...
+                self.url = self.service.root_url()
+                self.url.add_path_segment("$entity")
+                self.url.add_query_option("$id", to_text(id))
+        self.entity = entity_type()
+        self.entity.set_entity_set(target_set_value.entity_set)
+        # bind to the service before deserialization
+        self.entity.bind_to_service(weakref.ref(self.service))
+        self.http_request = http.ClientRequest(str(self.url))
+
+    def set_response(self):
+        if self.http_request.status != 200:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+            return
+        payload = Payload.from_message(
+            self.http_request.url, self.http_request.response, self.service)
+        payload.obj_from_bytes(self.entity, self.http_request.res_body)
+        # bind this entity to the entity set we used to retrieve it
+        self.result = self.entity
