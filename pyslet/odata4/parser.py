@@ -8,6 +8,7 @@ from .. import iso8601 as iso
 from ..py2 import (
     byte,
     range3,
+    uempty,
     ul,
     )
 from ..unicode5 import (
@@ -28,6 +29,10 @@ _oid_start_char.add_class(CharClass.ucd_category("Nl"))
 _oid_char = CharClass()
 for c in ("L", "Nl", "Nd", "Mn", "Mc", "Pc", "Cf"):
     _oid_char.add_class(CharClass.ucd_category(c))
+
+_word_char = CharClass()
+_word_char.add_class(CharClass.ucd_category("L"))
+_word_char.add_class(CharClass.ucd_category("Nl"))
 
 
 class Parser(BasicParser):
@@ -69,29 +74,36 @@ class Parser(BasicParser):
             if self.parse(self.ref):
                 item.qualifier = types.PathQualifier.ref
             elif self.parse(self.OPEN):
+                # levels doesn't consume the option name
+                self.require('$levels=')
                 levels = self.require_levels()
                 self.require(self.CLOSE)
                 item.options.levels = levels
             return item
-        item.path = tuple(self.require_expand_path())
+        path = self.require_expand_path()
+        if isinstance(path[-1], types.QualifiedName):
+            item.type_cast = path[-1]
+            path = path[:-1]
+        item.path = tuple(path)
         if self.parse(self.ref):
             item.qualifier = types.PathQualifier.ref
             if self.parse(self.OPEN):
-                item.set_option(*self.require_expand_ref_option())
+                item.options.set_option(*self.require_expand_ref_option())
                 while self.parse(self.SEMI):
-                    item.set_option(*self.require_expand_ref_option())
+                    item.options.set_option(*self.require_expand_ref_option())
                 self.require(self.CLOSE)
         elif self.parse(self.count):
             item.qualifier = types.PathQualifier.count
             if self.parse(self.OPEN):
-                item.set_option(*self.require_expand_count_option())
+                item.options.set_option(*self.require_expand_count_option())
                 while self.parse(self.SEMI):
-                    item.set_option(*self.require_expand_count_option())
+                    item.options.set_option(
+                        *self.require_expand_count_option())
                 self.require(self.CLOSE)
         elif self.parse(self.OPEN):
-            item.set_option(*self.require_expand_option())
+            item.options.set_option(*self.require_expand_option())
             while self.parse(self.SEMI):
-                item.set_option(*self.require_expand_option())
+                item.options.set_option(*self.require_expand_option())
             self.require(self.CLOSE)
         return item
 
@@ -119,17 +131,230 @@ class Parser(BasicParser):
             result.append(self.require_odata_identifier())
         else:
             result.append(self.require_odata_identifier())
-        while self.parse("/"):
-            qname = self.parse_production(self.require_qualified_name)
-            if qname:
-                result.append(qname)
-                if self.parse("/"):
-                    result.append(self.require_odata_identifier())
-                else:
+        while True:
+            savepos = self.pos
+            if self.parse("/"):
+                if self.match('$'):
+                    self.pos = savepos
                     break
+                qname = self.parse_production(self.require_qualified_name)
+                if qname:
+                    result.append(qname)
+                    savepos = self.pos
+                    if self.parse("/"):
+                        if self.match('$'):
+                            self.pos = savepos
+                            break
+                        result.append(self.require_odata_identifier())
+                    else:
+                        break
+                else:
+                    result.append(self.require_odata_identifier())
             else:
-                result.append(self.require_odata_identifier())
+                break
         return result
+
+    # Line 256
+    def require_expand_count_option(self):
+        """Parses production expandCountOption"""
+        if self.parse('$filter'):
+            self.require(self.EQ)
+            return '$filter', self.require_filter()
+        else:
+            self.require('$search')
+            self.require(self.EQ)
+            return '$search', self.require_search()
+
+    # Line 258
+    def require_expand_ref_option(self):
+        """Parses production expandRefOption"""
+        if self.parse('$orderby'):
+            self.require(self.EQ)
+            return '$orderby', self.require_orderby()
+        elif self.parse('$skip'):
+            self.require(self.EQ)
+            return '$skip', self.require_skip()
+        elif self.parse('$top'):
+            self.require(self.EQ)
+            return '$top', self.require_top()
+        elif self.parse('$inlinecount'):
+            self.require(self.EQ)
+            return '$inlinecount', self.require_inlinecount()
+        else:
+            return self.require_expand_count_option()
+
+    # Line 263
+    def require_expand_option(self):
+        """Parses production expandOption
+
+        Returns a name, value pair."""
+        if self.parse('$select'):
+            self.require(self.EQ)
+            return "$select", self.require_select()
+        elif self.parse('$expand'):
+            self.require(self.EQ)
+            return "$expand", self.require_expand()
+        elif self.parse('$levels'):
+            self.require(self.EQ)
+            return "$levels", self.require_levels()
+        else:
+            return self.require_expand_ref_option()
+
+    # Line 268
+    def require_levels(self):
+        """Parses production filter
+
+        Does *not* parse the $levels= but parses just the value of the
+        levels option returning an integer with 0 indicating 'max'."""
+        if self.parse('max'):
+            return 0
+        else:
+            result = self.parse_integer(min=1)
+            if result is None:
+                self.parser_error("non-zero digit in levels")
+            return result
+
+    # Line 270
+    def require_filter(self):
+        """Parses production filter
+
+        Does *not* parse the $filter= but parses just the value of the
+        filter option (a boolCommonExpr)."""
+        return self.require_bool_common_expr()
+
+    # Line 288
+    def require_search(self):
+        """Parses production search
+
+        Does *not* parse the $search= but parses just the value of the
+        search option returning a CommonExpression object representing
+        the limited expression syntax of search expressions."""
+        return self.require_search_expr()
+
+    # Line 289
+    def require_search_expr(self):
+        """Parses production search_expr
+
+        This is a cut-down version of the parser we use for common
+        expressions."""
+        # For more details on the implementationsee the code for common
+        # expressions.
+        left_op = None
+        right_op = None
+        op_stack = []
+        while True:
+            # step 1: find the next atom
+            if self.match(self.DQUOTE):
+                # unambiguous, must be string primitiveLiteral
+                right_op = types.PhraseExpression(self.require_search_phrase())
+            elif self.parse(self.OPEN):
+                self.parse_bws()
+                right_op = self.require_search_expr()
+                self.parse_bws()
+                self.require(self.CLOSE)
+            else:
+                # we expect a name (or qname) but it could still
+                # be a literal
+                word = self.parse_production(self.require_search_word)
+                if word:
+                    right_op = types.WordExpression(word)
+                elif self.parse('NOT'):
+                    right_op = types.SUnaryExpression(types.Operator.bool_not)
+                    self.require_rws()
+                else:
+                    self.parser_error()
+            # step 2: find the next operator
+            if not isinstance(
+                    right_op, types.UnaryExpression) or right_op.operands:
+                operand = right_op
+                if self.parse_bws():
+                    if self.parse('AND'):
+                        op_code = types.Operator.bool_and
+                        right_op = types.SBinaryExpression(op_code)
+                        self.require_rws()
+                    elif self.parse('OR'):
+                        op_code = types.Operator.bool_or
+                        right_op = types.SBinaryExpression(op_code)
+                        self.require_rws()
+                    else:
+                        right_op = None
+                else:
+                    right_op = None
+                if right_op is None:
+                    while left_op is not None:
+                        left_op.add_operand(operand)
+                        operand = left_op
+                        if op_stack:
+                            left_op = op_stack.pop()
+                        else:
+                            left_op = None
+                    return operand
+            else:
+                operand = None
+            while True:
+                if left_op is None or left_op < right_op:
+                    if operand is not None:
+                        right_op.add_operand(operand)
+                    if left_op is not None:
+                        op_stack.append(left_op)
+                    left_op = right_op
+                    right_op = None
+                    operand = None
+                    break
+                else:
+                    left_op.add_operand(operand)
+                    operand = left_op
+                    if op_stack:
+                        left_op = op_stack.pop()
+                    else:
+                        left_op = None
+
+    # Line 299
+    def require_search_phrase(self):
+        """Parses production searchPhrase
+
+        Returns a string.
+
+        The syntax is complex due to the desire to represent the percent
+        encoded form.  It appears that any character is allowed except &
+        and the double-quote.  The restriction on & is curious because
+        query parameters must be split before decoding so an encoded &
+        (%26) shouldn't cause a problem but we still raise a parser
+        error if we encounter one.  The same cannot be said for %22
+        (double-quote) which would be decoded to the closing
+        double-quote and just be detected through the following
+        unexpected content"""
+        self.require(self.DQUOTE)
+        phrase = []
+        while True:
+            if self.the_char is None or self.match(self.AMP):
+                self.parser_error("search phrase")
+            if self.parse(self.DQUOTE):
+                break
+            phrase.append(self.the_char)
+            self.next_char()
+        phrase = ''.join(phrase)
+        if not len(phrase):
+            self.parser_error("search phrase")
+        return phrase
+
+    # Line 300
+    def require_search_word(self):
+        """Parses production searchWord
+
+        Returns a string.
+
+        Syntax described as 1*ALPHA but with the qualification that it
+        can contain "any character from the Unicode categories L or Nl,
+        but not the words AND, OR, and NOT"."""
+        word = []
+        while _word_char.test(self.the_char):
+            word.append(self.the_char)
+            self.next_char()
+        word = ''.join(word)
+        if word in ('', 'AND', 'OR', 'NOT'):
+            self.parser_error("search word")
+        return word
 
     # Line 303
     def require_select(self):
@@ -198,6 +423,230 @@ class Parser(BasicParser):
                 break
         return tuple(path)
 
+    # Line 402
+    def require_bool_common_expr(self):
+        """Parses production boolCommonExpr
+
+        Returns a CommonExpression object."""
+        expr = self._require_common_expr()
+        # TODO: validate that this is a boolean common expression!
+        return expr
+
+    BinaryOperators = set(
+        ("eq", "ne", "lt", "le", "gt", "ge", "has", "and", "or", "add",
+         "sub", "mul", "div", "mod"))
+
+    def _require_common_expr(self):
+        """Parses a common expression
+
+        We split our expression up into operators and atoms.  Operators
+        take 0 or more sub-expressions as arguments whereas atoms are
+        indivisible and can be evaluated directly given a suitable
+        context."""
+        left_op = None
+        right_op = None
+        op_stack = []
+        while True:
+            # step 1: find the next atom
+            if self.match(self.SQUOTE):
+                # unambiguous, must be string primitiveLiteral
+                right_op = types.LiteralExpression(self.require_string())
+            elif self.parse(self.AT):
+                # must be parameterAlias
+                right_op = types.ParameterExpression(
+                    self.require_odata_identifier())
+            elif self.match('['):
+                # must be JSON array
+                raise NotImplementedError("JSON array expression")
+            elif self.match("{"):
+                # must be JSON object
+                raise NotImplementedError("JSON object expression")
+            elif self.parse('$'):
+                # a reserved name
+                name = self.require_odata_identifier()
+                if name == "it":
+                    right_op = types.ItExpression()
+                elif name == "root":
+                    right_op = types.RootExpression()
+                elif name == "count":
+                    right_op = types.CountExpression()
+                else:
+                    self.parser_error("it, root or count expression")
+            elif self.match('+'):
+                # unambiguous, must be a numeric literal
+                # note: dates do not support a leading +
+                right_op = types.LiteralExpression(
+                    self.require_primitive_literal())
+            elif self.parse(self.OPEN):
+                self.parse_bws()
+                right_op = self._require_common_expr()
+                self.parse_bws()
+                self.require(self.CLOSE)
+            elif self.match('-'):
+                # getting harder, could be a negative literal.  We can't
+                # just treat this as a unary negation operator because
+                # we don't support general forms like -date and we might
+                # trip over parsing a number that is too big for +ve int
+                # but OK for -ve int.
+                savepos = self.pos
+                self.parse('-')
+                if self.match_digit() or self.match('INF'):
+                    # it must be a negative numeric literal
+                    self.setpos(savepos)
+                    right_op = types.LiteralExpression(
+                        self.require_primitive_literal())
+                else:
+                    # negateExpr
+                    self.parse_bws()
+                    right_op = types.UnaryExpression(types.Operator.negate)
+            else:
+                # we expect a name (or qname) but it could still
+                # be a literal
+                savepos = self.pos
+                try:
+                    name = self.require_odata_identifier()
+                    if self.match('.'):
+                        qname = [name]
+                        while self.parse('.'):
+                            qname.append(self.require_odata_identifier())
+                        qname = types.QualifiedName(qname[:-1], qname[-1])
+                    else:
+                        qname = None
+                    if self.match(self.SQUOTE):
+                        # name followed by quote is duration, binary, geo...
+                        # qname followed by quote is enum
+                        self.setpos(savepos)
+                        right_op = types.LiteralExpression(
+                            self.require_primitive_literal())
+                    elif self.match('-') and len(name) == 8 and qname is None:
+                        # a guid that starts off looking like a name
+                        self.setpos(savepos)
+                        right_op = types.LiteralExpression(
+                            self.require_primitive_literal())
+                    elif self.parse(self.OPEN):
+                        # this is a call or key predicate
+                        if qname is None:
+                            right_op = types.CallExpression(name)
+                        else:
+                            right_op = types.QCallExpression(qname)
+                        comma = False
+                        self.parse_bws()
+                        while not self.parse(self.CLOSE):
+                            if comma:
+                                self.require(self.COMMA)
+                                self.parse_bws()
+                            else:
+                                comma = True
+                            right_op.add_operand(self._require_common_expr())
+                            self.parse_bws()
+                    # check reserved words.  The syntax doesn't really
+                    # talk about reserved words and just allows these to
+                    # be ambiguous but the idea that you might have a
+                    # property called "null" which hides the reserved
+                    # word null in expressions is ridiculous.  The
+                    # exception we make to this is that a reserved word
+                    # followed immediately by a call or path operator
+                    # cannot be being used in the reserved sense (we already
+                    # parsed the call above).  To make it easier to
+                    # upgrade such expressions later we introduce
+                    # special expressions to handle the reserved word
+                    # cases
+                    elif qname is None and name in (
+                            'true', 'false', 'null', 'INF', 'NaN'):
+                        right_op = types.ReservedExpression(name)
+                    elif qname is None and name == "not" and self.parse_rws():
+                        # always the not operator
+                        right_op = types.UnaryExpression(
+                            types.Operator.bool_not)
+                    elif qname:
+                        right_op = types.QNameExpression(qname)
+                    else:
+                        right_op = types.NameExpression(name)
+                except ValueError:
+                    self.parser_error()
+            # step 2: find the next operator
+            # if we have an *unbound* unary operator, skip the search
+            # for a binary operator
+            if not isinstance(
+                    right_op, types.UnaryExpression) or right_op.operands:
+                operand = right_op
+                # start with operators that do not accept spaces
+                if self.parse('/'):
+                    right_op = types.BinaryExpression(types.Operator.member)
+                elif self.parse('='):
+                    # yes, we have an assignment operator for binding
+                    # expressions to names (in calls)
+                    right_op = types.BinaryExpression(types.Operator.bind)
+                elif self.parse(':'):
+                    self.parse_bws()
+                    right_op = types.BinaryExpression(
+                        types.Operator.lambda_bind)
+                elif self.parse_bws():
+                    if self.parse(':'):
+                        self.parse_bws()
+                        right_op = types.BinaryExpression(
+                            types.Operator.lambda_bind)
+                    else:
+                        savepos = self.pos
+                        try:
+                            name = self.require_odata_identifier()
+                            self.require_rws()
+                            if name in self.BinaryOperators:
+                                op_code = types.Operator.from_str(name)
+                            right_op = types.BinaryExpression(op_code)
+                        except ValueError:
+                            self.setpos(savepos)
+                            right_op = None
+                else:
+                    right_op = None
+                if right_op is None:
+                    # end of the expression, rotate to the left to bind
+                    # the current operand and keep rotating until we're
+                    # done
+                    while left_op is not None:
+                        left_op.add_operand(operand)
+                        operand = left_op
+                        if op_stack:
+                            left_op = op_stack.pop()
+                        else:
+                            left_op = None
+                    return operand
+            else:
+                operand = None
+            # we now have:
+            # left_op (may be None)
+            # operand (None only if right_op is an unbound unary)
+            # right_op (an operator expression, never None)
+            # next job, determine who binds more tightly, left or right?
+            while True:
+                if left_op is None or left_op < right_op:
+                    # bind the operand to the right, in cases of equal
+                    # precedence we left associate 1+2-3 = (1+2)-3 this
+                    # causes a rotation to the left that pushes the
+                    # current left_op (if any) onto the stack.
+                    if operand is not None:
+                        right_op.add_operand(operand)
+                    if left_op is not None:
+                        op_stack.append(left_op)
+                    left_op = right_op
+                    right_op = None
+                    operand = None
+                    break
+                else:
+                    # bind the operand to the left, this causes a
+                    # rotation to the right with the operand being bound
+                    # to the left_op and then the left_op being replaced
+                    # by the item on top of the stack (if any).  We
+                    # repeat the binding until we can rotate the other
+                    # way, we're binding a binary operator here so there
+                    # must always be something more to the right.
+                    left_op.add_operand(operand)
+                    operand = left_op
+                    if op_stack:
+                        left_op = op_stack.pop()
+                    else:
+                        left_op = None
+
     # Line 701-704
     def require_qualified_name(self):
         """Parses productions of the form qualified<type>Name
@@ -243,7 +692,11 @@ class Parser(BasicParser):
 
     # Line 795
     def require_primitive_literal(self):
-        """Parses production primitiveLiteral"""
+        """Parses production primitiveLiteral
+
+        Returns a raw value, such as an int, float, string, etc or an
+        instance of one of the primtive classes that may be freely
+        converted to a :class:`PrimitiveValue` instance."""
         save_pos = self.pos
         if self.match_one('-1234567890'):
             # try and parse an integer
@@ -569,13 +1022,15 @@ class Parser(BasicParser):
     def require_string(self):
         """Parses production: string
 
-        Returns a :class:`StringValue` instance or raises a parser
-        error. Note that this is the literal quoted form of the string
-        for use in URLs, string values in XML and JSON payloads are
-        represented using native representations.  It is assumed that
-        the input *has already* been decoded from the URL and is
-        represented as a character string (it may also contain non-ASCII
-        characters interpreted from the URL in an appropriate way)."""
+        Returns a *character* string or raises a parser error. Note that
+        this is the literal quoted form of the string for use in URLs,
+        string values in XML and JSON payloads are represented using
+        native representations.  It is assumed that the input *has
+        already* been decoded from the URL and is represented as a
+        character string (it may also contain non-ASCII characters
+        interpreted from the URL in an appropriate way), i.e., the only
+        escaping we use is the quote-doubling rule for escaping the
+        single quote character."""
         result = []
         self.require("'")
         while True:
@@ -590,7 +1045,7 @@ class Parser(BasicParser):
                 self.next_char()
             else:
                 self.parser_error("SQUOTE")
-        return "".join(result)
+        return uempty.join(result)
 
     # Line 884
     def require_date_value(self):
@@ -1111,18 +1566,26 @@ class Parser(BasicParser):
         self.require(self.CLOSE)
         return geo.Ring(coords)
 
-    # Line 1052
-    def parse_sign(self):
-        """Parses production: SIGN (aka sign)
+    # Line 1045
+    def require_rws(self):
+        """Parses required white space
 
-        This production is typically optional so we either return "+",
-        "-" or "" depending on the sign character parsed.  The ABNF
-        allows for the percent encoded value "%2B" instead of "+" but we
-        assume that percent-encoding has been removed before parsing.
-        (That may not be true in XML documents but it seems
-        unintentional to allow this form in that context.)"""
-        sign = self.parse_one('+-')
-        return sign if sign else ''
+        We assume that percent encoding has already been removed."""
+        if not self.parse_bws():
+            self.parser_error("RWS")
+
+    # Line 1046
+    def parse_bws(self):
+        """Parses (optional) bad white space
+
+        We assume that percent-encoding has already been removed."""
+        count = 0
+        while self.parse_one(" \t"):
+            count += 1
+        return count
+
+    # Line 1048
+    AT = ul("@")
 
     # Line 1050
     COMMA = ul(",")
@@ -1139,16 +1602,36 @@ class Parser(BasicParser):
         sign = self.parse_one('+-')
         return -1 if sign == "-" else 1
 
+    # Line 1052
+    def parse_sign(self):
+        """Parses production: SIGN (aka sign)
+
+        This production is typically optional so we either return "+",
+        "-" or "" depending on the sign character parsed.  The ABNF
+        allows for the percent encoded value "%2B" instead of "+" but we
+        assume that percent-encoding has been removed before parsing.
+        (That may not be true in XML documents but it seems
+        unintentional to allow this form in that context.)"""
+        sign = self.parse_one('+-')
+        return sign if sign else ''
+
     # Line 1053
     SEMI = ul(";")
 
     # Line 1054
     STAR = ul("*")
 
+    # Line 1055
+    SQUOTE = ul("'")
+
     # Line 1057
     OPEN = ul("(")
+
     # Line 1058
     CLOSE = ul(")")
+
+    # Line 1161
+    DQUOTE = ul('"')
 
     # Line 1162
     SP = ul(" ")

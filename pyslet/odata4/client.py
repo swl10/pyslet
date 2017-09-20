@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 import logging
-import weakref
 
 from . import errors
 from . import metadata as csdlxml
@@ -12,6 +11,7 @@ from .service import (
     DataRequest,
     DataService,
     )
+from . import types
 
 from ..http import client as http
 from ..http.params import (
@@ -152,7 +152,7 @@ class Client(DataService):
         if type_url.fragment:
             # if this is a simple identifier we have a built-in
             # primitive type
-            if csdl.NameTable.is_simple_identifier(type_url.fragment):
+            if types.NameTable.is_simple_identifier(type_url.fragment):
                 # ignore the actual URL
                 return self.model["Edm"].get(type_url.fragment, None)
             else:
@@ -170,28 +170,29 @@ class Client(DataService):
         else:
             raise errors.ServiceError("Invalid odata.type: %s" % str(type_url))
 
-    def get_entity_by_key(
-            self, entity_set_value, key, select=None, expand=None):
+    def get_entity_collection(self, entity_set, next_link=None):
+        """Creates a request to get a collection of entities"""
+        request = IterateEntitiesRequest(self, entity_set, url=next_link)
+        return request
+
+    def get_entity_by_key(self, entity_set_value, key):
         """Creates a request to get an entity by key"""
         request = EntityByKeyRequest(self, (entity_set_value, key))
-        # request.set_select(select)
-        # request.set_expand(expand)
         return request
 
-    def get_item_count(
-            self, collection, filter=None, params=None, search=None):
+    def get_collection(self, collection, next_link=None):
+        """Creates a request to get a general collection"""
+        request = IterateRequest(self, collection, url=next_link)
+        return request
+
+    def get_item_count(self, collection):
         """Creates a request for the number of items in a collection"""
         request = CountRequest(self, collection)
-        request.set_filter(filter)
-        request.set_params(params)
         return request
 
-    def get_entity_collection(
-            self, entity_set, filter=None, params=None, orderby=None,
-            top=None, skip=None, count=None, search=None):
-        request = IterateRequest(self, entity_set)
-        request.set_filter(filter)
-        request.set_params(params)
+    def get_property(self, pvalue):
+        """Creates a request for an individual property"""
+        request = PropertyRequest(self, pvalue)
         return request
 
 
@@ -199,10 +200,10 @@ class ClientDataRequest(DataRequest):
 
     """Represents a request to an OData service"""
 
-    def __init__(self, client, target):
+    def __init__(self, client, target, url=None):
         super(ClientDataRequest, self).__init__(client, target)
         #: the OData url (split into components) we're using
-        self.url = None
+        self.url = url
         #: the HTTP request we'll use to execute this request
         self.http_request = None
 
@@ -227,14 +228,18 @@ class CountRequest(ClientDataRequest):
 
     def create_request(self):
         self.url = self.get_value_url(self.target)
+        if self.target.item_type is not self.target.type_def.item_type:
+            # add a type_cast segment to the URL
+            self.url.add_path_segment(self.target.item_type.qname)
         self.url.add_path_segment("$count")
         # add in any specified query options...
-        if self.filter is not None:
-            self.request_url.query_options["$filter"] = to_text(filter)
+        if self.target.options:
+            self.url.add_filter(self.target.filter)
+            self.url.add_search(self.target.search)
         # add in custom parameters
         if self.params:
             for name, value in self.params:
-                self.request_url.query_options[name] = value
+                self.url.query_options[name] = value
         self.http_request = http.ClientRequest(str(self.url))
 
     def set_response(self):
@@ -257,18 +262,26 @@ class CountRequest(ClientDataRequest):
             self.result = v
 
 
-class IterateRequest(ClientDataRequest):
+class IterateEntitiesRequest(ClientDataRequest):
 
     def create_request(self):
         # target is an entity set value
-        self.url = self.get_value_url(self.target)
-        # add in any specified query options...
-        if self.filter is not None:
-            self.request_url.query_options["$filter"] = to_text(filter)
-        # add in custom parameters
-        if self.params:
-            for name, value in self.params:
-                self.request_url.query_options[name] = value
+        if self.url is None:
+            self.url = self.get_value_url(self.target)
+            if self.target.item_type is not self.target.type_def.item_type:
+                # add a type_cast segment to the URL
+                self.url.add_path_segment(self.target.item_type.qname)
+            # add in any specified query options...
+            # TODO: add all collection options to the URL in one go...
+            if self.target.options:
+                self.url.set_select(self.target.options.select)
+                self.url.set_expand(self.target.options.expand)
+                self.url.add_filter(self.target.options.filter)
+                self.url.add_search(self.target.options.search)
+            # add in custom parameters
+            if self.params:
+                for name, value in self.params:
+                    self.url.query_options[name] = value
         self.http_request = http.ClientRequest(str(self.url))
 
     def set_response(self):
@@ -279,39 +292,42 @@ class IterateRequest(ClientDataRequest):
             return
         payload = Payload.from_message(
             self.http_request.url, self.http_request.response, self.service)
-        self.result = payload.obj_from_bytes(
-            self.target, self.http_request.res_body)
-        # was there a next link?
-        next_link = self.result.annotations.qualified_get("odata.nextLink")
-        if next_link is not None:
-            self.next_request = IterateRequest(self.service, self.target)
-            self.next_request.url = self.url
-            self.next_request.http_request = http.ClientRequest(
-                str(next_link.value))
+        payload.obj_from_bytes(self.target, self.http_request.res_body)
 
 
 class EntityByKeyRequest(ClientDataRequest):
 
     def create_request(self):
         # target is a tuple of entity set and key
-        target_set_value, target_key = self.target
-        entity_type = target_set_value.type_def.entity_type
+        target_set, target_key = self.target
+        entity_type = target_set.item_type
         key = entity_type.get_key_dict(target_key)
-        if target_set_value.entity_set and \
-                target_set_value.entity_set.indexable_by_key:
+        if target_set.entity_set and \
+                target_set.entity_set.indexable_by_key and \
+                target_set.options.filter is None:
             # we are bound to an entity set (even if we are actually a
             # navigation property) that is indexable by key so we will
-            # just use the key-predicate form of index look-up
-            self.url = self.get_value_url(target_set_value)
+            # just use the key-predicate form of index look-up note that:
+            # People('steve')?$filter=UserName eq 'dave'
+            # is not allowed in OData v4 so if a filter is in force we
+            # convert this to:
+            # People?$filter=UserName eq 'steve' and UserName eq 'dave'
+            self.url = self.get_value_url(target_set)
+            if entity_type is not target_set.type_def.item_type:
+                self.url.add_path_segment(target_set.item_type.qname)
             self.url.add_key_predicate(key)
-        elif not self.service.conventional_ids or target_set_value.name:
+            if target_set.options:
+                self.url.set_select(target_set.options.select)
+                self.url.set_expand(target_set.options.expand)
+        elif not self.service.conventional_ids or target_set.name or \
+                target_set.options.filter is not None:
             # Problem #1: we don't know the id of the entity or we
-            # are indexing a navigation property
-            # turn the key dictionary into a filter and filter the
-            # entity set, it's the only way
+            # are indexing a navigation property or otherwise filtered
+            # entity set, turn the key dictionary into a filter and
+            # filter the entity set, it's the only way
             raise NotImplementedError("Entity by key without conventional IDs")
         else:
-            id = self.get_value_url(target_set_value)
+            id = self.get_value_url(target_set)
             id.add_key_predicate(key)
             if self.service.derefenceable_ids:
                 self.url = id
@@ -322,10 +338,10 @@ class EntityByKeyRequest(ClientDataRequest):
                 self.url = self.service.root_url()
                 self.url.add_path_segment("$entity")
                 self.url.add_query_option("$id", to_text(id))
-        self.entity = entity_type()
-        self.entity.set_entity_set(target_set_value.entity_set)
-        # bind to the service before deserialization
-        self.entity.bind_to_service(weakref.ref(self.service))
+            self.url.set_select(target_set.options.select)
+            self.url.set_expand(target_set.options.expand)
+        self.entity = target_set.new_item()
+        self.entity.bind_to_service(self.service)
         self.http_request = http.ClientRequest(str(self.url))
 
     def set_response(self):
@@ -337,5 +353,56 @@ class EntityByKeyRequest(ClientDataRequest):
         payload = Payload.from_message(
             self.http_request.url, self.http_request.response, self.service)
         payload.obj_from_bytes(self.entity, self.http_request.res_body)
-        # bind this entity to the entity set we used to retrieve it
         self.result = self.entity
+
+
+class PropertyRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is a property value (primitive or complex)
+        self.url = self.get_value_url(self.target)
+        # add in any specified query options...
+        # you can't add select to a complex property
+        self.http_request = http.ClientRequest(str(self.url))
+
+    def set_response(self):
+        if self.http_request.status != 200:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+            return
+        payload = Payload.from_message(
+            self.http_request.url, self.http_request.response, self.service)
+        payload.obj_from_bytes(self.target, self.http_request.res_body)
+        self.result = self.target
+
+
+class IterateRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is a collection
+        if self.url is None:
+            self.url = self.get_value_url(self.target)
+            if self.target.item_type is not self.target.type_def.item_type:
+                # add a type_cast segment to the URL
+                self.url.add_path_segment(self.target.item_type.qname)
+            # add in any specified query options...
+            # TODO: add all collection options to the URL in one go...
+            if self.target.options:
+                self.url.add_filter(self.target.options.filter)
+                self.url.add_search(self.target.options.search)
+            # add in custom parameters
+            if self.params:
+                for name, value in self.params:
+                    self.url.query_options[name] = value
+        self.http_request = http.ClientRequest(str(self.url))
+
+    def set_response(self):
+        if self.http_request.status != 200:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+            return
+        payload = Payload.from_message(
+            self.http_request.url, self.http_request.response, self.service)
+        payload.obj_from_bytes(self.target, self.http_request.res_body)

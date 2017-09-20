@@ -33,6 +33,7 @@ def suite():
         unittest.makeSuite(SchemaTests, 'test'),
         unittest.makeSuite(StructuredTypeTests, 'test'),
         unittest.makeSuite(CollectionTests, 'test'),
+        unittest.makeSuite(StructuredValueTests, 'test'),
         unittest.makeSuite(EntitySetTests, 'test'),
         unittest.makeSuite(EnumerationTests, 'test'),
         ))
@@ -96,6 +97,9 @@ def load_trippin():
     doc = csdl.CSDLDocument(base_uri=uri)
     doc.read()
     return doc.root.entity_model
+
+# save loading this schema for every setUp
+trippin_ro = load_trippin()
 
 
 class EntityModelTests(unittest.TestCase):
@@ -600,6 +604,215 @@ class StructuredTypeTests(unittest.TestCase):
             pass
 
 
+class StructuredValueTests(unittest.TestCase):
+
+    def setUp(self):    # noqa
+        self.em = odata.EntityModel()
+        self.s = odata.Schema()
+        self.s.declare(self.em, "Schema")
+        # an entity type
+        et = odata.EntityType()
+        et.declare(self.s, "TypeX")
+        p = odata.Property()
+        p.set_type(odata.edm['Int32'])
+        p.set_nullable(False)
+        p.declare(et, "ID")
+        et.add_key(("ID", ))
+        p = odata.Property()
+        p.set_type(odata.edm['String'])
+        p.set_nullable(True)
+        p.declare(et, "Info")
+        et.close()
+        # a complex type
+        st = odata.ComplexType()
+        st.declare(self.s, "TypeA")
+        p = odata.Property()
+        p.set_type(odata.edm['String'])
+        p.set_nullable(True)
+        p.set_default(p.type_def("Hello"))
+        p.declare(st, "DefNullable")
+        p = odata.Property()
+        p.set_type(odata.edm['String'])
+        p.set_nullable(False)
+        p.set_default(p.type_def("Hello"))
+        p.declare(st, "DefNonNullable")
+        p = odata.Property()
+        p.set_type(odata.edm['String'])
+        p.set_nullable(True)
+        p.declare(st, "Nullable")
+        p = odata.Property()
+        p.set_type(odata.edm['String'])
+        p.set_nullable(False)
+        p.declare(st, "NonNullable")
+        np = odata.NavigationProperty()
+        np.set_type(et, collection=False, contains_target=True)
+        np.set_nullable(True)
+        np.declare(st, "NullableSingleton")
+        np = odata.NavigationProperty()
+        np.set_type(et, collection=False, contains_target=True)
+        np.set_nullable(False)
+        np.declare(st, "NonNullableSingleton")
+        st.close()
+        # more complex object
+        st = odata.ComplexType()
+        st.declare(self.s, "TypeB")
+        p = odata.Property()
+        p.set_type(odata.edm['Int32'])
+        p.declare(st, "Int32Property")
+        p = odata.Property()
+        p.set_nullable(True)
+        p.set_type(self.em["Schema"]["TypeA"])
+        p.declare(st, "Nullable")
+        p = odata.Property()
+        p.set_nullable(False)
+        p.set_type(self.em["Schema"]["TypeA"])
+        p.declare(st, "NonNullable")
+        np = odata.NavigationProperty()
+        np.declare(st, "Related")
+        st.close()
+        self.s.close()
+        self.em.close()
+
+    def test_constructor(self):
+        st = self.em.qualified_get("Schema.TypeA")
+        sv = odata.StructuredValue(type_def=st)
+        self.assertTrue(len(sv) == 0, "empty on construction")
+        self.assertTrue(sv.is_null())
+        self.assertTrue(sv.base_def is st)
+        # inherited characteristics
+        self.assertTrue(sv.type_def is st)
+        self.assertTrue(sv.service is None)
+        self.assertTrue(sv.frozen is False)
+        self.assertTrue(sv.dirty is False)
+        self.assertTrue(sv.parent is None)
+        self.assertTrue(sv.parent_cast is None)
+        self.assertTrue(sv.name is None)
+        # check null
+        self.assertTrue(sv.get_value() is None)
+
+    def test_primitives(self):
+        # tests private implementation for setting options
+        sv = odata.StructuredValue(type_def=self.em['Schema']['TypeA'])
+        self.assertTrue(sv.is_null())
+        self.assertTrue(len(sv) == 0, repr(sv.keys()))
+        # by default, all structural values are selected
+        sv.set_defaults()
+        # clean the value before proceeding...
+        sv.clean()
+        self.assertTrue(len(sv) == 4, repr(sv.keys()))
+        self.assertTrue("DefNullable" in sv)
+        self.assertTrue(sv.dirty is False, "private init is not dirty")
+        pv = sv['DefNullable']
+        self.assertTrue(isinstance(pv, primitive.StringValue))
+        self.assertTrue(pv.type_def is odata.edm['String'])
+        self.assertTrue(pv.service is None)
+        self.assertTrue(pv.frozen is False)
+        self.assertTrue(pv.dirty is False)
+        self.assertTrue(pv.parent() is sv)
+        self.assertTrue(pv.parent_cast is None)
+        self.assertTrue(pv.name == "DefNullable")
+        self.assertFalse(pv.is_null())
+        self.assertTrue(pv.get_value() == "Hello")
+        # change from default, value becomes dirty
+        pv.set_value("Hi")
+        self.assertTrue(pv.dirty is True)
+        pv = sv['DefNonNullable']
+        self.assertFalse(pv.is_null())
+        self.assertTrue(pv.get_value() == "Hello")
+        pv = sv['Nullable']
+        self.assertTrue(pv.is_null())
+        pv = sv['NonNullable']
+        self.assertTrue(pv.is_null(), "No default value: null anyway")
+
+    def test_complex(self):
+        sv = odata.StructuredValue(type_def=self.em['Schema']['TypeB'])
+        # start out as null
+        self.assertTrue(sv.is_null())
+        self.assertTrue(len(sv) == 0, repr(sv.keys()))
+        self.assertFalse("Nullable" in sv)
+        # now create the defaults
+        sv.set_defaults()
+        # no select or expand = select all structural properties
+        self.assertTrue(len(sv) == 3, repr(sv.keys()))
+        self.assertTrue(sv['Int32Property'].is_null())
+        pv = sv['Nullable']
+        # a nullable complex type is created as null
+        self.assertTrue(isinstance(pv, odata.ComplexValue), repr(pv))
+        self.assertTrue(pv.type_def is self.em['Schema']['TypeA'])
+        self.assertTrue(pv.base_def is self.em['Schema']['TypeA'])
+        self.assertTrue(pv.service is None)
+        self.assertTrue(pv.frozen is False)
+        self.assertTrue(pv.dirty is False)
+        self.assertTrue(pv.parent() is sv)
+        self.assertTrue(pv.parent_cast is None)
+        self.assertTrue(pv.name == "Nullable")
+        self.assertTrue(pv.is_null())
+        # the value should have nothing defined in its property dictionary
+        self.assertTrue(len(pv) == 0)
+        # but it should have inherited the correct rules for options so
+        # clearning the null value should activate the properties
+        pv.set_defaults()
+        self.assertTrue(pv.dirty is True)
+        self.assertTrue(len(pv) == 4, repr(pv.keys()))
+        self.assertTrue(pv["DefNullable"].get_value() == "Hello")
+        self.assertTrue(pv["DefNullable"].dirty is False)
+        # a non-nullable complex type starts off with default properties
+        pv = sv['NonNullable']
+        self.assertTrue(pv.dirty is False)
+        self.assertTrue(len(pv) == 4, repr(pv.keys()))
+        self.assertTrue(pv["DefNullable"].get_value() == "Hello")
+        self.assertTrue(pv["DefNullable"].dirty is False)
+
+    def test_navigation(self):
+        sv = odata.StructuredValue(type_def=self.em['Schema']['TypeA'])
+        options = types.EntityOptions()
+        # suppress structural properties
+        options.select_default = False
+        # expand all navigation properties
+        options.add_expand_path("*")
+        sv._set_options(options)
+        # make it non-null and clean
+        sv.set_defaults()
+        sv.clean()
+        self.assertTrue(len(sv) == 2, repr(sv.keys()))
+        self.assertFalse("DefNullable" in sv)
+        # a nullable *contained* singleton is created as a null entity value
+        npv = sv['NullableSingleton']
+        self.assertTrue(isinstance(npv, odata.EntityValue), repr(npv))
+        self.assertTrue(npv.type_def is self.em['Schema']['TypeX'])
+        self.assertTrue(npv.base_def is self.em['Schema']['TypeX'])
+        self.assertTrue(npv.service is None)
+        self.assertTrue(npv.frozen is False)
+        self.assertTrue(npv.dirty is False)
+        self.assertTrue(npv.parent() is sv)
+        self.assertTrue(npv.parent_cast is None)
+        self.assertTrue(npv.name == "NullableSingleton")
+        self.assertTrue(npv.is_null())
+        self.assertTrue(len(npv) == 0)
+        # a non-nullable *contained* singleton is created as default
+        # entity value
+        npv = sv['NonNullableSingleton']
+        self.assertTrue(isinstance(npv, odata.EntityValue), repr(npv))
+        self.assertTrue(npv.type_def is self.em['Schema']['TypeX'])
+        self.assertTrue(npv.base_def is self.em['Schema']['TypeX'])
+        self.assertTrue(npv.service is None)
+        self.assertTrue(npv.frozen is False)
+        self.assertTrue(npv.dirty is False)
+        self.assertTrue(npv.parent() is sv)
+        self.assertTrue(npv.parent_cast is None)
+        self.assertTrue(npv.name == "NonNullableSingleton")
+        self.assertFalse(npv.is_null())
+        self.assertTrue(len(npv) == 2)
+        self.assertTrue(npv['ID'].is_null())
+        self.assertTrue(npv['Info'].is_null())
+
+    def test_set_value(self):
+        pass
+
+    def test_assign(self):
+        pass
+
+
 class CollectionTests(unittest.TestCase):
 
     def test_constructor(self):
@@ -874,5 +1087,5 @@ class EnumerationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.DEBUG, format="%(levelname)s %(message)s")
+        level=logging.INFO, format="%(levelname)s %(message)s")
     unittest.main()

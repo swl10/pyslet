@@ -291,15 +291,13 @@ class FacetsMixin(object):
         if self.srid is not None:
             ptype.set_srid(self.srid)
 
-    def create_type(self, type_obj, collection):
+    def create_type(self, type_obj):
         if isinstance(type_obj, primitive.PrimitiveType):
             # add the facets to this type
             ptype = primitive.PrimitiveType()
             ptype.set_base(type_obj)
             self.set_type_facets(ptype)
             type_obj = ptype
-        if collection:
-            type_obj = odata.CollectionType(type_obj)
         return type_obj
 
 
@@ -1231,8 +1229,8 @@ class Property(ComplexTypeContent, EntityTypeContent, CommonPropertyMixin,
                 errors.Requirement.property_type_declared_s %
                 self.type_name[0])
         qname, collection = self.type_name
-        ptype = self.create_type(type_obj, collection)
-        self._p.set_type(ptype)
+        ptype = self.create_type(type_obj)
+        self._p.set_type(ptype, collection)
         if isinstance(type_obj, primitive.PrimitiveType):
             if not collection and self.default_value is not None:
                 try:
@@ -1709,7 +1707,9 @@ class Term(SchemaContent, FacetsMixin, Annotated):
                 raise errors.ModelError(
                     errors.Requirement.term_type_s %
                     ("%s not declared" % qname))
-            ttype = self.create_type(type_obj, collection)
+            ttype = self.create_type(type_obj)
+            if collection:
+                ttype = odata.CollectionType(ttype)
             self._term.set_type(ttype)
             if isinstance(type_obj, primitive.PrimitiveType):
                 if not collection and self.default_value is not None:

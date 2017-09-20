@@ -7,6 +7,7 @@ import logging
 from ..http import params as http
 from ..py2 import (
     is_text,
+    is_unicode,
     long2,
     to_text,
     )
@@ -14,6 +15,7 @@ from ..rfc2396 import URI
 from ..xml import xsdatatypes as xsi
 
 from . import errors
+from . import geotypes as geo
 from . import model as csdl
 from . import primitive
 from . import types
@@ -52,7 +54,10 @@ class Payload(object):
         self.ieee754_compatible = False
         self.exponential_decimals = False
         self.charset = "utf-8"
-        self.current_type = None
+        self.odata_type = None
+        self.odata_type_stack = []
+        self.odata_context = None
+        self.odata_context_stack = []
 
     def get_media_type(self):
         params = {
@@ -107,91 +112,175 @@ class Payload(object):
             self.charset = "utf-8"
 
     def obj_from_bytes(self, obj, data):
+        """Decodes a model object from a bytes string of data
+
+        obj
+            The expected model object
+
+        data
+            A bytes string containing the serialized representation of
+            the object.
+
+        There is no return value."""
         jdict = json.loads(data.decode(self.charset))
-        return self.obj_from_json_value(obj, jdict)
+        self.obj_from_json_value(obj, jdict)
+
+    def _resolve_in_context(self, url):
+        if self.odata_context:
+            url = url.resolve(self.odata_context)
+        if not url.is_absolute() and self.request_url:
+            url = url.resolve(self.request_url)
+        return url
+
+    def _push_context(self, odata_context):
+        odata_context = self._resolve_in_context(
+            URI.from_octets(odata_context))
+        self.odata_context_stack.append(self.odata_context)
+        self.odata_context = odata_context
+        return odata_context
+
+    def _pop_context(self):
+        self.odata_context = self.odata_context_stack.pop()
+
+    def _push_type(self, odata_type):
+        odata_type = URI.from_octets(odata_type)
+        if self.odata_type:
+            odata_type = odata_type.resolve(self.odata_type)
+        if not odata_type.is_absolute():
+            odata_type = odata_type.resolve(self.service.context_base)
+        if not odata_type.is_absolute() and self.request_url:
+            odata_type = odata_type.resolve(self.request_url)
+        self.odata_type_stack.append(self.odata_type)
+        self.odata_type = odata_type
+        return self.service.resolve_type(odata_type)
+
+    def _pop_type(self):
+        self.odata_type = self.odata_type_stack.pop()
+
+    def obj_from_json_dict(self, obj, jdict):
+        odata_context = jdict.pop("@odata.context", None)
+        if odata_context:
+            context_url = self._push_context(odata_context)
+        else:
+            context_url = None
+        odata_type = jdict.pop("@odata.type", None)
+        if odata_type:
+            odata_type_def = self._push_type(odata_type)
+            obj.type_cast(odata_type_def)
+        else:
+            odata_type_def = None
+        next_link = jdict.pop("@odata.nextLink", None)
+        if next_link:
+            next_link = self._resolve_in_context(next_link)
+        annotations = {}
+        # first pass processes annotations, adds them to the current
+        # object or stores them where there is an identified target
+        for name, value in jdict.items():
+            if '@' not in name:
+                continue
+            target, qname, q = \
+                types.QualifiedAnnotation.split_json_name(name)
+            if target:
+                target_dict = annotations.setdefault(target, {})
+                aname = "@" + to_text(qname)
+                if q:
+                    aname += "#" + q
+                target_dict[aname] = value
+            elif isinstance(obj, types.Annotatable):
+                qa = types.QualifiedAnnotation.from_qname(
+                    qname, self.service.model, qualifier=q)
+                if qa:
+                    self.obj_from_json_value(qa.value, value)
+                    obj.annotate(qa)
+        if isinstance(obj, csdl.EntityModel):
+            # we are parsing a service document
+            logging.debug("Service root format: %s", str(jdict))
+            # The value of the odata.context property MUST be the
+            # URL of the metadata document
+            obj.bind_to_service(self.service)
+            if context_url != self.service.context_base:
+                raise errors.ServiceError(
+                    errors.Requirement.service_context)
+            container = obj.get_container()
+            for feed in jdict["value"]:
+                name = feed["name"]
+                url = URI.from_octets(feed["url"]).resolve(context_url)
+                item = container[name]
+                item.set_url(url)
+        elif isinstance(obj, csdl.ContainerValue):
+            # we are parsing a simple (ordered) collection
+            with obj.loading(next_link) as new_value:
+                self.obj_from_json_value(new_value, jdict['value'])
+        elif isinstance(obj, csdl.StructuredValue):
+            with obj.loading() as new_value:
+                for name, value in jdict.items():
+                    if '@' in name:
+                        continue
+                    pvalue = new_value.get(name, None)
+                    if pvalue is not None:
+                        pdict = annotations.get(name, None)
+                        if pdict:
+                            # there are annotations targeted at us so we
+                            # simulate the explicit dictionary form for
+                            # this property
+                            pdict["value"] = value
+                            self.obj_from_json_dict(pvalue, pdict)
+                        elif isinstance(obj, csdl.ContainerValue):
+                            # no next link!
+                            with obj.loading() as new_value:
+                                self.obj_from_json_value(
+                                    new_value, jdict['value'])
+                        else:
+                            self.obj_from_json_value(pvalue, value)
+        elif isinstance(
+                obj, (primitive.GeographyValue, primitive.GeometryValue)):
+            if 'value' in jdict:
+                jdict = jdict['value']
+            if not isinstance(jdict, dict):
+                raise errors.FormatError("expected json object in value")
+            gtype = jdict['type']
+            coordinates = jdict.get('coordinates', None)
+            if gtype == "Point":
+                if not isinstance(obj, primitive.PointValue):
+                    raise errors.FormatError(
+                        "Can't parse %s from GeoJSON Point" % repr(obj))
+                if not coordinates or len(coordinates) != 2:
+                    raise errors.FormatError(
+                        "Exactly 2 coordinates required for Point")
+                point = geo.Point(*coordinates)
+                srid = self.srid_from_geojson(jdict)
+                if srid is None:
+                    obj.set_value(point)
+                else:
+                    obj.set_value(geo.PointLiteral(srid, point))
+            else:
+                raise NotImplementedError
+        else:
+            # we have processed the annotations for this object now
+            # including any type cast from @odata.type
+            self.obj_from_json_value(obj, jdict['value'])
+        if odata_type:
+            self._pop_type()
+        if odata_context:
+            self._pop_context()
+
+    def srid_from_geojson(self, jdict):
+        crs = jdict.get('crs', None)
+        if isinstance(crs, dict):
+            # must be of type name
+            if crs['type'] != 'name':
+                raise errors.FormatError("CRS MUST be of type name")
+            name = crs['properties']['name'].split(':')
+            if len(name) < 2 or name[0].upper() != "EPSG":
+                raise errors.FormatError(
+                    "Unrecognized CRS: %s" % crs['properties']['name'])
+            return int(name[1])
+        else:
+            return None
 
     def obj_from_json_value(self, obj, jvalue):
         if isinstance(jvalue, dict):
-            if isinstance(obj, csdl.EntityModel):
-                # we are parsing a service document
-                logging.info("Service root format: %s", str(jvalue))
-                # The value of the odata.context property MUST be the
-                # URL of the metadata document
-                obj.bind_to_service(self.service)
-                context_url = URI.from_octets(jvalue["@odata.context"])
-                if context_url != self.service.context_base:
-                    raise errors.ServiceError(
-                        errors.Requirement.service_context)
-                container = obj.get_container()
-                for feed in jvalue["value"]:
-                    name = feed["name"]
-                    url = URI.from_octets(feed["url"]).resolve(context_url)
-                    item = container[name]
-                    item.set_url(url)
-                return None
-            if isinstance(obj, types.Annotatable):
-                # first pass, object annotations
-                for name, value in jvalue.items():
-                    if name.startswith('@'):
-                        t, qname, q = \
-                            types.QualifiedAnnotation.split_json_name(name)
-                        qa = types.QualifiedAnnotation.from_qname(
-                            qname, self.service.model)
-                        self.obj_from_json_value(qa.value, value)
-                        obj.annotate(qa)
-            if isinstance(obj, csdl.EntitySetValue):
-                # we are parsing a simple (ordered) collection create a
-                # type object on the fly
-                result = obj.type_def.collection_type()
-                for item in jvalue["value"]:
-                    # create a new value of the type used in the collection
-                    value = result.type_def.item_type()
-                    value.set_entity_set(obj.entity_set)
-                    value.bind_to_service(obj.service)
-                    if isinstance(item, dict):
-                        type_override = item.get('@odata.type', None)
-                    else:
-                        type_override = None
-                    if type_override:
-                        type_override = URI.from_octets(type_override)
-                        if self.current_type:
-                            type_override = type_override.resolve(
-                                self.current_type)
-                        if not type_override.is_absolute():
-                            type_override = type_override.resolve(
-                                self.service.context_base)
-                        if not type_override.is_absolute() and \
-                                self.request_url:
-                            type_override = type_override.resolve(
-                                self.request_url)
-                        type_def = self.service.resolve_type(type_override)
-                        value.set_type(type_def)
-                    else:
-                        type_override = self.current_type
-                    save_base = self.current_type
-                    self.current_type = type_override
-                    self.obj_from_json_value(value, item)
-                    self.current_type = save_base
-                    result.append(value)
-                return result
-            elif isinstance(obj, csdl.StructuredValue):
-                ta = []
-                for name, value in jvalue.items():
-                    if '@' in name and not name[0] == '@':
-                        ta.append((name, value))
-                        continue
-                    pvalue = obj.get(name, None)
-                    if pvalue is not None:
-                        self.obj_from_json_value(pvalue, value)
-                # second pass for annotations
-                for name, value in ta:
-                    target, qname, q = \
-                        types.QualifiedAnnotation.split_json_name(name)
-                    qa = types.QualifiedAnnotation.from_qname(
-                        qname, self.service.model, qualifier=q)
-                    if qa:
-                        self.obj_from_json_value(qa.value, value)
-                        obj.annotate(qa, target=target)
+            self.obj_from_json_dict(obj, jvalue)
         elif jvalue is None:
             obj.set_value(None)
             obj.clean()
@@ -213,26 +302,22 @@ class Payload(object):
             obj.set_value(jvalue)
             obj.clean()
         elif isinstance(jvalue, list):
-            if isinstance(obj, csdl.CollectionValue):
-                next_link = obj.annotations.qualified_get("odata.nextLink")
-                with obj.loading(next_link is None) as new_values:
-                    for item in jvalue:
-                        value = obj.type_def.item_type()
-                        self.obj_from_json_value(value, item)
-                        new_values.append(value)
-                obj.clean()
+            if isinstance(obj, csdl.ContainerValue):
+                for item in jvalue:
+                    value = obj.new_item()
+                    self.obj_from_json_value(value, item)
+                    obj.load_item(value)
             else:
                 raise errors.FormatError(
                     "Can't parse %s from list" % repr(obj))
         else:
             raise errors.FormatError(
                 "Unexpected item in payload %s" % repr(jvalue))
-        return obj
 
     def to_json(self, obj):
         output = io.BytesIO()
         for data in self.generate_json(obj):
-            if is_text(data):
+            if is_unicode(data):
                 logging.error("Generator returned text: %s" % repr(data))
             output.write(data)
         return output.getvalue()

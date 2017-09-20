@@ -1571,5 +1571,5 @@ class OperatorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.DEBUG, format="%(levelname)s %(message)s")
+        level=logging.INFO, format="%(levelname)s %(message)s")
     unittest.main()

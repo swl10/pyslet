@@ -7,6 +7,9 @@ import uuid
 
 from pyslet.odata4 import parser
 from pyslet.odata4 import types
+from pyslet.py2 import (
+    to_text,
+    )
 
 
 def suite():
@@ -30,8 +33,8 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(len(cat.path) == 1)
         self.assertTrue(cat.path == ("Category", ))
         self.assertTrue(cat.qualifier is None)
-        self.assertTrue(cat.options.select is None)
-        self.assertTrue(cat.options.expand is None)
+        self.assertTrue(cat.options.select == [])
+        self.assertTrue(cat.options.expand == [])
         self.assertTrue(cat.options.skip is None)
         self.assertTrue(cat.options.top is None)
         self.assertTrue(cat.options.count is None)
@@ -39,6 +42,86 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(cat.options.search is None)
         self.assertTrue(cat.options.orderby is None)
         self.assertTrue(cat.options.levels is None)
+        p = parser.Parser("Addresses/Country")
+        expand = p.require_expand()
+        self.assertTrue(len(expand) == 1)
+        item = expand[0]
+        self.assertTrue(item.path == ("Addresses", "Country"))
+        self.assertTrue(item.qualifier is None)
+        p = parser.Parser("Products($filter=DiscontinuedDate eq null)")
+        expand = p.require_expand()
+        self.assertTrue(len(expand) == 1)
+        item = expand[0]
+        self.assertTrue(item.path == ("Products", ))
+        self.assertTrue(item.qualifier is None)
+        filter = item.options.filter
+        self.assertTrue(isinstance(filter, types.BinaryExpression))
+        self.assertTrue(filter.op_code == types.Operator.eq)
+        self.assertTrue(len(filter.operands) == 2)
+        lop = filter.operands[0]
+        self.assertTrue(isinstance(lop, types.NameExpression))
+        self.assertTrue(lop.name == "DiscontinuedDate")
+        rop = filter.operands[1]
+        self.assertTrue(isinstance(rop, types.ReservedExpression))
+        self.assertTrue(rop.name == "null")
+        p = parser.Parser("Products/$count")
+        expand = p.require_expand()
+        item = expand[0]
+        self.assertTrue(item.path == ("Products", ))
+        self.assertTrue(item.qualifier == types.PathQualifier.count)
+        p = parser.Parser("Products/$count($search=blue)")
+        expand = p.require_expand()
+        item = expand[0]
+        self.assertTrue(item.path == ("Products", ))
+        self.assertTrue(item.qualifier == types.PathQualifier.count)
+        search = item.options.search
+        self.assertTrue(isinstance(search, types.WordExpression))
+        self.assertTrue(search.word == "blue")
+        p = parser.Parser("Products/$ref")
+        expand = p.require_expand()
+        item = expand[0]
+        self.assertTrue(item.path == ("Products", ))
+        self.assertTrue(item.qualifier == types.PathQualifier.ref)
+        p = parser.Parser("Products/Sales.PremierProduct/$ref")
+        expand = p.require_expand()
+        self.assertTrue(len(expand) == 1)
+        item = expand[0]
+        self.assertTrue(len(item.path) == 1)
+        self.assertTrue(item.path == ("Products", ), item.path)
+        self.assertTrue(
+            isinstance(item.type_cast, types.QualifiedName))
+        self.assertTrue(item.type_cast.namespace == "Sales")
+        self.assertTrue(item.type_cast.name == "PremierProduct")
+        self.assertTrue(item.qualifier == types.PathQualifier.ref)
+        p = parser.Parser("Products/Sales.PremierProduct/$ref"
+                          "($filter=CurrentPromotion eq null)")
+        expand = p.require_expand()
+        self.assertTrue(len(expand) == 1)
+        item = expand[0]
+        self.assertTrue(to_text(item.type_cast) == "Sales.PremierProduct")
+        self.assertTrue(item.qualifier == types.PathQualifier.ref)
+        filter = item.options.filter
+        self.assertTrue(filter.op_code == types.Operator.eq)
+        p = parser.Parser("ReportsTo($levels=3)")
+        expand = p.require_expand()
+        self.assertTrue(len(expand) == 1)
+        item = expand[0]
+        self.assertTrue(item.path == ("ReportsTo", ))
+        self.assertTrue(item.options.levels == 3)
+        p = parser.Parser("*/$ref,Supplier")
+        expand = p.require_expand()
+        self.assertTrue(len(expand) == 2)
+        item = expand[0]
+        self.assertTrue(item.path == ("*", ))
+        self.assertTrue(item.qualifier == types.PathQualifier.ref)
+        item = expand[1]
+        self.assertTrue(item.path == ("Supplier", ))
+        p = parser.Parser("*($levels=2)")
+        expand = p.require_expand()
+        self.assertTrue(len(expand) == 1)
+        item = expand[0]
+        self.assertTrue(item.path == ("*", ))
+        self.assertTrue(item.options.levels == 2)
 
     def from_str(self, meth, good, bad):
         for s in good:
@@ -379,5 +462,5 @@ class ParserTests(unittest.TestCase):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.DEBUG, format="%(levelname)s %(message)s")
+        level=logging.INFO, format="%(levelname)s %(message)s")
     unittest.main()

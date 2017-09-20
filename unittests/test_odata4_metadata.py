@@ -234,6 +234,7 @@ class CSDLDocumentTests(unittest.TestCase):
         # whether the collection can contain null values.
         ct = s['Specifications']
         v = ct()
+        v.set_defaults()
         self.assertTrue(v['Weight'] is not None, "property exists")
 
     def test_section_6_2_7_defaults(self):
@@ -387,7 +388,7 @@ class CSDLDocumentTests(unittest.TestCase):
                 continue
             uri = URI.from_virtual_path(dpath.join(fname))
             doc = csdl.CSDLDocument(base_uri=uri)
-            logging.info("Validating: %s", str(uri))
+            logging.debug("Validating: %s", str(uri))
             try:
                 doc.read()
             except errors.ModelError as err:
@@ -411,7 +412,7 @@ class CSDLDocumentTests(unittest.TestCase):
             uri = URI.from_virtual_path(dpath.join(fname))
             doc = csdl.CSDLDocument(base_uri=uri)
             doc.XMLParser = ValidatingParser
-            logging.info("Checking: %s", str(uri))
+            logging.debug("Checking: %s", str(uri))
             try:
                 doc.read()
                 self.fail("%s validated" % str(fname))
@@ -430,5 +431,5 @@ class CSDLDocumentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.DEBUG, format="%(levelname)s %(message)s")
+        level=logging.INFO, format="%(levelname)s %(message)s")
     unittest.main()

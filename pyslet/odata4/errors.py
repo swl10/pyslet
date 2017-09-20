@@ -27,6 +27,12 @@ class ServiceError(ODataError):
         self.http_msg = http_msg
 
 
+class BoundValue(ODataError):
+
+    """Raised when an operation is not permitted on a bound value"""
+    pass
+
+
 class UnboundValue(ODataError):
 
     """Raised when an operation is not permitted on an unbound value"""

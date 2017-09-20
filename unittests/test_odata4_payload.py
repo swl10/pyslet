@@ -113,6 +113,7 @@ class ParserTests(unittest.TestCase):
         s = em['Microsoft.OData.Service.Sample.TrippinInMemory.Models']
         person_type = s['Person']
         e = person_type()
+        e.set_defaults()
         e['UserName'].set_value("user001")
         e['FirstName'].set_value("Jane")
         e['LastName'].set_value("Doe")
@@ -164,15 +165,13 @@ class ParserTests(unittest.TestCase):
         v.set_value("Hello")
         self.assertFalse(v.is_null())
         p = payload.Payload(self.service)
-        obj = p.obj_from_bytes(v, b"null")
-        self.assertTrue(obj is v)
+        p.obj_from_bytes(v, b"null")
         self.assertTrue(v.is_null())
 
     def test_boolean(self):
         v = primitive.BooleanValue()
         p = payload.Payload(self.service)
-        obj = p.obj_from_bytes(v, b"null")
-        self.assertTrue(obj is v)
+        p.obj_from_bytes(v, b"null")
         self.assertTrue(v.is_null())
         p.obj_from_bytes(v, b"true")
         self.assertFalse(v.is_null())
@@ -184,8 +183,7 @@ class ParserTests(unittest.TestCase):
     def test_int32(self):
         v = primitive.Int32Value()
         p = payload.Payload(self.service)
-        obj = p.obj_from_bytes(v, b"null")
-        self.assertTrue(obj is v)
+        p.obj_from_bytes(v, b"null")
         self.assertTrue(v.is_null())
         p.obj_from_bytes(v, b"256")
         self.assertFalse(v.is_null())
@@ -276,6 +274,7 @@ class FormatTests(unittest.TestCase):
         s = em['Microsoft.OData.Service.Sample.TrippinInMemory.Models']
         person_type = s['Person']
         e = person_type()
+        e.set_defaults()
         e['UserName'].set_value("user001")
         e['FirstName'].set_value("Jane")
         e['LastName'].set_value("Doe")
@@ -291,5 +290,5 @@ class FormatTests(unittest.TestCase):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.DEBUG, format="%(levelname)s %(message)s")
+        level=logging.INFO, format="%(levelname)s %(message)s")
     unittest.main()

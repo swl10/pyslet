@@ -10,7 +10,9 @@ from ..py2 import (
     BoolMixin,
     force_text,
     is_text,
+    SortableMixin,
     to_text,
+    ul,
     UnicodeMixin,
     )
 from ..xml import xsdatatypes as xsi
@@ -345,6 +347,22 @@ class NameTable(Named, collections.MutableMapping):
         return QualifiedName(qname[:dot], qname[dot + 1:])
 
 
+def get_path(src):
+    if is_text(src):
+        if not src:
+            return []
+        src = src.split('/')
+        i = 0
+        while i < len(src):
+            p = src[i]
+            if "." in p:
+                src[i] = NameTable.split_qname(p)
+            i += 1
+        return tuple(src)
+    else:
+        return tuple(src)
+
+
 class Term(Named):
 
     """Represents a defined term in the OData model
@@ -407,14 +425,13 @@ class Annotatable(object):
             target.annotate(qa)
         else:
             try:
-                qualifier = qa.qualifier
-                if qualifier is None:
-                    qualifier = ""
-                qa.qualified_declare(self.annotations, qualifier)
+                qa.qualified_declare(self.annotations)
             except errors.DuplicateNameError:
                 raise errors.DuplicateNameError(
                     errors.Requirement.annotations_s %
-                    ("%s:%s)" % (qa.term.qname, qualifier)))
+                    ("%s%s)" %
+                     (qa.term.qname,
+                      "" if qa.qualifier is None else "#" + qa.qualifier)))
 
 
 class Annotations(NameTable):
@@ -505,7 +522,7 @@ class Annotations(NameTable):
         """Looks up an annotation
 
         term
-            The qualified name of an annotation Term
+            The qualified name of an annotation Term as a *string*
 
         qualifier
             An optional qualifier to search for, if None then
@@ -611,9 +628,9 @@ class QualifiedAnnotation(Named):
 
         would return::
 
-            ("FirstName", "Core.Description", "ascii")
+            ("FirstName", QualifiedName("Core", "Description"), "ascii")
 
-        The target and qualifier and optional and may be None."""
+        The target and qualifier are optional and may be None."""
         target = None
         qualifier = None
         apos = name.find('@')
@@ -653,7 +670,7 @@ class QualifiedAnnotation(Named):
             return None
         return cls(term, qualifier=qualifier)
 
-    def qualified_declare(self, annotations, qualifier=""):
+    def qualified_declare(self, annotations):
         """Declares this qualified annotation in an Annotations instance"""
         if self.term is None or self.term.name is None:
             raise ValueError(
@@ -663,7 +680,7 @@ class QualifiedAnnotation(Named):
         if a is None:
             a = Annotation()
             a.declare(annotations, tname)
-        self.declare(a, qualifier)
+        self.declare(a, "" if self.qualifier is None else self.qualifier)
 
 
 class NominalType(Named):
@@ -689,7 +706,7 @@ class NominalType(Named):
         #: whether or not this type is abstract
         self.abstract = False
         #: the service this type is bound to
-        self.service = None
+        self.service_ref = None
 
     def __call__(self, value=None):
         v = self.value_type(type_def=self)
@@ -730,10 +747,10 @@ class NominalType(Named):
 
         service
             A *weak reference* to the service we're binding to."""
-        if self.service is not None:
+        if self.service_ref is not None:
             raise errors.ModelError(
                 "%s is already bound to a context" % self.qname)
-        self.service = service_ref
+        self.service_ref = service_ref
 
     def is_derived_from(self, t, strict=False):
         """Returns True if this type is derived from type t
@@ -773,7 +790,7 @@ class NominalType(Named):
             raise errors.ModelError("Abstract type %s has no context URL" %
                                     to_text(self))
         elif self.qname:
-            if self.namespace().name == "Edm":
+            if self.nametable().name == "Edm":
                 return "#" + self.name
             else:
                 return "#" + self.qname
@@ -790,10 +807,10 @@ class NominalType(Named):
         URI consisting of just the fragment is returned, otherwise a URI
         consisting of this type's service context URL + this type's
         fragment is returned."""
-        if self.service is None:
+        if self.service_ref is None:
             svc = None
         else:
-            svc = self.service()
+            svc = self.service_ref()
         if svc is service:
             return uri.URI.from_octets(self.get_odata_type_fragment)
         elif svc is not None:
@@ -833,10 +850,11 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
         #: if this value is part of a structured type then we keep a
         #: weak reference to the parent value
         self.parent = None
-        #: the fully qualified type name of this value's type if it is
-        #: of a type derived from the declared type for the property
-        #: that we are a value of
-        self.type_cast = None
+        #: the fully qualified type name of the type that defines this
+        #: property if it is of a type derived from the declared type of
+        #: our parent's property (not necessarily the same type as our
+        #: parent currently is!).
+        self.parent_cast = None
         #: the name of this value within the parent (property name)
         self.name = None
 
@@ -961,79 +979,114 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
             # need a type cast to the type we were declared in (not
             # necessarily the type of our parent which may be further
             # derived).
-            self.type_cast = p.type_def[name].nametable().qname
+            self.parent_cast = p.type_def[name].nametable().qname
         if p.service is not None:
             self.bind_to_service(p.service)
 
-    def bind_to_service(self, service_ref):
+    def get_entity(self, path, ignore_containment=True):
+        """Returns the entity that contains this value
+
+        For values with no parent entity, None is returned.  If the
+        value is itself an entity then it is returned *unless* it is a
+        contained singleton in which case the process continues as for a
+        complex value.  Otherwise, the chain of parents is followed
+        recursively until an entity or a parentless value is found.
+
+        ..  note:: If this value is an item in a collection of complex
+                   values (directly or indirectly) then it will return
+                   None as no path exists from the containing entity to
+                   the value.
+
+        path
+            A list of *strings* that will be updated to represent the
+            path to this value by pre-pending the required path segments
+            to navigate from the context of the entity returned back to
+            this value.   You should pass an empty list.  Note that
+            qualified names that appear in the path are represented as
+            strings and not QualifiedName tuples.
+
+        ignore_containment (True)
+            Set to False to force get_entity to return the first entity
+            it finds, even if that entity is a contained singleton.
+
+        For example, if an entity has a complex property with name 'A'
+        then calling get_entity on the value of A returns the entity and
+        pre-pends 'A' to path.
+
+        More complex situations requiring type-casts are also handled.
+        To extend the previous example, if the entity in question is of
+        type Y, derived from type X, and is in an entity set or
+        collection declared to be of type X *and* the property A is
+        defined only for type Y, then a type cast segment is also
+        pre-prended when calling get_entity on the property.  The path
+        list will then start: ['schema.Y', 'A',...].
+
+        The upshot is that *path* is prefixed with the target path of
+        this value. This path could then be used in expressions that
+        require a property path."""
+        # TODO: traversing entities contained in entity sets (rather
+        # than as single entities) does not include the key in the path
+        if self.parent is None:
+            return None
+        p = self.parent()
+        if p is None:
+            raise errors.ServiceError("Value has expired")
+        path.insert(0, self.name)
+        if self.parent_cast:
+            path.insert(0, self.parent_cast)
+        return p.get_entity(path, ignore_containment)
+
+    def bind_to_service(self, service):
         """Binds this value to a specific OData service
 
         service
-            A weak reference to the service we're binding to.
+            The service we're binding to - note that unlike the similar
+            method for types, we are strongly bound to the service
+            rather than weakly bound (i.e., with a weak reference).
+            This is safe because, unlike types, the service does not
+            hold references to bound values.
 
         There are basically two types of Value instances in Pyslet's
-        OData model: dynamic values that provide a local view of an
-        object bound to a shared data service and static values that are
-        not.  (In this sense, a collection might be static even if its
-        items are dynamic.)  This method binds a value to a service
-        making it dynamic.
+        OData model: bound values that provide a local view of an object
+        bound to a shared data service and transient values that are
+        not.  (In this sense, a collection might be transient even if
+        its items are bound.)  This method binds a value to a service.
 
         In normal use you won't need to bind values yourself.  All
-        values are created static.  Values are bound automatically by
+        values are created transient.  Values are bound automatically by
         the data service when deserlizing data service responses and may
         also be bound as an indirect consequence of an operation.  For
         example, if you create an EntityValue by calling an EntityType
-        instance you get a static entity but if you (successfully)
-        insert that entity into a dynamic EntitySetValue it will become
-        bound to the same service as the EntitySetValue value as you
-        would expect."""
+        instance you get a transient entity but if you (successfully)
+        insert that entity into a bound EntitySetValue it will become
+        bound to the same service as the EntitySetValue as you would
+        expect."""
         if self.service is not None:
-            raise errors.ModelError("Value is already bound" % to_text(self))
-        self.service = service_ref
+            raise errors.BoundValue
+        self.service = service
+
+    def reload(self):
+        """Reloads this value from the service
+
+        The value must be bound."""
+        if self.service is None:
+            raise errors.UnboundValue
+        raise NotImplementedError
 
 
-class PropertyOptions(object):
+class SelectItem(UnicodeMixin):
 
-    """Object representing the property options: select and expand
-
-    There are two attributes.  The select attribute contains a list of
-    path tuples describing the selected property paths (or None if the
-    default selection should be used).
-
-    The expand attribute contains..."""
-
-    def __init__(self):
-        self.select = None
-        self.expand = None
-
-    def get_select_str(self):
-        """Returns the select option as a string"""
-        if self.select:
-            return ",".join(
-                "/".join(to_text(i) for i in p) for p in self.select)
-
-
-class CollectionOptions(PropertyOptions):
-
-    """Object representing a set of query options for a collection"""
+    """Object representing a single selected item"""
 
     def __init__(self):
-        super(CollectionOptions, self).__init__()
-        self.skip = None
-        self.top = None
-        self.count = None
-        self.filter = None
-        self.search = None
-        self.orderby = None
+        self.path = ()
+        self.type_cast = None
 
-
-class ExpandOptions(CollectionOptions):
-
-    """Object representing a set of query options for a collection"""
-
-    def __init__(self):
-        super(ExpandOptions, self).__init__()
-        self.levels = None
+    def __unicode__(self):
+        value = ["/".join(p for p in self.path)]
+        if self.type_cast:
+            value.append("/" + to_text(self.type_cast))
+        return "".join(value)
 
 
 class PathQualifier(xsi.Enumeration):
@@ -1054,13 +1107,785 @@ class PathQualifier(xsi.Enumeration):
     }
 
 
-class ExpandItem(object):
+class ExpandItem(UnicodeMixin):
 
     """Object representing a single expanded item
 
     """
 
     def __init__(self):
-        self.path = None
+        self.path = ()
+        self.type_cast = None
         self.qualifier = None
         self.options = ExpandOptions()
+
+    def __unicode__(self):
+        value = ["/".join(p for p in self.path)]
+        if self.type_cast:
+            value.append("/" + to_text(self.type_cast))
+        if self.qualifier is not None:
+            value.append("/$" + PathQualifier.to_str(self.qualifier))
+        if self.options:
+            options = to_text(self.options)
+            if options:
+                value.append("(%s)" % options)
+        return "".join(value)
+
+
+class EntityOptions(UnicodeMixin):
+
+    """Object representing the options select and expand
+
+    There are two attributes.  The select attribute contains a list of
+    :class:`SelectItem` instances that describe the selected properties.
+    An empty list indicates no selection rules and is interpreted in the
+    same way as a single item list containing the select item "*".
+
+    The expand attribute contains a list of :class:`ExpandItem`
+    instances that describe the more complex expansion rules.
+
+    This object contains the valid options that may be specified when
+    requesting individual entities."""
+
+    def __init__(self):
+        #: the entity model that provides the context for interpreting
+        #: qualified names in these options
+        self.context = None
+        #: a boolean indicated whether or not structural properties are
+        #: selected by default (in the absence of an explicit select
+        #: rule)
+        self.select_default = True
+        #: a list of path tuples describing selected properties
+        self.select = []
+        self._selected = {}
+        self._complex_selected = {}
+        self._nav_expanded = {}
+        #: a list of :class:`ExpandItem` instances contain expansion rules
+        self.expand = []
+
+    def _clear_cache(self):
+        self._selected.clear()
+        self._complex_selected.clear()
+        self._nav_expanded.clear()
+
+    def __unicode__(self):
+        result = []
+        if self.select:
+            result.append("$select=" + self.get_select_str())
+        if self.expand:
+            result.append("$expand=" + self.get_expand_str())
+        return ul(",").join(result)
+
+    def get_select_str(self):
+        """Returns the select option as a string"""
+        return ul(",").join(to_text(s) for s in self.select)
+
+    def get_expand_str(self):
+        """Returns the expand option as a string"""
+        return ul(",").join(to_text(i) for i in self.expand)
+
+    def add_select_path(self, path):
+        """Add an additional select path to the options
+
+        path
+            A list or other iterable returning identifiers (as strings),
+            :class:`QualifiedName` tuples or the special value "*".
+            Alternatively, a string is also accepted for convenience and
+            this will be split into path components but no syntax
+            checking is performed.  For untrusted input you MUST use the
+            :class:`parser.Parser` class to parse a selectItem and the
+            corresponding :meth:`add_select_item` method instead.
+
+        If the incoming value represents a selected property and ends
+        with a qualified name this is a type-cast and it is removed from
+        the path and used to set the type_cast attribute of the item."""
+        self._clear_cache()
+        sitem = SelectItem()
+        path = get_path(path)
+        if not len(path):
+            raise ValueError
+        if isinstance(path[-1], QualifiedName) and (
+                len(path) > 1 and is_text(path[-2])):
+            sitem.type_cast = path[-1]
+            path = path[:-1]
+        sitem.path = tuple(path)
+        self.select.append(sitem)
+
+    def add_select_item(self, item):
+        """Add an additional select item to the options
+
+        item
+            A :class:`SelectItem` instance such as would be returned
+            from the parser when parsing the $select query option."""
+        if isinstance(item, SelectItem):
+            self._clear_cache()
+            self.select.append(item)
+        else:
+            raise ValueError
+
+    def clear_select(self):
+        """Removes all select items from the options"""
+        self.select = []
+        self._clear_cache()
+
+    def selected(self, qname, pname, nav=False):
+        """Returns True if this property is selected
+
+        qname
+            A string, QualifiedName instance or None if the property is
+            defined on the base type of the object these options apply
+            to.
+
+        pname
+            A string.  The property name.
+
+        nav
+            A boolean (default False): the property is a navigation
+            property.
+
+        Tests the select rules for a match against a specified property.
+        Set the optional nav to True to indicate that pname is the name
+        of a navigation property: the result will then be True only if
+        an explicit rule matches the item.
+
+        An internal cache is kept to speed up rule matching so repeated
+        calls for the same property are efficient."""
+        if not self.select:
+            # no select means select default structural properties
+            return not nav and self.select_default
+        if is_text(qname):
+            qname = NameTable.split_qname(qname)
+        result = self._selected.get((qname, pname), None)
+        if result is not None:
+            return result
+        result = False
+        for rule in self.select:
+            # do we match this select rule?  We can ignore type
+            # casts as they don't apply to primitive properties
+            path = rule.path
+            if not path:
+                # an empty select rule is ignored (shouldn't happen)
+                continue
+            p = path[0]
+            if p == "*":
+                # * matches all structural properties, including us
+                if not nav:
+                    result = True
+                break
+            if qname:
+                if not isinstance(p, QualifiedName) or p != qname:
+                    continue
+                p = path[1]
+                maxlen = 2
+            else:
+                maxlen = 1
+            if p == pname:
+                if len(path) > maxlen:
+                    raise errors.PathError(
+                        "Unexpected complex property path: %s" %
+                        to_text(rule))
+                result = True
+                break
+        self._selected[(qname, pname)] = result
+        return result
+
+    def add_expand_path(self, path, qualifier=None, options=None):
+        """Add an additional expand item to these options
+
+        path
+            See :meth:`add_select_path` for details.  The string
+            MUST NOT contain a trailing qualifer as this is set
+            separately.
+
+        qualifier
+            One of the :class:`PathQualifier` values ref or count
+            or None for no qualification (the default).
+
+        options
+            A :class:`ExpandOptions` instance controlling the options to
+            apply to the expanded navigation property.  Defaults to None
+            in which case a default set of options apply (including the
+            default select rule that selects a default, typically all,
+            structural properties).
+
+        If there is already an expand rule for this path it is replaced.
+        Returns the new :class:`ExpandItem`."""
+        xitem = ExpandItem()
+        path = get_path(path)
+        if not len(path):
+            raise ValueError
+        if isinstance(path[-1], QualifiedName):
+            xitem.type_cast = path[-1]
+            path = path[:-1]
+            if not len(path):
+                raise ValueError
+        xitem.path = tuple(path)
+        xitem.qualifier = qualifier
+        if options is not None:
+            # override the default set of (empty) options
+            xitem.options = options
+        self.add_expand_item(xitem)
+        return xitem
+
+    def add_expand_item(self, item):
+        """Add an additional expand item to the options
+
+        item
+            A :class:`ExpandItem` instance such as would be returned
+            from the parser when parsing the $expand query option."""
+        if isinstance(item, ExpandItem):
+            self._clear_cache()
+            i = 0
+            while i < len(self.expand):
+                if self.expand[i].path == item.path:
+                    del self.expand[i]
+                else:
+                    i += 1
+            self.expand.append(item)
+        else:
+            raise ValueError
+
+    def get_expand_item(self, path):
+        """Returns the current ExpandItem for a navigation path"""
+        path = get_path(path)
+        if isinstance(path[-1], QualifiedName):
+            path = path[:-1]
+        if not len(path):
+            raise ValueError
+        for item in self.expand:
+            if item.path == path:
+                return item
+        return None
+
+    def clear_expand(self):
+        """Removes all expand items from the options"""
+        self._clear_cache()
+        self.expand = []
+
+    def complex_selected(self, qname, pname):
+        """Returns a (ExpandOptions, QualifiedName) tuple
+
+        Tests the select *and* expand rules for a match against a
+        qualified name (as a *string* or None) and a property name.  The
+        result is a set of expand options with the given property name
+        factored out.  For example, if there is a rule "A/PrimitiveB"
+        and we pass pname="A" we'll get back a set of expand options
+        containing the select rule "PrimitiveB".
+
+        Both select and expand paths may also be qualified with a
+        trailing type cast.  We treat select paths (for complex types)
+        in a way that is consistent with navigation via derived types.
+        The caveat is that you must not have more than one such rule
+        for a given property, in other words::
+
+            $select=A/Schema.ComplexTypeB,A/Schema.ComplexTypeC
+
+        This is never allowed as the types are assumed to conflict.  It
+        appears possible that ComplexTypeC is derived from ComplexTypeB
+        (or vice versa) but such redundancy is not allowed (by this
+        implementation).
+
+        The second item in the return tuple is either None or the
+        QualifiedName of an explicit *required* type cast.  For example,
+        if there is a rule "A/Schema.ComplexTypeB" and we pass
+        pname="A" you get back a pseudo rule:
+
+            $select=* and an explicit type cast to "Schema.ComplexTypeB"
+
+        The type cast is only returned when an explicit type cast is
+        found in a select rule.  The rule
+        "A/Schema.ComplexTypeB/PropertyB" would still return:
+
+            $select=Schema.ComplexTypeB/PropertyB (and no type cast)
+
+        Navigation properties make the situation more complex but the
+        basic idea is the same.  If there is a rule
+        "A/NavX($expand=NavY)" then passing pname="A" will result in the
+        *expand* rule "NavX($expand=NavY)".
+
+        Paths that *contain* derived types are treated in the same way,
+        we may know nothing of the relationship between types so will
+        happily reduce "A/Schema.ComplexTypeB/B,A/Schema.ComplexTypeC/C"
+        to "Schema.ComplexTypeB/B,Schema.ComplexTypeC/C" even if, in
+        fact, ComplexTypeB and ComplexTypeC are incompatible derived
+        types of the type of property A and can never be selected
+        simultaneously.
+
+        Paths are always evaluated related to the base type of a complex
+        property, even if that value is subject to a type cast. As a
+        result::
+
+            $select=ComplexA/Schema.ComplexTypeB&
+                $expand=ComplexA/Schema.ComplexTypeB/NavX
+
+        still reduces to:
+
+            $select=*&$expand=Schema.ComplexTypeB/NavX
+
+        with a type cast to Schema.ComplexTypeB
+
+        Although all selected values are required to have ComplexTypeB
+        the base type is the defined type of ComplexA and that is used
+        when evaluating the sub-rules, hence the need to retain
+        Schema.ComplexTypeB in the expand path.
+
+        An internal cache is kept to speed up rule matching so repeated
+        calls for the same property return the *same*
+        :class:`ExpandOptions` instance."""
+        result = self._complex_selected.get((qname, pname), None)
+        if result is not None:
+            return result
+        options = ExpandOptions()
+        # no rule means no selection in complex types
+        options.select_default = False
+        type_cast = None
+        if self.select:
+            selected = False
+            for rule in self.select:
+                # do we match this select rule?
+                path = rule.path
+                if not path:
+                    # an empty select rule is ignored
+                    continue
+                p = path[0]
+                if p == "*":
+                    # * matches all structural properties, including all
+                    # children and derived types of this complex type!
+                    # OData doesn't allow complexProperty/* so we should
+                    # only have a a single * in the resulting sub-select
+                    # rules
+                    selected = True
+                    options.add_select_path("*")
+                    continue
+                if qname:
+                    if not isinstance(p, QualifiedName) or to_text(p) != qname:
+                        continue
+                    p = path[1]
+                    match_len = 2
+                else:
+                    match_len = 1
+                if p == pname:
+                    selected = True
+                    subpath = path[match_len:]
+                else:
+                    continue
+                if subpath:
+                    new_rule = SelectItem()
+                    new_rule.path = subpath
+                    new_rule.type_cast = rule.type_cast
+                    options.add_select_item(new_rule)
+                else:
+                    # a complete rule matching a complex property is
+                    # treated as complexProperty/* but watch out for the
+                    # type cast!
+                    options.add_select_path("*")
+                    if type_cast is None:
+                        type_cast = rule.type_cast
+                    elif type_cast == rule.type_cast:
+                        # tolerate repeated rule
+                        continue
+                    else:
+                        # complexProperty/schema.typeA
+                        # complexProperty/schema.typeB
+                        # conflict!
+                        raise errors.PathError(
+                            "Type cast in select rule: %s conflict with %s" %
+                            (to_text(rule), type_cast))
+        else:
+            selected = self.select_default
+            if selected:
+                options.add_select_path("*")
+        # now add the expansion options, even if we aren't selected
+        # by the select rules we may be implicitly selected by an
+        # expand path
+        for rule in self.expand:
+            path = rule.path
+            if not path:
+                continue
+            p = path[0]
+            if p == "*":
+                if selected:
+                    options.add_expand_path("*")
+                # else:
+                    # all navigation properties are matched but our
+                    # complex type is not selected. We consider any
+                    # descendent complex properties hidden and will
+                    # not select them implicitly!
+                continue
+            if qname:
+                if not isinstance(p, QualifiedName) or \
+                        to_text(p) != qname:
+                    continue
+                p = path[1]
+                match_len = 2
+            else:
+                match_len = 1
+            if p == pname:
+                subpath = path[match_len:]
+            else:
+                continue
+            if subpath:
+                # actually this must be the case, we are not a
+                # navigation property ourselves!
+                new_rule = ExpandItem()
+                new_rule.path = subpath
+                new_rule.type_cast = rule.type_cast
+                new_rule.qualifer = rule.qualifier
+                new_rule.options = rule.options
+                options.add_expand_item(new_rule)
+            else:
+                raise errors.PathError(
+                    "Expand rule matches complex property: %s" %
+                    to_text(rule))
+        if not selected and not options.expand:
+            result = (None, None)
+        else:
+            result = (options, type_cast)
+        self._complex_selected[(qname, pname)] = result
+        return result
+
+    def nav_expanded(self, qname, pname):
+        """Returns an ExpandItem instance if this property is expanded
+
+        qname
+            A string, QualifiedName instance or None if the property is
+            defined on the base type of the object these options apply
+            to.
+
+        pname
+            A string.  The property name.
+
+        Tests the expand rules only for a match against a specified
+        property.  The (best) matching :class:`ExpandItem` is returned
+        or None if there is no match.
+
+        An internal cache is kept to speed up rule matching so repeated
+        calls for the same property are efficient."""
+        if not self.expand:
+            return None
+        if is_text(qname):
+            qname = NameTable.split_qname(qname)
+        result = self._nav_expanded.get((qname, pname), None)
+        if result is not None:
+            return result
+        # now have we been expanded?
+        for rule in self.expand:
+            if not rule.path:
+                continue
+            path = rule.path
+            p = path[0]
+            if p == "*":
+                # matches all navigation properties but continue
+                # in case we find a better match
+                result = rule
+            if qname:
+                if not isinstance(p, QualifiedName) or p != qname:
+                    continue
+                p = path[1]
+                match_len = 2
+            else:
+                match_len = 1
+            if p == pname:
+                subpath = path[match_len:]
+            else:
+                continue
+            if not subpath:
+                # actually this must be the case, only a type cast
+                # may appear after us.  This is a specific match
+                # so exit the loop now
+                result = rule
+                break
+            else:
+                raise errors.PathError(
+                    "Expand rule with trailing segments: %s" %
+                    to_text(rule))
+        self._nav_expanded[(qname, pname)] = result
+        return result
+
+    def resolve_type(self, qname):
+        """Looks up a type in the context"""
+        if self.context:
+            type_def = self.context.qualified_get(qname)
+        else:
+            raise errors.PathError(
+                "no context for type in path segment: %s" %
+                to_text(qname))
+        if type_def is None:
+            raise errors.PathError(
+                "couldn't resolve type in path segment: %s" %
+                to_text(qname))
+        return type_def
+
+
+class CollectionOptions(EntityOptions):
+
+    """Object representing a set of query options for a collection"""
+
+    def __init__(self):
+        super(CollectionOptions, self).__init__()
+        self.skip = None
+        self.top = None
+        self.count = None
+        self.filter = None
+        self.search = None
+        self.orderby = None
+
+    def __unicode__(self):
+        result = []
+        if self.skip is not None:
+            result.append("$skip=%i" % self.skip)
+        if self.top is not None:
+            result.append("$top=%i" % self.top)
+        if self.count is not None:
+            result.append("$count=true")
+        if self.filter is not None:
+            result.append("$filter=" + uri.escape_data(self.get_filter_str()))
+        if self.search is not None:
+            result.append(
+                "$search=" + uri.escape_data(self.search.search_text()))
+        if self.orderby is not None:
+            result.append("$orderby=" + uri.escape_data(to_text(self.orderby)))
+        base = EntityOptions.__unicode__(self)
+        if base:
+            result.append(base)
+        return ul(",").join(result)
+
+    def get_filter_str(self):
+        """Returns the filter option as a string"""
+        if self.filter:
+            return to_text(self.filter)
+        else:
+            return ""
+
+    def set_filter(self, filter_expr):
+        self.filter = filter_expr
+
+    def get_search_str(self):
+        """Returns the search option as a string"""
+        if self.search:
+            return self.search.search_text()
+        else:
+            return ""
+
+    def set_search(self, search_expr):
+        self.search = search_expr
+
+
+class ExpandOptions(CollectionOptions):
+
+    """Object representing a set of query options for a collection"""
+
+    def __init__(self):
+        super(ExpandOptions, self).__init__()
+        self.levels = None
+
+    def set_option(self, name, value):
+        if name == "$select":
+            self.select = value
+        elif name == "$expand":
+            self.expand = value
+        elif name == "$skip":
+            self.skip = value
+        elif name == "$top":
+            self.top = value
+        elif name == "$count":
+            self.count = value
+        elif name == "$filter":
+            self.filter = value
+        elif name == "$search":
+            self.search = value
+        elif name == "$orderby":
+            self.orderby = value
+        elif name == "$levels":
+            self.levels = value
+
+
+class SystemQueryOptions(CollectionOptions):
+
+    """Object representing all system query options
+
+    This class extends the collection options to include the
+    client-specific options. The functions of these query options are
+    not explicit in the model as their use is either implied (in the
+    case of $id) or internal to the operation of the OData client."""
+
+    def __init__(self):
+        super(SystemQueryOptions, self).__init__()
+        self.id = None
+        self.format = None
+        self.skiptoken = None
+
+
+class Operator(xsi.Enumeration):
+    """Enumeration for operators
+
+    ::
+
+            Operator.eq
+            Operator.DEFAULT == None
+
+    For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
+
+    decode = {
+        "eq": 1,
+        "ne": 2,
+        "lt": 3,
+        "le": 4,
+        "gt": 5,
+        "ge": 6,
+        "has": 7,
+        "and": 8,
+        "or": 9,
+        "add": 10,
+        "sub": 11,
+        "mul": 12,
+        "div": 13,
+        "mod": 14,
+        "not": 15,
+        "negate": 16,
+        "isof": 17,
+        "cast": 18,
+        "member": 19,
+        "method": 20,
+    }
+
+    aliases = {
+        'bool_not': 'not',
+        'bool_and': 'and',
+        'bool_or': 'or',
+        }
+
+
+class CommonExpression(SortableMixin):
+
+    """Abstract class for all expression objects."""
+
+    def sortkey(self):
+        # by default, expressions have max precedence
+        return 100
+
+    def otherkey(self, other):
+        if isinstance(other, CommonExpression):
+            return other.sortkey()
+        else:
+            return NotImplemented
+
+
+class NameExpression(CommonExpression):
+
+    """Class representing a simple name in an expression"""
+
+    def __init__(self, name):
+        self.name = name
+
+
+class ReservedExpression(CommonExpression):
+
+    """Class representing a simple reserved name in an expression"""
+
+    def __init__(self, name):
+        self.name = name
+
+
+class WordExpression(CommonExpression):
+
+    """Class representing a search word in an expression
+
+    Only used in search expressions, not valid in common expressions."""
+
+    def __init__(self, word):
+        self.word = word
+
+
+class LiteralExpression(CommonExpression):
+
+    """Class representing a literal expression
+
+    For example, values matching primitiveLiteral in the ABNF.  We
+    actually store the expression's value 'unboxed', that is, as a raw
+    value rather than a transient :class:`Value` instance."""
+
+    def __init__(self, value):
+        self.value = value
+
+
+class OperatorExpression(CommonExpression):
+
+    """Class representing an operator expression"""
+
+    def __init__(self, op_code):
+        self.op_code = op_code
+        self.operands = []
+
+    precedence = {
+        Operator.bool_or: 1,
+        Operator.bool_and: 2,
+        Operator.ne: 3,
+        Operator.eq: 3,
+        Operator.gt: 4,
+        Operator.ge: 4,
+        Operator.lt: 4,
+        Operator.le: 4,
+        Operator.isof: 4,
+        Operator.add: 5,
+        Operator.sub: 5,
+        Operator.mul: 6,
+        Operator.div: 6,
+        Operator.negate: 7,
+        Operator.bool_not: 7,
+        Operator.cast: 7,
+        Operator.member: 8,
+        Operator.has: 8,
+        Operator.method: 8,
+        }
+
+    def sortkey(self):
+        return self.precedence.get(self.op_code, 0)
+
+    def add_operand(self, operand):
+        self.operands.append(operand)
+
+
+class UnaryExpression(OperatorExpression):
+
+    """Class representing unary operator expression"""
+
+    def add_operand(self, operand):
+        if len(self.operands):
+            raise ValueError("unary operator already bound")
+        self.operands.append(operand)
+
+
+class BinaryExpression(OperatorExpression):
+
+    """Class representing binary operator expression"""
+
+    def add_operand(self, operand):
+        if len(self.operands) > 1:
+            raise ValueError("binary operator already bound")
+        self.operands.append(operand)
+
+    def format_expr(self, operand_strs):
+        if self.op_code == Operator.member:
+            return "%s/%s" % (
+                operand_strs[0],
+                operand_strs[1])
+        else:
+            return "%s %s %s" % (
+                operand_strs[0],
+                Operator.to_str(self.op_code),
+                operand_strs[1])
+
+
+class CallExpression(OperatorExpression):
+
+    """Class representing function call expression"""
+
+    def __init__(self, name):
+        OperatorExpression.__init__(self, Operator.method)
+        self.name = name
+
+    def format_expr(self, operand_strs):
+        return "%s(%s)" % (
+            self.name,
+            ",".join(operand_strs))
