@@ -746,7 +746,6 @@ class SystemQueryTests(unittest.TestCase):
         self.assertTrue(len(options.select) == 0)
         self.assertTrue(isinstance(options.expand, list))
         self.assertTrue(len(options.expand) == 0)
-        self.assertTrue(to_text(options) == "")
 
     def test_select_path(self):
         options = types.ExpandOptions()
@@ -756,23 +755,17 @@ class SystemQueryTests(unittest.TestCase):
         self.assertTrue(isinstance(sitem, types.SelectItem))
         self.assertTrue(len(sitem.path) == 1)
         self.assertTrue(sitem.type_cast is None)
-        self.assertTrue(to_text(options) == "$select=PropertyA")
         options.add_select_path(
             ("PropertyB", types.QualifiedName("Schema", "Subtype")))
         self.assertTrue(len(options.select) == 2)
         sitem = options.select[1]
         self.assertTrue(len(sitem.path) == 1)
         self.assertTrue(sitem.type_cast == ("Schema", "Subtype"))
-        self.assertTrue(
-            to_text(options) == "$select=PropertyA,PropertyB/Schema.Subtype")
         # allow strings
         options.add_select_path("PropertyC/PropertyC1")
         sitem = options.select[2]
         self.assertTrue(len(sitem.path) == 2)
         self.assertTrue(sitem.type_cast is None)
-        self.assertTrue(
-            to_text(options) == "$select=PropertyA,PropertyB/Schema.Subtype,"
-            "PropertyC/PropertyC1", to_text(options))
         # but don't allow non-iterabls objects
         try:
             options.add_select_path(object())
@@ -787,7 +780,6 @@ class SystemQueryTests(unittest.TestCase):
             pass
         options.clear_select()
         self.assertTrue(len(options.select) == 0)
-        self.assertTrue(to_text(options) == "")
 
     def test_selected(self):
         options = types.ExpandOptions()
@@ -843,14 +835,10 @@ class SystemQueryTests(unittest.TestCase):
         self.assertTrue(xitem.type_cast is None)
         self.assertTrue(xitem.qualifier is None)
         self.assertTrue(isinstance(xitem.options, types.ExpandOptions))
-        self.assertTrue(
-            to_text(options) == "$expand=PropertyA", to_text(options))
         options.add_expand_path(("PropertyB", "PropertyB1"))
         self.assertTrue(len(options.expand) == 2)
         xitem = options.expand[1]
         self.assertTrue(len(xitem.path) == 2)
-        self.assertTrue(
-            to_text(options) == "$expand=PropertyA,PropertyB/PropertyB1")
         suboptions = types.ExpandOptions()
         suboptions.top = 10
         options.add_expand_path(
@@ -863,18 +851,11 @@ class SystemQueryTests(unittest.TestCase):
         self.assertTrue(xitem.qualifier == types.PathQualifier.ref)
         self.assertTrue(xitem.options is suboptions)
         self.assertTrue(xitem.options.top == 10)
-        self.assertTrue(
-            to_text(options) == "$expand=PropertyA,PropertyB/PropertyB1,"
-            "PropertyC/Schema.Subtype/$ref($top=10)")
         options.add_expand_path(
             "PropertyC/PropertyC1", types.PathQualifier.count)
         xitem = options.expand[3]
         self.assertTrue(len(xitem.path) == 2)
         self.assertTrue(xitem.type_cast is None)
-        self.assertTrue(
-            to_text(options) == "$expand=PropertyA,PropertyB/PropertyB1,"
-            "PropertyC/Schema.Subtype/$ref($top=10),"
-            "PropertyC/PropertyC1/$count", to_text(options))
         # but don't allow non-iterable objects
         try:
             options.add_expand_path(object())
@@ -883,7 +864,6 @@ class SystemQueryTests(unittest.TestCase):
             pass
         options.clear_expand()
         self.assertTrue(len(options.expand) == 0)
-        self.assertTrue(to_text(options) == "")
 
     def test_complex_selected(self):
         options = types.ExpandOptions()
@@ -891,8 +871,9 @@ class SystemQueryTests(unittest.TestCase):
         suboptions, type_cast = options.complex_selected(None, "PropertyA")
         self.assertTrue(isinstance(suboptions, types.ExpandOptions))
         # degenerate case, options are explicit for complex types!
-        self.assertTrue(
-            to_text(suboptions) == "$select=*", to_text(suboptions))
+        self.assertFalse(suboptions.select_default)
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         self.assertTrue(type_cast is None)
         # check cache
         suboptions_cached, type_cast = options.complex_selected(
@@ -900,8 +881,8 @@ class SystemQueryTests(unittest.TestCase):
         self.assertTrue(suboptions_cached is suboptions, "Cache check")
         suboptions, type_cast = options.complex_selected(
             "Schema.Type", "PropertyA")
-        self.assertTrue(
-            to_text(suboptions) == "$select=*", to_text(suboptions))
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         self.assertTrue(type_cast is None)
         # explicit select rules, setup auto cache clear check
         suboptionsB, type_cast = options.complex_selected(None, "PropertyB")
@@ -913,16 +894,20 @@ class SystemQueryTests(unittest.TestCase):
         self.assertTrue(suboptions is None)
         suboptions, type_cast = options.complex_selected(None, "PropertyB")
         self.assertTrue(suboptions is not suboptionsB, "auto cache clear")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         options.clear_select()
         options.add_select_path("*")
         suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         suboptions, type_cast = options.complex_selected(
             "Schema.Type", "PropertyA")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         suboptions, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         self.assertFalse(suboptions is suboptionsB, "cache clear check")
         options.clear_select()
         options.add_select_path("Schema.Type/PropertyA")
@@ -931,7 +916,8 @@ class SystemQueryTests(unittest.TestCase):
         self.assertTrue(suboptions is None)
         suboptions, type_cast = options.complex_selected(
             "Schema.Type", "PropertyA")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         self.assertTrue(type_cast is None)
         suboptions, type_cast = options.complex_selected(
             "Schema.Type2", "PropertyA")
@@ -940,16 +926,19 @@ class SystemQueryTests(unittest.TestCase):
             "Schema.Type", "PropertyB")
         self.assertTrue(suboptions is None)
         suboptions, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         # select individual complex property
         options.add_select_path("PropertyC/PropertyC1")
         suboptions, type_cast = options.complex_selected(None, "PropertyC")
-        self.assertTrue(to_text(suboptions) == "$select=PropertyC1")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("PropertyC1", ))
         self.assertTrue(type_cast is None)
         # select a complex property with type cast
         options.add_select_path("PropertyD/Schema.Type1")
         suboptions, type_cast = options.complex_selected(None, "PropertyD")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
         self.assertTrue(isinstance(type_cast, types.QualifiedName))
         self.assertTrue(type_cast == ("Schema", "Type1"))
         # check conflict
@@ -966,33 +955,50 @@ class SystemQueryTests(unittest.TestCase):
         options.add_expand_path("*")
         suboptions, type_cast = options.complex_selected(None, "PropertyA")
         # PropertyA selected (by default) so will contain expand rule
-        self.assertTrue(to_text(suboptions) == "$select=*,$expand=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
+        self.assertTrue(len(suboptions.expand) == 1)
+        self.assertTrue(suboptions.expand[0].path == ("*", ))
         options.add_select_path("PropertyB")
         suboptions, type_cast = options.complex_selected(None, "PropertyA")
         # PropertyA no longer selected so expand rule does not propagate
         self.assertTrue(suboptions is None)
         suboptionsB, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(to_text(suboptionsB) == "$select=*,$expand=*")
+        self.assertTrue(len(suboptionsB.select) == 1)
+        self.assertTrue(suboptionsB.select[0].path == ("*", ))
+        self.assertTrue(len(suboptionsB.expand) == 1)
+        self.assertTrue(suboptionsB.expand[0].path == ("*", ))
         options.clear_expand()
         # check negative cache clear
         suboptions, type_cast = options.complex_selected(None, "PropertyB")
         self.assertTrue(suboptions is not suboptionsB)
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
+        self.assertTrue(len(suboptions.expand) == 0)
         options.clear_select()
         options.add_expand_path("PropertyA/NavX")
         options.add_expand_path("Schema.Type1/PropertyA/NavY")
         options.add_expand_path("NavZ")
         suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        self.assertTrue(to_text(suboptions) == "$select=*,$expand=NavX",
-                        to_text(suboptions))
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
+        self.assertTrue(len(suboptions.expand) == 1)
+        self.assertTrue(suboptions.expand[0].path == ("NavX", ))
         suboptions, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
+        self.assertTrue(len(suboptions.expand) == 0)
         suboptions, type_cast = options.complex_selected(
             "Schema.Type1", "PropertyA")
-        self.assertTrue(to_text(suboptions) == "$select=*,$expand=NavY")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
+        self.assertTrue(len(suboptions.expand) == 1)
+        self.assertTrue(suboptions.expand[0].path == ("NavY", ))
         suboptions, type_cast = options.complex_selected(
             "Schema.Type2", "PropertyA")
-        self.assertTrue(to_text(suboptions) == "$select=*")
+        self.assertTrue(len(suboptions.select) == 1)
+        self.assertTrue(suboptions.select[0].path == ("*", ))
+        self.assertTrue(len(suboptions.expand) == 0)
         try:
             suboptions, type_cast = options.complex_selected(None, "NavZ")
             self.fail("Complex path matches expand rule")

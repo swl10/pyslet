@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import collections
+from copy import copy
 import weakref
 
 from . import errors
@@ -12,7 +13,6 @@ from ..py2 import (
     is_text,
     SortableMixin,
     to_text,
-    ul,
     UnicodeMixin,
     )
 from ..xml import xsdatatypes as xsi
@@ -33,6 +33,21 @@ class QualifiedName(
 
     def __unicode__(self):
         return force_text("%s.%s" % self)
+
+
+def path_to_str(path):
+    """Simple function for converting a path to a string
+
+    path
+        An array of strings and/or :class:`types.QualifiedName` named
+        tuples.
+
+    Returns a simple string representation with all components
+    separated by "/"
+    """
+    return "/".join(
+        [segment if is_text(segment) else
+         (segment.namespace + "." + segment.name) for segment in path])
 
 
 class EnumLiteral(
@@ -1065,6 +1080,21 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
             raise errors.BoundValue
         self.service = service
 
+    def clear_cache(self):
+        """Clears the local cache for this value
+
+        To force the value object to load the object's value from the
+        service again next time it is used call this method to clear the
+        local cache.  This method does nothing for values of primitive
+        or enumeration types as these value types are not composite
+        values and so do not use caching.
+
+        This method only affects values that are bound to a service,
+        otherwise it does nothing because a value that is not bound to a
+        service is transient and the value is *only* stored locally."""
+        if self.service is not None:
+            raise NotImplementedError
+
     def reload(self):
         """Reloads this value from the service
 
@@ -1081,12 +1111,6 @@ class SelectItem(UnicodeMixin):
     def __init__(self):
         self.path = ()
         self.type_cast = None
-
-    def __unicode__(self):
-        value = ["/".join(p for p in self.path)]
-        if self.type_cast:
-            value.append("/" + to_text(self.type_cast))
-        return "".join(value)
 
 
 class PathQualifier(xsi.Enumeration):
@@ -1131,8 +1155,15 @@ class ExpandItem(UnicodeMixin):
                 value.append("(%s)" % options)
         return "".join(value)
 
+    def clone(self):
+        item = ExpandItem()
+        item.path = self.path
+        item.type_cast = self.type_cast
+        item.qualifier = self.qualifier
+        item.options = self.options.clone()
 
-class EntityOptions(UnicodeMixin):
+
+class EntityOptions(object):
 
     """Object representing the options select and expand
 
@@ -1163,26 +1194,18 @@ class EntityOptions(UnicodeMixin):
         #: a list of :class:`ExpandItem` instances contain expansion rules
         self.expand = []
 
+    def clone(self):
+        """Creates a new instance forked from this one"""
+        options = self.__class__()
+        options.select = copy(self.select)
+        for item in self.expand:
+            self.expand.append(item.clone())
+        return options
+
     def _clear_cache(self):
         self._selected.clear()
         self._complex_selected.clear()
         self._nav_expanded.clear()
-
-    def __unicode__(self):
-        result = []
-        if self.select:
-            result.append("$select=" + self.get_select_str())
-        if self.expand:
-            result.append("$expand=" + self.get_expand_str())
-        return ul(",").join(result)
-
-    def get_select_str(self):
-        """Returns the select option as a string"""
-        return ul(",").join(to_text(s) for s in self.select)
-
-    def get_expand_str(self):
-        """Returns the expand option as a string"""
-        return ul(",").join(to_text(i) for i in self.expand)
 
     def add_select_path(self, path):
         """Add an additional select path to the options
@@ -1210,6 +1233,28 @@ class EntityOptions(UnicodeMixin):
             path = path[:-1]
         sitem.path = tuple(path)
         self.select.append(sitem)
+
+    def remove_select_path(self, path):
+        """Removes a select item from these options
+
+        path
+            See :meth:`add_select_path` for details.
+
+        If there is no matching select item no action is taken."""
+        path = get_path(path)
+        if not len(path):
+            raise ValueError
+        if isinstance(path[-1], QualifiedName):
+            path = path[:-1]
+            if not len(path):
+                raise ValueError
+        path = tuple(path)
+        i = 0
+        while i < len(self.select):
+            if self.select[i].path == path:
+                del self.select[i]
+            else:
+                i += 1
 
     def add_select_item(self, item):
         """Add an additional select item to the options
@@ -1283,7 +1328,7 @@ class EntityOptions(UnicodeMixin):
                 if len(path) > maxlen:
                     raise errors.PathError(
                         "Unexpected complex property path: %s" %
-                        to_text(rule))
+                        path_to_str(path))
                 result = True
                 break
         self._selected[(qname, pname)] = result
@@ -1327,6 +1372,30 @@ class EntityOptions(UnicodeMixin):
         self.add_expand_item(xitem)
         return xitem
 
+    def remove_expand_path(self, path):
+        """Removes an expand item from these options
+
+        path
+            See :meth:`add_select_path` for details.  The string
+            MUST NOT contain a trailing qualifer as this is set
+            separately.
+
+        If there is no matching expand item no action is taken."""
+        path = get_path(path)
+        if not len(path):
+            raise ValueError
+        if isinstance(path[-1], QualifiedName):
+            path = path[:-1]
+            if not len(path):
+                raise ValueError
+        path = tuple(path)
+        i = 0
+        while i < len(self.expand):
+            if self.expand[i].path == path:
+                del self.expand[i]
+            else:
+                i += 1
+
     def add_expand_item(self, item):
         """Add an additional expand item to the options
 
@@ -1352,6 +1421,7 @@ class EntityOptions(UnicodeMixin):
             path = path[:-1]
         if not len(path):
             raise ValueError
+        path = tuple(path)
         for item in self.expand:
             if item.path == path:
                 return item
@@ -1490,7 +1560,7 @@ class EntityOptions(UnicodeMixin):
                         # conflict!
                         raise errors.PathError(
                             "Type cast in select rule: %s conflict with %s" %
-                            (to_text(rule), type_cast))
+                            (to_text(rule.path), type_cast))
         else:
             selected = self.select_default
             if selected:
@@ -1617,6 +1687,18 @@ class EntityOptions(UnicodeMixin):
         return type_def
 
 
+class OrderbyItem(object):
+
+    """Object representing a single orderby item
+
+    """
+
+    def __init__(self):
+        self.expr = None
+        #: 1 = asc, -1  desc
+        self.direction = 1
+
+
 class CollectionOptions(EntityOptions):
 
     """Object representing a set of query options for a collection"""
@@ -1630,45 +1712,37 @@ class CollectionOptions(EntityOptions):
         self.search = None
         self.orderby = None
 
-    def __unicode__(self):
-        result = []
-        if self.skip is not None:
-            result.append("$skip=%i" % self.skip)
-        if self.top is not None:
-            result.append("$top=%i" % self.top)
-        if self.count is not None:
-            result.append("$count=true")
-        if self.filter is not None:
-            result.append("$filter=" + uri.escape_data(self.get_filter_str()))
-        if self.search is not None:
-            result.append(
-                "$search=" + uri.escape_data(self.search.search_text()))
-        if self.orderby is not None:
-            result.append("$orderby=" + uri.escape_data(to_text(self.orderby)))
-        base = EntityOptions.__unicode__(self)
-        if base:
-            result.append(base)
-        return ul(",").join(result)
-
-    def get_filter_str(self):
-        """Returns the filter option as a string"""
-        if self.filter:
-            return to_text(self.filter)
-        else:
-            return ""
+    def clone(self):
+        """Creates a new instance forked from this one"""
+        options = super(CollectionOptions, self).clone()
+        options.skip = self.skip
+        options.top = self.top
+        options.count = self.count
+        # no need to clone expressions, they shouldn't be dynamically
+        # modified
+        options.filter = self.filter
+        options.search = self.search
+        options.orderby = self.orderby
+        return options
 
     def set_filter(self, filter_expr):
         self.filter = filter_expr
 
-    def get_search_str(self):
-        """Returns the search option as a string"""
-        if self.search:
-            return self.search.search_text()
-        else:
-            return ""
-
     def set_search(self, search_expr):
         self.search = search_expr
+
+    def set_orderby(self, orderby_items):
+        # Force orderby to be a tuple to ease cloning
+        if orderby_items:
+            self.orderby = tuple(orderby_items)
+        else:
+            self.orderby = None
+
+    def set_top(self, top):
+        self.top = top
+
+    def set_skip(self, skip):
+        self.skip = skip
 
 
 class ExpandOptions(CollectionOptions):
@@ -1678,6 +1752,12 @@ class ExpandOptions(CollectionOptions):
     def __init__(self):
         super(ExpandOptions, self).__init__()
         self.levels = None
+
+    def clone(self):
+        """Creates a new instance forked from this one"""
+        options = super(ExpandOptions, self).clone()
+        options.levels = self.levels
+        return options
 
     def set_option(self, name, value):
         if name == "$select":
@@ -1715,6 +1795,9 @@ class SystemQueryOptions(CollectionOptions):
         self.format = None
         self.skiptoken = None
 
+    def set_id(self, id):
+        self.id = id
+
 
 class Operator(xsi.Enumeration):
     """Enumeration for operators
@@ -1747,6 +1830,7 @@ class Operator(xsi.Enumeration):
         "cast": 18,
         "member": 19,
         "method": 20,
+        "lambda_bind": 21,
     }
 
     aliases = {
@@ -1818,6 +1902,7 @@ class OperatorExpression(CommonExpression):
         self.operands = []
 
     precedence = {
+        Operator.lambda_bind: 0,
         Operator.bool_or: 1,
         Operator.bool_and: 2,
         Operator.ne: 3,
@@ -1868,6 +1953,10 @@ class BinaryExpression(OperatorExpression):
     def format_expr(self, operand_strs):
         if self.op_code == Operator.member:
             return "%s/%s" % (
+                operand_strs[0],
+                operand_strs[1])
+        elif self.op_code == Operator.lambda_bind:
+            return "%s:%s" % (
                 operand_strs[0],
                 operand_strs[1])
         else:

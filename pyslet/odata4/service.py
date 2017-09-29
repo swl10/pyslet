@@ -2,12 +2,14 @@
 
 
 from . import errors
+from . import metadata as csdlxml
 from . import model as csdl
 from . import parser
 from . import primitive
 from . import types
 
 from ..py2 import (
+    is_text,
     to_text,
     )
 from ..rfc2396 import (
@@ -224,6 +226,34 @@ class DataService(object):
                     unescape_data(value).decode('utf-8'))
         return url
 
+    def resolve_type(self, type_url):
+        """Resolves an odata.type URL to a type definition
+
+        odata_type
+            An :class:`pyslet.rfc2396.URI` instance containing the
+            URL of the type."""
+        # express this relative to our context
+        if type_url.fragment:
+            # if this is a simple identifier we have a built-in
+            # primitive type
+            if types.NameTable.is_simple_identifier(type_url.fragment):
+                # ignore the actual URL
+                return self.model["Edm"].get(type_url.fragment, None)
+            else:
+                qname, collection = csdlxml.type_name_from_str(
+                    type_url.fragment)
+                type_context = str(type_url).split('#')[0]
+                if type_context == self.context_base:
+                    type_def = self.model.qualified_get(qname)
+                    if collection:
+                        return csdl.CollectionType(type_def)
+                    else:
+                        return type_def
+                else:
+                    raise NotImplemented("Cross-service type references")
+        else:
+            raise errors.ServiceError("Invalid odata.type: %s" % str(type_url))
+
     def open(self, name):
         """Opens an item advertised by this service
 
@@ -261,6 +291,13 @@ class DataService(object):
 
             For the OData client this is just the URL returned in the
             odata.nextLink annotation."""
+        raise NotImplementedError
+
+    def get_singleton(self, singleton):
+        """Creates a request for an entity singleton
+
+        singleton
+            An SingletonValue object bound to this service."""
         raise NotImplementedError
 
     def get_entity_by_key(self, entity_set, key):
@@ -312,6 +349,59 @@ class DataService(object):
         service."""
         raise NotImplementedError
 
+    def create_entity(self, entity_collection, entity):
+        """Create a request to create an entity in a collection
+
+        entity_collection
+            An :class:`model.EntitySetValue` or a collection of
+            entities.
+
+        Returns a :class:`DataRequest` instance.  When executed, the
+        entity is updated from the service to include any computed
+        values."""
+        raise NotImplementedError
+
+    def update_entity(self, entity, merge=True):
+        """Create a request to update an entity
+
+        entity
+            An :class:`model.EntityValue`.
+
+        merge
+            Whether or not to use merge semantics (PATCH).  Defaults to
+            True, in this mode only properties marked as dirty are sent
+            to the service and the PATCH method is used, otherwise all
+            properties are sent to the server and the PUT method is used.
+
+        Returns a :class:`DataRequest` instance.  If executed
+        successfully all updated values are marked as clean."""
+        raise NotImplementedError
+
+    def delete_entity_by_key(self, entity_set, key):
+        """Deletes an entity from an entity set
+
+        entity_set
+            An EntitySetValue object bound to this service.  This can be
+            an entity set exposed by the service in the container or an
+            entity collection obtained through navigation.
+
+        key
+            The key of the entity to delete.
+
+        Returns a :class:`DataRequest` instance.  There is no return
+        result.  If the entity set does not contain an entity with *key*
+        then a :class:`errors.ServiceError` is raised with code 404.
+
+        The behaviour of this request depending on the entity set.  If
+        the entity set represents a collection-valued navigation
+        property that does *not* contain the related entities then the
+        effect is to remove the relationship between two entities.  On
+        the other hand, if the entity set represents an entity set
+        exposed in the service document or a collection-valued
+        navigation property that *contains* the related entities then
+        the effect is to delete the entity with *key* outright."""
+        raise NotImplementedError
+
     # TBC below
 
     def get_entity_by_ref(self, entity_ref, type_cast=None, options=None):
@@ -356,32 +446,6 @@ class DataService(object):
         itself. As a result there are no additional options."""
         raise NotImplementedError
 
-    def get_entity_ref(self, entity):
-        """Returns a reference to an entity
-
-        Unlike other service methods this method does *not* return a
-        data request for later execution, instead it returns the
-        refernce directly because all bound entities returned by a
-        service contain the entity ID or the information required to
-        calculate it."""
-        if not entity:
-            raise EntityNotFound("null entity has no reference")
-        ref = self.ref_type_def()
-        ref.bind_to_service(self)
-        id = entity.annotations.qualified_get("odata.id")
-        if id is None or not id.value:
-            if entity.entity_set is None:
-                raise errors.ODataError("transient entity has no reference")
-            # if there is no id then we must have all the key fields
-            # AND the url is just the canonical url
-            url = self.url_from_str(to_text(entity.entity_set.get_url()))
-            key = entity.type_def.get_key_dict(entity.get_key())
-            url.add_key_predicate(key)
-            ref.set_value(to_text(url))
-        else:
-            ref.set_value(id.value.get_value())
-        return ref
-
     def get_entity_media(self, entity):
         """Creates a request to an entity's media stream
 
@@ -408,22 +472,8 @@ class DataService(object):
         the original entity instance."""
         raise NotImplementedError
 
-    def get_entityref_collection(
-            self, entity_set, type_cast=None, options=None):
-        """Creates a request for a collection of entity references"""
-        raise NotImplementedError
-
-    def create_entity(self, entity_collection, entity):
-        raise NotImplementedError
-
-    def update_entity(self, entity, merge=True):
-        raise NotImplementedError
-
     def upsert_entity(self, entity, merge=True):
         #: entity may not exist
-        raise NotImplementedError
-
-    def delete_entity(self, entity):
         raise NotImplementedError
 
     def add_entity_ref(self, entity_collection, entity):
@@ -538,10 +588,12 @@ class DataRequest(object):
             url = self.get_value_url(entity, edit=edit)
             for seg in path:
                 url.add_path_segment(seg)
-        elif isinstance(value, csdl.EntitySetValue) and value.entity_set:
-            # this is just an entity set read/edit url in service doc
+        elif isinstance(value, csdl.EntityContainerValue) and \
+                value.entity_binding:
+            # this is just an entity set or singleton read/edit url in
+            # service doc
             url = self.service.url_from_str(
-                to_text(value.entity_set.get_url()))
+                to_text(value.entity_binding.get_url()))
         elif isinstance(value, csdl.EntityValue):
             if not edit:
                 # check for an explicit readLink
@@ -564,19 +616,22 @@ class DataRequest(object):
                             "Can't read or edit a transient entity")
                     url = self.service.url_from_str(
                         to_text(id.value.get_value()))
-                    if value.entity_set.entity_type is not value.type_def:
+                    if value.entity_binding.entity_type is not value.type_def:
                         url.add_path_segment(value.type_def.qname)
-            if not url and value.entity_set:
+            if not url and value.entity_binding:
                 # if there is no id then we must have all the key fields
-                # AND the url is just the canonical url
+                # AND the url is just the canonical url of the entity
+                # set or singleton
                 url = self.service.url_from_str(
-                    to_text(value.entity_set.get_url()))
-                key = value.type_def.get_key_dict(value.get_key())
-                url.add_key_predicate(key)
+                    to_text(value.entity_binding.get_url()))
+                if isinstance(value.entity_binding, csdl.EntitySet):
+                    # for entity sets only, add the key
+                    key = value.type_def.get_key_dict(value.get_key())
+                    url.add_key_predicate(key)
             else:
-                raise errors.ServiceError("Can't read or edit unbound entity")
+                raise errors.ODataError("Can't read or edit unbound entity")
         else:
-            raise errors.ServiceError("Can't calculate target URL")
+            raise errors.ODataError("Can't calculate target URL")
         return url
 
 
@@ -755,12 +810,59 @@ class ODataURL(object):
             for item in expand:
                 self.sys_query_options.add_expand_item(item)
             self.query_options['$expand'] = ",".join(
-                to_text(i) for i in expand)
+                self.expand_item_to_str(i) for i in expand)
         else:
             try:
                 del self.query_options['$expand']
             except KeyError:
                 pass
+
+    @staticmethod
+    def expand_item_to_str(expand_item):
+        result = []
+        result.append(types.path_to_str(expand_item.path))
+        if expand_item.type_cast:
+            result.append("/")
+            result.append(to_text(expand_item.type_cast))
+        if expand_item.qualifier:
+            result.append("/$")
+            result.append(types.PathQualifier.to_str(expand_item.qualifier))
+        # now go through the options
+        options = []
+        if expand_item.options.select:
+            options.append("$select=" + ",".join(
+                            ODataURL.select_item_to_str(i)
+                            for i in expand_item.options.select))
+        if expand_item.options.expand:
+            options.append("$expand=" + ",".join(
+                            ODataURL.expand_item_to_str(i)
+                            for i in expand_item.options.expand))
+        if expand_item.options.top:
+            options.append("$top=%i" % expand_item.options.top)
+        if expand_item.options.skip:
+            options.append("$skip=%i" % expand_item.options.skip)
+        if expand_item.options.count is not None:
+            options.append("$count=%s" %
+                           ("true" if expand_item.options.count else "false"))
+        if expand_item.options.filter:
+            options.append(
+                "$filter=%s" %
+                ODataURL.expr_to_str(expand_item.options.filter))
+        if expand_item.options.search:
+            options.append(
+                "$search=%s" %
+                ODataURL.search_expr_to_str(expand_item.options.search))
+        if expand_item.options.orderby:
+            options.append(
+                "$orderby=%s" %
+                ODataURL.orderby_to_str(expand_item.options.orderby))
+        if expand_item.options.levels is not None:
+            options.append("$levels=%i" % expand_item.options.levels)
+        if options:
+            result.append("(")
+            result.append(",".join(options))
+            result.append(")")
+        return "".join(result)
 
     def set_select(self, select):
         """Set the select system query option
@@ -772,12 +874,21 @@ class ODataURL(object):
             for item in select:
                 self.sys_query_options.add_select_item(item)
             self.query_options['$select'] = ",".join(
-                to_text(i) for i in select)
+                self.select_item_to_str(i) for i in select)
         else:
             try:
                 del self.query_options['$select']
             except KeyError:
                 pass
+
+    @staticmethod
+    def select_item_to_str(select_item):
+        result = []
+        result.append(types.path_to_str(select_item.path))
+        if select_item.type_cast:
+            result.append("/")
+            result.append(to_text(select_item.type_cast))
+        return "".join(result)
 
     def add_filter(self, filter):
         """Adds a filter to the query options
@@ -795,6 +906,55 @@ class ODataURL(object):
             # convert a filter expression to a string, can only
             # be done through a special form of evaluation
             self.query_options['$filter'] = self.expr_to_str(filter)
+
+    def add_orderby(self, orderby):
+        """Adds an orderby clause to the query options
+
+        orderby
+            An iterable of :class:`types.OrderbyItem` instances.
+
+        The value is stored in the :attr:`sys_query_options` *and*
+        converted to a string and stored in the query_options
+        dictionary."""
+        self.sys_query_options.set_orderby(orderby)
+        if orderby is None:
+            self.query_options.pop('$orderby', None)
+        else:
+            self.query_options['$orderby'] = self.orderby_to_str(orderby)
+
+    @staticmethod
+    def orderby_to_str(orderby):
+        result = []
+        for item in orderby:
+            item_str = ODataURL.expr_to_str(item.expr)
+            if item.direction > 0:
+                item_str += " asc"
+            elif item.direction < 0:
+                item_str += " desc"
+            result.append(item_str)
+        return ",".join(result)
+
+    def add_top(self, top):
+        """Adds top to the query options
+
+        top
+            An integer (or None)"""
+        self.sys_query_options.set_top(top)
+        if top is None:
+            self.query_options.pop('$top', None)
+        else:
+            self.query_options['$top'] = to_text(top)
+
+    def add_skip(self, skip):
+        """Adds skip to the query options
+
+        skip
+            An integer (or None)"""
+        self.sys_query_options.set_skip(skip)
+        if skip is None:
+            self.query_options.pop('$skip', None)
+        else:
+            self.query_options['$skip'] = to_text(skip)
 
     @staticmethod
     def expr_to_str(expr):
@@ -893,3 +1053,14 @@ class ODataURL(object):
             p.require(")")
             p.require_end()
         return result
+
+    def set_id(self, id):
+        """Set the id system query option"""
+        if id is None:
+            self.sys_query_options.set_id(None)
+            self.query_options.pop('$id', None)
+        else:
+            if not is_text(id):
+                id = to_text(id)
+            self.sys_query_options.set_id(id)
+            self.query_options['$id'] = id

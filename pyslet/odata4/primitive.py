@@ -435,7 +435,16 @@ class PrimitiveValue(types.Value):
         else:
             raise TypeError("Can't set %s from %s" %
                             (str(self.type_def), repr(value)))
-        self.dirty = True
+        self.touch()
+
+    def touch(self):
+        """Implements touch behaviour
+
+        If this primitive value is the value of a commplex or entity
+        property then touch the parent too."""
+        super(PrimitiveValue, self).touch()
+        if self.parent:
+            self.parent().touch()
 
     def reload(self):
         """Reloads this value from the service
@@ -716,7 +725,7 @@ class IntegerValue(NumericValue):
             raise TypeError(
                 "can't set %s from %s" %
                 (to_text(self.type_def), repr(value)))
-        self.dirty = True
+        self.touch()
 
 
 class FloatValue(NumericValue):
@@ -767,7 +776,7 @@ class FloatValue(NumericValue):
         else:
             raise TypeError(
                 "can't set %s from %s" % (repr(self), repr(value)))
-        self.dirty = True
+        self.touch()
 
 
 class BinaryValue(PrimitiveValue):
@@ -807,7 +816,7 @@ class BinaryValue(PrimitiveValue):
                     self.type_def._max_length:
                 raise ValueError("MaxLength exceeded for binary value")
             self.value = new_value
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -858,7 +867,7 @@ class BooleanValue(PrimitiveValue):
             raise TypeError
         else:
             self.value = True if value else False
-        self.dirty = True
+        self.touch()
 
     def __unicode__(self):
         if self.value is None:
@@ -952,7 +961,7 @@ class DecimalValue(NumericValue):
             self.value = self._round(decimal.Decimal(repr(value)))
         else:
             raise TypeError("Can't set Decimal from %s" % repr(value))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1193,7 +1202,7 @@ class DateValue(PrimitiveValue):
             self.value = None
         else:
             raise TypeError("Can't set Date from %s" % repr(value))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1340,7 +1349,7 @@ class DateTimeOffsetValue(PrimitiveValue):
                     "Can't set DateTimeOffset from %s" % str(value))
         else:
             raise TypeError("Can't set DateTimeOffset from %s" % repr(value))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1403,7 +1412,7 @@ class DurationValue(PrimitiveValue):
                 raise ValueError("Can't set Duration from %s" % str(value))
         else:
             raise TypeError("Can't set Duration from %s" % repr(value))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1474,7 +1483,7 @@ class GuidValue(PrimitiveValue):
             self.value = value
         else:
             raise TypeError("Can't set Guid from %s" % repr(value))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1557,7 +1566,7 @@ class StringValue(PrimitiveValue):
                     self.type_def._max_length:
                 raise ValueError("MaxLength exceeded for string value")
             self.value = new_value
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1639,7 +1648,7 @@ class TimeOfDayValue(PrimitiveValue):
             self.value = None
         else:
             raise TypeError("Can't set TimeOfDay from %s" % repr(value))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1683,7 +1692,7 @@ class PointValue(object):
         else:
             raise TypeError("Can't set %s from %s" %
                             (self.__class__.__name__, repr(value)))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1710,7 +1719,7 @@ class LineStringValue(object):
         else:
             raise TypeError("Can't set %s from %s" %
                             (self.__class__.__name__, repr(value)))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1738,7 +1747,7 @@ class PolygonValue(object):
         else:
             raise TypeError("Can't set %s from %s" %
                             (self.__class__.__name__, repr(value)))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1765,7 +1774,7 @@ class MultiPointValue(object):
         else:
             raise TypeError("Can't set %s from %s" %
                             (self.__class__.__name__, repr(value)))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1792,7 +1801,7 @@ class MultiLineStringValue(object):
         else:
             raise TypeError("Can't set %s from %s" %
                             (self.__class__.__name__, repr(value)))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1819,7 +1828,7 @@ class MultiPolygonValue(object):
         else:
             raise TypeError("Can't set %s from %s" %
                             (self.__class__.__name__, repr(value)))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):
@@ -1846,7 +1855,7 @@ class GeoCollectionValue(object):
         else:
             raise TypeError("Can't set %s from %s" %
                             (self.__class__.__name__, repr(value)))
-        self.dirty = True
+        self.touch()
 
     @classmethod
     def from_str(cls, src):

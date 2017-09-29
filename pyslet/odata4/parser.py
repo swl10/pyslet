@@ -222,6 +222,33 @@ class Parser(BasicParser):
         filter option (a boolCommonExpr)."""
         return self.require_bool_common_expr()
 
+    # Line 272
+    def require_orderby(self):
+        """Parses production orderby
+
+        Does *not* parse the $orderby= but parses just the value of the
+        orderby option (a list of orderbyItems)."""
+        result = []
+        result.append(self.require_orderby_item())
+        while self.parse(self.COMMA):
+            result.append(self.require_orderby_item())
+        return result
+
+    # Line 273
+    def require_orderby_item(self):
+        """Parses production orderbyItem"""
+        item = types.OrderbyItem()
+        item.expr = self.require_common_expr()
+        savepos = self.pos
+        if self.parse_bws():
+            if self.parse('desc'):
+                item.direction = -1
+            elif self.parse('asc'):
+                item.direction = 1
+            else:
+                self.setpos(savepos)
+        return item
+
     # Line 288
     def require_search(self):
         """Parses production search
@@ -423,6 +450,15 @@ class Parser(BasicParser):
                 break
         return tuple(path)
 
+    # Line 384
+    def require_common_expr(self):
+        """Parses production commonExpr
+
+        Returns a CommonExpression object."""
+        expr = self._require_common_expr()
+        # TODO: validate that this is a common expression!
+        return expr
+
     # Line 402
     def require_bool_common_expr(self):
         """Parses production boolCommonExpr
@@ -581,24 +617,27 @@ class Parser(BasicParser):
                     self.parse_bws()
                     right_op = types.BinaryExpression(
                         types.Operator.lambda_bind)
-                elif self.parse_bws():
-                    if self.parse(':'):
-                        self.parse_bws()
-                        right_op = types.BinaryExpression(
-                            types.Operator.lambda_bind)
-                    else:
-                        savepos = self.pos
-                        try:
-                            name = self.require_odata_identifier()
-                            self.require_rws()
-                            if name in self.BinaryOperators:
-                                op_code = types.Operator.from_str(name)
-                            right_op = types.BinaryExpression(op_code)
-                        except ValueError:
-                            self.setpos(savepos)
-                            right_op = None
                 else:
-                    right_op = None
+                    savepos = self.pos
+                    if self.parse_bws():
+                        if self.parse(':'):
+                            self.parse_bws()
+                            right_op = types.BinaryExpression(
+                                types.Operator.lambda_bind)
+                        else:
+                            try:
+                                name = self.require_odata_identifier()
+                                self.require_rws()
+                                if name in self.BinaryOperators:
+                                    op_code = types.Operator.from_str(name)
+                                else:
+                                    raise ValueError
+                                right_op = types.BinaryExpression(op_code)
+                            except ValueError:
+                                self.setpos(savepos)
+                                right_op = None
+                    else:
+                        right_op = None
                 if right_op is None:
                     # end of the expression, rotate to the left to bind
                     # the current operand and keep rotating until we're
@@ -620,10 +659,10 @@ class Parser(BasicParser):
             # next job, determine who binds more tightly, left or right?
             while True:
                 if left_op is None or left_op < right_op:
-                    # bind the operand to the right, in cases of equal
-                    # precedence we left associate 1+2-3 = (1+2)-3 this
-                    # causes a rotation to the left that pushes the
-                    # current left_op (if any) onto the stack.
+                    # Example: 2 + 3 *
+                    # bind the operand to the right, this causes a
+                    # rotation to the left that pushes the current
+                    # left_op (if any) onto the stack.
                     if operand is not None:
                         right_op.add_operand(operand)
                     if left_op is not None:
@@ -633,6 +672,7 @@ class Parser(BasicParser):
                     operand = None
                     break
                 else:
+                    # Example: 2 * 3 +
                     # bind the operand to the left, this causes a
                     # rotation to the right with the operand being bound
                     # to the left_op and then the left_op being replaced
@@ -640,6 +680,9 @@ class Parser(BasicParser):
                     # repeat the binding until we can rotate the other
                     # way, we're binding a binary operator here so there
                     # must always be something more to the right.
+                    # Example: 2 + 3 -
+                    # in cases of equal precedence we left associate
+                    # 2 + 3 - 4 = (2 + 3) - 4
                     left_op.add_operand(operand)
                     operand = left_op
                     if op_stack:

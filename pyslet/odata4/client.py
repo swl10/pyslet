@@ -4,14 +4,12 @@ import logging
 
 from . import errors
 from . import metadata as csdlxml
-from . import model as csdl
 from . import parser
 from .payload import Payload
 from .service import (
     DataRequest,
     DataService,
     )
-from . import types
 
 from ..http import client as http
 from ..http.params import (
@@ -146,38 +144,19 @@ class Client(DataService):
             self.set_container(self.model.get_container())
             self.metadata = doc
 
-    def resolve_type(self, type_url):
-        """Returns a type definition from an odata.type URL"""
-        # express this relative to our context
-        if type_url.fragment:
-            # if this is a simple identifier we have a built-in
-            # primitive type
-            if types.NameTable.is_simple_identifier(type_url.fragment):
-                # ignore the actual URL
-                return self.model["Edm"].get(type_url.fragment, None)
-            else:
-                qname, collection = csdlxml.type_name_from_str(
-                    type_url.fragment)
-                type_context = str(type_url).split('#')[0]
-                if type_context == self.context_base:
-                    type_def = self.model.qualified_get(qname)
-                    if collection:
-                        return csdl.CollectionType(type_def)
-                    else:
-                        return type_def
-                else:
-                    raise NotImplemented("Cross-service type references")
-        else:
-            raise errors.ServiceError("Invalid odata.type: %s" % str(type_url))
-
     def get_entity_collection(self, entity_set, next_link=None):
         """Creates a request to get a collection of entities"""
         request = IterateEntitiesRequest(self, entity_set, url=next_link)
         return request
 
-    def get_entity_by_key(self, entity_set_value, key):
+    def get_singleton(self, singleton):
+        """Creates a request for an entity singleton"""
+        request = SingletonRequest(self, singleton)
+        return request
+
+    def get_entity_by_key(self, entity_set, key):
         """Creates a request to get an entity by key"""
-        request = EntityByKeyRequest(self, (entity_set_value, key))
+        request = EntityByKeyRequest(self, (entity_set, key))
         return request
 
     def get_collection(self, collection, next_link=None):
@@ -193,6 +172,24 @@ class Client(DataService):
     def get_property(self, pvalue):
         """Creates a request for an individual property"""
         request = PropertyRequest(self, pvalue)
+        return request
+
+    def create_entity(self, entity_collection, entity):
+        """Create a request to create an entity in a collection"""
+        request = InsertEntityRequest(self, (entity_collection, entity))
+        return request
+
+    def update_entity(self, entity, merge=True):
+        """Create a request to update an entity"""
+        if merge:
+            request = PatchEntityRequest(self, entity)
+        else:
+            raise NotImplementedError
+        return request
+
+    def delete_entity_by_key(self, entity_set, key):
+        """Deletes an entity from an entity set"""
+        request = DeleteByKeyRequest(self, (entity_set, key))
         return request
 
 
@@ -234,8 +231,9 @@ class CountRequest(ClientDataRequest):
         self.url.add_path_segment("$count")
         # add in any specified query options...
         if self.target.options:
-            self.url.add_filter(self.target.filter)
-            self.url.add_search(self.target.search)
+            self.url.add_filter(self.target.options.filter)
+            self.url.add_search(self.target.options.search)
+            self.url.add_orderby(self.target.options.orderby)
         # add in custom parameters
         if self.params:
             for name, value in self.params:
@@ -276,8 +274,11 @@ class IterateEntitiesRequest(ClientDataRequest):
             if self.target.options:
                 self.url.set_select(self.target.options.select)
                 self.url.set_expand(self.target.options.expand)
+                self.url.add_skip(self.target.options.skip)
+                self.url.add_top(self.target.options.top)
                 self.url.add_filter(self.target.options.filter)
                 self.url.add_search(self.target.options.search)
+                self.url.add_orderby(self.target.options.orderby)
             # add in custom parameters
             if self.params:
                 for name, value in self.params:
@@ -295,6 +296,38 @@ class IterateEntitiesRequest(ClientDataRequest):
         payload.obj_from_bytes(self.target, self.http_request.res_body)
 
 
+class SingletonRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is a singleton value
+        self.url = self.get_value_url(self.target)
+        if self.target.item_type is not self.target.type_def.item_type:
+            # add a type_cast segment to the URL
+            self.url.add_path_segment(self.target.item_type.qname)
+        # add in any specified query options...
+        if self.target.options:
+            self.url.set_select(self.target.options.select)
+            self.url.set_expand(self.target.options.expand)
+        # add in custom parameters
+        if self.params:
+            for name, value in self.params:
+                self.url.query_options[name] = value
+        self.entity = self.target.new_item()
+        self.entity.bind_to_service(self.service)
+        self.http_request = http.ClientRequest(str(self.url))
+
+    def set_response(self):
+        if self.http_request.status != 200:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+            return
+        payload = Payload.from_message(
+            self.http_request.url, self.http_request.response, self.service)
+        payload.obj_from_bytes(self.entity, self.http_request.res_body)
+        self.result = self.entity
+
+
 class EntityByKeyRequest(ClientDataRequest):
 
     def create_request(self):
@@ -302,9 +335,10 @@ class EntityByKeyRequest(ClientDataRequest):
         target_set, target_key = self.target
         entity_type = target_set.item_type
         key = entity_type.get_key_dict(target_key)
-        if target_set.entity_set and \
-                target_set.entity_set.indexable_by_key and \
-                target_set.options.filter is None:
+        if target_set.entity_binding and \
+                target_set.entity_binding.indexable_by_key and \
+                (target_set.options is None or
+                 target_set.options.filter is None):
             # we are bound to an entity set (even if we are actually a
             # navigation property) that is indexable by key so we will
             # just use the key-predicate form of index look-up note that:
@@ -320,7 +354,8 @@ class EntityByKeyRequest(ClientDataRequest):
                 self.url.set_select(target_set.options.select)
                 self.url.set_expand(target_set.options.expand)
         elif not self.service.conventional_ids or target_set.name or \
-                target_set.options.filter is not None:
+                (target_set.options is None or
+                 target_set.options.filter is None):
             # Problem #1: we don't know the id of the entity or we
             # are indexing a navigation property or otherwise filtered
             # entity set, turn the key dictionary into a filter and
@@ -345,7 +380,12 @@ class EntityByKeyRequest(ClientDataRequest):
         self.http_request = http.ClientRequest(str(self.url))
 
     def set_response(self):
-        if self.http_request.status != 200:
+        if self.http_request.status == 404:
+            self.result = errors.ServiceError(
+                "Entity does not exist", 404,
+                self.http_request.response.reason)
+            return
+        elif self.http_request.status != 200:
             self.result = UnexpectedHTTPResponse(
                 to_text(self.url),
                 self.http_request.status, self.http_request.response.reason)
@@ -354,6 +394,58 @@ class EntityByKeyRequest(ClientDataRequest):
             self.http_request.url, self.http_request.response, self.service)
         payload.obj_from_bytes(self.entity, self.http_request.res_body)
         self.result = self.entity
+
+
+class DeleteByKeyRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is a tuple of entity set and key
+        target_set, target_key = self.target
+        entity_type = target_set.item_type
+        key = entity_type.get_key_dict(target_key)
+        id = None
+        if target_set.entity_binding and \
+                target_set.entity_binding.indexable_by_key:
+            # we are bound to an entity set (even if we are actually a
+            # navigation property) that is indexable by key so we will
+            # just use the key-predicate to get the entity reference
+            # using the set we're bound to
+            id = self.service.url_from_str(
+                to_text(target_set.entity_binding.get_url()))
+            id.add_key_predicate(key)
+        if target_set.parent is not None:
+            # we're a navigation property
+            parent = target_set.parent()
+            np = parent.type_def[target_set.name]
+            if np.containment:
+                if self.service.conventional_ids:
+                    id = self.get_value_url(target_set)
+                    id.add_key_predicate(key)
+                    self.url = id
+            elif id:
+                # navigation property, not contained
+                # just delete the reference
+                self.url = self.get_value_url(target_set)
+                self.url.set_id(id)
+        else:
+            # delete this entity from it's owning entity set
+            self.url = id
+        if not self.url:
+            raise errors.ODataError("Can't resolve entity reference")
+        self.http_request = http.ClientRequest(str(self.url), method="DELETE")
+
+    def set_response(self):
+        if self.http_request.status == 404:
+            self.result = errors.ServiceError(
+                "Entity does not exist", 404,
+                self.http_request.response.reason)
+            return
+        elif self.http_request.status != 204:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+            return
+        self.result = None
 
 
 class PropertyRequest(ClientDataRequest):
@@ -389,8 +481,11 @@ class IterateRequest(ClientDataRequest):
             # add in any specified query options...
             # TODO: add all collection options to the URL in one go...
             if self.target.options:
+                self.url.add_skip(self.target.options.skip)
+                self.url.add_top(self.target.options.top)
                 self.url.add_filter(self.target.options.filter)
                 self.url.add_search(self.target.options.search)
+                self.url.add_orderby(self.target.options.orderby)
             # add in custom parameters
             if self.params:
                 for name, value in self.params:
@@ -406,3 +501,66 @@ class IterateRequest(ClientDataRequest):
         payload = Payload.from_message(
             self.http_request.url, self.http_request.response, self.service)
         payload.obj_from_bytes(self.target, self.http_request.res_body)
+
+
+class InsertEntityRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is an entity set (or collection) and an entity
+        target_collection, entity = self.target
+        self.url = self.get_value_url(target_collection)
+        payload = Payload(self)
+        # create the payload to POST
+        jbytes = payload.to_json(
+            entity, type_def=target_collection.type_def.item_type)
+        jbytes = jbytes.getvalue()
+        self.http_request = http.ClientRequest(
+            str(self.url), "POST", entity_body=jbytes)
+        self.http_request.set_content_type(payload.get_media_type())
+        self.http_request.set_header("Prefer", "return=representation")
+
+    def set_response(self):
+        entity = self.target[1]
+        # we want to receive maximum information back from the service
+        # so remove any narrow selection
+        entity.select_default()
+        if self.http_request.status == 204:
+            # TODO: no content returned, use Location header to set id
+            # and decipher key if available
+            self.result = entity
+        elif self.http_request.status == 201:
+            # should have a representation in the response
+            if self.http_request.res_body:
+                payload = Payload.from_message(
+                    self.http_request.url, self.http_request.response,
+                    self.service)
+                payload.obj_from_bytes(entity, self.http_request.res_body)
+            self.result = entity
+        else:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+
+
+class PatchEntityRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is an entity value
+        self.url = self.get_value_url(self.target, edit=True)
+        payload = Payload(self)
+        # create the payload for PATCH, suppress the odata.type
+        jbytes = payload.to_json(
+            self.target, type_def=self.target.type_def, patch=True)
+        jbytes = jbytes.getvalue()
+        self.http_request = http.ClientRequest(
+            str(self.url), "PATCH", entity_body=jbytes)
+        self.http_request.set_content_type(payload.get_media_type())
+
+    def set_response(self):
+        if self.http_request.status < 200 or self.http_request.status >= 400:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+        else:
+            self.result = None
+            self.target.rclean()

@@ -166,6 +166,61 @@ class URITests(unittest.TestCase):
         self.assertTrue(isinstance(seg.params[''], int))
         self.assertTrue(seg.params[''] == 25)
 
+    def test_select(self):
+        odata_url = service.ODataURL(self.svc)
+        options = types.ExpandOptions()
+        options.add_select_path(("PropertyA", ))
+        odata_url.set_select(options.select)
+        self.assertTrue(to_text(odata_url) == "/?%24select=PropertyA")
+        options.add_select_path(
+            ("PropertyB", types.QualifiedName("Schema", "Subtype")))
+        odata_url.set_select(options.select)
+        self.assertTrue(to_text(odata_url) ==
+                        "/?%24select=PropertyA%2CPropertyB%2FSchema.Subtype")
+        options.add_select_path("PropertyC/PropertyC1")
+        odata_url.set_select(options.select)
+        self.assertTrue(to_text(odata_url) ==
+                        "/?%24select=PropertyA%2CPropertyB%2FSchema.Subtype%2C"
+                        "PropertyC%2FPropertyC1")
+        options.clear_select()
+        odata_url.set_select(options.select)
+        self.assertTrue(to_text(odata_url) == "/")
+
+    def test_expand(self):
+        odata_url = service.ODataURL(self.svc)
+        options = types.ExpandOptions()
+        options.add_expand_path(("PropertyA", ))
+        odata_url.set_expand(options.expand)
+        self.assertTrue(to_text(odata_url) == "/?%24expand=PropertyA",
+                        to_text(odata_url))
+        options.add_expand_path(("PropertyB", "PropertyB1"))
+        odata_url.set_expand(options.expand)
+        self.assertTrue(to_text(odata_url) ==
+                        "/?%24expand=PropertyA%2CPropertyB%2FPropertyB1")
+        suboptions = types.ExpandOptions()
+        suboptions.top = 10
+        options.add_expand_path(
+            ("PropertyC", types.QualifiedName("Schema", "Subtype")),
+            qualifier=types.PathQualifier.ref, options=suboptions)
+        odata_url.set_expand(options.expand)
+        self.assertTrue(
+            to_text(odata_url) ==
+            "/?%24expand=PropertyA%2CPropertyB%2FPropertyB1%2C"
+            "PropertyC%2FSchema.Subtype%2F%24ref(%24top%3D10)",
+            to_text(odata_url))
+        options.add_expand_path(
+            "PropertyC/PropertyC1", types.PathQualifier.count)
+        odata_url.set_expand(options.expand)
+        self.assertTrue(
+            to_text(odata_url) ==
+            "/?%24expand=PropertyA%2CPropertyB%2FPropertyB1%2C"
+            "PropertyC%2FSchema.Subtype%2F%24ref(%24top%3D10)%2C"
+            "PropertyC%2FPropertyC1%2F%24count",
+            to_text(odata_url))
+        options.clear_expand()
+        odata_url.set_expand(options.expand)
+        self.assertTrue(to_text(odata_url) == "/")
+
     def test_string_literals(self):
         valid = (
             "http://host/service/People('O''Neil')",

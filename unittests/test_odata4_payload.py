@@ -93,8 +93,8 @@ class ParserTests(unittest.TestCase):
 
     def setUp(self):        # noqa
         self.service = MockService()
-        self.service.context_base = URI.from_octets(
-            "http://www.example.com/$metadata")
+        self.service.set_context_base(URI.from_octets(
+            "http://www.example.com/$metadata"))
 
     def test_primitive(self):
         pass
@@ -108,9 +108,10 @@ class ParserTests(unittest.TestCase):
     def test_complex_collection(self):
         pass
 
-    def trippin_entity(self, em):
-        p = payload.Payload()
-        s = em['Microsoft.OData.Service.Sample.TrippinInMemory.Models']
+    def trippin_entity(self):
+        p = payload.Payload(self.service)
+        s = self.service.model[
+            'Microsoft.OData.Service.Sample.TrippinInMemory.Models']
         person_type = s['Person']
         e = person_type()
         e.set_defaults()
@@ -119,7 +120,7 @@ class ParserTests(unittest.TestCase):
         e['LastName'].set_value("Doe")
         e['Gender'].set_value('Female')
         e['Age'].set_value(50)
-        data = p.to_json(e)
+        data = p.to_json(e).getvalue()
         eout = person_type()
         p.obj_from_bytes(eout, data)
         self.assertTrue(eout['UserName'].value == "user001")
@@ -139,9 +140,10 @@ class ParserTests(unittest.TestCase):
 
     def test_trippin(self):
         em = load_trippin()
+        self.service.model = em
         em.bind_to_service(self.service)
         p = payload.Payload(self.service)
-        data = p.to_json(em)
+        data = p.to_json(em).getvalue()
         jdict = json.loads(data.decode('utf-8'))
         # modify the URL of one of the entity sets
         for item in jdict["value"]:
@@ -150,14 +152,13 @@ class ParserTests(unittest.TestCase):
         # the URL of the entity set should change on parsing
         data = json.dumps(jdict).encode('utf-8')
         em2 = load_trippin()
-        obj = p.obj_from_bytes(em2, data)
-        self.assertTrue(obj is None, "service doc from json returns None")
+        p.obj_from_bytes(em2, data)
         container = em2.get_container()
         self.assertTrue(
             str(container['People'].get_url()) ==
             "http://www.example.com/Modified/People")
         # now test entity
-        self.trippin_entity(em2)
+        self.trippin_entity()
 
     def test_null(self):
         # any primitive value
@@ -208,7 +209,7 @@ class FormatTests(unittest.TestCase):
         em.bind_to_service(self.service)
         # we format a service document...
         p = payload.Payload(self.service)
-        data = p.to_json(em)
+        data = p.to_json(em).getvalue()
         logging.debug("Service Document:\n" + data.decode('utf-8'))
         jdict = json.loads(data.decode('utf-8'))
         self.assertTrue(len(jdict) >= 2)
@@ -244,29 +245,29 @@ class FormatTests(unittest.TestCase):
         v = primitive.PrimitiveValue()
         self.assertTrue(v.is_null())
         p = payload.Payload(self.service)
-        data = p.to_json(v)
+        data = p.to_json(v).getvalue()
         self.assertTrue(data == b"null")
 
     def test_boolean(self):
         # any primitive value
         v = primitive.BooleanValue()
         p = payload.Payload(self.service)
-        data = p.to_json(v)
+        data = p.to_json(v).getvalue()
         self.assertTrue(data == b"null")
         v.set_value(True)
-        data = p.to_json(v)
+        data = p.to_json(v).getvalue()
         self.assertTrue(data == b"true")
         v.set_value(False)
-        data = p.to_json(v)
+        data = p.to_json(v).getvalue()
         self.assertTrue(data == b"false")
 
     def test_int32(self):
         v = primitive.Int32Value()
         p = payload.Payload(self.service)
-        data = p.to_json(v)
+        data = p.to_json(v).getvalue()
         self.assertTrue(data == b"null")
         v.set_value(-3)
-        data = p.to_json(v)
+        data = p.to_json(v).getvalue()
         self.assertTrue(data == b"-3")
 
     def trippin_entity(self, em):
@@ -280,7 +281,7 @@ class FormatTests(unittest.TestCase):
         e['LastName'].set_value("Doe")
         e['Gender'].set_value('Female')
         e['Age'].set_value(50)
-        data = p.to_json(e)
+        data = p.to_json(e).getvalue()
         logging.debug("Person:\n%s", data.decode('utf-8'))
         jdict = json.loads(data.decode('utf-8'))
         # Each property to be transmitted is represented as a name/value

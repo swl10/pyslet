@@ -58,6 +58,7 @@ class Payload(object):
         self.odata_type_stack = []
         self.odata_context = None
         self.odata_context_stack = []
+        self._patch_mode = False
 
     def get_media_type(self):
         params = {
@@ -225,11 +226,10 @@ class Payload(object):
                             # this property
                             pdict["value"] = value
                             self.obj_from_json_dict(pvalue, pdict)
-                        elif isinstance(obj, csdl.ContainerValue):
+                        elif isinstance(pvalue, csdl.ContainerValue):
                             # no next link!
-                            with obj.loading() as new_value:
-                                self.obj_from_json_value(
-                                    new_value, jdict['value'])
+                            with pvalue.loading() as new_pvalue:
+                                self.obj_from_json_value(new_pvalue, value)
                         else:
                             self.obj_from_json_value(pvalue, value)
         elif isinstance(
@@ -314,23 +314,25 @@ class Payload(object):
             raise errors.FormatError(
                 "Unexpected item in payload %s" % repr(jvalue))
 
-    def to_json(self, obj):
+    def to_json(self, obj, type_def=None, patch=False):
+        self._patch_mode = patch
         output = io.BytesIO()
-        for data in self.generate_json(obj):
+        for data in self.generate_json(obj, type_def=type_def):
             if is_unicode(data):
                 logging.error("Generator returned text: %s" % repr(data))
             output.write(data)
-        return output.getvalue()
+        output.seek(0)
+        return output
 
-    def generate_json(self, obj):
+    def generate_json(self, obj, type_def=None):
         if isinstance(obj, csdl.EntityModel):
             # return a service document
             return self.generate_service_document(obj)
+        elif obj.is_null():
+            return (b'null', )
         elif isinstance(obj, (primitive.PrimitiveValue,
                               csdl.EnumerationValue)):
-            if obj.is_null():
-                return (b'null', )
-            elif isinstance(obj, primitive.BooleanValue):
+            if isinstance(obj, primitive.BooleanValue):
                 return (b'true' if obj.value else b'false', )
             elif isinstance(obj, primitive.StringValue):
                 return (json.dumps(obj.value).encode(self.charset), )
@@ -339,9 +341,9 @@ class Payload(object):
             else:
                 return (json.dumps(to_text(obj)).encode(self.charset), )
         elif isinstance(obj, csdl.StructuredValue):
-            return self.generate_structured(obj)
+            return self.generate_structured(obj, type_def=type_def)
         elif isinstance(obj, csdl.CollectionValue):
-            return self.generate_collection(obj)
+            return self.generate_collection(obj, type_def=type_def)
         else:
             logging.error(
                 "JSON serialization of %s not yet supported", repr(obj))
@@ -381,20 +383,49 @@ class Payload(object):
             yield b'{%s}' % (b','.join(item_bytes))
         yield b']}'
 
-    def generate_structured(self, svalue):
+    def generate_structured(self, svalue, type_def=None):
+        if svalue.is_null():
+            yield "null"
+            return
         yield b'{'
         comma = False
+        if type_def is None or svalue.type_def is not type_def:
+            yield b'"@odata.type":"%s"' % \
+                svalue.type_def.get_odata_type_fragment().encode(self.charset)
+            comma = True
         for pname, pvalue in svalue.items():
+            pdef = svalue.type_def[pname]
+            ptype = None
+            odata_type = None
+            if self._patch_mode:
+                if isinstance(pdef, csdl.Property):
+                    if not pvalue.dirty:
+                        continue
+                else:
+                    # ignore navigation properties in patch mode
+                    continue
             if comma:
                 yield b','
             else:
                 comma = True
+            if isinstance(pdef, csdl.Property):
+                ptype = pdef.structural_type
+                if isinstance(ptype, csdl.ComplexType):
+                    if pdef.collection:
+                        ptype = pvalue.item_type
+                        if ptype is not pvalue.type_def.item_type:
+                            # add the odata.type for this property
+                            odata_type = pvalue.item_type.\
+                                get_odata_type_fragment().encode(self.charset)
+                if odata_type:
+                    yield b"@odata.type:%s," % json.dumps(
+                        odata_type).encode(self.charset)
             yield b"%s:" % json.dumps(pname).encode(self.charset)
-            for data in self.generate_json(pvalue):
+            for data in self.generate_json(pvalue, type_def=ptype):
                 yield data
         yield b'}'
 
-    def generate_collection(self, collection):
+    def generate_collection(self, collection, type_def=None):
         yield b'['
         comma = False
         for item in collection:
@@ -402,6 +433,6 @@ class Payload(object):
                 yield b','
             else:
                 comma = True
-            for data in self.generate_json(item):
+            for data in self.generate_json(item, type_def=type_def):
                 yield data
         yield b']'

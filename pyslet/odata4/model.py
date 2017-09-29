@@ -173,7 +173,7 @@ class EntityModel(types.NameTable):
                     logging.debug("Binding type: %s", item.qname)
                     item.bind_to_service(self.service_ref)
         for item in self.get_container().values():
-            if isinstance(item, EntitySet):
+            if isinstance(item, (EntitySet, Singleton)):
                 item.bind_to_service(self.service_ref)
 
     def get_context_url(self):
@@ -558,6 +558,9 @@ class EnumerationValue(types.Value):
         if pvalue is not None:
             self.set_value(pvalue)
 
+    def is_null(self):
+        return self.value is None
+
     def __unicode__(self):
         if self.value is None:
             raise ValueError("null value has no text representation")
@@ -577,6 +580,19 @@ class EnumerationValue(types.Value):
             return "null"
         else:
             return "%s'%s'" % (self.type_def.qname, to_text(self))
+
+    def get_value(self):
+        """Returns a representation of the value
+
+        The result is a string or, for flags enumerations, a tuple
+        of strings or None if the value is null."""
+        if self.value is None:
+            return None
+        elif self.type_def.is_flags:
+            return tuple(
+                m.name for m in self.type_def.lookup_flags(self.value))
+        else:
+            return self.type_def.lookup(self.value).name
 
     def set_value(self, value):
         """Sets the value from a python 'native' value representation
@@ -649,17 +665,9 @@ class CollectionType(types.NominalType):
         self.value_type = CollectionValue
 
 
-class ContainerValue(types.Value):
+class CompositeValue(types.Value):
 
-    """Abstract value type for containers
-
-    Containers are either collections (of primitive, complex or entity
-    types) or Singletons which behave in some ways like collections of
-    (up to) one entity.
-
-    The type_def attribute points to the type of the *container*, not to
-    the type of the item, a separate attribute :attr:`item_type` is used
-    to point to the type definition of the contained objects.
+    """An abstract class for values that support query options
 
     The :attr:`options` attribute contains query options that are in
     force for this container.  The type of options that apply will
@@ -669,17 +677,12 @@ class ContainerValue(types.Value):
     details)."""
 
     def __init__(self, **kwargs):
-        super(ContainerValue, self).__init__(**kwargs)
-        #: the type contained by this value
-        self.item_type = self.type_def.item_type
+        super(CompositeValue, self).__init__(**kwargs)
         #: the (system query) options that are in force
         self.options = None
         self._options_inherited = True
-
-    @contextlib.contextmanager
-    def loading(self, next_link=None):
-        """Used during deserialization"""
-        raise NotImplementedError
+        #: whether or not we are a collection
+        self.is_collection = True
 
     #: the class to use for the options attribute
     OptionsType = types.CollectionOptions
@@ -692,8 +695,11 @@ class ContainerValue(types.Value):
         self._options_inherited = False
 
     def _set_options(self, options, type_cast=None):
-        # The entity options determine which properties are selected and
-        # expanded when entities are loaded.
+        # Internal method used to implement option inheritance, this
+        # ensures that one options object is shared over all values that
+        # use it, e.g., when expanding a navigation property lots of
+        # entity values will contain the property and inherit any
+        # options set on the original expansion.
         if self.options is not None:
             raise errors.ODataError("container options already set")
         # dump all our data, this is a significant change
@@ -703,13 +709,37 @@ class ContainerValue(types.Value):
         if type_cast is not None:
             self.type_cast(type_cast)
 
+    def set_options(self, options_dict):
+        """Sets the options for this container
+
+        options_dict
+            A dictionary mapping option name (e.g., "$filter") to a
+            character string representing the option's value as per the
+            syntax for options defined in the specification.
+
+        All existing options are cleared and replaced with those
+        parsed from the new dictionary."""
+        raise NotImplementedError
+
+    def get_applicable_type(self):
+        """Returns the type that any options are applicable to
+
+        For structured types this is the type itself, for containers
+        this is the type of the items they contain."""
+        raise NotImplementedError
+
     def type_cast(self, new_type):
-        """Constrains value to contain only objects of the given type
+        """Abstract method to implement type casting of a value
 
         new_type
             An instance of :class:`NominalType` that *must* be in the
-            same type hierarchy as the existing item type and *must* be
-            derived from the base item type (used to create the value).
+            same type hierarchy as the existing applicable type and
+            *must* be derived from the applicable base type (used to
+            create the value).
+
+        For values of structured types the applicable type is the type
+        of the value itself, for containers (e.g., collections) the
+        applicable type is the type of the contained items.
 
         This function is used to implement a dynamic type-cast such as
         when an entity set or collection valued property is cast to a
@@ -720,11 +750,349 @@ class ContainerValue(types.Value):
         cast too because Collection(Edm.PrimitiveType) is well defined
         within the model *but* there are significant restrictions in the
         specification on when this construct can be used so, in
-        practice, type casts almost always relate to containers of
-        complex or entity types.
+        practice, type casts almost always relate to complex or entity
+        types (or containers thereof).
 
-        The original item type is referred to as the base type and is
-        always available as::
+        You may not cast a frozen value."""
+        raise NotImplementedError
+
+    def select(self, path):
+        """Selects a structural property
+
+        path
+            As per :meth:`EntityType.split_path`.
+
+        Can only be applied when the applicable type is an *Entity*
+        type. Although it may seem well-defined to use select for
+        Complex values the specification does not allow the use of
+        $select/$expand on queries that identify complex values.  You
+        can still select properties within complex values but you must
+        do it using the full path of the property within the entity.
+
+        This method allows you to traverse complex types *and* navigation
+        properties.  This may result in an expand option being set or
+        modified rather than a simple select option being set.  For
+        example::
+
+            people.select("Friends/UserName")
+
+        might translate into an *expand* option::
+
+            $expand=Friends($select=UserName)
+
+        Bear in mind that, by default, there are no select rules in
+        place resulting in a default set of (typically all) structural
+        properties being retrieved.  Setting explicit select rules is
+        used to *restrict* the set of returned properties.
+
+        The cache is automatically cleared."""
+        app_type = self.get_applicable_type()
+        if not isinstance(app_type, EntityType):
+            raise errors.ODataError(
+                "Can't resolve select path in non-entity %s" %
+                repr(app_type))
+        paths = app_type.split_path(
+            path,
+            context=self.service.model if self.service is not None else None,
+            navigation=False)
+        if self._options_inherited:
+            self._clone_options()
+        options = self.options
+        for path in paths[:-1]:
+            # add a simple expand item for each parent path if it isn't
+            # already expanded
+            xitem = options.get_expand_item(path)
+            if xitem is None:
+                xitem = options.add_expand_path(path)
+            options = xitem.options
+        path = paths[-1]
+        options.add_select_path(path)
+        self.clear_cache()
+
+    def select_default(self, xpath=None):
+        """Sets the selection to the default seletion
+
+        Can only be applied when the applicable type is an *Entity*
+        type.  The default selection is indicated by the absence of a
+        $select query option.
+
+        xpath (None)
+            An optional path (see :meth:`EntityType.split_path`) to a
+            navigation property.
+
+        With no xpath, this method effectively removes the $select
+        option from future queries.  With an xpath, it removes the
+        $select option from the $expand rule in effect for that path. If
+        xpath is given but is not expanded no action is taken."""
+        app_type = self.get_applicable_type()
+        if not isinstance(app_type, EntityType):
+            raise errors.ODataError(
+                "select requires entity type, not %s" % repr(app_type))
+        if xpath:
+            options = self._resolve_xpath(xpath)
+        else:
+            if self._options_inherited:
+                self._clone_options()
+            options = self.options
+        options.clear_select()
+        self.clear_cache()
+
+    def expand(self, path, qualifier=None):
+        """Expands a navigation property
+
+        path
+            As per :meth:`EntityType.split_path`.
+
+        qualifier
+            An optional path qualifier, one of the values from
+            :class:`types.PathQualifier`.  Only $count and
+            $ref are allowed.  These options determine how much data is
+            retrieved for the expanded navigation property.
+
+        This method allows you to traverse complex types *and*
+        navigation properties though the path must terminate in a
+        navigation property.  This may result in nested expand options
+        being set, for example::
+
+            people.expand("Friends/Friends")
+
+        might translate into::
+
+            $expand=Friends($expand=Friends)
+
+        The use of path qualifiers enables you to suppress the return
+        of detailed information from the service while still creating
+        the indicated object in the parent entity's property dictionary.
+        For example::
+
+            people.expand("Friends", PathQualifier.ref)
+
+        Will cause the contained entities to have a "Friends" property
+        defined in their property dictionary and you'll be able to
+        iterate through the resulting values and use the len function
+        without causing additional service requests (assuming the result
+        is within any server paging limits) but the resulting entity
+        objects are only references to the associated entities. If you
+        drill down on one of the associated Friends, say by accessing a
+        named structural property, this will trigger the request to
+        retrieve the entity itself from the data service."""
+        app_type = self.get_applicable_type()
+        if not isinstance(app_type, EntityType):
+            raise errors.ODataError(
+                "Can't resolve expand path in non-entity %s" %
+                repr(app_type))
+        paths = app_type.split_path(
+            path,
+            context=self.service.model if self.service is not None else None,
+            navigation=True)
+        if self._options_inherited:
+            self._clone_options()
+        options = self.options
+        for path in paths[:-1]:
+            # add a simple expand item for each parent path if it isn't
+            # already expanded
+            xitem = options.get_expand_item(path)
+            if xitem is None:
+                xitem = options.add_expand_path(path)
+            options = xitem.options
+        path = paths[-1]
+        options.add_expand_path(path, qualifier=qualifier)
+        self.clear_cache()
+
+    def collapse(self, path):
+        """Collapses a navigation property
+
+        path
+            As per :meth:`EntityType.split_path`."""
+        app_type = self.get_applicable_type()
+        if not isinstance(app_type, EntityType):
+            raise errors.ODataError(
+                "Can't resolve expand path in non-entity %s" %
+                repr(app_type))
+        paths = app_type.split_path(
+            path,
+            context=self.service.model if self.service is not None else None,
+            navigation=True)
+        if self._options_inherited:
+            self._clone_options()
+        options = self.options
+        for path in paths[:-1]:
+            xitem = options.get_expand_item(path)
+            if xitem is None:
+                # we're done, we weren't even expanded
+                return
+            options = xitem.options
+        path = paths[-1]
+        options.remove_expand_path(path)
+        self.clear_cache()
+
+    def set_filter(self, filter_expr, xpath=None):
+        """Sets the filter for this value (or a related value)
+
+        filter_expr
+            A :class:`types.CommonExpression` instance or a string
+            from which one can be parsed.
+
+        xpath (None)
+            An optional path (see :meth:`EntityType.split_path`) to a
+            navigation property.  Can only be used when the applicable
+            type is an entity.
+
+            The filter is applied to the entity set(s) expanded from
+            this navigation property.  If this path has not been
+            expanded then :meth:`expand` is used to add it
+            automatically.
+
+        With no xpath, can only be applied to a collection or entity
+        set."""
+        if is_text(filter_expr):
+            p = parser.Parser(filter_expr)
+            filter_expr = p.require_filter()
+            p.require_end()
+        self.clear_cache()
+        if xpath:
+            options = self._resolve_xpath(xpath)
+        elif not self.is_collection:
+            raise errors.ODataError("%s is not a collection" % repr(self))
+        else:
+            if self._options_inherited:
+                self._clone_options()
+            options = self.options
+        options.set_filter(filter_expr)
+
+    def set_search(self, search_expr, xpath=None):
+        """Sets the search expression for the result set"""
+        raise NotImplementedError
+
+    def set_orderby(self, orderby_expr, xpath=None):
+        """Sets the orderby expression for the result set
+
+        orderby_expr
+            A list or iterable of :class:`types.OrderByItem` instances
+            or a string from which one can be parsed.
+
+        xpath (None)
+            As per :meth:`set_filter`.
+
+        With no xpath, can only be applied to a collection or entity
+        set.  With an xpath you can also apply a filter to a
+        singleton."""
+        if is_text(orderby_expr):
+            p = parser.Parser(orderby_expr)
+            orderby_expr = p.require_orderby()
+            p.require_end()
+        self.clear_cache()
+        if xpath:
+            options = self._resolve_xpath(xpath)
+        elif not self.is_collection:
+            raise errors.ODataError("%s is not a collection" % repr(self))
+        else:
+            if self._options_inherited:
+                self._clone_options()
+            options = self.options
+        options.set_orderby(orderby_expr)
+
+    def set_page(self, top, skip=0, xpath=None):
+        """Sets the page for the result set
+
+        top
+            An integer to limit the size of the collection or None for
+            unlimited.
+
+        skip
+            An integer used to exclude items from the contained
+            collection or 0 (the default) if no items should be
+            excluded.
+
+        xpath (None)
+            As per :meth:`set_filter`.
+
+        With no xpath, can only be applied to a collection or entity
+        set."""
+        self.clear_cache()
+        if xpath:
+            options = self._resolve_xpath(xpath)
+        elif not self.is_collection:
+            raise errors.ODataError("%s is not a collection" % repr(self))
+        else:
+            if self._options_inherited:
+                self._clone_options()
+            options = self.options
+        options.set_top(top)
+        if skip == 0:
+            skip = None
+        options.set_skip(skip)
+
+    def get_page_size(self):
+        """Returns the maximum size of a collection
+
+        Returns the value of top previously set by set_page, None
+        indicates that there is not limit on the size of the
+        collection."""
+        if self.options:
+            return self.options.top
+        else:
+            return None
+
+    def _resolve_xpath(self, xpath):
+        # returns the options for this xpath expanding as required
+        app_type = self.get_applicable_type()
+        if not isinstance(app_type, EntityType):
+            raise errors.ODataError(
+                "Can't resolve expand path in non-entity %s" %
+                repr(app_type))
+        paths = app_type.split_path(
+            xpath, context=self.service.model if self.service is not None
+            else None, navigation=True)
+        if self._options_inherited:
+            self._clone_options()
+        options = self.options
+        for path in paths:
+            xitem = options.get_expand_item(path)
+            if xitem is None:
+                xitem = options.add_expand_path(path)
+            options = xitem.options
+        return options
+
+
+class ContainerValue(CompositeValue):
+
+    """Abstract value type for containers
+
+    Containers are either collections (of primitive, complex or entity
+    types) or Singletons which behave in some ways like collections of
+    (up to) one entity.
+
+    The type_def attribute points to the type of the *container*, not to
+    the type of the item, a separate attribute :attr:`item_type` is used
+    to point to the type definition of the contained objects."""
+
+    def __init__(self, **kwargs):
+        super(ContainerValue, self).__init__(**kwargs)
+        #: the type contained by this value
+        self.item_type = self.type_def.item_type
+
+    @contextlib.contextmanager
+    def loading(self, next_link=None):
+        """Used during deserialization"""
+        raise NotImplementedError
+
+    def load_item(self, obj):
+        """Used during deserialization"""
+        raise NotImplementedError
+
+    def get_applicable_type(self):
+        """Returns the current item type"""
+        return self.item_type
+
+    def type_cast(self, new_type):
+        """Constrains value to contain only objects of the given type
+
+        See: :meth:`CompositeValue.type_cast`.
+
+        For containers the applicable type is the item type they
+        contain. The original item type is referred to as the base type
+        and is always available as::
 
             self.type_def.item_type
 
@@ -732,11 +1100,10 @@ class ContainerValue(types.Value):
         taking into consideration any type cast in effect.
 
         You can think of these container-level type-casts as if they
-        were a special kind of filter on the container.  It is important
-        to be aware that with a type cast in effect you are only seeing
-        a partial view of the container's contents.
-
-        You may not cast a frozen value."""
+        were a special kind of filter on the container (hence they are
+        managed in tandem with other query options).  It is important to
+        be aware that with a type cast in effect you are only seeing a
+        partial view of the original container's contents."""
         if self.frozen:
             raise errors.FrozenValueError
         if new_type is self.item_type:
@@ -747,22 +1114,6 @@ class ContainerValue(types.Value):
                             (self.type_def.item_type.qname, new_type.qname))
         self.item_type = new_type
         self.clear_cache()
-
-    def clear_cache(self):
-        """Clears the local cache for this value
-
-        All values of this type contain something.  To reduce the number
-        of requests that need to be made to the service values use a
-        local cache to hold the results of previous service requests.
-        To force the object to load the object's value from the service
-        again next time it is used call this method to clear the local
-        cache.
-
-        This method only affects values that are bound to a service,
-        otherwise it does nothing because a value that is not bound to a
-        service is transient and the value is *only* stored locally."""
-        if self.service is not None:
-            raise NotImplementedError
 
     def new_item(self):
         """Creates a new value suitable for this container
@@ -824,18 +1175,6 @@ class ContainerValue(types.Value):
             item._set_options(self.options)
         return item
 
-    def set_options(self, options_dict):
-        """Sets the options for this container
-
-        options_dict
-            A dictionary mapping option name (e.g., "$filter") to a
-            character string representing the option's value as per the
-            syntax for options defined in the specification.
-
-        All existing options are cleared and replaced with those
-        parsed from the new dictionary."""
-        raise NotImplementedError
-
 
 class CollectionValue(collections.MutableSequence, ContainerValue):
 
@@ -853,6 +1192,20 @@ class CollectionValue(collections.MutableSequence, ContainerValue):
         self._cache = []
         self._next_link = None
 
+    def set_value(self, value):
+        """Sets the value from a python 'native' value representation"""
+        if value is None:
+            raise TypeError("Collection values cannot be null")
+        elif isinstance(value, (list, collections.Sequence)):
+            with self.loading() as seq:
+                for new_value in value:
+                    v = seq.new_item()
+                    v.set_value(new_value)
+                    seq.load_item(v)
+            self.touch()
+        else:
+            raise TypeError
+
     @contextlib.contextmanager
     def loading(self, next_link=None):
         self._next_link = next_link
@@ -865,6 +1218,13 @@ class CollectionValue(collections.MutableSequence, ContainerValue):
             # called via a _load method that has cleared cache
             yield self
             self._fullycached = next_link is None
+            max_size = self.get_page_size()
+            if max_size is not None:
+                # we ignore next_link if we asked to limit the page
+                self._fullycached = self._fullycached or \
+                    len(self._cache) >= max_size
+                if self._fullycached:
+                    self._next_link = None
         self.clean()
 
     def load_item(self, obj):
@@ -946,7 +1306,7 @@ class CollectionValue(collections.MutableSequence, ContainerValue):
             self._cache[index] = [self._check_item(item) for item in value]
         else:
             self._cache[index] = self._check_type(value)
-        self.dirty = True
+        self.touch()
 
     def __delitem__(self, index):
         if self.frozen:
@@ -963,7 +1323,7 @@ class CollectionValue(collections.MutableSequence, ContainerValue):
             # must be fully cached to be writeable
             self._load()
         del self._cache[index]
-        self.dirty = True
+        self.touch()
 
     def insert(self, index, value):
         if self.frozen:
@@ -972,7 +1332,7 @@ class CollectionValue(collections.MutableSequence, ContainerValue):
             # must be fully cached to be writeable
             self._load()
         self._cache.insert(index, value)
-        self.dirty = True
+        self.touch()
 
     def _load(self, index=None):
         # Load the cache up to and including index,  If index is None
@@ -1535,6 +1895,7 @@ class NavigationProperty(types.Named):
                 self.type_def = entity_type
             else:
                 self.type_def = SingletonType(entity_type=entity_type)
+            self.bound_def = self.type_def
         self.collection = collection
 
     def set_nullable(self, nullable):
@@ -1607,11 +1968,11 @@ class NavigationProperty(types.Named):
             if self.name not in p.base_def:
                 path.insert(0, self.nametable().qname)
             entity = p.get_entity(path)
-            if entity.entity_set is not None:
-                target_set = entity.entity_set.resolve_binding(tuple(path))
+            if entity.entity_binding is not None:
+                target_set = entity.entity_binding.resolve_binding(tuple(path))
                 if target_set:
                     value = self.bound_def()
-                    value.set_entity_set(target_set)
+                    value.set_entity_binding(target_set)
                 else:
                     value = self.type_def()
             else:
@@ -1620,7 +1981,7 @@ class NavigationProperty(types.Named):
         return value
 
 
-class StructuredValue(collections.Mapping, types.Value):
+class StructuredValue(collections.Mapping, CompositeValue):
 
     """Abstract class that represents the value of a structured type
 
@@ -1705,44 +2066,22 @@ class StructuredValue(collections.Mapping, types.Value):
         self.base_def = self.type_def
         self.null = True
         self._cache = None
-        self._options = None
-        self._options_inherited = True
         self._loading = False
 
-    def _set_options(self, options, type_cast=None):
-        # The entity options determine which properties are selected and
-        # expanded in the entity.  If no options are specified then a
-        # default set of properties (all structural properties) are
-        # created in the property dictionary.  This private method is
-        # called to initialise values during deserialization and
-        # supports an optional type_cast to set the type of the value at
-        # the same time for speed.
-        if self._options is not None:
-            raise errors.ODataError("entity options already set")
-        self.clear_cache()
-        self._options = options
-        if type_cast is not None:
-            self.type_cast(type_cast)
+    def get_applicable_type(self):
+        """Returns the *current* type definition"""
+        return self.type_def
 
     def type_cast(self, new_type):
         """Casts this value to a new type
 
-        new_type
-            An instance of :class:`StructuredType` that *must* be in the
-            same type hierarchy as the existing type and *must* be
-            derived from the :attr:`base_def` used to create the value.
-
-        This function is used to implement a dynamic type-cast such as
-        when an entity (or complex value) is cast to a type derived from
-        the type stipulated by the original declaration.
-
-        You may not cast a frozen *or bound* value.  This latter
-        restriction is imposed by the specification, to change the type
-        of a complex value you must replace the value completely rather
-        than modify in place.  To change the type of an existing entity
-        you would need to remove it and reinsert a new value of the
-        desired type; this operation is not possible if keys are
-        assigned automatically by the data service.
+        You may not cast a *bound* structured value.  This restriction
+        is imposed by the specification, to change the type of a complex
+        value you must replace the value completely rather than modify
+        in place. To change the type of an existing entity you would
+        need to remove it and reinsert a new value of the desired type;
+        this operation is not possible if keys are assigned
+        automatically by the data service.
 
         The property dictionary is updated to reflect the change in type
         taking in to consideration any options applied to this value.
@@ -1751,7 +2090,8 @@ class StructuredValue(collections.Mapping, types.Value):
         properties not defined in the new type are *removed* from the
         property dictionary.
 
-        """
+        You can always obtain the (original) base type of the value from
+        the attribute :attr:`base_type`."""
         if self.frozen:
             raise errors.FrozenValueError
         if self.service is not None and not self._loading:
@@ -1770,6 +2110,10 @@ class StructuredValue(collections.Mapping, types.Value):
         """Clears the local cache of property values."""
         if self.service is not None:
             self._cache = None
+        else:
+            # otherwise, update the properties to reflect any changes in
+            # the select/expand rules
+            self._init_cache(clear=False)
 
     def _init_cache(self, clear=True):
         # a null value should have no properties: nothing to do!
@@ -1792,14 +2136,14 @@ class StructuredValue(collections.Mapping, types.Value):
     def _init_primitive(self, ptype, self_ref):
         selected = True
         pname = ptype.name
-        if self._options:
+        if self.options:
             if pname not in self.base_def:
                 # this is a property of a derived type so the select path
                 # MUST be qualified with the name of this type
                 qname = ptype.nametable().qname
             else:
                 qname = None
-            selected = self._options.selected(qname, pname)
+            selected = self.options.selected(qname, pname)
         if selected:
             if pname not in self:
                 self._cache[pname] = ptype(self_ref)
@@ -1809,18 +2153,18 @@ class StructuredValue(collections.Mapping, types.Value):
 
     def _init_complex(self, ptype, self_ref):
         pname = ptype.name
-        if self._options:
+        if self.options:
             if pname not in self.base_def:
                 qname = ptype.nametable().qname
             else:
                 qname = None
-            options, qname = self._options.complex_selected(qname, pname)
+            options, qname = self.options.complex_selected(qname, pname)
             if options:
                 if pname not in self:
                     self._cache[pname] = p = ptype(self_ref)
                     p._set_options(options)
                     if qname:
-                        type_def = self._options.resolve_type(qname)
+                        type_def = self.options.resolve_type(qname)
                         p.type_cast(type_def)
             elif pname in self:
                 del self._cache[pname]
@@ -1830,19 +2174,19 @@ class StructuredValue(collections.Mapping, types.Value):
 
     def _init_navigation(self, ptype, self_ref):
         pname = ptype.name
-        if self._options:
+        if self.options:
             if pname not in self.base_def:
                 qname = ptype.nametable().qname
             else:
                 qname = None
-            selected = self._options.selected(qname, pname, nav=True)
-            xitem = self._options.nav_expanded(qname, pname)
+            selected = self.options.selected(qname, pname, nav=True)
+            xitem = self.options.nav_expanded(qname, pname)
             if xitem is not None:
                 if pname not in self:
                     self._cache[pname] = p = ptype(self_ref, xitem.qualifier)
                     if xitem.type_cast:
                         type_cast = p.type_cast(
-                            self._options.resolve_type(xitem.type_cast))
+                            self.options.resolve_type(xitem.type_cast))
                     else:
                         type_cast = None
                     p._set_options(xitem.options, type_cast=type_cast)
@@ -1944,7 +2288,7 @@ class StructuredValue(collections.Mapping, types.Value):
         elif self.null:
             self.null = False
             self._init_cache()
-            self.dirty = True
+            self.touch()
         else:
             for ptype in self.type_def.values():
                 if isinstance(ptype, Property):
@@ -1957,18 +2301,164 @@ class StructuredValue(collections.Mapping, types.Value):
                             self[ptype.name].set_value(
                                 ptype.default_value.get_value())
 
+    def select_value(self, value):
+        """Sets the value from a python 'native' value representation
+
+        This is wrapper for :meth:`set_value` that imposes the
+        additional constraint that all structural properties with keys
+        in *value* are selected and any structural properties with keys
+        that are missing from *value* are unselected.  The upshot is
+        that the structured value becomes a 'tight fit' around the
+        incoming value with no default values.  This method is also
+        strict about extraneous data, any data in *value* that cannot be
+        accommodated in the structured value will raise ValueError.  In
+        cases where there is a collection of complex values then all
+        dict/mapping items in the corresponding list must contain an
+        identical set of keys.
+
+        One use case for using this method (instead of set_value) would
+        be if there are computed defaults in your data service.  That
+        is, structural properties that are marked as non-nullable in the
+        model but which can be omitted on insert without generating an
+        error.  Such values can be safely omitted from the value
+        dictionary in order to invoke the server-side computed defaults.
+        An obvious example is auto-generated key fields."""
+        if value is None:
+            self.null = True
+            self.clear_cache()
+            self.touch()
+        elif isinstance(value, (dict, collections.Mapping)):
+            selected = self._subselect(self.type_def, value)
+            if self._options_inherited:
+                self._clone_options()
+            self.options.clear_select()
+            for path in selected:
+                self.options.add_select_path(path)
+            self.set_value(value)
+        else:
+            raise ValueError
+
+    def _subselect(self, ctype, value):
+        if value is None:
+            # a complex type set to null, no need to sub-select
+            return []
+        elif not value:
+            # a complex type set to {} perhaps, we can't select no
+            # properties so this is an error
+            raise ValueError("no properties to select for %s" % ctype.qname)
+        elif isinstance(value, (dict, collections.Mapping)):
+            selected = []
+            unselected = 0
+            vkeys = set(value.keys())
+            for pname, ptype in ctype.items():
+                vkeys.discard(pname)
+                if not isinstance(ptype, Property):
+                    continue
+                if pname not in value:
+                    unselected += 1
+                    continue
+                if isinstance(ptype.structural_type, ComplexType):
+                    if ptype.collection:
+                        # never null, but need to intersect selects
+                        subselect = self._subselect_intersect(
+                            ptype.structural_type, value[pname])
+                    else:
+                        subselect = self._subselect(
+                            ptype.structural_type, value[pname])
+                    if subselect:
+                        unselected += 1
+                        for s in subselect:
+                            s.insert(0, pname)
+                        selected += subselect
+                        continue
+                # we're just selected
+                selected.append([pname])
+            if vkeys:
+                raise ValueError(
+                    "unused fields in value: %s" % ", ".join(list(vkeys)))
+            if unselected:
+                # if there is anything unselected then we return the
+                # select rules
+                if not selected:
+                    raise ValueError(
+                        "no properties to select for %s" % ctype.qname)
+                return selected
+            else:
+                # everything is selected, we can return an empty list
+                # meaning default (all properties)
+                return []
+        else:
+            raise ValueError
+
+    def _subselect_intersect(self, ctype, value):
+        if value is None:
+            # collections can never be null
+            raise ValueError("collections cannot be null")
+        elif not value:
+            # an empty list perhaps, no need to sub-select
+            return []
+        elif isinstance(value, (list, tuple, collections.Sequence)):
+            subselect = sorted(self._subselect(ctype, value[0]))
+            for v in value[1:]:
+                # All items in the list must be the same!
+                vselect = sorted(self._subselect(ctype, v))
+                if vselect != subselect:
+                    raise ValueError(
+                        "set_value: incompatible selections in collection")
+            return subselect
+        else:
+            raise ValueError("list or sequenced required")
+
     def set_value(self, value):
         """Sets the value from a python 'native' value representation
 
-        Anything other than None raises TypeError.  Setting a structured
-        value to null removes all properties from the dictionary and
-        sets the :attr:`dirty` flag."""
+        None sets a null value.
+
+        A dict or dict-like object will update all (selected)
+        *structural* properties of this value from the corresponding
+        values in the dictionary.  If a property has not corresponding
+        entry in *value* then it is set to its default (or null).
+
+        We deal with one special case here, if the incoming dictionary
+        contains another :class:`Value` instance then
+        :meth:`types.Value.get_value` is used to extract its value
+        before passing it to the corresponding set_value method of this
+        object's property.  The upshot is that you may pass another
+        entity or complex value to set_value but that, unlike
+        :meth:`assign`, no type checking it performed and the operation
+        succeeds provided that the underlying value types are
+        compatible."""
         if self.frozen:
             raise errors.FrozenValueError
         if value is None:
             self.null = True
             self.clear_cache()
-            self.dirty = True
+            self.touch()
+        elif isinstance(value, (dict, collections.Mapping)):
+            self.null = False
+            self._init_cache(clear=False)
+            for pname, pvalue in self.items():
+                ptype = self.type_def[pname]
+                if isinstance(ptype, Property):
+                    new_value = value.get(pname, None)
+                    if new_value is None:
+                        if isinstance(pvalue, CollectionValue):
+                            del pvalue[:]
+                        elif isinstance(ptype.structural_type, ComplexType):
+                            if ptype.nullable:
+                                pvalue.set_value(None)
+                            else:
+                                pvalue.set_defaults()
+                        else:
+                            if ptype.default_value is not None:
+                                pvalue.set_value(
+                                    ptype.default_value.get_value())
+                            else:
+                                pvalue.set_value(None)
+                    else:
+                        if isinstance(new_value, types.Value):
+                            new_value = new_value.get_value()
+                        pvalue.set_value(new_value)
         else:
             raise TypeError
 
@@ -1997,15 +2487,31 @@ class StructuredValue(collections.Mapping, types.Value):
                     pvalue.set(None)
                 else:
                     pvalue.assign(new_value)
-            self.dirty = True
+            self.touch()
         else:
             return super(StructuredValue, self).assign(value)
 
-    def sync(self):
-        """Synchronizes this entity
+    def commit(self):
+        """Pushes changes to this entity"""
+        if self.service is not None:
+            # we're bound, push to the service
+            if isinstance(self, EntityValue):
+                request = self.service.update_entity(self)
+            else:
+                request = self.service.update_property(self)
+            request.execute_request()
+            if isinstance(request.result, Exception):
+                raise request.result
+        else:
+            self.rclean()
 
-        Latest values are obtained from the data service."""
-        raise NotImplementedError
+    def rclean(self):
+        for pvalue in self.values():
+            if isinstance(pvalue, StructuredValue):
+                pvalue.rclean()
+            else:
+                pvalue.clean()
+        self.clean()
 
 
 class ComplexType(StructuredType):
@@ -2043,6 +2549,15 @@ class ComplexValue(StructuredValue):
         super(ComplexValue, self).__init__(
             type_def=edm['ComplexType'] if type_def is None else type_def,
             **kwargs)
+
+    def touch(self):
+        """Implements touch behaviour
+
+        If this complex value is the value of a commplex or entity
+        property then touch the parent too."""
+        super(ComplexValue, self).touch()
+        if self.parent:
+            self.parent().touch()
 
     def reload(self):
         """Reloads this value from the service
@@ -2339,12 +2854,13 @@ class EntityValue(StructuredValue):
         super(EntityValue, self).__init__(
             type_def=edm['EntityType'] if type_def is None else type_def,
             **kwargs)
-        self.entity_set = None
+        self.entity_binding = None
 
-    def set_entity_set(self, entity_set, singleton=None):
+    def set_entity_binding(self, entity_binding):
         if self.service is not None:
-            raise errors.BoundValue("set_entity_set(%s)" % repr(entity_set))
-        self.entity_set = entity_set
+            raise errors.BoundValue(
+                "set_entity_binding(%s)" % repr(entity_binding))
+        self.entity_binding = entity_binding
 
     def get_entity(self, path, ignore_containment=True):
         """Returns self
@@ -2479,63 +2995,39 @@ class NavigationBinding(object):
         self.target_path = None
 
 
-class EntitySet(types.Annotatable, types.Named):
+class EntityBinding(types.Annotatable, types.Named):
 
-    """Represents an EntitySet in the OData model.
+    """Represents an EntitySet or Singleton in the OData model
 
-    Calling an instance returns an :class:`EntitySetValue` bound to the
-    service containing the EntitySet."""
+    Abstract class covering shared aspects of these two constructs."""
 
     def __init__(self, **kwargs):
-        super(EntitySet, self).__init__(**kwargs)
-        #: the entity type of the entities in this set
+        super(EntityBinding, self).__init__(**kwargs)
+        #: the entity type of the entities in this context
         self.entity_type = None
-        #: the type definition for values of this entity set
+        #: the type definition for values of this entity context
         self.type_def = None
         #: the service we're bound to
         self.service_ref = None
-        #: whether to advertise in the service document
-        self.in_service = True
         self._nb_list = []
         #: navigation bindings, mapping from path tuple to
         #: NavigationBinding instance
         self.navigation_bindings = {}
-        # the URL of this entity set
+        # the URL of this entity context within a published container
         self.url = None
-        # whether or not we are indexable
-        self.indexable_by_key = True
-
-    def annotate(self, qa, target=None):
-        """Override to intercept some special values"""
-        super(EntitySet, self).annotate(qa, target)
-        if qa.qname == "Org.OData.Capabilities.V1.IndexableByKey":
-            if qa.value:
-                self.indexable_by_key = qa.value.get_value()
 
     def set_type(self, entity_type):
-        """Sets the entity type for this entity set
+        """Sets the entity type
 
         The entity_type must be closed before it can be used as the type
-        of an entity set."""
+        of an entity set or singleton."""
         if not entity_type.closed:
             raise errors.ModelError(
                 "Type %s is still open" % entity_type.qname)
-        if not entity_type.key_defined():
-            raise errors.ModelError(
-                errors.Requirement.entity_set_abstract_s % self.qname)
         self.entity_type = entity_type
-        self.type_def = EntitySetType(entity_type=entity_type)
-
-    def set_in_service(self, in_service):
-        """Sets whether or not to advertise this entity set
-
-        in_service
-            Boolean value, True meaning advertise in the service
-            document"""
-        self.in_service = in_service
 
     def add_navigation_binding(self, path, target):
-        """Adds a navigation binding to this entity set
+        """Adds a navigation binding to this entity context
 
         path
             An array of strings/QualifiedName instances that define a
@@ -2558,7 +3050,7 @@ class EntitySet(types.Annotatable, types.Named):
         names can be resolved in the paths."""
 
         def model_closed():
-            logging.debug("Resolving EntitySet bindings for %s", self.qname)
+            logging.debug("Resolving bindings for %s", self.qname)
             if self.entity_type is None:
                 raise errors.ModelError("%s has no EntityType" % self.qname)
             for nb in self._nb_list:
@@ -2591,9 +3083,10 @@ class EntitySet(types.Annotatable, types.Named):
         """Resolves a target path relative to this entity set
 
         path
-            A list of string and/or :class:`types.QualifiedName` that resolves
-            to an entity set.  Redundant path segments will be removed
-            so that this becomes a canonical path on return (see below).
+            A list of string and/or :class:`types.QualifiedName` that
+            resolves to an entity set.  Redundant path segments will be
+            removed so that this becomes a canonical path on return (see
+            below).
 
         context
             The model within which to resolve qualified names.
@@ -2653,8 +3146,11 @@ class EntitySet(types.Annotatable, types.Named):
         path
             A tuple of strings that specifies the canonical path to the
             navigation property."""
-        nb = self.navigation_bindings[path]
-        return nb.target
+        nb = self.navigation_bindings.get(path, None)
+        if nb:
+            return nb.target
+        else:
+            return None
 
     def bind_to_service(self, service_ref):
         """Binds this EntitySet to an data service
@@ -2666,13 +3162,14 @@ class EntitySet(types.Annotatable, types.Named):
         self.service_ref = service_ref
 
     def get_url(self):
-        """Return a URI for this entity set
+        """Return a URI for this entity context
 
         An EntitySet has a URL if it is advertised by the service,
-        otherwise it does not have a URL and None is returned.  By
-        default the URI is a relative URI consisting of just the entity
-        set name.  The default url may be overridden using
-        :meth:`set_url`."""
+        otherwise it does not have a URL and None is returned.
+        Singletons SHOULD always have a URL as they are all exposed in
+        the service document.  By default the URI is a relative URI
+        consisting of just the entity set name.  The default url may be
+        overridden using :meth:`set_url`."""
         if not self.in_service:
             return None
         elif self.url is not None:
@@ -2682,6 +3179,50 @@ class EntitySet(types.Annotatable, types.Named):
                 uri.escape_data(self.name.encode('utf-8')))
 
     def set_url(self, url):
+        self.url = url
+
+
+class EntitySet(EntityBinding):
+
+    """Represents an EntitySet in the OData model.
+
+    Calling an instance returns an :class:`EntitySetValue` bound to the
+    service containing the EntitySet."""
+
+    def __init__(self, **kwargs):
+        super(EntitySet, self).__init__(**kwargs)
+        #: whether to advertise in the service document
+        self.in_service = True
+        # whether or not we are indexable
+        self.indexable_by_key = True
+
+    def annotate(self, qa, target=None):
+        """Override to intercept some special values"""
+        super(EntitySet, self).annotate(qa, target)
+        if qa.qname == "Org.OData.Capabilities.V1.IndexableByKey":
+            if qa.value:
+                self.indexable_by_key = qa.value.get_value()
+
+    def set_type(self, entity_type):
+        """Sets the entity type for this entity set
+
+        The entity_type must be closed before it can be used as the type
+        of an entity set."""
+        if not entity_type.key_defined():
+            raise errors.ModelError(
+                errors.Requirement.entity_set_abstract_s % self.qname)
+        super(EntitySet, self).set_type(entity_type)
+        self.type_def = EntitySetType(entity_type=entity_type)
+
+    def set_in_service(self, in_service):
+        """Sets whether or not to advertise this entity set
+
+        in_service
+            Boolean value, True meaning advertise in the service
+            document"""
+        self.in_service = in_service
+
+    def set_url(self, url):
         if not self.in_service:
             raise errors.ModelError("EntitySet not advertised in service")
         else:
@@ -2689,7 +3230,7 @@ class EntitySet(types.Annotatable, types.Named):
 
     def __call__(self):
         esv = self.type_def()
-        esv.set_entity_set(self)
+        esv.set_entity_binding(self)
         if self.service_ref is not None:
             esv.bind_to_service(self.service_ref())
         return esv
@@ -2741,35 +3282,37 @@ class EntityContainerValue(ContainerValue):
         if not isinstance(self.item_type, EntityType):
             raise errors.ODataError(
                 "EntityType required: %s" % self.item_type.qname)
-        #: the optional entity set we're bound to
-        self.entity_set = None
+        #: the optional entity set or singleton we're bound to
+        self.entity_binding = None
 
     OptionsType = types.EntityOptions
 
-    def set_entity_set(self, entity_set):
-        """Binds this value to an entity set
+    def set_entity_binding(self, entity_binding):
+        """Binds this value to an entity set or singleton
 
         When creating an EntitySetValue providing a view on an EntitySet
         exposed by a service the value is *bound*, not just to the
-        service, but to the entity set itself.  This further constains
-        the entities that the value can contain to be both of the entity
+        service, but to the entity set itself (similarly for
+        SingletonValue and singletons).  This further constrains the
+        entities that the value can contain to be both of the entity
         type (as per :attr:`item_type`) *and* to come from a specific
-        entity_set. (It is a possible for a model to define multiple
+        entity_set. (It is possible for a model to define multiple
         distinct entity sets that contain entities of the same type.)
         The same is true for navigation properties that are bound to
         entity sets using navigation bindings.
 
         You don't normally need to call this method yourself, values are
-        automatically bound to the appropriate entity set when they are
-        added to the container immediately prior to binding them to the
-        service itself (see :meth:`bind_to_service`).
+        automatically bound to the appropriate entity context when they
+        are added to the container immediately prior to binding them to
+        the service itself (see :meth:`bind_to_service`).
 
-        Once set, you can't change the entity set that a value is bound
-        to. Also, you can't bind a value to an entity set after it has
-        been bound to a service."""
+        Once set, you can't change the entity context that a value is
+        bound to. Also, you can't bind a value to an entity context
+        after it has been bound to a service."""
         if self.service is not None:
-            raise errors.BoundValue("set_entity_set(%s)" % repr(entity_set))
-        self.entity_set = entity_set
+            raise errors.BoundValue(
+                "set_entity_binding(%s)" % repr(entity_binding))
+        self.entity_binding = entity_binding
 
     def new_item(self):
         """Creates an entity suitable for this entity set
@@ -2780,118 +3323,13 @@ class EntityContainerValue(ContainerValue):
         parent."""
         entity = self.item_type()
         # now implement the entity options, select and expand
-        if self.entity_set is not None:
-            entity.set_entity_set(self.entity_set)
+        if self.entity_binding is not None:
+            entity.set_entity_binding(self.entity_binding)
         entity._set_options(self.options)
         return entity
 
-    def select(self, path):
-        """Selects a structural property
 
-        path
-            A list or other iterable returning identifiers (as strings),
-            :class:`QualifiedName` tuples or the special value "*".
-            Alternatively, a string is also accepted for convenience and
-            this will be split into path components but no syntax
-            checking is performed.  For untrusted input you MUST use the
-            :class:`parser.Parser` class to parse a selectItem and the
-            corresponding :meth:`add_select_item` method instead.
-
-        This method allows you to traverse complex types *and* navigation
-        properties.  This may result in an expand option being set or
-        modified rather than a simple select option being set.  For
-        example::
-
-            people.select("Friends/UserName")
-
-        might translate into an *expand* option::
-
-            $expand=Friends($select=UserName)
-
-        Bear in mind that, by default, there are no select rules in
-        place resulting in a default set of (typically all) structural
-        properties being retrieved.  Setting explicit select rules is
-        used to *restrict* the set of returned properties.
-
-        Applies to all values in the container.  The cache is
-        automatically cleared."""
-        paths = self.item_type.split_path(
-            path,
-            context=self.service.model if self.service is not None else None,
-            navigation=False)
-        if self._options_inherited:
-            self._clone_options()
-        options = self.options
-        for path in paths[:-1]:
-            # add a simple expand item for each parent path if it isn't
-            # already expanded
-            xitem = options.get_expand_item(path)
-            if xitem is None:
-                xitem = options.add_expand_path(path)
-            options = xitem.options
-        path = paths[-1]
-        options.add_select_path(path)
-        self.clear_cache()
-
-    def expand(self, path, qualifier=None):
-        """Expands a navigation property
-
-        path
-            As per :meth:`EntityType.split_path`.
-
-        qualifier
-            An optional path qualifier, one of the values from
-            :class:`types.PathQualifier`.  Only $count and
-            $ref are allowed.  These options determine how much data is
-            retrieved for the expanded navigation property.
-
-        This method allows you to traverse complex types *and*
-        navigation properties though the path must terminate in a
-        navigation property.  This may result in nested expand options
-        being set, for example::
-
-            people.expand("Friends/Friends")
-
-        might translate into::
-
-            $expand=Friends($expand=Friends)
-
-        The use of path qualifiers enables you to suppress the return
-        of detailed information from the service while still creating
-        the indicated object in the parent entity's property dictionary.
-        For example::
-
-            people.expand("Friends", PathQualifier.ref)
-
-        Will cause the contained entities to have a "Friends" property
-        defined in their property dictionary and you'll be able to
-        iterate through the resulting values and use the len function
-        without causing additional service requests (assuming the result
-        is within any server paging limits) but the resulting entity
-        objects are only references to the associated entities. If you
-        drill down on one of the associated Friends, say by accessing a
-        named structural property, this will trigger the request to
-        retrieve the entity itself from the data service."""
-        paths = self.item_type.split_path(
-            path,
-            context=self.service.model if self.service is not None else None,
-            navigation=True)
-        if self._options_inherited:
-            self._clone_options()
-        options = self.options
-        for path in paths[:-1]:
-            # add a simple expand item for each parent path if it isn't
-            # already expanded
-            xitem = options.get_expand_item(path)
-            if xitem is None:
-                xitem = options.add_expand_path(path)
-            options = xitem.options
-        path = paths[-1]
-        options.add_expand_path(path, qualifier=qualifier)
-        self.clear_cache()
-
-
-class EntitySetValue(collections.Mapping, EntityContainerValue):
+class EntitySetValue(collections.MutableMapping, EntityContainerValue):
 
     """Represents the value of an entity set
 
@@ -2956,6 +3394,11 @@ class EntitySetValue(collections.Mapping, EntityContainerValue):
         else:
             yield self
             self._fullycached = next_link is None
+            max_size = self.get_page_size()
+            if max_size is not None:
+                # we ignore next_link if we asked to limit the page
+                self._fullycached = self._fullycached or \
+                    len(self._cache) == max_size
         self.clean()
 
     def load_item(self, e):
@@ -2983,6 +3426,9 @@ class EntitySetValue(collections.Mapping, EntityContainerValue):
                 # cache fault, load from source
                 request = self.service.get_entity_by_key(self, key)
                 request.execute_request()
+                if isinstance(request.result, errors.ServiceError):
+                    if request.result.http_code == 404:
+                        raise KeyError
                 if isinstance(request.result, Exception):
                     raise request.result
                 e = request.result
@@ -2992,6 +3438,29 @@ class EntitySetValue(collections.Mapping, EntityContainerValue):
                 self._cache[k] = e
                 return e
         return result
+
+    def __setitem__(self, key, value):
+        # entity_set[key] = entity
+        raise NotImplementedError
+
+    def __delitem__(self, key):
+        # del entity_set[key]
+        if self._fullycached and self.service is not None:
+            if key in self._cache:
+                del self._cache[key]
+                self._keys.remove(key)
+            else:
+                raise KeyError
+        else:
+            # this is enough to discard our cache completely
+            self.clear_cache()
+            request = self.service.delete_entity_by_key(self, key)
+            request.execute_request()
+            if isinstance(request.result, errors.ServiceError):
+                if request.result.http_code == 404:
+                    raise KeyError
+            if isinstance(request.result, Exception):
+                raise request.result
 
     def __iter__(self):
         self._key_lock += 1
@@ -3023,62 +3492,43 @@ class EntitySetValue(collections.Mapping, EntityContainerValue):
                         raise errors.ODataError("Stale iterator detected")
                     i += 1
 
-    def set_page(self, top, skip=0, xpath=None):
-        """Sets the page for the result set"""
-        raise NotImplementedError
-
-    def set_filter(self, filter_expr, xpath=None):
-        """Sets the filter for the result set
-
-        filter_expr
-            A :class:`types.CommonExpression` instance or a string
-            from which one can be parsed.
-
-        xpath (None)
-            An optional path (see :meth:`EntityType.split_path`) to a
-            navigation property.  The filter is applied to the entity
-            set(s) expanded from this navigation property.  If this path
-            has not been expanded then
-            :meth:`EntityContainerValue.expand` is used to add it
-            automatically."""
-        if is_text(filter_expr):
-            p = parser.Parser(filter_expr)
-            filter_expr = p.require_filter()
-            p.require_end()
-        self.clear_cache()
-        if self._options_inherited:
-            self._clone_options()
-        self.options.set_filter(filter_expr)
-
-    def set_search(self, search_expr, xpath=None):
-        """Sets the search expression for the result set"""
-        raise NotImplementedError
-
-    def set_orderby(self, orderby_expr, xpath=None):
-        """Sets the orderby expression for the result set"""
-        raise NotImplementedError
+    def insert(self, entity):
+        # entity must be of the correct type
+        if not entity.type_def.is_derived_from(self.item_type):
+            raise TypeError
+        if self.service is None:
+            k = entity.get_key()
+            if k in self._cache:
+                raise KeyError
+            self._key_lock += 1
+            self._keys.append(k)
+            self._cache[k] = entity
+        else:
+            # TODO: check we're not being filtered
+            request = self.service.create_entity(self, entity)
+            request.execute_request()
+            if isinstance(request.result, Exception):
+                raise request.result
+            # critical, update the key as it may have been computed
+            k = entity.get_key()
+            self._cache[k] = entity
+            self._key_lock += 1
 
 
-class Singleton(types.Named):
+class Singleton(EntityBinding):
 
     """Represents a Singleton in the OData model."""
 
     def __init__(self, **kwargs):
         super(Singleton, self).__init__(**kwargs)
-        #: the entity type of this entity
-        self.entity_type = None
-        # the URL of this entity set
-        self.url = None
 
     def set_type(self, entity_type):
         """Sets the entity type for this entity
 
         The entity_type must be closed before it can be used as the type
         of a singleton."""
-        if not entity_type.closed:
-            raise errors.ModelError(
-                "Type %s is still open" % entity_type.qname)
-        self.entity_type = entity_type
+        super(Singleton, self).set_type(entity_type)
+        self.type_def = SingletonType(entity_type=entity_type)
 
     def get_url(self):
         """Return a URI for this singleton
@@ -3093,8 +3543,12 @@ class Singleton(types.Named):
             return uri.URI.from_octets(
                 uri.escape_data(self.name.encode('utf-8')))
 
-    def set_url(self, url):
-        self.url = url
+    def __call__(self):
+        sv = self.type_def()
+        sv.set_entity_binding(self)
+        if self.service_ref is not None:
+            sv.bind_to_service(self.service_ref())
+        return sv
 
 
 class SingletonType(types.NominalType):
@@ -3125,6 +3579,7 @@ class SingletonValue(EntityContainerValue):
 
     def __init__(self, **kwargs):
         super(SingletonValue, self).__init__(**kwargs)
+        self.is_collection = False
         self._cache = None
 
     def bind_to_service(self, service):
