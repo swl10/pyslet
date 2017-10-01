@@ -1,6 +1,7 @@
 *.py[cod]
 *.db
 *.sqlite3
+.ipynb_checkpoints/
 
 # Packages
 *.egg
@@ -27,6 +28,7 @@ samples/scihub.copernicus.eu/scihub.copernicus.eu.crt
 unittests/pyslet
 samples/pyslet
 samples/noticeboard/pyslet
+tutorials/odata4/pyslet
 pep8-count.txt
 flake8-count.txt
 

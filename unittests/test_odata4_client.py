@@ -204,7 +204,7 @@ class TripPinTests(unittest.TestCase):
         people = svc.open("People")
         self.assertFalse('lewisblack' in people)
         lewisblack = people.new_item()
-        lewisblack.select_value({
+        lewisblack.set_value({
             "UserName": "lewisblack",
             "FirstName": "Lewis",
             "LastName": "Black",
@@ -219,7 +219,7 @@ class TripPinTests(unittest.TestCase):
                     "Region": "ID"
                 }}]
             })
-        people.insert(lewisblack)
+        people.insert(lewisblack, omit_clean=True)
         # check that we have received any missing properties
         self.assertTrue("Gender" in lewisblack)
         self.assertTrue("Age" in lewisblack)

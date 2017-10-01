@@ -878,6 +878,10 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
     def __bool__(self):
         return not self.is_null()
 
+    def __unicode__(self):
+        return to_text("%s of type %s" % (
+            self.__class__.__name__, self.type_def.qname))
+
     def is_null(self):
         """Returns True if this object is null.
 

@@ -2294,7 +2294,8 @@ class StructuredValue(collections.Mapping, CompositeValue):
                 if isinstance(ptype, Property):
                     if isinstance(ptype.structural_type, ComplexType):
                         # a complex (or complex collection) property
-                        self[ptype.name].set_defaults()
+                        if not ptype.collection:
+                            self[ptype.name].set_defaults()
                     else:
                         # simple case, a primitive property
                         if ptype.default_value is not None:
@@ -3492,7 +3493,7 @@ class EntitySetValue(collections.MutableMapping, EntityContainerValue):
                         raise errors.ODataError("Stale iterator detected")
                     i += 1
 
-    def insert(self, entity):
+    def insert(self, entity, omit_clean=False):
         # entity must be of the correct type
         if not entity.type_def.is_derived_from(self.item_type):
             raise TypeError
@@ -3505,7 +3506,8 @@ class EntitySetValue(collections.MutableMapping, EntityContainerValue):
             self._cache[k] = entity
         else:
             # TODO: check we're not being filtered
-            request = self.service.create_entity(self, entity)
+            request = self.service.create_entity(
+                self, entity, omit_clean=omit_clean)
             request.execute_request()
             if isinstance(request.result, Exception):
                 raise request.result

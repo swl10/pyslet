@@ -349,7 +349,7 @@ class DataService(object):
         service."""
         raise NotImplementedError
 
-    def create_entity(self, entity_collection, entity):
+    def create_entity(self, entity_collection, entity, omit_clean=False):
         """Create a request to create an entity in a collection
 
         entity_collection
@@ -860,7 +860,7 @@ class ODataURL(object):
             options.append("$levels=%i" % expand_item.options.levels)
         if options:
             result.append("(")
-            result.append(",".join(options))
+            result.append(";".join(options))
             result.append(")")
         return "".join(result)
 

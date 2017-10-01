@@ -174,9 +174,10 @@ class Client(DataService):
         request = PropertyRequest(self, pvalue)
         return request
 
-    def create_entity(self, entity_collection, entity):
+    def create_entity(self, entity_collection, entity, omit_clean=False):
         """Create a request to create an entity in a collection"""
         request = InsertEntityRequest(self, (entity_collection, entity))
+        request.omit_clean = omit_clean
         return request
 
     def update_entity(self, entity, merge=True):
@@ -505,6 +506,10 @@ class IterateRequest(ClientDataRequest):
 
 class InsertEntityRequest(ClientDataRequest):
 
+    def __init__(self, *args, **kwargs):
+        super(InsertEntityRequest, self).__init__(*args, **kwargs)
+        self.omit_clean = False
+
     def create_request(self):
         # target is an entity set (or collection) and an entity
         target_collection, entity = self.target
@@ -512,7 +517,8 @@ class InsertEntityRequest(ClientDataRequest):
         payload = Payload(self)
         # create the payload to POST
         jbytes = payload.to_json(
-            entity, type_def=target_collection.type_def.item_type)
+            entity, type_def=target_collection.type_def.item_type,
+            patch=self.omit_clean)
         jbytes = jbytes.getvalue()
         self.http_request = http.ClientRequest(
             str(self.url), "POST", entity_body=jbytes)
@@ -538,7 +544,7 @@ class InsertEntityRequest(ClientDataRequest):
             self.result = entity
         else:
             self.result = UnexpectedHTTPResponse(
-                to_text(self.url),
+                "Failed to insert entity",
                 self.http_request.status, self.http_request.response.reason)
 
 
