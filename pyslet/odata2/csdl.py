@@ -4422,8 +4422,13 @@ class EntityContainer(NameTableMixin, CSDLElement):
             yield child
 
     def content_changed(self):
-        for t in self.EntitySet + self.AssociationSet + self.FunctionImport:
+        for t in self.EntitySet + self.AssociationSet:
             self.declare(t)
+        for f in self.FunctionImport:
+            if f.is_bindable:
+                # OData v3 bound functions are not declared
+                continue
+            self.declare(f)
 
     def find_entitysets(self, entity_type):
         """Returns a list of all entity sets with a given type
@@ -5168,6 +5173,12 @@ class FunctionImport(NameTableMixin, CSDLElement):
     XMLATTR_Name = ('name', validate_simple_identifier, None)
     XMLATTR_ReturnType = 'returnType'
     XMLATTR_EntitySet = 'entitySetName'
+    XMLATTR_IsSideEffecting = (
+        'is_side_effecting', xsi.boolean_from_str, xsi.boolean_to_str)
+    XMLATTR_IsBindable = (
+        'is_bindable', xsi.boolean_from_str, xsi.boolean_to_str)
+    XMLATTR_IsAlwaysBindable = (
+        'is_always_bindable', xsi.boolean_from_str, xsi.boolean_to_str)
 
     XMLCONTENT = xml.ElementType.ElementContent
 
@@ -5186,6 +5197,10 @@ class FunctionImport(NameTableMixin, CSDLElement):
         #: the :py:class:`EntitySet` corresponding to
         #: :py:attr:`entitySetName`
         self.entity_set = None
+        # OData v3 attributes follow
+        self.is_side_effecting = True
+        self.is_bindable = None
+        self.is_always_bindable = False
         #: a callable to use when executing this function (see
         #: :py:meth:`bind`)
         self.binding = None, {}

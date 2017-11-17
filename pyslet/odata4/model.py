@@ -64,7 +64,7 @@ class EntityModel(types.NameTable):
         if isinstance(qname, types.QualifiedName):
             namespace, name = qname
         else:
-            namespace, name = self.split_qname(qname)
+            namespace, name = types.QualifiedName.from_str(qname)
         try:
             return self[namespace][name]
         except KeyError:
@@ -79,7 +79,10 @@ class EntityModel(types.NameTable):
 
         If the entity model or the indicated Schema is closed without
         qname being declared then the callback is called passing None."""
-        nsname, name = self.split_qname(qname)
+        if isinstance(qname, types.QualifiedName):
+            nsname, name = qname
+        else:
+            nsname, name = types.QualifiedName.from_str(qname)
 
         def _callback(ns):
             if ns is None:
@@ -114,6 +117,30 @@ class EntityModel(types.NameTable):
                 if isinstance(item, StructuredType):
                     item.set_annotations()
                     item.check_navigation()
+
+    def get_enum_value(self, eliteral):
+        """Returns the value of an enumeration literal
+
+        eliteral is a tuple of type :class:`types.EnumLiteral`, the
+        result is an EnumerationValue or an error if the enumeration is
+        not declared or cannot be parsed from the given names or values.
+
+        If the literal does not correspond to a declared EnumType then a
+        TypeError is raised.  If the literal's value does not correspond
+        to a valid member (or members) then a ValueError is raised."""
+        enum_def = self.qualified_get(eliteral.qname)
+        if not isinstance(enum_def, EnumerationType):
+            raise TypeError(
+                "%s is not an EnumType" % to_text(eliteral.qname))
+        result = enum_def()
+        if not enum_def.is_flags:
+            if len(eliteral.value != 1):
+                raise ValueError(
+                    "%s requires a single member" % to_text(eliteral.qname))
+            result.set_value(eliteral.value[0])
+        else:
+            result.set_value(eliteral.value)
+        return result
 
     def derived_types(self, base):
         """Generates all types derived from base"""
@@ -173,7 +200,9 @@ class EntityModel(types.NameTable):
                     logging.debug("Binding type: %s", item.qname)
                     item.bind_to_service(self.service_ref)
         for item in self.get_container().values():
-            if isinstance(item, (EntitySet, Singleton)):
+            if isinstance(
+                    item,
+                    (EntitySet, Singleton, FunctionImport, ActionImport)):
                 item.bind_to_service(self.service_ref)
 
     def get_context_url(self):
@@ -209,6 +238,8 @@ class Schema(types.Annotatable, types.NameTable):
 
     """A Schema is a container for OData model definitions."""
 
+    csdl_name = "Schema"
+
     def check_name(self, name):
         """Checks the validity of 'name' against SimpleIdentifier
 
@@ -233,9 +264,13 @@ class Schema(types.Annotatable, types.NameTable):
             A container of entities.
 
         Term
-            The definition of an annotation term."""
+            The definition of an annotation term.
+
+        CallableOverload
+            The definition of (a group of overloaded) Function or Action"""
         if not isinstance(value, (types.Term,
-                                  types.NominalType, EntityContainer)):
+                                  types.NominalType, EntityContainer,
+                                  CallableOverload)):
             raise TypeError(
                 "%s can't be declared in %s" %
                 (repr(value),
@@ -332,7 +367,13 @@ class Schema(types.Annotatable, types.NameTable):
                 ('GeometryMultiLineString',
                  primitive.edm_geometry_multi_line_string),
                 ('GeometryMultiPolygon', primitive.edm_geometry_multi_polygon),
-                ('GeometryCollection', primitive.edm_geometry_collection)):
+                ('GeometryCollection', primitive.edm_geometry_collection),
+                # Vocabulary terms can also use the following...
+                ('AnnotationPath', primitive.edm_annotation_path),
+                ('PropertyPath', primitive.edm_property_path),
+                ('NavigationPropertyPath',
+                 primitive.edm_navigation_property_path),
+                ):
             vtype.declare(cls.edm, name)
         cls.edm.close()
         return cls.edm
@@ -378,6 +419,8 @@ class Schema(types.Annotatable, types.NameTable):
 class EnumerationType(types.NameTable, types.NominalType):
 
     """An EnumerationType declaration"""
+
+    csdl_name = "EnumType"
 
     def __init__(self, base=None, **kwargs):
         super(EnumerationType, self).__init__(**kwargs)
@@ -541,6 +584,8 @@ class Member(types.Named):
 
     """Represents a member of an enumeration"""
 
+    csdl_name = "Member"
+
     def __init__(self, **kwargs):
         super(Member, self).__init__(**kwargs)
         #: the integer value corresponding to this member
@@ -663,6 +708,10 @@ class CollectionType(types.NominalType):
         #: collections
         self.item_type = item_type
         self.value_type = CollectionValue
+
+    def get_model(self):
+        """Returns the model in which the item type was declared"""
+        return self.item_type.get_model()
 
 
 class CompositeValue(types.Value):
@@ -1228,6 +1277,20 @@ class CollectionValue(collections.MutableSequence, ContainerValue):
         self.clean()
 
     def load_item(self, obj):
+        if isinstance(obj, EntityValue) and self.name:
+            # inserting an entity into a collection, the entity must
+            # have an id of it's own OR have an explicit null id to
+            # indicate that it is transient.  If we are missing those
+            # and this collection is a navigation property value (a
+            # named child) then we will fake the entity id by assuming
+            # that it can be referenced by key from this collection.
+            # This is consistent with the TripPin service which, at the
+            # time of writing, throws a 500 error if you try and force
+            # it to tell you the id of a Trip entity using metadata=full!
+            try:
+                self.service.get_entity_id(obj)
+            except errors.InvalidEntityID:
+                self.service.fix_entity_id(obj, self)
         self._cache.append(obj)
 
     def clear_cache(self):
@@ -1333,6 +1396,16 @@ class CollectionValue(collections.MutableSequence, ContainerValue):
             self._load()
         self._cache.insert(index, value)
         self.touch()
+
+    def set_key_filter(self, key):
+        """Filter this collection by an entity key
+
+        The collection *must* be a colleciton of entities.  The key is
+        turned into a filter expression, replacing any existing
+        filter."""
+        if not isinstance(self.item_type, EntityType):
+            raise errors.ODataError("set_key_filter requires EntityType")
+        self.set_filter(self.item_type.get_key_expression(key))
 
     def _load(self, index=None):
         # Load the cache up to and including index,  If index is None
@@ -1780,11 +1853,12 @@ class Property(types.Annotatable, types.Named):
 
     Properties are defined within a structured type.  The corresponding
     :class:`StructuredType` object therefore becomes the namespace in
-    :which the
-    property is first declared and the qname attribute is composed of
-    the the type's qualified name and the property's name separated by a
-    '/'.  The same property is also declared in any derived types as an
-    alias."""
+    which the property is first declared and the qname attribute is
+    composed of the type's qualified name and the property's name
+    separated by a '/'.  The same property is also declared in any
+    derived types as an alias."""
+
+    csdl_name = "Property"
 
     def __init__(self, **kwargs):
         super(Property, self).__init__(**kwargs)
@@ -1849,6 +1923,8 @@ class OnDeleteAction(xsi.Enumeration):
 class NavigationProperty(types.Named):
 
     """A NavigationProperty declaration"""
+
+    csdl_name = "NavigationProperty"
 
     def __init__(self, **kwargs):
         super(NavigationProperty, self).__init__(**kwargs)
@@ -1958,7 +2034,7 @@ class NavigationProperty(types.Named):
     def __call__(self, parent_ref, qualifier=None):
         if self.containment:
             # simpler case, we contain the entity (or collection)
-            value = self.type_def()
+            value = self.bound_def()
             if not self.nullable:
                 value.null = False
         else:
@@ -2519,6 +2595,8 @@ class ComplexType(StructuredType):
 
     """A ComplexType declaration"""
 
+    csdl_name = "ComplexType"
+
     def __init__(self, **kwargs):
         super(ComplexType, self).__init__(**kwargs)
         self.value_type = ComplexValue
@@ -2575,6 +2653,8 @@ class ComplexValue(StructuredValue):
 class EntityType(StructuredType):
 
     """An EntityType declaration"""
+
+    csdl_name = "EntityType"
 
     def __init__(self, **kwargs):
         super(EntityType, self).__init__(**kwargs)
@@ -2666,6 +2746,50 @@ class EntityType(StructuredType):
             else:
                 key_dict[name] = value
         return key_dict
+
+    def get_key_expression(self, key):
+        """Creates a :class:`types.CommonExpression` representing key
+
+        key
+            A simple value (e.g., a python int or tuple for a composite
+            key) representing the key of an entity of this type.
+
+        Returns a common expression suitable for use as a filter, the
+        expression will be of the form "property eq value" for single
+        valued keys and "p1 eq v1 and p2 eq v2 and..." for composite
+        keys."""
+        if not isinstance(key, tuple):
+            key = (key, )
+        if len(key) != len(self._key):
+            raise errors.ODataError("invalid key for %s" % str(self))
+        expr = None
+        for key_info, key_value in zip(self._key, key):
+            name, path = key_info
+            # start with the path...
+            path_expr = None
+            for p in path:
+                if path_expr:
+                    # turn Property into Property/SubProperty
+                    new_expr = types.BinaryExpression(types.Operator.member)
+                    new_expr.add_operand(path_expr)
+                    new_expr.add_operand(
+                        types.BinaryExpression(types.NameExpression(p)))
+                    path_expr = new_expr
+                else:
+                    path_expr = types.NameExpression(p)
+            # literal value is stored unboxed in the expression!
+            test_expr = types.BinaryExpression(types.Operator.eq)
+            test_expr.add_operand(path_expr)
+            test_expr.add_operand(types.LiteralExpression(key_value))
+            if expr:
+                # turn PropertyA eq 1 into PropertyA eq 1 and PropertyB eq 2
+                new_expr = types.BinaryExpression(types.Operator.bool_and)
+                new_expr.add_operand(expr)
+                new_expr.add_operand(test_expr)
+                expr = new_expr
+            else:
+                expr = test_expr
+        return expr
 
     def set_contained(self):
         """Marks this entity type as being contained by another.
@@ -2900,6 +3024,17 @@ class EntityValue(StructuredValue):
         else:
             return self.get_path(key[0][1]).value
 
+    def reload(self):
+        """Reloads this value from the service
+
+        The value must be bound."""
+        if self.service is None:
+            raise errors.UnboundValue
+        request = self.service.get_entity(self)
+        request.execute_request()
+        if isinstance(request.result, Exception):
+            raise request.result
+
     def get_ref(self):
         """Return a reference to this entity
 
@@ -2910,9 +3045,456 @@ class EntityValue(StructuredValue):
         return self.service.get_entity_ref(self)
 
 
+class CallableType(types.NameTable, types.NominalType):
+
+    """An abstract class for Actions and Functions
+
+    Actions and Functions are treated as named types within the model
+    though, due to overloading, they are declared directly in the
+    enclosing schema but instead are grouped into
+    :class:`CallableOverload` instances before being declared to enable
+    disambiguation."""
+
+    def __init__(self, **kwargs):
+        super(CallableType, self).__init__(**kwargs)
+        #: a weak reference to the Overload that contains us
+        self.value_type = CallableValue
+        self.overload = None
+        self.is_bound = False
+        self.return_type = None
+        self.nullable = True
+        self.params = []
+        self.entity_set_path = None
+
+    def check_name(self, name):
+        """Checks the validity of 'name' against simple identifier"""
+        if name is None:
+            raise ValueError("unnamed parameter")
+        elif not self.is_simple_identifier(name):
+            raise ValueError("%s is not a valid SimpleIdentifier" % name)
+
+    def qualify_name(self, name):
+        """Returns the qualified version of a (parameter) name
+
+        By default we qualify name by prefixing with the name of this
+        NameTable (type) and ":" rather than "/" to emphasize that
+        parameters are not separately addressable within the model.  If
+        this NameTable has not been declared then name is returned
+        unchanged."""
+        if self.name:
+            return self.name + ":" + name
+        else:
+            return name
+
+    def check_value(self, value):
+        if not isinstance(value, Parameter):
+            raise TypeError(
+                "Parameter required, found %s" % repr(value))
+
+    def set_is_bound(self, is_bound):
+        self.is_bound = is_bound
+
+    def binding(self):
+        """Returns the type we are bound to"""
+        if self.is_bound:
+            return self.params[0].type_def
+        else:
+            return None
+
+    def set_return_type(self, return_type):
+        """Sets the return type for this callable
+
+        If the return_type is a structured type (or collection thereof)
+        it must be closed before it can be used as the return type of an
+        action or function."""
+        if isinstance(return_type, CollectionType):
+            check_type = return_type.item_type
+        else:
+            check_type = return_type
+        if isinstance(check_type, StructuredType) and not check_type.closed:
+            raise errors.ModelError("Type%s is still open" % check_type.qname)
+        self.return_type = return_type
+
+    def set_nullable(self, nullable):
+        self.nullable = nullable
+
+    def set_entity_set_path(self, path):
+        self.entity_set_path = path
+
+    def add_parameter(self, p, name):
+        """Adds a parameter to this callable"""
+        p.declare(self, name)
+        self.params.append(p)
+
+    #: the class used for Overload groups
+    OverloadClass = None
+
+    def declare_overload(self, schema, name):
+        """Declares this callable in the given Schema
+
+        Declarations of callables are special due to overloading rules,
+        they do not appear in their parent's name table in the normal
+        way but as part of an Overload object."""
+        if name in schema:
+            # add this declaration to the existing group
+            fgroup = schema[name]
+        else:
+            fgroup = self.OverloadClass()
+            fgroup.declare(schema, name)
+        self.name = name
+        self.qname = schema.qualify_name(name)
+        self.overload = weakref.ref(fgroup)
+        try:
+            fgroup.overload(self)
+        except:
+            self.name = None
+            self.qname = None
+            self.overload = None
+            raise
+
+    def is_action(self):
+        """Returns True if this CallableType is an action"""
+        return isinstance(self, Action)
+
+
+class CallableValue(collections.Mapping, types.Value):
+
+    """Abstract class that represents a function or action call
+
+    This class represents the invocation of the callable, *not* the
+    result.  As such it behaves like a dictionary of non-binding
+    parameter values keyed on parameter name.  On construction the value
+    is pre-populated with parameter values set to null.  The value
+    itself is never null.
+
+    The type_def of a callable value is the :class:`CallableType` object
+    that declares its signature.  There is no equivalent object in the
+    OData URL syntax because a callable with parameters is implicitly
+    called and resolves to the return value.  This object behaves more
+    like a bound-method in Python except that it is bound to all
+    parameters at once.  To obtain the return value you have to call the
+    object.
+
+    To call the value you use Python's call syntax (the parameters are
+    already bound to the object so there are no parameters).  The call
+    is made immediately and the return value is a :class:`Value`
+    instance of the appropriate return type.  The result of a callable
+    is *never* cached so calling it multiple times will call the service
+    multiple times, each time returning a new object.
+
+    For composable functions the return value is bound to the service
+    via the parent callable and can be reloaded (reinvoking the function)
+    to refresh its value.
+
+    For non-composable functions and actions a transient result is
+    typically returned (i.e., a value that is not bound to the service
+    and cannot be reloaded).  An action *may* return a bound entity of
+    course but, in that case, the entity is bound through the owning
+    entity set and reloading its value will not invoke the action a
+    second time.  For example, an action that exists for the purposes of
+    creating an entity in an entity set in a special way will return a
+    bound entity but reloading that entity will not cause it to be
+    recreated.
+
+    Composable functions that return entities or collections may have
+    query options applied but these options are applied to the return
+    value *not* to the callable.  To create the return value without
+    calling the function you use the :meth:`deferred_call` method."""
+
+    def __init__(self, **kwargs):
+        super(CallableValue, self).__init__(**kwargs)
+        self.binding = None
+        self._params = {}
+        plist = self.type_def.params
+        if self.type_def.is_bound:
+            plist = plist[1:]
+        for p in plist:
+            self._params[p.name] = p()
+
+    def is_null(self):
+        """Callable values are never null."""
+        return False
+
+    def set_callable_binding(self, binding):
+        self.binding = binding
+
+    def __len__(self):
+        return len(self._params)
+
+    def __getitem__(self, key):
+        return self._params[key]
+
+    def __iter__(self):
+        for k in self._params:
+            yield k
+
+    def new_return_value(self):
+        """Creates and returns a new return value"""
+        if self.type_def.return_type:
+            return self.type_def.return_type()
+        else:
+            return None
+
+    def __call__(self):
+        if self.service is None:
+            raise errors.UnboundValue(to_text(self))
+        if self.type_def.is_action():
+            request = self.service.call_action(self)
+        else:
+            request = self.service.call_function(self)
+        request.execute_request()
+        if isinstance(request.result, Exception):
+            raise request.result
+        if isinstance(self.type_def, Function):
+            # the result of this function is parented to allow reloading
+            request.result.set_parent(weakref.ref(self), name="")
+        return request.result
+
+
+class CallableOverload(types.Named):
+
+    def __init__(self, **kwargs):
+        super(CallableOverload, self).__init__(**kwargs)
+        self.callables = []
+
+    def overload(self, callable):
+        raise NotImplementedError
+
+    def is_action(self):
+        """Returns True if this CallableType is an action"""
+        return isinstance(self, ActionOverload)
+
+
+class ActionOverload(CallableOverload):
+
+    def __init__(self, **kwargs):
+        super(ActionOverload, self).__init__(**kwargs)
+        self.bindings = {}
+
+    def overload(self, action):
+        if action.is_bound:
+            # action name and binding parameter type
+            key = to_text(action.binding())
+        else:
+            key = ""
+        if key in self.bindings:
+            raise errors.ModelError("Illegal overload: %s" % to_text(key))
+        else:
+            self.bindings[key] = action
+            self.callables.append(action)
+
+    def get_unbound_action(self):
+        if self.name:
+            return self.bindings.get("", None)
+        else:
+            return None
+
+    def resolve(self, binding):
+        """Resolves this action call
+
+        binding
+            The target of the call for a bound call, None if the
+            call is being made unbound.
+
+        Returns the matching :class:`Action` declaration.
+
+        The most specific binding is always returned so if an action is
+        overloaded such that one declaration has a binding parameter of
+        type Schema.Employee and another Schema.Person (where Person is
+        the base type of Employee) then passing an Employee value for
+        *binding* will always match the function with binding parameter
+        of type Employee."""
+        if binding:
+            # create a set of strings to match the binding working
+            # backwards through the base types.  E.g.,
+            # ["Schema.Person", "Edm.EntityType"]
+            bound_type = binding.type_def
+            blist = [to_text(b) for b in bound_type.declared_bases()]
+        else:
+            blist = [""]
+        for bname in blist:
+            a = self.bindings.get(bname, None)
+            if a is not None:
+                return a
+        return None
+
+
+class FunctionOverload(CallableOverload):
+
+    def __init__(self, **kwargs):
+        super(FunctionOverload, self).__init__(**kwargs)
+        self.bound_type = None
+        self.unbound_type = None
+        self.name_bindings = {}
+        self.type_bindings = {}
+
+    def overload(self, function):
+        if function.is_bound:
+            if self.bound_type:
+                if to_text(self.bound_type) != to_text(function.return_type):
+                    raise errors.ModelError("Illegal overload")
+            else:
+                self.bound_type = function.return_type
+            binding = to_text(function.binding())
+            non_binding_params = function.params[1:]
+        else:
+            if self.unbound_type:
+                if to_text(self.unbound_type) != to_text(function.return_type):
+                    raise errors.ModelError("Illegal overload")
+            else:
+                self.unbound_type = function.return_type
+            binding = ""
+            non_binding_params = function.params
+        name_key = tuple(
+            [binding] + sorted([p.name for p in non_binding_params]))
+        type_key = tuple(
+            [binding] + [to_text(p.type_def) for p in non_binding_params])
+        if name_key in self.name_bindings or type_key in self.type_bindings:
+            raise errors.ModelError("Illegal overload")
+        self.name_bindings[name_key] = function
+        self.type_bindings[type_key] = function
+        self.callables.append(function)
+
+    def is_unbound(self):
+        """Returns True if this Function can be called unbound"""
+        return self.unbound_type is not None
+
+    def resolve(self, binding, params):
+        """Resolves this function call
+
+        binding
+            The target of the call for a bound call, None if the
+            call is being made unbound.
+
+        params
+            Optional list or iterable of parameter names representing
+            non-binding parameters.  This list is only required if the
+            function is overloaded *for the same binding* parameter.
+            The order of the parameter names in the iterable is
+            disregarded when resolving overloads.
+
+        Returns the matching :class:`Function` declaration.
+
+        The most specific binding is always returned so if a function is
+        overloaded such that one declaration has a binding parameter of
+        type Schema.Employee and another Schema.Person (where Person is
+        the base type of Employee) then passing an Employee value for
+        *binding* will always match the function with binding parameter
+        of type Employee even if the names of the non-binding parameters
+        are otherwise the same.  This means that the params list may be
+        omitted even when the binding parameter matches multiple
+        overloads of the binding parameter via the type hierarchy."""
+        if binding:
+            # create a set of strings to match the binding working
+            # backwards through the base types.  E.g.,
+            # ["Schema.Person", "Edm.EntityType"]
+            bound_type = binding.type_def
+            blist = [to_text(b) for b in bound_type.declared_bases()]
+        else:
+            blist = [""]
+        if params is not None:
+            pnames = sorted(params)
+            for bname in blist:
+                f = self.name_bindings.get(tuple([bname] + pnames), None)
+                if f is not None:
+                    return f
+        else:
+            best_depth = None
+            fmatch = None
+            for nb, f in self.name_bindings.items():
+                binding = nb[0]
+                try:
+                    depth = blist.index(binding)
+                    if best_depth is None or depth < best_depth:
+                        best_depth = depth
+                        fmatch = f
+                    elif depth == best_depth:
+                        # Two functions with the same binding (but
+                        # different sets of named parameters) is
+                        # ambiguous
+                        raise errors.ODataError(
+                            "Overloaded callable requires params list for "
+                            "disambiguation: %s" % self.qname)
+                except ValueError:
+                    continue
+            return fmatch
+        return None
+
+
+class Action(CallableType):
+
+    csdl_name = "Action"
+
+    OverloadClass = ActionOverload
+
+
+class Function(CallableType):
+
+    csdl_name = "Function"
+
+    def __init__(self, **kwargs):
+        super(Function, self).__init__(**kwargs)
+        #: whether or not we are composable
+        self.is_composable = False
+
+    OverloadClass = FunctionOverload
+
+    def set_is_composable(self, is_composable):
+        self.is_composable = is_composable
+
+
+class Parameter(types.Annotatable, types.Named):
+
+    """A Parameter declaration
+
+    Parameters are defined within callables (Action or Function).  The
+    corresponding :class:`CallableType` therefore becomes the namespace
+    in which the parameter is first declared and the qname attribute
+    is composed of the callable's qualified name and the parameter's name
+    separated by ':' (we avoid '/' just to emphasize that parameters are
+    not individually addressable within the model)."""
+
+    csdl_name = "Parameter"
+
+    def __init__(self, **kwargs):
+        super(Parameter, self).__init__(**kwargs)
+        #: the base parameter type
+        self.param_type = None
+        #: whether or not this parameter requires a collection
+        self.collection = None
+        #: the type definition for parameter values
+        self.type_def = None
+        #: whether or not the parameter value can be null (or contain
+        #: null in the case of a collection)
+        self.nullable = True
+
+    def set_type(self, param_type, collection=False):
+        self.param_type = param_type
+        self.collection = collection
+        if collection:
+            self.type_def = CollectionType(item_type=param_type)
+        else:
+            self.type_def = param_type
+
+    def set_nullable(self, nullable):
+        if self.collection:
+            raise errors.ModelError(
+                "collection parameters may not specify nullable")
+        self.nullable = nullable
+
+    def __call__(self):
+        value = self.type_def()
+        if not self.collection and not self.nullable:
+            if isinstance(self.param_type, StructuredType):
+                value.set_defaults()
+        return value
+
+
 class EntityContainer(types.Annotatable, types.NameTable):
 
     """An EntityContainer is a container for OData entities."""
+
+    csdl_name = "EntityContainer"
 
     def __init__(self, **kwargs):
         super(EntityContainer, self).__init__(**kwargs)
@@ -2937,7 +3519,8 @@ class EntityContainer(types.Annotatable, types.NameTable):
         """The following types may be declared in an EntityContainer:
 
         EntitySet, Singleton, ActionImport and FunctionImport."""
-        if not isinstance(value, (EntitySet, Singleton)):
+        if not isinstance(value, (EntitySet, Singleton, ActionImport,
+                                  FunctionImport)):
             raise TypeError(
                 "%s can't be declared in %s" %
                 (repr(value),
@@ -3031,15 +3614,14 @@ class EntityBinding(types.Annotatable, types.Named):
         """Adds a navigation binding to this entity context
 
         path
-            An array of strings/QualifiedName instances that define a
-            path to the navigation property being bound.
+            A path tuple that defines a path to the navigation property
+            being bound.
 
         target
-            An array of strings that define a path to the target entity
-            set."""
+            A path tuple that defines a path to the target entity set."""
         nb = NavigationBinding()
-        nb.np_path = path
-        nb.target_path = target
+        nb.np_path = list(path)
+        nb.target_path = list(target)
         self._nb_list.append(nb)
 
     def bind_navigation(self, model):
@@ -3190,19 +3772,34 @@ class EntitySet(EntityBinding):
     Calling an instance returns an :class:`EntitySetValue` bound to the
     service containing the EntitySet."""
 
+    csdl_name = "EntitySet"
+
     def __init__(self, **kwargs):
         super(EntitySet, self).__init__(**kwargs)
         #: whether to advertise in the service document
         self.in_service = True
-        # whether or not we are indexable
-        self.indexable_by_key = True
 
-    def annotate(self, qa, target=None):
-        """Override to intercept some special values"""
-        super(EntitySet, self).annotate(qa, target)
-        if qa.qname == "Org.OData.Capabilities.V1.IndexableByKey":
-            if qa.value:
-                self.indexable_by_key = qa.value.get_value()
+    def indexable_by_key(self):
+        """Whether or not this entity set is indexable by key
+
+        Deteremined by the Org.OData.Capabilities.V1.IndexableByKey
+        annotation on the entity set.
+
+        If this annotation has not been applied to the EntitySet, the
+        usual case, then we return True despite encouragement in the
+        specification to return False.  In practice, this annotation is
+        not widely used despite (almost?) all services exposing
+        indexable entity sets."""
+        a = self.annotations.qualified_get(
+            "Org.OData.Capabilities.V1.IndexableByKey")
+        if a is None:
+            return True
+        else:
+            result = Evaluator.evaluate_annotation(a, self).get_value()
+            if result is None:
+                return True
+            else:
+                return result
 
     def set_type(self, entity_type):
         """Sets the entity type for this entity set
@@ -3521,6 +4118,8 @@ class Singleton(EntityBinding):
 
     """Represents a Singleton in the OData model."""
 
+    csdl_name = "Singleton"
+
     def __init__(self, **kwargs):
         super(Singleton, self).__init__(**kwargs)
 
@@ -3615,6 +4214,216 @@ class SingletonValue(EntityContainerValue):
             return e
         return result
 
+
+class ActionImport(types.Annotatable, types.Named):
+
+    csdl_name = "ActionImport"
+
+    def __init__(self, **kwargs):
+        super(ActionImport, self).__init__(**kwargs)
+        self.action_def = None
+        self.service_ref = None
+        self.in_service = False
+
+    def set_action(self, action_def):
+        self.action_def = action_def
+
+    def set_in_service(self, in_service):
+        self.in_service = in_service
+
+    def bind_to_service(self, service_ref):
+        """Binds this FunctionImport to a data service
+
+        service_ref
+            A weak reference to the service
+
+        A ActionImport can only be bound to a single service."""
+        self.service_ref = service_ref
+
+    def get_url(self):
+        """Return a URI for this ActionImport
+
+        ActionImports that are bound to a service have a URL comprised
+        of the service root followed by the ActionImport name.  By
+        default the URI is a relative URI consisting of just the
+        ActionImport name."""
+        if not self.in_service:
+            return None
+        else:
+            return uri.URI.from_octets(
+                uri.escape_data(self.name.encode('utf-8'))).resolve(
+                    self.service_ref().context_base)
+
+    def __call__(self):
+        """Returns a :class:`CallableValue` instance"""
+        if not self.service_ref:
+            raise errors.UnboundValue(
+                "Can't call %s in unbound EntityModel" % self.name)
+        if self.action_def is None:
+            raise errors.ODataError("No matching Action declared")
+        avalue = self.action_def()
+        avalue.set_callable_binding(self)
+        avalue.bind_to_service(self.service_ref())
+        return avalue
+
+
+class FunctionImport(types.Annotatable, types.Named):
+
+    csdl_name = "FunctionImport"
+
+    def __init__(self, **kwargs):
+        super(FunctionImport, self).__init__(**kwargs)
+        self.function_def = None
+        self.service_ref = None
+        self.in_service = False
+        # the URL of this FunctionImport within a published container
+        self.url = None
+
+    def set_function_overload(self, function_def):
+        self.function_def = function_def
+
+    def set_in_service(self, in_service):
+        self.in_service = in_service
+
+    def bind_to_service(self, service_ref):
+        """Binds this FunctionImport to a data service
+
+        service_ref
+            A weak reference to the service
+
+        A FunctionImport can only be bound to a single service."""
+        self.service_ref = service_ref
+
+    def get_url(self):
+        """Return a URI for this FunctionImport
+
+        FunctionImports that are bound to a service have a URL comprised
+        of the service root followed by the FunctionImport name.  By
+        default the URI is a relative URI consisting of just the
+        FunctionImport name."""
+        if not self.in_service:
+            return None
+        elif self.url is not None:
+            return self.url
+        else:
+            return uri.URI.from_octets(
+                uri.escape_data(self.name.encode('utf-8')))
+
+    def set_url(self, url):
+        self.url = url
+
+    def __call__(self, params=None):
+        """Returns a :class:`CallableValue` instance
+
+        params
+            An optional list of parameter names used for disambiguation
+            in cases where the FunctionImport points to an overloaded
+            function.  If the Function is not overloaded this may be
+            omitted."""
+        if not self.service_ref:
+            raise errors.UnboundValue(
+                "Can't call %s in unbound EntityModel" % self.name)
+        f_def = self.function_def.resolve(None, params)
+        if f_def is None:
+            raise errors.ODataError("No matching Function declared")
+        fvalue = f_def()
+        fvalue.set_callable_binding(self)
+        fvalue.bind_to_service(self.service_ref())
+        return fvalue
+
+
+class Evaluator(object):
+
+    """An object used to evaluate expressions
+
+    Expressions in OData are very general and can touch all of the
+    concepts within the model.  Some expressions contain qualified names
+    that must be looked up in the context of a specific EntityModel.  A
+    notable example is the way enumeration constants are represented in
+    OData.
+
+    The special value $it, used in inline expressions, represents a
+    Value object that provides the immediate context for the
+    evaluation.  We generalise this concept to allow elements in the
+    metadata model to be '$it' too (with a more limited set of valid
+    expression types) so that the same evaluator can be used for
+    expressions declared in the metadata model (in applied Annotations).
+
+    If $it is a bound Value instance then the owning service's model is
+    used for any required name look-ups.  If $it is a metadata model
+    element then the EntityModel in which $it was originally defined is
+    used as the context for look-ups.  Similarly, if $it is an unbound
+    Value then the EntityModel in which its type was originally defined
+    is used.  These rules impose some technical limitations as the use
+    of Reference/Include could be used to engineer a situation in which
+    a name is undefined at the point of use but such models are clearly
+    against the spirit, if not the letter, of the specification and
+    should not cause difficulties in practice.
+
+    For completeness, we allow the special case where $it is null (or
+    omitted) to allow constant expressions to be evaluated.  Expressions
+    that require an EntityModel (including Enumeration constants) will
+    raise an evaluation exception when $it is null."""
+
+    def __init__(self, it=None):
+        self.it = primitive.PrimitiveValue() if it is None else it
+        if isinstance(self.it, types.Value):
+            if self.it.service:
+                self.em = self.it.service().model
+            else:
+                # unbound value, use type
+                self.em = self.it.type_def.get_model()
+        elif isinstance(self.it, types.NominalType):
+            self.em = self.it.get_model()
+        elif isinstance(self.it, EntityContainer):
+            self.em = self.it.get_model()
+        elif isinstance(self.it, (Property, NavigationProperty)):
+            if self.it.nametable is not None:
+                self.em = self.it.nametable().get_model()
+            else:
+                self.em = None
+        else:
+            self.em = None
+
+    @classmethod
+    def evaluate_annotation(cls, a, it):
+        if a.expression is None:
+            # get the declaring term's default (or null)
+            return a.term.get_default()
+        else:
+            return cls(it).evaluate(a.expression)
+
+    def evaluate(self, expression):
+        """Evaluates a common expression
+
+        By default, returns a :class:`types.Value` instance or raises an
+        expression error if the expression can't be evaluated.
+
+        The evaluator works by calling the basic expression objects
+        defined in the underlying types module which then call the
+        appropriate method in this object to transform or compose the
+        input value(s).
+
+        This technique allows alternative evaluators that return
+        something other than Value objects to be derived from this class
+        with their own implementations of the implementation methods to
+        provide alternative evaluations of the same expression: for
+        example, to return a string representation of the expression or
+        to build a query that represents the expression suitable for
+        accessing some other data storage system (like SQL)."""
+        return expression.evaluate(self)
+
+    def primitive(self, value):
+        """Evaluates a primitive literal
+
+        value is always an instance of the python type representing the
+        primitive literal (None represents null).  By default it returns
+        a :class:`primitive.PrimitiveValue` instance created from the
+        value."""
+        return primitive.PrimitiveValue.from_value(value)
+
+
+types.Value.Evaluator = Evaluator
 
 edm = Schema.edm_init()
 odata = Schema.odata_init()

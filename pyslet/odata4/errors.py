@@ -27,9 +27,21 @@ class ServiceError(ODataError):
         self.http_msg = http_msg
 
 
+class OptimisticConcurrencyError(ODataError):
+
+    """Error raised by etag mismatch"""
+    pass
+
+
 class BoundValue(ODataError):
 
     """Raised when an operation is not permitted on a bound value"""
+    pass
+
+
+class InvalidEntityID(ODataError):
+
+    """Raised when ID information is missing for an entity"""
     pass
 
 
@@ -1248,6 +1260,133 @@ Requirement.term_type_s = (
     "The edm:Term element MUST include a Type attribute whose value is "
     "a TypeName (%s)")
 Req40.term_type_s = "4.0 P3 14.1.2 (%s)"
+
+Requirement.term_base_s = (
+    "The value of the BaseTerm attribute MUST be the name of a term in "
+    "scope (%s)")
+Req40.term_base_s = "4.0 P3 14.1.3 #1 (%s)"
+
+# TODO as unitest on Annotatable
+Requirement.term_base_applied_s = (
+    "the base term MUST also be applied with the same qualifier (%s)")
+Req40.term_base_applied_s = "4.0 P3 14.1.3 #2 (%s)"
+
+# Never raised, handled by the underlying XML parser
+Requirement.term_string_default = (
+    "Default values of type Edm.String MUST be represented according to "
+    "the XML escaping rules for character data in attribute values")
+Req40.term_string_default = "4.0 P3 14.1.4 #1"
+
+Requirement.term_prim_default_s = (
+    "Values of primitive types other than Edm.String MUST be represented "
+    "according to the appropriate primitiveValue (%s)")
+Req40.term_prim_default_s = "4.0 P3 14.1.4 #2 (%s)"
+
+Requirement.annotations_children = (
+    "The edm:Annotations element MUST contain at least one "
+    "edm:Annotation element")
+Req40.annotations_children = "4.0 P3 14.2"
+
+Requirement.annotations_target = (
+    "The edm:Annotations element MUST include a Target attribute whose "
+    "value is a path expression")
+Req40.annotations_target = "4.0 P3 14.2.1 #1"
+
+Requirement.annotations_target_s = (
+    "The Target attribute MUST resolve to a model element in the entity "
+    "model (%s)")
+Req40.annotations_target_s = "4.0 P3 14.2.1 #2 (%s)"
+
+Requirement.annotation_term = (
+    "An annotation element MUST provide a QualifiedName value for the "
+    "Term attribute")
+Req40.annotation_term = "4.0 P3 14.3.1 #1"
+
+Requirement.annotation_term_declared_s = (
+    "The value of the Term attribute MUST be the name of a term in scope (%s)")
+Req40.annotation_term_declared_s = "4.0 P3 14.3.1 #2 (%s)"
+
+Requirement.annotation_applies_s = (
+    "The target of the annotation MUST comply with any AppliesTo "
+    "constraint (%s)")
+Req40.annotation_applies_s = "4.0 P3 14.3.1 #3 (%s)"
+
+Requirement.annotation_qualifier_s = (
+    "Annotation elements MUST NOT provide a value for the qualifier "
+    "attribute if the parent edm:Annotations element provides one (%s)")
+Req40.annotation_qualifier_s = "4.0 P3 14.3.2 (%s)"
+
+Requirement.annotation_binary_s = (
+    "A binary expression MUST be assigned a value conforming to the rule "
+    "binaryValue (%s)")
+Req40.annotation_binary_s = "4.0 P3 14.4.1 (%s)"
+
+Requirement.annotation_bool_s = (
+    "A Boolean expression MUST be assigned a Boolean value (%s)")
+Req40.annotation_bool_s = "4.0 P3 14.4.2 (%s)"
+
+Requirement.annotation_date_s = (
+    "A date expression MUST be assigned a value of type xs:date and "
+    "also conform to rule dateValue; it MUST NOT contain a time-zone "
+    "offset (%s)")
+Req40.annotation_date_s = "4.0 P3 14.4.3 (%s)"
+
+Requirement.annotation_datetime_s = (
+    "A date/time expression MUST be assigned a value of type "
+    "xs:dateTimeStamp and also conform to rule dateTimeOffsetValue; it "
+    "MUST NOT contain an end-of-day fragment (%s)")
+Req40.annotation_datetime_s = "4.0 P3 14.4.4 (%s)"
+
+Requirement.annotation_decimal_s = (
+    "A decimal expression MUST be assigned a value conforming to the rule "
+    "decimalValue (%s)")
+Req40.annotation_decimal_s = "4.0 P3 14.4.5 (%s)"
+
+Requirement.annotation_duration_s = (
+    "A duration expression MUST be assigned a value of type "
+    "xs:dayTimeDuration (%s)")
+Req40.annotation_duration_s = "4.0 P3 14.4.6 (%s)"
+
+Requirement.annotation_enum_s = (
+    "An enumeration member expression MUST be assigned a value that "
+    "consists of the qualified name of the enumeration type, followed "
+    "the name of the member (%s)")
+Req40.annotation_enum_s = "4.0 P3 14.4.7 #1 (%s)"
+
+Requirement.annotation_enum_member_s = (
+    "Each enumeration member value MUST resolve to the name of a member of "
+    "the enumeration type of the specified term (%s)")
+Req40.annotation_enum_member_s = "4.0 P3 14.4.7 #2 (%s)"
+
+Requirement.annotation_float_s = (
+    "A float expression MUST be assigned a value conforming to the "
+    "rule doubleValue (%s)")
+Req40.annotation_float_s = "4.0 P3 14.4.8 (%s)"
+
+Requirement.annotation_guid_s = (
+    "A guid expression MUST be assigned a value conforming to the rule "
+    "guidValue (%s)")
+Req40.annotation_guid_s = "4.0 P3 14.4.9 (%s)"
+
+Requirement.annotation_int_s = (
+    "An integer MUST be assigned a value conforming to the rule "
+    "int64Value (%s)")
+Req40.annotation_int_s = "4.0 P3 14.4.10 (%s)"
+
+# Checked by the underlying XML parser only, never raised
+Requirement.annotation_string_s = (
+    "A string expression MUST be assigned a value of the type xs:string (%s)")
+Req40.annotation_string_s = "4.0 P3 14.4.11 (%s)"
+
+Requirement.annotation_time_s = (
+    "A time-of-day expression MUST be assigned a value conforming to the "
+    "rule timeOfDayValue (%s)")
+Req40.annotation_time_s = "4.0 P3 14.4.12 (%s)"
+
+Requirement.annotation_path_s = (
+    "The edm:AnnotationPath expression uses the same syntax as edm:Path "
+    "except that the last path segment MUST be a term cast (%s)")
+Req40.annotation_path_s = "4.0 P3 14.5.2 (%s)"
 
 
 #

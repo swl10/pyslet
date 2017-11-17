@@ -756,7 +756,7 @@ class EntityTag(SortableParameter):
         entity tag.  Defaults to True.
 
     Instances are compared by tag and then, if the tags match, by
-    wheather the tag is weak or not."""
+    whether the tag is weak or not."""
 
     def __init__(self, tag, weak=True):
         #: True if this is a weak tag

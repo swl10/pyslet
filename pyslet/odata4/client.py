@@ -4,11 +4,13 @@ import logging
 
 from . import errors
 from . import metadata as csdlxml
+from . import model as csdl
 from . import parser
 from .payload import Payload
 from .service import (
     DataRequest,
     DataService,
+    ODataURL
     )
 
 from ..http import client as http
@@ -159,6 +161,11 @@ class Client(DataService):
         request = EntityByKeyRequest(self, (entity_set, key))
         return request
 
+    def get_entity(self, entity):
+        """Creates a request to get an entity (reload)"""
+        request = EntityRequest(self, entity)
+        return request
+
     def get_collection(self, collection, next_link=None):
         """Creates a request to get a general collection"""
         request = IterateRequest(self, collection, url=next_link)
@@ -193,6 +200,16 @@ class Client(DataService):
         request = DeleteByKeyRequest(self, (entity_set, key))
         return request
 
+    def call_function(self, function):
+        """Creates a request for an unbound function call"""
+        request = FunctionCallRequest(self, function)
+        return request
+
+    def call_action(self, action):
+        """Creates a request for an unbound function call"""
+        request = ActionCallRequest(self, action)
+        return request
+
 
 class ClientDataRequest(DataRequest):
 
@@ -225,7 +242,7 @@ class ClientDataRequest(DataRequest):
 class CountRequest(ClientDataRequest):
 
     def create_request(self):
-        self.url = self.get_value_url(self.target)
+        self.url = self.service.get_value_url(self.target)
         if self.target.item_type is not self.target.type_def.item_type:
             # add a type_cast segment to the URL
             self.url.add_path_segment(self.target.item_type.qname)
@@ -266,7 +283,7 @@ class IterateEntitiesRequest(ClientDataRequest):
     def create_request(self):
         # target is an entity set value
         if self.url is None:
-            self.url = self.get_value_url(self.target)
+            self.url = self.service.get_value_url(self.target)
             if self.target.item_type is not self.target.type_def.item_type:
                 # add a type_cast segment to the URL
                 self.url.add_path_segment(self.target.item_type.qname)
@@ -301,7 +318,7 @@ class SingletonRequest(ClientDataRequest):
 
     def create_request(self):
         # target is a singleton value
-        self.url = self.get_value_url(self.target)
+        self.url = self.service.get_value_url(self.target)
         if self.target.item_type is not self.target.type_def.item_type:
             # add a type_cast segment to the URL
             self.url.add_path_segment(self.target.item_type.qname)
@@ -345,9 +362,9 @@ class EntityByKeyRequest(ClientDataRequest):
             # just use the key-predicate form of index look-up note that:
             # People('steve')?$filter=UserName eq 'dave'
             # is not allowed in OData v4 so if a filter is in force we
-            # convert this to:
+            # will convert this to (TODO):
             # People?$filter=UserName eq 'steve' and UserName eq 'dave'
-            self.url = self.get_value_url(target_set)
+            self.url = self.service.get_value_url(target_set)
             if entity_type is not target_set.type_def.item_type:
                 self.url.add_path_segment(target_set.item_type.qname)
             self.url.add_key_predicate(key)
@@ -355,15 +372,15 @@ class EntityByKeyRequest(ClientDataRequest):
                 self.url.set_select(target_set.options.select)
                 self.url.set_expand(target_set.options.expand)
         elif not self.service.conventional_ids or target_set.name or \
-                (target_set.options is None or
-                 target_set.options.filter is None):
+                not (target_set.options is None or
+                     target_set.options.filter is None):
             # Problem #1: we don't know the id of the entity or we
             # are indexing a navigation property or otherwise filtered
             # entity set, turn the key dictionary into a filter and
             # filter the entity set, it's the only way
             raise NotImplementedError("Entity by key without conventional IDs")
         else:
-            id = self.get_value_url(target_set)
+            id = self.service.get_value_url(target_set)
             id.add_key_predicate(key)
             if self.service.derefenceable_ids:
                 self.url = id
@@ -420,13 +437,13 @@ class DeleteByKeyRequest(ClientDataRequest):
             np = parent.type_def[target_set.name]
             if np.containment:
                 if self.service.conventional_ids:
-                    id = self.get_value_url(target_set)
+                    id = self.service.get_value_url(target_set)
                     id.add_key_predicate(key)
                     self.url = id
             elif id:
                 # navigation property, not contained
                 # just delete the reference
-                self.url = self.get_value_url(target_set)
+                self.url = self.service.get_value_url(target_set)
                 self.url.set_id(id)
         else:
             # delete this entity from it's owning entity set
@@ -453,7 +470,7 @@ class PropertyRequest(ClientDataRequest):
 
     def create_request(self):
         # target is a property value (primitive or complex)
-        self.url = self.get_value_url(self.target)
+        self.url = self.service.get_value_url(self.target)
         # add in any specified query options...
         # you can't add select to a complex property
         self.http_request = http.ClientRequest(str(self.url))
@@ -475,7 +492,7 @@ class IterateRequest(ClientDataRequest):
     def create_request(self):
         # target is a collection
         if self.url is None:
-            self.url = self.get_value_url(self.target)
+            self.url = self.service.get_value_url(self.target)
             if self.target.item_type is not self.target.type_def.item_type:
                 # add a type_cast segment to the URL
                 self.url.add_path_segment(self.target.item_type.qname)
@@ -513,7 +530,7 @@ class InsertEntityRequest(ClientDataRequest):
     def create_request(self):
         # target is an entity set (or collection) and an entity
         target_collection, entity = self.target
-        self.url = self.get_value_url(target_collection)
+        self.url = self.service.get_value_url(target_collection)
         payload = Payload(self)
         # create the payload to POST
         jbytes = payload.to_json(
@@ -548,11 +565,35 @@ class InsertEntityRequest(ClientDataRequest):
                 self.http_request.status, self.http_request.response.reason)
 
 
+class EntityRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is an entity value
+        self.url = self.service.get_value_url(self.target, edit=True)
+        self.http_request = http.ClientRequest(str(self.url), "GET")
+
+    def set_response(self):
+        if self.http_request.status == 404:
+            self.result = errors.ServiceError(
+                "Entity does not exist", 404,
+                self.http_request.response.reason)
+            return
+        elif self.http_request.status != 200:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+            return
+        payload = Payload.from_message(
+            self.http_request.url, self.http_request.response, self.service)
+        payload.obj_from_bytes(self.target, self.http_request.res_body)
+        self.result = self.target
+
+
 class PatchEntityRequest(ClientDataRequest):
 
     def create_request(self):
         # target is an entity value
-        self.url = self.get_value_url(self.target, edit=True)
+        self.url = self.service.get_value_url(self.target, edit=True)
         payload = Payload(self)
         # create the payload for PATCH, suppress the odata.type
         jbytes = payload.to_json(
@@ -561,12 +602,122 @@ class PatchEntityRequest(ClientDataRequest):
         self.http_request = http.ClientRequest(
             str(self.url), "PATCH", entity_body=jbytes)
         self.http_request.set_content_type(payload.get_media_type())
+        odata_etag = self.target.get_annotation("@odata.etag")
+        if odata_etag:
+            # add an If-Match header
+            self.http_request.set_header(
+                "If-Match", odata_etag.get_value())
 
     def set_response(self):
-        if self.http_request.status < 200 or self.http_request.status >= 400:
+        if self.http_request.status in (412, 428):
+            self.result = errors.OptimisticConcurrencyError()
+        elif self.http_request.status < 200 or self.http_request.status >= 400:
             self.result = UnexpectedHTTPResponse(
                 to_text(self.url),
                 self.http_request.status, self.http_request.response.reason)
         else:
             self.result = None
             self.target.rclean()
+            # remove any etag after a successful patch and clean
+            self.target.remove_updatable_annotation("@odata.etag")
+
+
+class FunctionCallRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is a CallableValue
+        function = self.target
+        if isinstance(function.binding, csdl.FunctionImport):
+            # unbound call, use name of FunctionImport
+            self.url = ODataURL(self.service)
+            self.url.add_path_segment(function.binding.name)
+        else:
+            # add this function call to the URL of the binding
+            self.url = self.service.get_value_url(function.binding)
+            self.url.add_path_segment(function.type_def.qname)
+        self.url.add_inline_params(function)
+        self.http_request = http.ClientRequest(str(self.url))
+
+    def set_response(self):
+        # create a null/empty return value
+        function = self.target
+        return_value = function.new_return_value()
+        collection = isinstance(return_value, csdl.CollectionValue)
+        if self.http_request.status == 204:
+            # single-valued function (with a nullable return-type)
+            if not collection:
+                self.result = UnexpectedHTTPResponse(
+                    to_text(self.url), self.http_request.status,
+                    self.http_request.response.reason)
+            else:
+                self.result = return_value
+        elif self.http_request.status >= 400:
+            # single valued function with a non-nullable return type
+            if not collection:
+                self.result = None
+            else:
+                self.result = UnexpectedHTTPResponse(
+                    to_text(self.url), self.http_request.status,
+                    self.http_request.response.reason)
+        elif self.http_request.status == 200:
+            # read the result
+            if self.http_request.res_body:
+                payload = Payload.from_message(
+                    self.http_request.url, self.http_request.response,
+                    self.service)
+                payload.obj_from_bytes(
+                    return_value, self.http_request.res_body)
+            self.result = return_value
+        else:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url), self.http_request.status,
+                self.http_request.response.reason)
+
+
+class ActionCallRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is a CallableValue
+        action = self.target
+        if isinstance(action.binding, csdl.ActionImport):
+            # unbound call, use name of ActionImport
+            self.url = ODataURL(self.service)
+            self.url.add_path_segment(action.binding.name)
+        else:
+            # add this action call to the URL of the binding
+            self.url = self.service.get_value_url(action.binding)
+            self.url.add_path_segment(action.type_def.qname)
+        payload = Payload(self)
+        # create the payload for POST
+        jbytes = payload.to_json(self.target)
+        jbytes = jbytes.getvalue()
+        self.http_request = http.ClientRequest(
+            str(self.url), "POST", entity_body=jbytes)
+        self.http_request.set_content_type(payload.get_media_type())
+
+    def set_response(self):
+        # create a null/empty return value
+        action = self.target
+        return_value = action.new_return_value()
+        collection = isinstance(return_value, csdl.CollectionValue)
+        if self.http_request.status == 204:
+            # nullable or no return value
+            if collection:
+                self.result = UnexpectedHTTPResponse(
+                    to_text(self.url), self.http_request.status,
+                    self.http_request.response.reason)
+            else:
+                self.result = return_value
+        elif self.http_request.status == 200:
+            # read the result
+            if self.http_request.res_body:
+                payload = Payload.from_message(
+                    self.http_request.url, self.http_request.response,
+                    self.service)
+                payload.obj_from_bytes(
+                    return_value, self.http_request.res_body)
+            self.result = return_value
+        else:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url), self.http_request.status,
+                self.http_request.response.reason)

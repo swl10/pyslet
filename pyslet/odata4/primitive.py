@@ -28,7 +28,7 @@ from ..py2 import (
 from ..xml import xsdatatypes as xsi
 
 
-class PrimitiveType(types.Annotatable, types.NominalType):
+class PrimitiveType(types.NominalType):
 
     """A Primitive Type declaration
 
@@ -670,6 +670,20 @@ class NumericValue(PrimitiveValue):
             raise ValueError("null value has no text representation")
         return to_text(self.value)
 
+    def assign(self, value):
+        """Sets this value from another Value instance.."""
+        if value.is_null():
+            self.set_value(None)
+        elif isinstance(value, NumericValue):
+            # Numeric primitive types are cast to each other with
+            # appropriate rounding. The cast fails if the integer part
+            # doesn't fit into target type.
+            self.set_value(value.get_value())
+        else:
+            raise TypeError(
+                "Can't assign %s from %s" %
+                (to_text(self.type_def), to_text(value.type_def)))
+
     def cast(self, type_def):
         """Implements the numeric cast exceptions"""
         if issubclass(type_def.value_type, NumericValue):
@@ -868,6 +882,17 @@ class BooleanValue(PrimitiveValue):
         else:
             self.value = True if value else False
         self.touch()
+
+    def assign(self, value):
+        """Sets this value from another Value instance.."""
+        if value.is_null():
+            self.set_value(None)
+        elif isinstance(value, BooleanValue):
+            self.set_value(value.get_value())
+        else:
+            raise TypeError(
+                "Can't assign %s from %s" %
+                (to_text(self.type_def), to_text(value.type_def)))
 
     def __unicode__(self):
         if self.value is None:
@@ -1568,6 +1593,22 @@ class StringValue(PrimitiveValue):
             self.value = new_value
         self.touch()
 
+    def assign(self, value):
+        """Sets this value from another Value instance.."""
+        if value.is_null():
+            self.set_value(None)
+        elif isinstance(value, StringValue):
+            self.set_value(value.get_value())
+        elif isinstance(value, PrimitiveValue):
+            # Primitive types are cast to Edm.String or a type
+            # definition based on it by using the literal representation
+            # used in payloads
+            self.set_value(to_text(value))
+        else:
+            raise TypeError(
+                "Can't assign %s from %s" %
+                (to_text(self.type_def), to_text(value.type_def)))
+
     @classmethod
     def from_str(cls, src):
         return cls(src)
@@ -2052,3 +2093,7 @@ edm_geometry_multi_point = GeometryMultiPointValue.edm_type()
 edm_geometry_multi_line_string = GeometryMultiLineStringValue.edm_type()
 edm_geometry_multi_polygon = GeometryMultiPolygonValue.edm_type()
 edm_geometry_collection = GeometryCollectionValue.edm_type()
+# vocabulary only types are derived from StringValue
+edm_annotation_path = StringValue.edm_type()
+edm_property_path = StringValue.edm_type()
+edm_navigation_property_path = StringValue.edm_type()

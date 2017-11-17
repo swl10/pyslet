@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Annotation Term="Vocab.Description">
+            <String>A simple vocabulary for testing</String>
+          </Annotation>
+          <Term Name="Description" Type="Edm.String">
+            <Annotation Term="Vocab.Description" String="Which comes first,
+                the Annnotation or the Term?" />
+          </Term>
+          <!-- The Target attribute MUST resolve to a model element in
+          the entity model -->
+          <Annotations Target="vocab.pyslet.org.Height">            
+            <Annotation Term="Vocab.Description" String="Age of item" />
+          </Annotations>
+          <Term Name="Age" Type="Edm.Int32" DefaultValue="10">
+          </Term>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

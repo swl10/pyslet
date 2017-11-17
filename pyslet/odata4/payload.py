@@ -54,6 +54,7 @@ class Payload(object):
         self.ieee754_compatible = False
         self.exponential_decimals = False
         self.charset = "utf-8"
+        self.etag = None
         self.odata_type = None
         self.odata_type_stack = []
         self.odata_context = None
@@ -85,6 +86,7 @@ class Payload(object):
                 content_type.subtype != "json":
             raise NotImplementedError("Expected application/json")
         result.set_media_type(content_type)
+        result.etag = message.get_etag()
         return result
 
     def set_media_type(self, content_type):
@@ -123,6 +125,11 @@ class Payload(object):
             the object.
 
         There is no return value."""
+        if isinstance(obj, csdl.EntityValue) and self.etag is not None:
+            # set the etag on this entity
+            term = self.service.model.qualified_get("odata.etag")
+            a = obj.get_updatable_annotation(term)
+            a.set_value(to_text(self.etag))
         jdict = json.loads(data.decode(self.charset))
         self.obj_from_json_value(obj, jdict)
 
@@ -179,20 +186,21 @@ class Payload(object):
         for name, value in jdict.items():
             if '@' not in name:
                 continue
-            target, qname, q = \
-                types.QualifiedAnnotation.split_json_name(name)
+            target, tref = \
+                types.Annotation.split_json_name(name)
             if target:
                 target_dict = annotations.setdefault(target, {})
-                aname = "@" + to_text(qname)
-                if q:
-                    aname += "#" + q
-                target_dict[aname] = value
-            elif isinstance(obj, types.Annotatable):
-                qa = types.QualifiedAnnotation.from_qname(
-                    qname, self.service.model, qualifier=q)
-                if qa:
-                    self.obj_from_json_value(qa.value, value)
-                    obj.annotate(qa)
+                target_dict[to_text(tref)] = value
+            elif isinstance(obj, types.Value):
+                term = self.service.model.qualified_get(tref.name)
+                a_value = obj.get_updatable_annotation(term, tref.qualifier)
+                self.obj_from_json_value(a_value, value)
+            else:
+                logging.warning(
+                    "Ignored annotation on model element: %s", name)
+                # TODO: look up the annotation, create or update the
+                # annotation with a constant expression from the
+                # provided value.
         if isinstance(obj, csdl.EntityModel):
             # we are parsing a service document
             logging.debug("Service root format: %s", str(jdict))
@@ -344,6 +352,8 @@ class Payload(object):
             return self.generate_structured(obj, type_def=type_def)
         elif isinstance(obj, csdl.CollectionValue):
             return self.generate_collection(obj, type_def=type_def)
+        elif isinstance(obj, csdl.CallableValue):
+            return self.generate_callable(obj)
         else:
             logging.error(
                 "JSON serialization of %s not yet supported", repr(obj))
@@ -372,6 +382,9 @@ class Payload(object):
                 kind = "Singleton"
             elif isinstance(item, csdl.FunctionImport):
                 kind = "FunctionImport"
+            elif isinstance(item, csdl.ActionImport):
+                # ActionImports are not available in the service document
+                continue
             else:
                 raise NotImplementedError(repr(item))
             item_bytes.append(
@@ -422,6 +435,33 @@ class Payload(object):
                         odata_type).encode(self.charset)
             yield b"%s:" % json.dumps(pname).encode(self.charset)
             for data in self.generate_json(pvalue, type_def=ptype):
+                yield data
+        yield b'}'
+
+    def generate_callable(self, cvalue):
+        if cvalue.is_null():
+            yield "null"
+            return
+        yield b'{'
+        comma = False
+        for pname, pvalue in cvalue.items():
+            if comma:
+                yield b','
+            else:
+                comma = True
+            odata_type = None
+            if isinstance(pvalue, csdl.StructuredValue) and \
+                    pvalue.base_def != pvalue.type_def:
+                odata_type = pvalue.type_def.get_odata_type_fragment()
+            elif isinstance(pvalue, csdl.CollectionValue) and \
+                    pvalue.item_type != pvalue.type_def.item_type:
+                odata_type = "Collection(%s)" % pvalue.item_type.\
+                    get_odata_type_fragment()
+            if odata_type:
+                yield b"@odata.type:%s," % json.dumps(
+                    odata_type).encode(self.charset)
+            yield b"%s:" % json.dumps(pname).encode(self.charset)
+            for data in self.generate_json(pvalue, type_def=pvalue.type_def):
                 yield data
         yield b'}'
 

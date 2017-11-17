@@ -3,10 +3,10 @@
 import collections
 import logging
 import unittest
+import weakref
 
 from pyslet.odata4 import errors
 from pyslet.odata4 import model as odata
-from pyslet.odata4 import primitive
 from pyslet.odata4 import types
 from pyslet.py2 import (
     is_text,
@@ -18,7 +18,7 @@ from pyslet.py2 import (
 
 def suite():
     return unittest.TestSuite((
-        unittest.makeSuite(QualifiedNameTests, 'test'),
+        unittest.makeSuite(TupleTests, 'test'),
         unittest.makeSuite(NameTableTests, 'test'),
         unittest.makeSuite(AnnotationTests, 'test'),
         unittest.makeSuite(NominalTypeTests, 'test'),
@@ -76,9 +76,22 @@ bad_namespaces = (
     )
 
 
-class QualifiedNameTests(unittest.TestCase):
+class TupleTests(unittest.TestCase):
 
-    def test_simple(self):
+    def test_simple_identifier(self):
+        for s in good_simple_identifiers:
+            try:
+                self.assertTrue(types.simple_identifier_from_str(s) == s)
+            except ValueError:
+                self.fail("Good identifier: %s" % repr(s))
+        for s in bad_simple_identifiers:
+            try:
+                types.simple_identifier_from_str(s)
+                self.fail("Bad identifier: %s" % repr(s))
+            except ValueError:
+                pass
+
+    def test_simple_qname(self):
         qname = types.QualifiedName(
             namespace="Some.Vocabulary.V1", name="Hello")
         self.assertTrue(qname.namespace == "Some.Vocabulary.V1")
@@ -86,10 +99,142 @@ class QualifiedNameTests(unittest.TestCase):
         self.assertTrue(
             to_text(qname) == "Some.Vocabulary.V1.Hello")
 
-    def test_invalid(self):
+    def test_invalid_qname(self):
         # check that NO value checking is performed
         qname = types.QualifiedName(namespace="45", name="*")
         self.assertTrue(to_text(qname) == "45.*")
+
+    def test_path_from_str(self):
+        path = types.path_from_str("")
+        self.assertTrue(isinstance(path, tuple), "path is tuple")
+        self.assertTrue(len(path) == 0, "empty path")
+        path = types.path_from_str("Hello")
+        self.assertTrue(is_text(path[0]))
+        self.assertTrue(path == ('Hello', ), "simple path")
+        path = types.path_from_str("Hello/Mum")
+        self.assertTrue(is_text(path[1]))
+        self.assertTrue(path == ('Hello', 'Mum'))
+        path = types.path_from_str("Hello/Schema.Mum")
+        self.assertTrue(isinstance(path[1], types.QualifiedName))
+        self.assertTrue(path[1] == ('Schema', 'Mum'))
+        path = types.path_from_str("Hello/@Schema.Mum#Dad")
+        self.assertTrue(isinstance(path[1], types.TermRef))
+        self.assertTrue(path[1] == (('Schema', 'Mum'), 'Dad'))
+
+    def test_bad_paths(self):
+        # The at (@) character MUST be followed by a QualifiedName
+        for src in ("@BadQname", "Bad/45", "Bad/Qualifier/@A.B#45"):
+            try:
+                types.path_from_str(src)
+                self.fail("Bad path: %s" % src)
+            except ValueError:
+                pass
+
+    def test_apath_from_str(self):
+        apath = types.annotation_path_from_str("Hello/@Schema.Mum#Dad")
+        self.assertTrue(isinstance(apath[1], types.TermRef))
+        self.assertTrue(apath[1] == (('Schema', 'Mum'), 'Dad'))
+        apath = types.annotation_path_from_str("Hello/@Schema.Mum")
+        self.assertTrue(isinstance(apath[1], types.TermRef))
+        self.assertTrue(apath[1] == (('Schema', 'Mum'), None))
+        for src in (
+                "", "Hello", "Hello/Mum", "@BadQname",
+                "Bad/Qualifier/@A.B#", "BadSegment/45/@Schema.Mum#Dad"):
+            try:
+                apath = types.annotation_path_from_str(src)
+                self.fail("Bad path: %s" % src)
+            except ValueError:
+                pass
+
+    def test_enum_literal(self):
+        elit = types.EnumLiteral(
+            qname=types.QualifiedName.from_str('org.example.Pattern'),
+            value=('Red', ))
+        self.assertTrue(elit.qname == ('org.example', 'Pattern'))
+        self.assertTrue(elit.value == ('Red', ))
+        self.assertTrue(
+            to_text(elit) == "org.example.Pattern'Red'", to_text(elit))
+        self.assertTrue(
+            elit.to_xml_str() == "org.example.Pattern/Red")
+        elit = types.EnumLiteral(
+            qname=types.QualifiedName.from_str('org.example.Pattern'),
+            value=(1, ))
+        self.assertTrue(elit.qname == ('org.example', 'Pattern'))
+        self.assertTrue(elit.value == (1, ))
+        self.assertTrue(
+            to_text(elit) == "org.example.Pattern'1'")
+        try:
+            elit.to_xml_str()
+            self.fail("Numeric literal in xml notation")
+        except ValueError:
+            pass
+        elit = types.EnumLiteral(
+            qname=types.QualifiedName.from_str('org.example.Pattern'),
+            value=('Red', 'Green', 'Blue'))
+        self.assertTrue(
+            to_text(elit) == "org.example.Pattern'Red,Green,Blue'")
+        self.assertTrue(
+            elit.to_xml_str() == "org.example.Pattern/Red "
+            "org.example.Pattern/Green org.example.Pattern/Blue")
+        elit = types.EnumLiteral(
+            qname=types.QualifiedName.from_str('org.example.Pattern'),
+            value=('Red', 2, 'Blue'))
+        self.assertTrue(
+            to_text(elit) == "org.example.Pattern'Red,2,Blue'")
+        try:
+            elit.to_xml_str()
+            self.fail("Numeric literal in xml notation")
+        except ValueError:
+            pass
+
+    def test_enum_literal_from_str(self):
+        elit = types.EnumLiteral.from_str("org.example.Pattern'Red'")
+        self.assertTrue(isinstance(elit, types.EnumLiteral))
+        self.assertTrue(elit.qname == ('org.example', 'Pattern'))
+        self.assertTrue(elit.value == ('Red', ))
+        elit = types.EnumLiteral.from_str(
+            "org.example.Pattern'Red,Green,Blue'")
+        self.assertTrue(elit.qname == ('org.example', 'Pattern'))
+        self.assertTrue(elit.value == ('Red', 'Green', 'Blue'))
+        elit = types.EnumLiteral.from_str(
+            "org.example.Pattern'Red,2,Blue'")
+        self.assertTrue(elit.qname == ('org.example', 'Pattern'))
+        self.assertTrue(elit.value == ('Red', 2, 'Blue'))
+        for src in (
+                "", "org.example.Pattern", "org.example.Pattern''",
+                "org.example.Pattern'Red Green'",
+                "org.example.Pattern'Red 2'",
+                "org.example.Pattern'Red' org.example.Pattern'Green'"
+                ):
+            try:
+                elit = types.EnumLiteral.from_str(src)
+                self.fail("Bad enum xml literal: %s" % src)
+            except ValueError:
+                pass
+
+    def test_enum_literal_from_xml_str(self):
+        elit = types.EnumLiteral.from_xml_str("org.example.Pattern/Red")
+        self.assertTrue(isinstance(elit, types.EnumLiteral))
+        self.assertTrue(elit.qname == ('org.example', 'Pattern'))
+        self.assertTrue(elit.value == ('Red', ))
+        elit = types.EnumLiteral.from_xml_str(
+            "org.example.Pattern/Red org.example.Pattern/Green "
+            "org.example.Pattern/Blue")
+        self.assertTrue(elit.qname == ('org.example', 'Pattern'))
+        self.assertTrue(elit.value == ('Red', 'Green', 'Blue'))
+        for src in (
+                "", "org.example.Pattern", "org.example.Pattern/1",
+                "org.example.Pattern/Red/Green",
+                "org.example.Pattern/Red,org.example.Pattern/Green",
+                "org.example.Pattern/Red gro.example.Pattern/Green",
+                "org.example.Pattern'Red'",
+                "org.example.Pattern'1'"
+                ):
+            try:
+                elit = types.EnumLiteral.from_xml_str(src)
+                self.fail("Bad enum xml literal: %s" % src)
+            except ValueError:
+                pass
 
 
 class NameTableTests(unittest.TestCase):
@@ -106,14 +251,6 @@ class NameTableTests(unittest.TestCase):
 
         self.mock_class = MockSchema
         self.mock_ns = MockSchema()
-
-    def test_simple_identifier(self):
-        for s in good_simple_identifiers:
-            self.assertTrue(types.NameTable.is_simple_identifier(s),
-                            "%s failed" % repr(s))
-        for s in bad_simple_identifiers:
-            self.assertFalse(types.NameTable.is_simple_identifier(s),
-                             "%s failed" % repr(s))
 
     def test_namespace(self):
         for s in good_namespaces:
@@ -143,7 +280,7 @@ class NameTableTests(unittest.TestCase):
                     "%s failed" % repr(q))
                 # if we split this it should get us back to where
                 # we started
-                qname = types.NameTable.split_qname(q)
+                qname = types.QualifiedName.from_str(q)
                 self.assertTrue(qname.name == s)
                 self.assertTrue(qname.namespace == ns)
             for s in bad_simple_identifiers:
@@ -170,7 +307,7 @@ class NameTableTests(unittest.TestCase):
         # a couple of special cases on split_qname
         for q in ("", "A", ".A", "A."):
             try:
-                types.NameTable.split_qname(q)
+                types.QualifiedName.from_str(q)
                 self.fail("%s failed" % repr(q))
             except ValueError:
                 pass
@@ -415,255 +552,179 @@ class AnnotationTests(unittest.TestCase):
         annotated = types.Annotatable()
         self.assertTrue(isinstance(annotated.annotations, types.Annotations))
         self.assertTrue(len(annotated.annotations) == 0)
-        # annotations table
+        # annotations (table of Annotation keyed on TermRef)
         atable = types.Annotations()
         self.assertTrue(len(atable) == 0, "No annotations initially")
-        # annotation (table of QualifiedAnnotation keyed on qualifier)
-        a = types.Annotation()
-        self.assertTrue(len(a) == 0, "No qualified annotations initially")
-        self.assertTrue(a.name is None)     # the qualified name of the term
+        # annotation
         try:
-            types.QualifiedAnnotation(None)
+            types.Annotation(None)
             self.fail("No term")
         except ValueError:
             pass
-        qa = types.QualifiedAnnotation(self.term)
-        self.assertTrue(qa.name is None, "undeclared")
-        self.assertTrue(qa.term is self.term, "defining term")
-        self.assertTrue(qa.qualifier is None, "qualifier is optional")
-        self.assertTrue(isinstance(qa.value, primitive.StringValue),
-                        "value type")
+        a = types.Annotation(self.term)
+        self.assertTrue(isinstance(a.term, weakref.ref))
+        self.assertTrue(a.term() is self.term, "defining term")
+        self.assertTrue(a.qualifier is None, "qualifier is optional")
+        # The expression will evaluate to the default value later
+        self.assertTrue(a.expression is None)
+        a = types.Annotation(self.term, "en")
+        self.assertTrue(a.term() is self.term, "defining term")
+        self.assertTrue(a.qualifier == "en", "qualifier specified")
+        self.assertTrue(a.expression is None)
 
     def test_split_json(self):
         try:
-            types.QualifiedAnnotation.split_json_name("Vocab.Description")
+            types.Annotation.split_json_name("Vocab.Description")
             self.fail("name must contain '@'")
         except ValueError:
             pass
-        target, qname, qualifier = types.QualifiedAnnotation.split_json_name(
+        target, term_ref = types.Annotation.split_json_name(
             "@Vocab.Description")
         self.assertTrue(target is None)
-        self.assertTrue(isinstance(qname, types.QualifiedName))
-        self.assertTrue(qname.namespace == "Vocab")
-        self.assertTrue(qname.name == "Description")
-        self.assertTrue(qualifier is None)
-        qa = types.QualifiedAnnotation.from_qname(
-            qname, self.em, qualifier=qualifier)
+        self.assertTrue(isinstance(term_ref, types.TermRef))
+        self.assertTrue(term_ref.name.namespace == "Vocab")
+        self.assertTrue(term_ref.name.name == "Description")
+        self.assertTrue(term_ref.qualifier is None)
+        a = types.Annotation.from_term_ref(term_ref, self.em)
         # no target, no qualifier
-        self.assertTrue(qa.name is None, "undeclared")
-        self.assertTrue(qa.term is self.term, "defining term")
-        self.assertTrue(qa.qualifier is None, "no qualifier")
-        self.assertTrue(isinstance(qa.value, primitive.StringValue),
-                        "value type")
-        target, qname, qualifier = types.QualifiedAnnotation.split_json_name(
+        self.assertTrue(a.name is None, "undeclared")
+        self.assertTrue(a.term() is self.term, "defining term")
+        self.assertTrue(a.qualifier is None, "no qualifier")
+        self.assertTrue(a.expression is None)
+        target, term_ref = types.Annotation.split_json_name(
             "@Vocab.Description#en")
         self.assertTrue(target is None)
-        self.assertTrue(qname.namespace == "Vocab")
-        self.assertTrue(qname.name == "Description")
-        self.assertTrue(qualifier == "en")
-        qa = types.QualifiedAnnotation.from_qname(
-            qname, self.em, qualifier=qualifier)
-        self.assertTrue(qa.name is None, "undeclared")
-        self.assertTrue(qa.term is self.term, "defining term")
-        self.assertTrue(qa.qualifier == "en", "qualifier present")
-        target, qname, qualifier = types.QualifiedAnnotation.split_json_name(
+        self.assertTrue(term_ref.name.namespace == "Vocab")
+        self.assertTrue(term_ref.name.name == "Description")
+        self.assertTrue(term_ref.qualifier == "en")
+        a = types.Annotation.from_term_ref(term_ref, self.em)
+        self.assertTrue(a.name is None, "undeclared")
+        self.assertTrue(a.term() is self.term, "defining term")
+        self.assertTrue(a.qualifier == "en", "qualifier present")
+        target, term_ref = types.Annotation.split_json_name(
             "Primitive@Vocab.Description")
         self.assertTrue(target == "Primitive")
-        self.assertTrue(qname.namespace == "Vocab")
-        self.assertTrue(qname.name == "Description")
-        self.assertTrue(qualifier is None)
-        target, qname, qualifier = types.QualifiedAnnotation.split_json_name(
+        self.assertTrue(term_ref.name.namespace == "Vocab")
+        self.assertTrue(term_ref.name.name == "Description")
+        self.assertTrue(term_ref.qualifier is None)
+        target, term_ref = types.Annotation.split_json_name(
             "Primitive@Vocab.Description#en")
         self.assertTrue(target == "Primitive")
-        self.assertTrue(qname.namespace == "Vocab")
-        self.assertTrue(qname.name == "Description")
-        self.assertTrue(qualifier == "en")
-        qa = types.QualifiedAnnotation.from_qname(
-            qname, self.em, qualifier=qualifier)
-        self.assertTrue(qa.name is None, "undeclared")
-        self.assertTrue(qa.term is self.term, "defining term")
-        self.assertTrue(qa.qualifier == "en", "qualifier present")
-        target, qname, qualifier = types.QualifiedAnnotation.split_json_name(
+        self.assertTrue(term_ref.name.namespace == "Vocab")
+        self.assertTrue(term_ref.name.name == "Description")
+        self.assertTrue(term_ref.qualifier == "en")
+        a = types.Annotation.from_term_ref(term_ref, self.em)
+        self.assertTrue(a.name is None, "undeclared")
+        self.assertTrue(a.term() is self.term, "defining term")
+        self.assertTrue(a.qualifier == "en", "qualifier present")
+        target, term_ref = types.Annotation.split_json_name(
             "Primitive@Vocab.Unknown#en")
         self.assertTrue(target == "Primitive")
-        self.assertTrue(qname.namespace == "Vocab")
-        self.assertTrue(qname.name == "Unknown")
-        self.assertTrue(qualifier == "en")
-        qa = types.QualifiedAnnotation.from_qname(
-            qname, self.em, qualifier=qualifier)
-        self.assertTrue(qa is None, "Undefined Term")
+        self.assertTrue(term_ref.name.namespace == "Vocab")
+        self.assertTrue(term_ref.name.name == "Unknown")
+        self.assertTrue(term_ref.qualifier == "en")
+        a = types.Annotation.from_term_ref(term_ref, self.em)
+        self.assertTrue(a is None, "Undefined Term")
 
-    def test_qualified_annotation_checks(self):
-        a = types.Annotation()
-        # name must be a qualifier (simple identifier), type is
-        # QualifiedAnnotation
-        qa = types.NominalType()
-        try:
-            a["Tablet"] = qa
-            self.fail("check_type failed")
-        except NotImplementedError:
-            self.fail("check_name or check_value not implemented")
-        except TypeError:
-            # correct, that was a good identifier but a bad value
-            pass
-        qa = types.QualifiedAnnotation(self.term)
-        try:
-            qa.declare(a, "+Tablet")
-            self.fail("QualifiedAnnotation.declare with bad name")
-        except ValueError:
-            pass
-        self.assertTrue(qa.name is None)
-        try:
-            a.check_name(None)
-            self.fail("QualifiedAnnotation qualifiers must not be None")
-        except ValueError:
-            pass
-        # but empty string is OK
-        a.check_name("")
-        try:
-            qa.declare(a, None)
-            self.fail("QualifiedAnnotation.declare with no name")
-        except ValueError:
-            pass
-        self.assertTrue(qa.name is None)
-        try:
-            qa.declare(a, "Tablet")
-        except ValueError:
-            self.fail("Good name raised ValueError")
-        except TypeError:
-            self.fail("Good name and type raised TypeError")
-        self.assertTrue(qa.name == "Tablet")
-        self.assertTrue(qa.qname == "#Tablet")
-
-    def test_annotation_checks(self):
+    def test_annotations_checks(self):
         aa = types.Annotations()
-        # name must be a: [simple identifier @] qualified name, type is
+        # name must be a TermRef, type is
         # Annotation
         a = types.NominalType()
         try:
-            aa["Vocab.Description"] = a
+            aa[types.TermRef.from_str("@Vocab.Description")] = a
             self.fail("check_type failed")
         except NotImplementedError:
             self.fail("check_name or check_value not implemented")
         except TypeError:
-            # correct, that was a good identifier but a bad value
+            # correct, that was a reference but a bad value
             pass
-        a = types.Annotation()
+        a = types.Annotation(self.term)
         try:
-            a.declare(aa, "Description")
+            a.declare(aa, "Vocab.Description")
             self.fail("Annotation.declare with bad name")
         except ValueError:
             pass
         try:
             aa.check_name(None)
-            self.fail("Annotation names must be qualified names")
+            self.fail("Annotation names must be TermRef instances")
         except ValueError:
             pass
         try:
-            a.declare(aa, None)
-            self.fail("Annotation.declare with no name")
-        except ValueError:
-            pass
-        try:
-            a.declare(aa, "Vocab.Description")
+            a.declare(aa, types.TermRef.from_str("@Vocab.Description"))
         except ValueError:
             self.fail("Good name raised ValueError")
         except TypeError:
             self.fail("Good name and type raised TypeError")
-        self.assertTrue(a.name == "Vocab.Description")
-        self.assertTrue(a.qname == "Vocab.Description")
+        self.assertTrue(a.name == (("Vocab", "Description"), None))
+        self.assertTrue(a.qname == "@Vocab.Description")
 
     def test_declare(self):
         aa = types.Annotations()
+        vocab_desc = types.TermRef.from_str("@Vocab.Description")
+        vocab_desc_tab = types.TermRef.from_str("@Vocab.Description#Tablet")
         # check that the term declaration is required
-        qa = types.QualifiedAnnotation(self.undeclared_term, "Tablet")
         try:
-            qa.qualified_declare(aa)
-            self.fail("Term must be qualified")
+            a = types.Annotation(self.undeclared_term, "Tablet")
+            self.fail("Undeclared terms can't be used")
         except ValueError:
             pass
-        qa = types.QualifiedAnnotation(self.term, "Tablet")
-        qa.qualified_declare(aa)
-        self.assertTrue(len(aa) == 1)
-        self.assertTrue(len(aa['Vocab.Description']) == 1)
-        self.assertTrue(aa['Vocab.Description']['Tablet'] is qa)
-        # an unqualified name goes in with an empty string qualifier
-        uqa = types.QualifiedAnnotation(self.term)
-        uqa.qualified_declare(aa)   # automatically declared as ""
-        self.assertTrue(len(aa) == 1)
-        self.assertTrue(len(aa['Vocab.Description']) == 2)
-        self.assertTrue(aa['Vocab.Description'][''] is uqa)
-        # you can't declare a qualified name twice
-        dqa = types.QualifiedAnnotation(self.term, "Tablet")
+        a = types.Annotation(self.term, "Tablet")
         try:
-            dqa.qualified_declare(aa)
+            a.declare(aa, vocab_desc)
+            self.fail("Name is automatic, no aliases allowed")
+        except ValueError:
+            pass
+        a.declare(aa, vocab_desc_tab)
+        self.assertTrue(len(aa) == 1)
+        self.assertTrue(aa[vocab_desc_tab] is a)
+        # an unqualified name goes in with an empty string qualifier
+        ua = types.Annotation(self.term)
+        # name defaults
+        ua.declare(aa)
+        self.assertTrue(len(aa) == 2)
+        self.assertTrue(aa[vocab_desc] is ua)
+        # you can't declare a qualified name twice
+        da = types.Annotation(self.term, "Tablet")
+        try:
+            da.declare(aa)
             self.fail("Duplicate qualified annotation")
         except errors.DuplicateNameError:
             pass
         # test the lookup
-        self.assertTrue(len(aa['Vocab.Description']) == 2)
-        self.assertTrue(aa.qualified_get('Vocab.Description') is uqa)
-        self.assertTrue(aa.qualified_get('Vocab.Description', 'Tablet') is qa)
+        self.assertTrue(aa.qualified_get('Vocab.Description') is ua)
+        self.assertTrue(aa.qualified_get('Vocab.Description', 'Tablet') is a)
         self.assertTrue(aa.qualified_get('Vocab.Description',
-                        ('Tablet', '')) is qa)
+                        ('Tablet', '')) is a)
         self.assertTrue(aa.qualified_get('Vocab.Description',
-                        ('', 'Tablet')) is uqa)
+                        ('', 'Tablet')) is ua)
         self.assertTrue(aa.qualified_get('Vocab.Description', 'Phone') is
                         None)
-        self.assertTrue(aa.qualified_get('Vocab.Description', 'Phone', qa) is
-                        qa)
+        self.assertTrue(aa.qualified_get('Vocab.Description', 'Phone', a) is
+                        a)
         self.assertTrue(aa.qualified_get('Vocab.Description',
-                                         ('Phone', 'Desktop'), qa) is qa)
+                                         ('Phone', 'Desktop'), a) is a)
 
     def test_annotate(self):
+        vocab_desc = types.TermRef.from_str("@Vocab.Description")
+        vocab_desc_en = types.TermRef.from_str("@Vocab.Description#en")
         # start with a simple annotatable object
         x = types.Annotatable()
-        qa = types.QualifiedAnnotation.from_qname(
-            "Vocab.Description", self.em)
+        a = types.Annotation.from_term_ref(vocab_desc, self.em)
+        x.annotate(a)
+        self.assertTrue(
+            x.annotations.qualified_get('Vocab.Description') is a)
+        qa = types.Annotation.from_term_ref(vocab_desc_en, self.em)
         x.annotate(qa)
         self.assertTrue(
-            x.annotations.qualified_get("Vocab.Description") is qa)
-        qaq = types.QualifiedAnnotation.from_qname(
-            "Vocab.Description", self.em, qualifier="en")
-        x.annotate(qaq)
+            x.annotations.qualified_get("Vocab.Description") is a)
         self.assertTrue(
-            x.annotations.qualified_get("Vocab.Description") is qa)
-        self.assertTrue(
-            x.annotations.qualified_get("Vocab.Description", "en") is qaq)
-        tqa = types.QualifiedAnnotation.from_qname(
-            "Vocab.Description", self.em, qualifier="en")
+            x.annotations.qualified_get("Vocab.Description", "en") is qa)
+        qa2 = types.Annotation.from_term_ref(vocab_desc_en, self.em)
         try:
-            x.annotate(tqa, target="Primitive")
-            self.fail("Targeted annotation with no possible targets")
-        except TypeError:
-            pass
-        x = AnnotatableMapping()
-        try:
-            x.annotate(tqa, target="Primitive")
-            self.fail("Targeted annotation with no target declared")
-        except KeyError:
-            pass
-        x["Primitive"] = odata.edm['String']()
-        x.annotate(tqa, target="Primitive")
-        self.assertTrue("Vocab.Description" not in x.annotations)
-        self.assertTrue(x.annotations.qualified_get(
-                            "Vocab.Description", "en") is None)
-        self.assertTrue("Vocab.Description" in x["Primitive"].annotations)
-        self.assertTrue(x["Primitive"].annotations.qualified_get(
-                            "Vocab.Description", "en") is tqa)
-        tqa2 = types.QualifiedAnnotation.from_qname(
-            "Vocab.Description", self.em, qualifier="en")
-        try:
-            x.annotate(tqa2, target="Primitive")
+            x.annotate(qa2)
             self.fail("Duplicate annotations")
         except errors.DuplicateNameError:
-            pass
-        y = AnnotatableMapping()
-        y["Primitive"] = types.Named()
-        try:
-            y.annotate(tqa, target="Primitive")
-            self.fail("Can't target an object that is not annotatable")
-        except TypeError:
             pass
 
 

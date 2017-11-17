@@ -4,6 +4,7 @@ import logging
 import unittest
 
 from pyslet.odata4 import client
+from pyslet.odata4 import errors
 from pyslet.odata4 import metadata as csdlxml
 from pyslet.odata4 import model as csdl
 from pyslet.odata4 import primitive
@@ -50,6 +51,9 @@ class TripPinTests(unittest.TestCase):
         # To preserve context we now execute other tests directly
         self.subtest_requesting_data(svc)
         self.subtest_querying_data(svc)
+        self.subtest_functions_and_actions(svc)
+        self.subtest_etag_support(svc)
+        # destructive test moved to end...
         self.subtest_modifying_data(svc)
         # self.subtest_people(svc)
         # self.subtest_friends(svc)
@@ -243,6 +247,75 @@ class TripPinTests(unittest.TestCase):
         # finally delete
         del people['russellwhyte']
         self.assertFalse('russellwhyte' in people)
+
+    def subtest_functions_and_actions(self, svc):
+        f = svc.open('GetNearestAirport')
+        f['lat'].set_value(51)
+        f['lon'].set_value(0)
+        airport = f()
+        self.assertTrue(airport is not None)
+        self.assertFalse(airport.is_null())
+        logging.info("GetNearestAirport: %s" % str(airport['Name']))
+        people = svc.open('People')
+        people.expand('Trips')
+        russellwhyte = people['russellwhyte']
+        trips = russellwhyte['Trips']
+        trips.set_key_filter(0)
+        trip = [t for t in trips]
+        self.assertTrue(len(trip) == 1)
+        trip = trip[0]
+        # this is a massive challenge, this entity does not have an id,
+        # it isn't bound to an entity set but we want to address like
+        # they do in the article (as Trips(0)).  The trips collection
+        # adds odata.id annotations when they are required but missing
+        # to help with this problem
+        f = trip.get_callable(
+            "Microsoft.OData.Service.Sample.TrippinInMemory.Models."
+            "GetInvolvedPeople")
+        ipeople = f()
+        self.assertTrue(len(ipeople) == 2)
+        iusers = set([str(ip['UserName']) for ip in ipeople])
+        self.assertTrue('russellwhyte' in iusers)
+        self.assertTrue('scottketchum' in iusers)
+        f = svc.open('ResetDataSource')
+        self.assertTrue(f() is None)
+        action = russellwhyte.get_callable(
+            "Microsoft.OData.Service.Sample.TrippinInMemory.Models.ShareTrip")
+        action['userName'].set_value('scottketchum')
+        action['tripId'].set_value(0)
+        self.assertTrue(action() is None)
+
+    def subtest_etag_support(self, svc):
+        airlines = svc.open('Airlines')
+        for airline in airlines.values():
+            odata_etag = airline.get_annotation("@odata.etag")
+            self.assertTrue(odata_etag is not None)
+            logging.info("%s: %s", str(airline['Name']), str(odata_etag.value))
+        airlines.clear_cache()
+        airline = airlines['AA']
+        etag = str(odata_etag.value)
+        logging.info("%s: %s", str(airline['Name']), str(odata_etag.value))
+        airline['Name'].set_value("Other Airlines")
+        airline.commit()
+        # airline has an etag which means it should have been cleared
+        # immediately following a PATCH!
+        odata_etag = airline.get_annotation("@odata.etag")
+        self.assertTrue(odata_etag is None)
+        # once you've PATCHED a resource you can't make changes to it
+        # again as you don't have an updated etag
+        airline['Name'].set_value("Another Airline")
+        try:
+            airline.commit()
+            self.fail("Expected concurrency check fail")
+        except errors.OptimisticConcurrencyError:
+            pass
+        # reload should allow us to obtain the new etag
+        airline.reload()
+        odata_etag = airline.get_annotation("@odata.etag")
+        self.assertTrue(odata_etag is not None)
+        new_etag = str(odata_etag.value)
+        self.assertTrue(new_etag != etag, "etag updated by PATCH")
+        logging.info("%s: %s", str(airline['Name']), new_etag)
 
     def subtest_people(self, svc):
         # to access an entity set you need to open it

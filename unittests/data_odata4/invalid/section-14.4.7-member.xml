@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Annotation Term="Vocab.Enum">
+            <!-- Each of these values MUST resolve to the name of a
+            member of the enumeration type of the specified term -->
+            <EnumMember>Vocab.OneTwoThree/Two</EnumMember>
+          </Annotation>
+          <Term Name="Enum" Type="Vocab.OneTwoThree"/>
+          <EnumType Name="OneTwoThree">
+            <Member Name="One"/>
+          </EnumType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

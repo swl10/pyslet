@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Annotation Term="Vocab.Bool">
+            <!-- A Boolean expression MUST be assigned a Boolean value
+            -->
+            <Bool>unsure</Bool>
+          </Annotation>
+          <Term Name="Bool" Type="Edm.Boolean"/>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

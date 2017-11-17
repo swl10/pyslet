@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Annotation Term="Vocab.DateTimeOffset">
+            <!-- A date/time expression MUST be assigned a value of type
+            xs:dateTimeStamp. The value MUST also conform to rule
+            dateTimeOffsetValue in, i.e. it MUST NOT contain an
+            end-of-day fragment (24:00:00) -->
+            <DateTimeOffset>2000-01-01T24:00Z</DateTimeOffset>
+          </Annotation>
+          <Term Name="DateTimeOffset" Type="Edm.DateTimeOffset"/>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

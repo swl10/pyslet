@@ -4,7 +4,6 @@ import logging
 
 from . import errors
 from . import model as odata
-from . import parser
 from . import primitive
 from . import types
 
@@ -13,6 +12,7 @@ from ..py2 import (
     to_text
     )
 from ..rfc2396 import URI
+from ..vfs import OSFilePath
 from ..xml import namespace as xmlns
 from ..xml import structures as xml
 from ..xml import xsdatatypes as xsi
@@ -155,15 +155,15 @@ srid_from_str = nonneg_variable_from_str
 srid_to_str = nonneg_variable_to_str
 
 
-def path_from_str(value):
-    p = parser.Parser(value)
-    path = p.require_expand_path()
-    p.require_end()
-    return path
-
-
-def path_to_str(path):
-    return odata.StructuredType.path_to_str(path)
+# def path_from_str(value):
+#     p = parser.Parser(value)
+#     path = p.require_expand_path()
+#     p.require_end()
+#     return path
+#
+#
+# def path_to_str(path):
+#     return odata.StructuredType.path_to_str(path)
 
 
 def path_expression_from_str(value):
@@ -317,7 +317,8 @@ class GInlineExpressionsMixin(object):
     XMLATTR_Decimal = ('decimal_value', primitive.DecimalValue.from_str, str)
     XMLATTR_Duration = (
         'duration_value', primitive.DurationValue.from_str, str)
-    XMLATTR_EnumMember = ('enum_member', None, None, list)
+    XMLATTR_EnumMember = ('enum_member', types.EnumLiteral.from_xml_str,
+                          types.EnumLiteral.to_xml_str)
     XMLATTR_Float = ('float_value', primitive.FloatValue.from_str, str)
     XMLATTR_Guid = ('guid_value', primitive.GuidValue.from_str, str)
     XMLATTR_Int = ('int_value', primitive.Int64Value.from_str, str)
@@ -325,18 +326,70 @@ class GInlineExpressionsMixin(object):
     XMLATTR_TimeOfDay = (
         'time_of_day_value', primitive.TimeOfDayValue.from_str, str)
     # dynamic expressions
-    XMLATTR_AnnotationPath = ('annotation_path', path_expression_from_str, str)
+    XMLATTR_AnnotationPath = (
+        'annotation_path', types.annotation_path_from_str,
+        types.annotation_path_to_str)
     XMLATTR_NavigationPropertyPath = (
         'navigation_property_path', path_expression_from_str, str)
     XMLATTR_Path = ('path', path_expression_from_str, str)
     XMLATTR_PropertyPath = ('property_path', path_expression_from_str, str)
     XMLATTR_UrlRef = ('url_ref', URI.from_octets, str)
 
+    def get_inline_expression(self):
+        result = None
+        for a in (
+                self.binary_value, self.bool_value, self.date_value,
+                self.date_time_offset_value, self.decimal_value,
+                self.duration_value, self.float_value, self.guid_value,
+                self.int_value, self.string_value, self.time_of_day_value):
+            if a is None:
+                continue
+            if result is not None:
+                raise errors.ModelError(
+                    "Ambiguous attribute notation for Annotation (%s & %s)" %
+                    (to_text(result), to_text(a)))
+            else:
+                result = types.LiteralExpression(a.get_value())
+        if self.enum_member:
+            # the odd case of the enum_member, must be looked up
+            if result is not None:
+                raise errors.ModelError(
+                    "Ambiguous attribute notation for Annotation (%s & %s)" %
+                    (to_text(result), self.enum_member))
+            result = types.LiteralExpression(self.enum_member)
+        if self.annotation_path:
+            if result is not None:
+                raise errors.ModelError(
+                    "Ambiguous attribute notation for Annotation (%s & %s)" %
+                    (to_text(result), to_text(self.annotation_path)))
+            result = types.APathExpression(self.annotation_path)
+        if self.path:
+            if result is not None:
+                raise errors.ModelError(
+                    "Ambiguous attribute notation for Annotation (%s & %s)" %
+                    (to_text(result), to_text(self.path)))
+            result = types.PathExpression(self.path)
+        if self.property_path:
+            if result is not None:
+                raise errors.ModelError(
+                    "Ambiguous attribute notation for Annotation (%s & %s)" %
+                    (to_text(result), to_text(self.property_path)))
+            result = types.PPathExpression(self.property_path)
+        if self.url_ref:
+            if result is not None:
+                raise errors.ModelError(
+                    "Ambiguous attribute notation for Annotation (%s & %s)" %
+                    (to_text(result), to_text(self.url_ref)))
+            result = types.URLRefExpression(self.url_ref)
+        return result
+
 
 class GExpression(CSDLElement):
 
     """Abstract class for element expression constructs"""
-    pass
+
+    def get_expression(self):
+        raise NotImplementedError(repr(self.__class__))
 
 
 class Annotation(
@@ -355,7 +408,7 @@ class Annotation(
     """Represents the Annotation element."""
     XMLNAME = (EDM_NAMESPACE, 'Annotation')
 
-    XMLATTR_Term = ('term_qname', validate_qualified_name, None)
+    XMLATTR_Term = ('term_qname', types.QualifiedName.from_str, to_text)
     XMLATTR_Qualifier = ('qualifier', validate_simple_identifier, None)
 
     def __init__(self, parent):
@@ -366,31 +419,76 @@ class Annotation(
         self.qualifier = None
         self.Annotation = []
         self.GExpression = None
+        self._targets = []
 
     def content_changed(self):
         if self.term_qname is None:
-            raise errors.ModelError("Annotation.Term is required")
+            raise errors.ModelError(errors.Requirement.annotation_term)
         # we will need to look up this term
         em = self.get_entity_model()
         if em is None:
             return
 
         def term_declared(term):
+            if (term is None and
+                    self.term_qname.namespace in
+                    ("Core", "Org.OData.Core.V1")):
+                # the specificaiton isn't clear if you need to
+                # explicitly include these schemas or not.  The Trippin
+                # service uses them as if you do not
+                term = core().get(self.term_qname.name, None)
             self.term = term
-            if term is not None and self.parent:
+            if not isinstance(term, types.Term):
+                raise errors.ModelError(
+                    errors.Requirement.annotation_term_declared_s %
+                    to_text(self.term_qname))
+            if not isinstance(self.parent, Annotations):
                 target = self.parent.get_annotation_target()
                 if target is not None:
-                    a = types.QualifiedAnnotation(
-                        term, qualifier=self.qualifier)
-                    target.annotate(a)
+                    self._targets.append((target, self.qualifier))
                 else:
-                    logging.warning("Ignored Annotation: %s" % term.qname)
-            else:
-                logging.warning(
-                    "Ignored Annotation with undeclared term: %s" %
-                    self.term_qname)
+                    logging.warning(
+                        "Ignored inline Annotation on: %s" % repr(self.parent))
+            # apply the annotation only when the model is closed, this
+            # is required because expressions can't be evaluated until
+            # the model is complete (due to the potential for name
+            # resolution of enums, paths, etc).
+            em.tell_close(self.apply)
 
         em.qualified_tell(self.term_qname, term_declared)
+
+    def annotate_target(self, target, qualifier=None):
+        if self.qualifier is not None:
+            if qualifier is not None:
+                raise errors.ModelError(
+                    errors.Requirement.annotation_qualifier_s %
+                    ("%s#%s" % (to_text(self.term_qname), qualifier)))
+            qualifier = self.qualifier
+        self._targets.append((target, qualifier))
+        if self.term is not None:
+            # term is already declared
+            self.apply()
+
+    def apply(self):
+        # apply the contents to the annotation
+        expr = self.get_inline_expression()
+        if self.GExpression:
+            if expr is not None:
+                raise errors.ODataError(
+                    "Ambiguous annotation, element notation conflicts "
+                    "with inline value")
+            expr = self.GExpression.get_expression()
+        for target, qualifier in self._targets:
+            if self.term.applies_to and \
+                    target.csdl_name not in self.term.applies_to:
+                raise errors.ModelError(
+                    errors.Requirement.annotation_applies_s %
+                    ("<%s> %s" %
+                     (target.csdl_name, to_text(self.term_qname))))
+            a = types.Annotation(self.term, qualifier=qualifier)
+            a.set_expression(expr)
+            target.annotate(a)
+        self._targets = []
 
     def get_children(self):
         for a in self.Annotation:
@@ -419,94 +517,148 @@ class Annotated(CSDLElement):
 class ConstantExpression(GExpression):
     XMLCONTENT = xml.ElementType.Mixed
 
+    def get_expression(self):
+        return types.LiteralExpression(self.get_value())
+
 
 class BinaryConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Binary')
 
     def get_value(self):
-        return primitive.BinaryValue.from_str(
-            super(BinaryConstant, self).get_value())
+        try:
+            return primitive.BinaryValue.from_str(
+                super(BinaryConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_binary_s % to_text(err))
 
 
 class BoolConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Bool')
 
     def get_value(self):
-        return primitive.BooleanValue.from_str(
-            super(BoolConstant, self).get_value())
+        try:
+            return primitive.BooleanValue.from_str(
+                super(BoolConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_bool_s % to_text(err))
 
 
 class DateConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Date')
 
     def get_value(self):
-        return primitive.DateValue.from_str(
-            super(DateConstant, self).get_value())
+        try:
+            return primitive.DateValue.from_str(
+                super(DateConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_date_s % to_text(err))
 
 
 class DateTimeOffsetConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'DateTimeOffset')
 
     def get_value(self):
-        return primitive.DateTimeOffsetValue.from_str(
-            super(DateTimeOffsetConstant, self).get_value())
+        try:
+            return primitive.DateTimeOffsetValue.from_str(
+                super(DateTimeOffsetConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_datetime_s % to_text(err))
 
 
 class DecimalConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Decimal')
 
     def get_value(self):
-        return primitive.DecimalValue.from_str(
-            super(DecimalConstant, self).get_value())
+        try:
+            return primitive.DecimalValue.from_str(
+                super(DecimalConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_decimal_s % to_text(err))
 
 
 class DurationConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Duration')
 
     def get_value(self):
-        return primitive.DurationValue.from_str(
-            super(DurationConstant, self).get_value())
+        try:
+            return primitive.DurationValue.from_str(
+                super(DurationConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_duration_s % to_text(err))
 
 
 class EnumMemberConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'EnumMember')
 
-    def get_value(self):
-        return [path_from_str(i) for i in
-                super(EnumMemberConstant, self).get_value().split()]
+    def __init__(self, parent):
+        ConstantExpression.__init__(self, parent)
+        self.enum_def = None
+        self._values = []
 
-    def set_value(self, value):
-        if isinstance(value, list):
-            super(EnumMemberConstant, self).set_value(
-                " ".join(path_to_str(i) for i in value))
-        elif is_text(value):
-            super(EnumMemberConstant, self).set_value(value)
-        else:
-            raise ValueError("EnumMember expects str or list")
+    def get_value(self):
+        value = super(EnumMemberConstant, self).get_value()
+        try:
+            result = types.EnumLiteral.from_xml_str(value)
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_enum_s % to_text(err))
+        em = self.get_entity_model()
+
+        def enum_check():
+            # defer this check until the model closes
+            try:
+                em.get_enum_value(result)
+            except TypeError as err:
+                raise errors.ModelError(
+                    errors.Requirement.annotation_enum_s % to_text(err))
+            except ValueError as err:
+                raise errors.ModelError(
+                    errors.Requirement.annotation_enum_member_s % to_text(err))
+
+        em.tell_close(enum_check)
+        return result
 
 
 class FloatConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Float')
 
     def get_value(self):
-        return primitive.DoubleValue.from_str(
-            super(FloatConstant, self).get_value())
+        try:
+            return primitive.DoubleValue.from_str(
+                super(FloatConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_float_s % to_text(err))
 
 
 class GuidConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Guid')
 
     def get_value(self):
-        return primitive.GuidValue.from_str(
-            super(GuidConstant, self).get_value())
+        try:
+            return primitive.GuidValue.from_str(
+                super(GuidConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_guid_s % to_text(err))
 
 
 class IntConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'Int')
 
     def get_value(self):
-        return primitive.Int64Value.from_str(
-            super(IntConstant, self).get_value())
+        try:
+            return primitive.Int64Value.from_str(
+                super(IntConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_int_s % to_text(err))
 
 
 class StringConstant(ConstantExpression):
@@ -514,28 +666,41 @@ class StringConstant(ConstantExpression):
 
     def get_value(self):
         return primitive.StringValue.from_str(
-            super(StringConstant, self).get_value())
+            super(StringConstant, self).get_value()).get_value()
 
 
 class TimeOfDayConstant(ConstantExpression):
     XMLNAME = (EDM_NAMESPACE, 'TimeOfDay')
 
     def get_value(self):
-        return primitive.TimeOfDayValue.from_str(
-            super(TimeOfDayConstant, self).get_value())
+        try:
+            return primitive.TimeOfDayValue.from_str(
+                super(TimeOfDayConstant, self).get_value()).get_value()
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_time_s % to_text(err))
 
 
 class PathExpression(GExpression):
     XMLNAME = (EDM_NAMESPACE, 'Path')
     XMLCONTENT = xml.ElementType.Mixed
 
-    def get_value(self):
-        return path_expression_from_str(
+    def get_expression(self):
+        return types.path_from_str(
             super(PathExpression, self).get_value())
 
 
-class AnnotationPath(PathExpression):
+class AnnotationPath(GExpression):
     XMLNAME = (EDM_NAMESPACE, 'AnnotationPath')
+    XMLCONTENT = xml.ElementType.Mixed
+
+    def get_expression(self):
+        try:
+            return types.APathExpression(
+                types.annotation_path_from_str(self.get_value()))
+        except ValueError as err:
+            raise errors.ModelError(
+                errors.Requirement.annotation_path_s % to_text(err))
 
 
 class AnnotatedExpression(GExpression):
@@ -591,6 +756,12 @@ class CollectionExpression(GExpression):
             yield e
         for child in super(CollectionExpression, self).get_children():
             yield child
+
+    def get_expression(self):
+        expr = types.CollectionExpression()
+        for e in self.GExpression:
+            expr.add_operand(e.get_expression())
+        return expr
 
 
 class IfExpression(AnnotatedExpression):
@@ -1114,7 +1285,7 @@ class Key(EntityTypeContent, CSDLElement):
 class PropertyRef(CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'PropertyRef')
 
-    XMLATTR_Name = ('name', path_from_str, path_to_str)
+    XMLATTR_Name = ('name', types.path_from_str, types.path_to_str)
     XMLATTR_Alias = ('alias', validate_simple_identifier, None)
 
     def __init__(self, parent):
@@ -1274,7 +1445,7 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
     XMLATTR_Name = ('name', validate_simple_identifier, None)
     XMLATTR_Type = ('type_name', type_name_from_str, type_name_to_str)
     XMLATTR_Nullable = ('nullable', xsi.boolean_from_str, xsi.boolean_to_str)
-    XMLATTR_Partner = ('partner', path_from_str, path_to_str)
+    XMLATTR_Partner = ('partner', types.path_from_str, types.path_to_str)
     XMLATTR_ContainsTarget = ('contains_target', xsi.boolean_from_str,
                               xsi.boolean_to_str)
 
@@ -1399,9 +1570,9 @@ class NavigationProperty(ComplexTypeContent, EntityTypeContent, CSDLElement):
 class ReferentialConstraint(NavigationPropertyContent, Annotated):
     XMLNAME = (EDM_NAMESPACE, 'ReferentialConstraint')
 
-    XMLATTR_Property = ('property', path_from_str, path_to_str)
-    XMLATTR_ReferencedProperty = ('referenced_property', path_from_str,
-                                  path_to_str)
+    XMLATTR_Property = ('property', types.path_from_str, types.path_to_str)
+    XMLATTR_ReferencedProperty = ('referenced_property', types.path_from_str,
+                                  types.path_to_str)
 
     def __init__(self, parent):
         Annotated.__init__(self, parent)
@@ -1597,6 +1768,26 @@ class ReturnType(FacetsMixin, Annotated):
         self.type_name = None
         self.nullable = None
 
+    def content_changed(self):
+        if not isinstance(self.parent, ActionFunction):
+            return
+        c = self.parent.get_callable()
+        if c is not None:
+            em = self.get_entity_model()
+            qname, collection = self.type_name
+
+            def set_return_type(type_obj):
+                type_def = self.create_type(type_obj)
+                if collection:
+                    type_def = odata.CollectionType(item_type=type_def)
+                c.set_return_type(type_def)
+                if self.nullable is not None:
+                    c.set_nullable(self.nullable)
+                self.parent.remove_dependency()
+
+            self.parent.add_dependency()
+            em.qualified_tell(qname, set_return_type)
+
 
 class ActionFunction(CSDLElement):
 
@@ -1604,6 +1795,22 @@ class ActionFunction(CSDLElement):
         CSDLElement.__init__(self, parent)
         self.ActionFunctionContent = []
         self.ReturnType = None
+        self._dependencies = 1
+        self._callable = None
+
+    def add_dependency(self):
+        self._dependencies += 1
+
+    def remove_dependency(self):
+        self._dependencies -= 1
+        if self._dependencies <= 0:
+            # that was the last dependency, declare this callable
+            c = self.get_callable()
+            # do not accept any more parameters
+            c.close()
+            s = self.get_schema()
+            if s is not None:
+                c.declare_overload(s, self.name)
 
     def get_children(self):
         for afc in self.ActionFunctionContent:
@@ -1612,6 +1819,13 @@ class ActionFunction(CSDLElement):
             yield self.ReturnType
         for child in super(EnumType, self).get_children():
             yield child
+
+    def get_callable(self):
+        raise NotImplementedError
+
+    def content_changed(self):
+        self.get_callable()
+        self.remove_dependency()
 
 
 class Parameter(ActionFunctionContent, FacetsMixin, Annotated):
@@ -1626,13 +1840,43 @@ class Parameter(ActionFunctionContent, FacetsMixin, Annotated):
         self.name = None
         self.type_name = None
         self.nullable = None
+        self._parameter = None
+
+    def get_parameter(self):
+        if self._parameter is None:
+            if self.name is None:
+                raise errors.ModelError("Parameter with no name")
+            c = self.parent.get_callable()
+            self._parameter = odata.Parameter()
+            c.add_parameter(self._parameter, self.name)
+        return self._parameter
+
+    def content_changed(self):
+        if not isinstance(self.parent, ActionFunction):
+            return
+        p = self.get_parameter()
+        c = self.parent.get_callable()
+        if c is not None:
+            em = self.get_entity_model()
+            qname, collection = self.type_name
+
+            def set_type(type_obj):
+                type_def = self.create_type(type_obj)
+                p.set_type(type_def, collection)
+                if self.nullable is not None:
+                    p.set_nullable(self.nullable)
+                self.parent.remove_dependency()
+
+            self.parent.add_dependency()
+            em.qualified_tell(qname, set_type)
 
 
 class Action(SchemaContent, ActionFunction):
     XMLNAME = (EDM_NAMESPACE, 'Action')
 
     XMLATTR_Name = ('name', validate_simple_identifier, None)
-    XMLATTR_EntitySetPath = ('entity_set_path', path_from_str, path_to_str)
+    XMLATTR_EntitySetPath = (
+        'entity_set_path', types.path_from_str, types.path_to_str)
     XMLATTR_IsBound = ('is_bound', xsi.boolean_from_str, xsi.boolean_to_str)
 
     def __init__(self, parent):
@@ -1641,12 +1885,23 @@ class Action(SchemaContent, ActionFunction):
         self.entity_set_path = None
         self.is_bound = False
 
+    def get_callable(self):
+        if self._callable is None:
+            if self.name is None:
+                raise errors.ModelError("Action requires Name")
+            self._callable = odata.Action()
+            self._callable.set_is_bound(self.is_bound)
+            if self.entity_set_path:
+                self._callable.set_entity_set_path(self.entity_set_path)
+        return self._callable
+
 
 class Function(SchemaContent, ActionFunction):
     XMLNAME = (EDM_NAMESPACE, 'Function')
 
     XMLATTR_Name = ('name', validate_simple_identifier, None)
-    XMLATTR_EntitySetPath = ('entity_set_path', path_from_str, path_to_str)
+    XMLATTR_EntitySetPath = (
+        'entity_set_path', types.path_from_str, types.path_to_str)
     XMLATTR_IsBound = ('is_bound', xsi.boolean_from_str, xsi.boolean_to_str)
     XMLATTR_IsComposable = ('is_composable', xsi.boolean_from_str,
                             xsi.boolean_to_str)
@@ -1659,6 +1914,17 @@ class Function(SchemaContent, ActionFunction):
         self.entity_set_path = None
         self.is_bound = False
         self.is_composable = False
+
+    def get_callable(self):
+        if self._callable is None:
+            if self.name is None:
+                raise errors.ModelError("Function requires Name")
+            self._callable = odata.Function()
+            self._callable.set_is_bound(self.is_bound)
+            if self.entity_set_path:
+                self._callable.set_entity_set_path(self.entity_set_path)
+            self._callable.set_is_composable(self.is_composable)
+        return self._callable
 
 
 class Term(SchemaContent, FacetsMixin, Annotated):
@@ -1682,8 +1948,11 @@ class Term(SchemaContent, FacetsMixin, Annotated):
         self._term = None
 
     def content_changed(self):
+        self.get_term()
+
+    def get_term(self):
         if self._term is not None:
-            return
+            return self._term
         if self.name is None:
             raise errors.ModelError(errors.Requirement.term_name)
         if self.type_name is None:
@@ -1696,6 +1965,8 @@ class Term(SchemaContent, FacetsMixin, Annotated):
             self.nullable = True
         self._term = types.Term()
         self._term.set_nullable(self.nullable)
+        if self.applies_to:
+            self._term.set_applies_to(self.applies_to.split())
 
         def set_type(type_obj):
             # delay declaration of the term until the type is defined
@@ -1714,11 +1985,12 @@ class Term(SchemaContent, FacetsMixin, Annotated):
             if isinstance(type_obj, primitive.PrimitiveType):
                 if not collection and self.default_value is not None:
                     try:
-                        default_value = ttype.value_from_str(
-                            self.default_value)
+                        default_value = ttype()
+                        default_value.assign(
+                            ttype.value_type.from_str(self.default_value))
                     except ValueError as err:
                         raise errors.ModelError(
-                            errors.Requirement.primitive_default_s %
+                            errors.Requirement.term_prim_default_s %
                             to_text(err))
                     self._term.set_default(default_value)
                 if s is not None:
@@ -1735,19 +2007,35 @@ class Term(SchemaContent, FacetsMixin, Annotated):
                         if self.default_value is not None:
                             default_value = ttype.value_from_str(
                                 self.default_value)
-                        self._term.set_default(default_value)
+                            self._term.set_default(default_value)
                     if s is not None:
                         self._term.declare(s, self.name)
 
                 type_obj.tell_close(type_closed)
 
-        em.qualified_tell(qname, set_type)
+        def set_base(term_obj):
+            if term_obj is None or not isinstance(term_obj, types.Term):
+                raise errors.ModelError(
+                    errors.Requirement.term_base_s %
+                    ("%s not declared" % self.base_term))
+            self._term.set_base(term_obj)
+            # now set the underlying type
+            em.qualified_tell(qname, set_type)
+
+        if self.base_term:
+            em.qualified_tell(self.base_term, set_base)
+        else:
+            em.qualified_tell(qname, set_type)
+        return self._term
+
+    def get_annotation_target(self):
+        return self.get_term()
 
 
 class Annotations(SchemaContent, Annotated):
     XMLNAME = (EDM_NAMESPACE, 'Annotations')
 
-    XMLATTR_Target = ('target', path_from_str, path_to_str)
+    XMLATTR_Target = 'target'   # Edm.PropertyPath is just a string
     XMLATTR_Qualifier = ('qualifier', validate_simple_identifier, None)
 
     def __init__(self, parent):
@@ -1755,6 +2043,89 @@ class Annotations(SchemaContent, Annotated):
         # at least one annotation required!
         self.target = None
         self.qualifier = None
+
+    def content_changed(self):
+        if not len(self.Annotation):
+            raise errors.ModelError(errors.Requirement.annotations_children)
+        if not self.target:
+            raise errors.ModelError(errors.Requirement.annotations_target)
+        em = self.get_entity_model()
+
+        def resolve_target():
+            # called then the model is closed
+            path = self.target.split("/")
+            target = em.qualified_get(path[0])
+            container_target = None
+            if target is None:
+                raise errors.ModelError(
+                    errors.Requirement.annotations_target_s % self.target)
+            for p in path[1:]:
+                if isinstance(target, odata.Property):
+                    # swap the property for the properties underlying
+                    # type
+                    target = target.structural_type
+                elif isinstance(target, odata.NavigationProperty):
+                    # swap the navigation property for the underlying
+                    # entity type
+                    target = target.entity_type
+                elif isinstance(target, (odata.EntitySet, odata.Singleton)):
+                    # swap EntitySet/Singleton for the underlying entity
+                    # type BUT record this part of the target because
+                    # the annotation is stored in a special way in this
+                    # case
+                    container_target = target
+                    target = target.entity_type
+                try:
+                    if "." in p:
+                        # this is a type cast segment
+                        if isinstance(odata.StructuredType):
+                            new_target = em.qualified_get(p)
+                            if new_target.is_derived_from(target):
+                                target = new_target
+                                continue
+                        raise KeyError("Bad type cast %s" % p)
+                    elif isinstance(
+                            target,
+                            (odata.ActionOverload, odata.FunctionOverload)):
+                        # applies to all overloads defining the parameter
+                        new_target = []
+                        for t in target.callables:
+                            param = t.get(p, None)
+                            if param:
+                                new_target.append(param)
+                    elif isinstance(
+                            target,
+                            (odata.StructuredType, odata.EntityContainer,
+                             odata.EnumerationType)):
+                        target = target[p]
+                    else:
+                        raise KeyError("Bad segment %s" % p)
+                except KeyError as e:
+                    raise errors.ModelError(
+                        errors.Requirement.annotations_target_s %
+                        ("%s:%s" % (self.target, to_text(e))))
+            # now apply the annotations to this target
+            if isinstance(
+                    target,
+                    (odata.ActionOverload, odata.FunctionOverload)):
+                # expand to a list of Functions and Actions
+                target = [c for c in target.callables]
+            elif not isinstance(target, list):
+                # simply the following loops
+                target = [target]
+            logging.info("Target: %s", repr(target))
+            for a in self.Annotation:
+                for t in target:
+                    if container_target is not None:
+                        # Annotations for properties and navigation
+                        # properties of singletons and entity sets
+                        # override annotations on the declarations in
+                        # the structured type
+                        raise NotImplementedError
+                    else:
+                        a.annotate_target(t, self.qualifier)
+
+        em.tell_close(resolve_target)
 
 
 class EntityContainer(SchemaContent, CSDLElement):
@@ -1879,12 +2250,15 @@ class EntitySet(EntityContainerContent, AnnotatedNavigation):
     def _set_type_callback(self):
         self._es.set_type(self._type_obj)
 
+    def get_annotation_target(self):
+        return self.get_entity_set()
+
 
 class NavigationPropertyBinding(AnnotatedNavigationContent, CSDLElement):
     XMLNAME = (EDM_NAMESPACE, 'NavigationPropertyBinding')
 
-    XMLATTR_Path = ('path', path_from_str, path_to_str)
-    XMLATTR_Target = ('target', path_from_str, path_to_str)
+    XMLATTR_Path = ('path', types.path_from_str, types.path_to_str)
+    XMLATTR_Target = ('target', types.path_from_str, types.path_to_str)
 
     def __init__(self, parent):
         CSDLElement.__init__(self, parent)
@@ -1908,7 +2282,7 @@ class NavigationPropertyBinding(AnnotatedNavigationContent, CSDLElement):
 class ActionFunctionImportMixin(object):
 
     XMLATTR_Name = ('name', validate_simple_identifier, None)
-    XMLATTR_EntitySet = ('entity_set', path_from_str, path_to_str)
+    XMLATTR_EntitySet = ('entity_set', types.path_from_str, types.path_to_str)
     XMLATTR_IncludeInServiceDocument = (
         'include_in_service_document', xsi.boolean_from_str,
         xsi.boolean_to_str)
@@ -1917,30 +2291,107 @@ class ActionFunctionImportMixin(object):
         self.name = None
         self.entity_set = None
         self.include_in_service_document = False
+        self._import = None
+
+    def content_changed(self):
+        self.get_import()
 
 
 class ActionImport(EntityContainerContent, ActionFunctionImportMixin,
                    Annotated):
     XMLNAME = (EDM_NAMESPACE, 'ActionImport')
 
-    XMLATTR_action = ('action', validate_qualified_name, None)
+    XMLATTR_Action = ('action', validate_qualified_name, None)
 
     def __init__(self, parent):
         Annotated.__init__(self, parent)
         ActionFunctionImportMixin.__init__(self)
         self.action = None
 
+    def get_import(self):
+        if self._import is not None:
+            return self._import
+        if self.name is None:
+            raise errors.ModelError("Action requires Name")
+        if self.action is None:
+            raise errors.ModelError("Action requires action")
+        container = self.get_container()
+        if container is not None:
+            # declare this ActionImport within the container
+            self._import = odata.ActionImport()
+            try:
+                self._import.declare(container, self.name)
+            except errors.DuplicateNameError as err:
+                raise errors.ModelError(
+                    errors.Requirement.container_names_s % to_text(err))
+        self._import.set_in_service(self.include_in_service_document)
+        em = self.get_entity_model()
+
+        def found_callable(callable):
+            if not isinstance(callable, odata.ActionOverload):
+                # not the right sort of thing
+                raise errors.ModelError("Expected Action")
+            schema = callable.nametable()
+
+            def check_callable():
+                action_def = callable.get_unbound_action()
+                if action_def is None:
+                    raise errors.ModelError(
+                        "ActionImport require unbound Action")
+                self._import.set_action(action_def)
+
+            schema.tell_close(check_callable)
+
+        em.qualified_tell(self.action, found_callable)
+        return self._import
+
 
 class FunctionImport(EntityContainerContent, ActionFunctionImportMixin,
                      Annotated):
     XMLNAME = (EDM_NAMESPACE, 'FunctionImport')
 
-    XMLATTR_action = ('function', validate_qualified_name, None)
+    XMLATTR_Function = ('function', validate_qualified_name, None)
 
     def __init__(self, parent):
         Annotated.__init__(self, parent)
         ActionFunctionImportMixin.__init__(self)
         self.function = None
+
+    def get_import(self):
+        if self._import is not None:
+            return self._import
+        if self.name is None:
+            raise errors.ModelError("Function requires Name")
+        if self.function is None:
+            raise errors.ModelError("Function requires function")
+        container = self.get_container()
+        if container is not None:
+            # declare this FunctionImport within the container
+            self._import = odata.FunctionImport()
+            try:
+                self._import.declare(container, self.name)
+            except errors.DuplicateNameError as err:
+                raise errors.ModelError(
+                    errors.Requirement.container_names_s % to_text(err))
+        self._import.set_in_service(self.include_in_service_document)
+        em = self.get_entity_model()
+
+        def found_callable(callable):
+            if not isinstance(callable, odata.FunctionOverload):
+                # not the right sort of thing
+                raise errors.ModelError("Expected Function")
+            schema = callable.nametable()
+
+            def check_callable():
+                if not callable.is_unbound():
+                    raise errors.ModelError(
+                        "FunctionImport requires unbound Function")
+                self._import.set_function_overload(callable)
+
+            schema.tell_close(check_callable)
+
+        em.qualified_tell(self.function, found_callable)
+        return self._import
 
 
 class Singleton(EntityContainerContent, AnnotatedNavigation):
@@ -2013,5 +2464,24 @@ class CSDLDocument(xmlns.XMLNSDocument):
             raise errors.ModelError(errors.Requirement.csdl_root)
         return super(CSDLDocument, self).add_child(child_class, name=name)
 
+    @classmethod
+    def load_core(cls):
+        """Loads and returns the built-in Org.OData.Core.V1 schema"""
+        uri = URI.from_virtual_path(
+            OSFilePath(__file__).split()[0].join("core.xml"))
+        doc = cls(base_uri=uri)
+        doc.read()
+        return doc.root.entity_model["Core"]
+
 
 xmlns.map_class_elements(CSDLDocument.class_map, globals())
+
+#: the Org.OData.Core.V1 schema
+_core = None
+
+
+def core():
+    global _core
+    if _core is None:
+        _core = CSDLDocument.load_core()
+    return _core

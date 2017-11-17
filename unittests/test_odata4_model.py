@@ -331,7 +331,7 @@ class SchemaTests(unittest.TestCase):
         # There should be a default Edm Schema
         self.assertTrue(isinstance(odata.edm, odata.Schema))
         self.assertTrue(odata.edm.name == "Edm")
-        self.assertTrue(len(odata.edm) == 36, sorted(odata.edm.keys()))
+        self.assertTrue(len(odata.edm) == 39, sorted(odata.edm.keys()))
 
     def test_odata(self):
         # There should be a default odata Schema
@@ -850,21 +850,25 @@ class EntitySetTests(unittest.TestCase):
 
     def test_constructor(self):
         es = odata.EntitySet()
-        self.assertTrue(es.indexable_by_key is True)
+        self.assertTrue(es.indexable_by_key() is True)
 
     def test_indexable(self):
         es = odata.EntitySet()
-        qa = types.QualifiedAnnotation.from_qname(
-            "Org.OData.Capabilities.V1.IndexableByKey", self.em)
-        qa.value.set_value(True)
-        es.annotate(qa)
-        self.assertTrue(es.indexable_by_key is True)
+        a = types.Annotation.from_term_ref(
+                types.TermRef.from_str(
+                    "@Org.OData.Capabilities.V1.IndexableByKey"), self.em)
+        a.set_expression(types.LiteralExpression(True))
+        es.annotate(a)
+        self.assertTrue(es.indexable_by_key() is True)
         es = odata.EntitySet()
-        qa = types.QualifiedAnnotation.from_qname(
-            "Org.OData.Capabilities.V1.IndexableByKey", self.em)
-        qa.value.set_value(False)
-        es.annotate(qa)
-        self.assertTrue(es.indexable_by_key is False)
+        # by default, entity sets are indexable by key
+        self.assertTrue(es.indexable_by_key() is True)
+        a = types.Annotation.from_term_ref(
+                types.TermRef.from_str(
+                    "@Org.OData.Capabilities.V1.IndexableByKey"), self.em)
+        a.set_expression(types.LiteralExpression(False))
+        es.annotate(a)
+        self.assertTrue(es.indexable_by_key() is False)
 
 
 class EnumerationTests(unittest.TestCase):

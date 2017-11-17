@@ -18,6 +18,20 @@ from ..py2 import (
 from ..xml import xsdatatypes as xsi
 
 
+_simple_identifier_re = xsi.RegularExpression(
+    "[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]{0,}")
+
+
+def simple_identifier_from_str(src):
+    """Returns src if it is a simple identifier
+
+    Otherwise raises ValueError."""
+    if src and len(src) <= 128 and _simple_identifier_re.match(src):
+        return src
+    else:
+        raise ValueError("Bad simple identifier: %s" % src)
+
+
 class QualifiedName(
         UnicodeMixin,
         collections.namedtuple('QualifiedName', ['namespace', 'name'])):
@@ -34,25 +48,124 @@ class QualifiedName(
     def __unicode__(self):
         return force_text("%s.%s" % self)
 
+    @classmethod
+    def from_str(cls, src):
+        """Parses a QualifiedName from a source string"
+
+        Raises ValueError if src is not a valid QualifiedName."""
+        try:
+            dot = src.rfind('.')
+            parts = src.split(".")
+            if len(parts) < 2:
+                raise ValueError
+            for id in parts:
+                simple_identifier_from_str(id)
+        except ValueError:
+            raise ValueError("Bad qualified name: %s" % src)
+        return cls(src[:dot], src[dot + 1:])
+
+
+class TermRef(
+        UnicodeMixin,
+        collections.namedtuple('TermRef', ['name', 'qualifier'])):
+
+    """Represents a term reference (including a term cast)
+
+    This is a Python namedtuple consisting of a :class:`QualifiedName`
+    instance and a qualifier that is a string or None.  No syntax
+    checking is done on the values at creation.  When converting to
+    str (and unicode for Python 2) the components are joined as per
+    term references, e.g.::
+
+        str(TermRef(QualifiedName('Schema', 'Term'), 'Print')) ==
+            '@Schema.Term#Print'
+    """
+
+    __slots__ = ()
+
+    def __unicode__(self):
+        n, q = self
+        if q is None:
+            return force_text("@%s" % to_text(n))
+        else:
+            return force_text("@%s#%s" % (to_text(n), q))
+
+    @classmethod
+    def from_str(cls, src):
+        """Parses a TermRef from a source string"
+
+        Raises ValueError if src is not a valid TermRef."""
+        try:
+            if not src or src[0] != '@':
+                raise ValueError
+            hash = src.rfind('#')
+            if hash < 0:
+                return cls(name=QualifiedName.from_str(src[1:]),
+                           qualifier=None)
+            else:
+                return cls(
+                    name=QualifiedName.from_str(src[1:hash]),
+                    qualifier=simple_identifier_from_str(src[hash + 1:]))
+        except ValueError:
+            raise ValueError("Bad term cast or reference: %s" % src)
+
 
 def path_to_str(path):
     """Simple function for converting a path to a string
 
     path
-        An array of strings and/or :class:`types.QualifiedName` named
-        tuples.
+        An array of strings and/or :class:`QualifiedName` or
+        :class:`TermRef` named tuples.
 
     Returns a simple string representation with all components
     separated by "/"
     """
-    return "/".join(
-        [segment if is_text(segment) else
-         (segment.namespace + "." + segment.name) for segment in path])
+    return "/".join([to_text(segment) for segment in path])
+
+
+def path_from_str(src):
+    """Simple function for converting a string to a path
+
+    src
+        A text string
+
+    Returns a (possibly empty) tuple of simple identifiers,
+    QualifiedName or TermRef segments."""
+    if not src:
+        return tuple()
+    segments = []
+    for segment in src.split('/'):
+        if segment.startswith('@'):
+            segment = TermRef.from_str(segment)
+        elif '.' in segment:
+            segment = QualifiedName.from_str(segment)
+        else:
+            segment = simple_identifier_from_str(segment)
+        segments.append(segment)
+    return tuple(segments)
+
+
+annotation_path_to_str = path_to_str
+#: synonym for path_to_str
+
+
+def annotation_path_from_str(src):
+    """Simple function for converting a string to an annotation path
+
+    src
+        A text string
+
+    Returns a non-empty tuple of simple identifiers, QualifiedName or
+    TermRef segments guaranteeing that the last segment is a TermRef."""
+    apath = path_from_str(src)
+    if not len(apath) or not isinstance(apath[-1], TermRef):
+        raise ValueError("Bad AnnotationPath: %s" % src)
+    return apath
 
 
 class EnumLiteral(
         UnicodeMixin,
-        collections.namedtuple('QualifiedEnum', ['qname', 'value'])):
+        collections.namedtuple('EnumLiteral', ['qname', 'value'])):
 
     """Represents the literal representation of an enumerated value.
 
@@ -63,7 +176,56 @@ class EnumLiteral(
     __slots__ = ()
 
     def __unicode__(self):
-        return force_text("%s'%s'" % (self.qname, ','.join(self.value)))
+        return force_text(
+            "%s'%s'" %
+            (self.qname, ','.join(to_text(v) for v in self.value)))
+
+    def to_xml_str(self):
+        for v in self.value:
+            if not is_text(v):
+                # it's not clear why but this is not allowed
+                raise ValueError
+        return force_text(" ".join(['%s/%s' % (to_text(self.qname), v)
+                                    for v in self.value]))
+
+    @classmethod
+    def from_str(cls, src):
+        try:
+            apos = src.find("'")
+            qname = QualifiedName.from_str(src[:apos])
+            vstr = src[apos + 1:-1]
+            if not vstr or not src.endswith("'"):
+                raise ValueError
+            parts = vstr.split(",")
+            values = []
+            for v in parts:
+                if v.isdigit():
+                    values.append(int(v))
+                else:
+                    values.append(simple_identifier_from_str(v))
+        except ValueError:
+            raise ValueError("Bad enum literal: %s" % src)
+        return cls(qname=qname, value=tuple(values))
+
+    @classmethod
+    def from_xml_str(cls, src):
+        try:
+            qname = None
+            values = []
+            parts = src.split()
+            for v in parts:
+                slash = v.find("/")
+                new_qname = QualifiedName.from_str(v[:slash])
+                if qname is None:
+                    qname = new_qname
+                elif qname != new_qname:
+                    raise ValueError
+                values.append(simple_identifier_from_str(v[slash + 1:]))
+            if not values:
+                raise ValueError
+        except ValueError:
+            raise ValueError("Bad enum xml literal: %s" % src)
+        return cls(qname=qname, value=tuple(values))
 
 
 class Named(UnicodeMixin):
@@ -347,20 +509,6 @@ class NameTable(Named, collections.MutableMapping):
                 return False
         return True
 
-    @staticmethod
-    def split_qname(qname):
-        """Splits a qualified name string
-
-        Returns a :class:`QualifiedName` instance, a tuple of
-        (namespace, name).  There is no validity checking other than
-        that namespace and name must be non-empty otherwise ValueError
-        is raised."""
-        dot = qname.rfind('.')
-        if dot < 1 or dot >= len(qname) - 1:
-            # ".name" and "name." don't count!
-            raise ValueError("qualified name required: %s" % qname)
-        return QualifiedName(qname[:dot], qname[dot + 1:])
-
 
 def get_path(src):
     if is_text(src):
@@ -371,14 +519,37 @@ def get_path(src):
         while i < len(src):
             p = src[i]
             if "." in p:
-                src[i] = NameTable.split_qname(p)
+                src[i] = QualifiedName.from_str(p)
             i += 1
         return tuple(src)
     else:
         return tuple(src)
 
 
-class Term(Named):
+class Annotatable(object):
+
+    """Abstract class for model elements that can be annotated"""
+
+    csdl_name = "Undefined"
+
+    def __init__(self, **kwargs):
+        super(Annotatable, self).__init__(**kwargs)
+        self.annotations = Annotations()
+
+    def annotate(self, a):
+        """Annotate this element with an annotation
+
+        a
+            A :class:`Annotation` instance."""
+        try:
+            a.declare(self.annotations)
+        except errors.DuplicateNameError:
+            raise errors.DuplicateNameError(
+                errors.Requirement.annotations_s %
+                to_text(a.get_term_ref()))
+
+
+class Term(Annotatable, Named):
 
     """Represents a defined term in the OData model
 
@@ -387,6 +558,8 @@ class Term(Named):
     property definitions.  Like property definitions, they have an
     associated type that can be called to create a new :class:`Value`
     instance of the correct type for the Term."""
+
+    csdl_name = "Term"
 
     def __init__(self, **kwargs):
         super(Term, self).__init__(**kwargs)
@@ -399,6 +572,8 @@ class Term(Named):
         self.nullable = True
         #: the default value of the term (primitive/enums only)
         self.default_value = None
+        #: a list of element names that the term can be applied to
+        self.applies_to = []
 
     def set_type(self, type_def):
         self.type_def = type_def
@@ -409,67 +584,33 @@ class Term(Named):
     def set_default(self, default_value):
         self.default_value = default_value
 
+    def set_base(self, base):
+        self.base = base
 
-class Annotatable(object):
+    def set_applies_to(self, elements):
+        self.applies_to = elements
 
-    """Abstract class for model elements that can be annotated"""
+    def get_default(self):
+        """Returns the default value
 
-    def __init__(self, **kwargs):
-        super(Annotatable, self).__init__(**kwargs)
-        self.annotations = Annotations()
-
-    def annotate(self, qa, target=None):
-        """Annotate this element with a qualified annotation
-
-        qa
-            A :class:`QualifiedAnnotation` instance.
-
-        target
-            An optional target as a string.  If given then the target
-            must exist as a named child of this object and be
-            Annotable.  This is an abbreviated form of::
-
-                obj[target].annotate(qa)
-
-            but with some additional type checking."""
-        if target is not None:
-            # will raise TypeError or KeyError if not found
-            target = self[target]
-            if not isinstance(target, Annotatable):
-                raise TypeError("Annotation target is not Annotatable")
-            target.annotate(qa)
-        else:
-            try:
-                qa.qualified_declare(self.annotations)
-            except errors.DuplicateNameError:
-                raise errors.DuplicateNameError(
-                    errors.Requirement.annotations_s %
-                    ("%s%s)" %
-                     (qa.term.qname,
-                      "" if qa.qualifier is None else "#" + qa.qualifier)))
+        The return value is a *copy* of the default, so it is not frozen
+        and can be modified if necessary by the caller at a later date.
+        If there is no default then a null value of the Term's type is
+        returned instead."""
+        result = self.type_def()
+        if self.default_value is not None:
+            result.assign(self.default_value)
+        return result
 
 
 class Annotations(NameTable):
 
     """The set of Annotations applied to a model element.
 
-    A name table that contains :class:`Annotation` instances keyed on
-    the qualified name of the defining term.  The vocabulary is
-    confusing here because the qualified name of an annotation is a
-    namespace-qualified name such as "odata.context", meaning the term
-    "context" in the (built-in) namespace "odata".  Annotations
-    themselves can be further qualified using 'qualifiers' that have
-    nothing to do with the qualified name!  These qualifiers act more
-    like filters on the annotations allowing the annotations themselves
-    to be multi-valued.  One possible use of these qualifiers might be
-    to allow for language tags on human-readable annotations (though the
-    restriction that qualifiers are simple identifiers is problematic in
-    this regard).
+    A name table that contains :class:`Annotation` instances keyed on an
+    instance of :class:`TermRef` that refers to the defining term.
 
-    To give an example, when they appear in JSON payloads annotations
-    appear as <object>@<qualified name>#qualifier -- in many cases the
-    <object> is empty as the annotation is attached to the object itself
-    as a name/value pair so you might see something like::
+    To give an example::
 
         @Org.OData.Core.V1.Description#en
 
@@ -478,55 +619,31 @@ class Annotations(NameTable):
     The qualifier "en" has been added, perhaps to indicate that the
     language used is "English".
 
-    The Annotations object contains all annotations associated with an
-    object.  In contrast, the Annotation object contains all annotations
-    that share the same qualified name (i.e., they differ only in the
-    optional qualifier).  To obtain an actual qualified annotation (with
-    its associated value) therefore requires two index lookups, for the
-    example above::
-
-        annotations["Org.OData.Core.V1.Description"]["en"]
-        # a convenience method is also provided that returns None rather
-        # than raise KeyError if the lookup fails...
-        annotations.qualified_get("Org.OData.Core.V1.Description", "en")
-
-    The result is a :class:`QualifiedAnnotation` instance.  For
-    unqualified annotations just use the empty string as the second
-    index.
-
-    There is one further complication: some objects that are annotatable
-    in the specification are not directly annotatable when represented
-    in JSON payloads.  For example, an instance of a property called
-    "FirstName" with a primitive value "Steve" of type Edm.String is
-    represented in JSON as::
-
-        "FirstName": "Steve"
-
-    Annotations of this value appear adjacent to the value itself using
-    the optional object prefix described above::
-
-        "FirstName": "Steve"
-        "FirstName@Core.Description": "Abbreviated form of actual name"
-
-    The specification draws attention to the wide applicability of annotations
-    though:
+    The specification draws attention to the wide applicability of
+    annotations though:
 
         As the intended usage may evolve over time, clients SHOULD be
         prepared for any annotation to be applied to any element
 
     As a result, we use the :class:`Annotatable` class liberally in the
-    model including making the abstract :class:`Value` annotatable.  The
-    upshot is that annotations of the form "FirstName@Core.Description"
-    can be resolved and applied to the correct instance at runtime."""
+    model."""
 
     def check_name(self, name):
-        """Checks the validity of 'name' against QualifiedName
+        """Checks that name is of type :class:`TermRef`.
 
         Raises ValueError if the name is not valid (or is None)."""
         if name is None:
             raise ValueError("Annotation with no name")
-        if not self.is_qualified_name(name):
-            raise ValueError("%s is not a valid qualified name" % name)
+        if not isinstance(name, TermRef):
+            raise ValueError(
+                "%s is not a valid term reference" % to_text(name))
+
+    def qualify_name(self, name):
+        """Returns the qualified version of a name
+
+        Simply returns the string representation of the name (a
+        :class:`TermRef`) as the name is already qualified."""
+        return to_text(name)
 
     def check_value(self, value):
         if not isinstance(value, Annotation):
@@ -556,149 +673,208 @@ class Annotations(NameTable):
 
         default (None)
             The value to return if the annotation is not found."""
-        if qualifier is None:
-            qualifier = ('', )
+        qname = QualifiedName.from_str(term)
+        if not qualifier:
+            qualifier = (None, )
         elif is_text(qualifier):
             qualifier = (qualifier, )
         for q in qualifier:
             try:
-                a = self[term]
-                return a[q]
+                return self[TermRef(qname, q if q else None)]
             except KeyError:
                 continue
         return default
 
 
-class Annotation(NameTable):
+class Annotation(Named):
 
     """An Annotation (applied to a model element).
 
-    The name of this object is the qualified name of the term that
-    defines this annotation.  The Annnotation is itself a name table
-    comprising the :class:`QualifiedAnnotation` instances."""
+    The name of this object is a :class:`TermRef` tuple that refers to
+    the term that defines this annotation's type.
 
-    def check_name(self, name):
-        """Checks the validity of 'name' against simple identifier
+    This package divides Annotations into two types.  Annotations
+    declared in the schema (metadata) and applied to model elements
+    declared there; such as EntityTypes, EntitySets, etc.; are
+    represented by instances of this class.  Annotations applied to
+    :class:`Value` instances are simply :class:`Value` instances
+    themselves.  Effectively annotations applied to values are just
+    special property values with @ qualified names (and optional #
+    qualifiers) with a type declared by a Term.
 
-        Raises ValueError if the name is not valid (or is None).
-        Empty string is allowed, as it represents no qualifier."""
-        if name is None:
-            raise ValueError("None is not a valid qualifier (use '')")
-        elif name and not self.is_simple_identifier(name):
-            raise ValueError("%s is not a valid qualifier" % name)
+    Instead of :class:`Value` instances, Annotations contain
+    *expressions* that evaluate to :class:`Value` instances.  These
+    expressions may be constant or dynamic expressions.  In the case of
+    dynamic expressions the expression is evaluated when it is applied
+    to the target Value.  An example will help.
 
-    def qualify_name(self, name):
-        """Returns the qualified version of a name
+    Suppose we have an EntityType called 'Product' with simple
+    properties ProductName and ProdoctType.  The following Annotation
+    might be applied to the EntityType in the metadata model::
 
-        In this NameTable, names are qualifiers for annotations.  We
-        create a qualified name by taking the *qualified* name of this
-        Annotation and adding "#" followed by the qualifier (the name
-        argument).  If this annotation has not been declared then we
-        simply return name prefixed with '#'.  In the special case where
-        the qualifier (name) is the empty string no '#' is appended."""
-        if self.qname:
-            if name:
-                return self.qname + "#" + name
-            else:
-                return self.qname
-        elif name:
-            return "#" + name
-        else:
-            return name
+        <Annotation Term="org.example.display.DisplayName">
+            <Apply Function="odata.concat">
+                <Path>ProductName</Path>
+                <String>: </String>
+                <Path>ProductType</Path>
+            </Apply>
+        </Annotation>
 
-    def check_value(self, value):
-        if not isinstance(value, QualifiedAnnotation):
-            raise TypeError(
-                "QualifiedAnnotation required, found %s" % repr(value))
+    The Annotation instance object representing this annotation will
+    contain an expression equivalent to the inline expression::
 
+        concat(ProductName, concat(': ', ProductType))
 
-class QualifiedAnnotation(Named):
+    The value of this expression is only meaningful when it is evaluated
+    in the context of a specific entity instance.  Therefore, the
+    Annotation element applied to the Product entity type contains the
+    expression and not a value.
 
-    """A Qualified Annotation (applied to a model element)
+    A specific instance of this type behaves as if had the following
+    JSON representation::
 
-    The name of this object is the qualifier used or *an empty string*
-    if the annotation was applied without a qualifier."""
+        {
+            "ProductName": "Punch",
+            "ProductType": "Magazine",
+            "@org.example.display.DisplayName": "Punch: Magazine"
+        }
+
+    The annotation has been applied to the instance and evaluated to its
+    string value.  In practice though, you don't see the annotation
+    explicitly applied to the serialized form of the entity.  The
+    purpose of applying annotations (as expressions) to the ProductType
+    is to enable them to be inferred on the instance by the client.  The
+    :meth:`Value.get_annotation` method on Value takes care of this by
+    looking for annotation *expressions* applied to a Value's type and
+    evaluating them dynamically (client side) to obtain the Value of the
+    annotation itself.
+
+    Constant expressions evaluate to the same value for all instances
+    of the model element concerned and may be evaluated in the context
+    of the model element itself.  For example, the reference Trippin
+    service contains the following EntitySet declaration::
+
+        <EntitySet Name="Airlines"
+            EntityType=
+            "Microsoft.OData.Service.Sample.TrippinInMemory.Models.Airline">
+            <Annotation Term="Org.OData.Core.V1.OptimisticConcurrency">
+                <Collection>
+                    <PropertyPath>Name</PropertyPath>
+                </Collection>
+            </Annotation>
+        </EntitySet>
+
+    The subtle difference here is that a PropertyPath value literally
+    evaluates to the path (i.e, 'Name') and not the Name value of any
+    specific instance.  The intent here is to provide a list of
+    properties that are used to compute the ETag for an Airline, the
+    same list will apply to all Airline instances.  The
+    :meth:`Annotatable.get_annotation` method on Annotatable takes care
+    of this, evaluating constant expressions without requiring a
+    contextual instance Value."""
+
+    csdl_name = "Annotation"
 
     def __init__(self, term, qualifier=None, **kwargs):
-        super(QualifiedAnnotation, self).__init__(**kwargs)
-        #: the term that defines this annotation
-        if term is None or term.type_def is None:
+        super(Annotation, self).__init__(**kwargs)
+        if term is None or term.name is None:
             raise ValueError(
-                "Qualified annnotation with no defined term")
-        self.term = term
-        #: the qualifier associated with this annotation or None the
+                "Qualified annnotation with no declared term")
+        #: a weak reference to the term that defines this annotation we
+        #: use a weak reference to prevent cycles because Terms can also
+        #: be annotated, even with themselves!  Witness Core.Description
+        #: that is annotated with a self-referential description.
+        self.term = weakref.ref(term)
+        #: the qualifier associated with this annotation or None if the
         #: annotation has no qualifier.
         self.qualifier = qualifier
-        #: the value of this annotation, a :class:`Value` instance
-        self.value = term.type_def()
+        #: the expression that defines this annotation's value
+        self.expression = None
+
+    def set_expression(self, expression):
+        """Sets the expression for this annotation
+
+        By default Annotations have no expression and will evaluate to
+        the default value of the Term that defines them.  If an
+        expression is provided it may be a constant or dynamic
+        expression but evaluation is always deferred until the value
+        of the annotation is looked up."""
+        self.expression = expression
+
+    def get_term_ref(self):
+        """Returns a :class:`TermRef` tuple for this annotation"""
+        return TermRef(name=QualifiedName.from_str(self.term().qname),
+                       qualifier=self.qualifier)
+
+    def declare(self, nametable, name=None):
+        """Declares this annotation in an Annotations nametable
+
+        This method is overridden as, unlike other Named objects,
+        Annotation instances do not support aliasing and have
+        predetermined names based on the :attr:`term` and
+        :attr:`qualifier` attributes
+
+        The name parameter is made optional and is provided only for
+        consistency (when using super) and should be omitted.  If
+        specified it must be a TermRef that matches the calculated
+        value."""
+        tref = self.get_term_ref()
+        if name is not None and name != tref:
+            raise ValueError(
+                "Annotation declaration mismatch: %s declared as %s" %
+                (to_text(tref), to_text(name)))
+        super(Annotation, self).declare(nametable, tref)
 
     @classmethod
     def split_json_name(cls, name):
         """Splits a JSON encoded annotation name
 
-        Returns a 3-tuple of (target, qname, qualifier).  For example,
-        the annotation::
+        Returns a tuple of (target, term_ref).  For example, the
+        annotation::
 
             FirstName@Core.Description#ascii
 
         would return::
 
-            ("FirstName", QualifiedName("Core", "Description"), "ascii")
+            ("FirstName",
+                TermRef(QualifiedName("Core", "Description"), "ascii"))
 
-        The target and qualifier are optional and may be None."""
-        target = None
-        qualifier = None
+        The target and qualifier are optional and may be None in the
+        result."""
         apos = name.find('@')
         if apos < 0:
             raise ValueError("Annotation name must contain '@': %s" % name)
-        fpos = name.find('#', apos)
-        if fpos >= 0:
-            qname = name[apos + 1: fpos]
-            qualifier = name[fpos + 1:]
+        elif apos > 0:
+            return (
+                simple_identifier_from_str(name[:apos]),
+                TermRef.from_str(name[apos:]))
         else:
-            qname = name[apos + 1:]
-        if apos >= 1:
-            target = name[:apos]
-        qname = NameTable.split_qname(qname)
-        return (target, qname, qualifier)
+            return (None, TermRef.from_str(name))
 
     @classmethod
-    def from_qname(cls, qname, context, qualifier=None):
+    def from_term_ref(cls, term_ref, context):
         """Creates a new instance from a qualified name and context
 
-        qname
-            The qualified name of the annotation (a string or a
-            :class:`QualifiedName` tuple).
+        term_ref
+            A :class:`TermRef` instance or a string from which one can
+            be parsed.
 
         context
             The entity model within which to look up the associated
             term definition.
 
-        qualifier
-            The optional qualifier for this annotation.
-
-        Returns a QualifiedAnnotation instance or None if the definition
-        of the term could not be found."""
+        Returns an Annotation instance or None if the definition of the
+        term could not be found."""
         # lookup qname in the context
-        term = context.qualified_get(qname)
+        if is_text(term_ref):
+            term_ref = TermRef.from_str(term_ref)
+        term = context.qualified_get(term_ref.name)
         if not isinstance(term, Term):
             return None
-        return cls(term, qualifier=qualifier)
-
-    def qualified_declare(self, annotations):
-        """Declares this qualified annotation in an Annotations instance"""
-        if self.term is None or self.term.name is None:
-            raise ValueError(
-                "Can't declare annotation: Term is missing or undeclared")
-        tname = self.term.qname
-        a = annotations.get(tname, None)
-        if a is None:
-            a = Annotation()
-            a.declare(annotations, tname)
-        self.declare(a, "" if self.qualifier is None else self.qualifier)
+        return cls(term, qualifier=term_ref.qualifier)
 
 
-class NominalType(Named):
+class NominalType(Annotatable, Named):
 
     """A Nominal Type
 
@@ -722,6 +898,18 @@ class NominalType(Named):
         self.abstract = False
         #: the service this type is bound to
         self.service_ref = None
+
+    def __unicode__(self):
+        if self.qname is not None:
+            return self.qname
+        elif self.base is not None:
+            # an undeclared type, return the string representation of
+            # the base type
+            return to_text(self.base)
+        else:
+            # undeclared type with no base, should not clash with qnames
+            # of other types.
+            return "UnknownType"
 
     def __call__(self, value=None):
         v = self.value_type(type_def=self)
@@ -789,6 +977,41 @@ class NominalType(Named):
                 return True
         return False
 
+    def bases(self):
+        """Iterate this class and all it's bases"""
+        t = self
+        while t is not None:
+            yield t
+            t = t.base
+
+    def declared_bases(self):
+        """Iterate this class (if declared) and all it's declared bases
+
+        Undeclared types are used in situations such as facetted
+        restrictions of declared primitive types. This iterator will not
+        yield these inominate types.  (Special rules apply for
+        collection types, see :class:`model.CollectionType`)."""
+        t = self
+        while t is not None:
+            if t.qname is not None:
+                yield t
+            t = t.base
+
+    def get_model(self):
+        """Returns the model in which this type was declared
+
+        This returns the *model* in which the first
+        :meth:`declared_base` was declared.  For collection types it is
+        overridden to return the model in which the first declared_base
+        of the item type was declared (as collection types are always
+        undeclared)."""
+        t = self
+        while t is not None:
+            if t.qname is not None:
+                schema = t.nametable()
+                return schema.get_model()
+        return None
+
     def get_odata_type_fragment(self):
         """Returns the fragment identifier representing this type
 
@@ -835,7 +1058,7 @@ class NominalType(Named):
             raise errors.ModelError("%s has no context" % to_text(self))
 
 
-class Value(Annotatable, BoolMixin, UnicodeMixin):
+class Value(BoolMixin, UnicodeMixin):
 
     """Abstract class to represent a value in OData.
 
@@ -850,6 +1073,9 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
     :meth:`is_null` test when you want to test for null as per the OData
     specification as there are some special cases where the two
     diverge."""
+
+    #: class used for evaluation (set by model module)
+    Evaluator = None
 
     def __init__(self, type_def, **kwargs):
         super(Value, self).__init__(**kwargs)
@@ -872,6 +1098,8 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
         self.parent_cast = None
         #: the name of this value within the parent (property name)
         self.name = None
+        # used internally to cache annotation values
+        self._annotations = {}
 
     __hash__ = None
 
@@ -880,7 +1108,7 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
 
     def __unicode__(self):
         return to_text("%s of type %s" % (
-            self.__class__.__name__, self.type_def.qname))
+            self.__class__.__name__, to_text(self.type_def.qname)))
 
     def is_null(self):
         """Returns True if this object is null.
@@ -987,13 +1215,14 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
     def set_parent(self, parent_ref, name):
         """Sets the parent (owner) of this value.
 
-        A value is owned if it is a named property of another value."""
+        A value is owned if it is a named property of another value or,
+        it is the result of ."""
         if self.parent is not None:
             raise ValueError("Object already owned")
         self.parent = parent_ref
         p = parent_ref()
         self.name = name
-        if name not in p.base_def:
+        if name and name not in p.base_def:
             # we weren't declared in the base type of the parent so we
             # need a type cast to the type we were declared in (not
             # necessarily the type of our parent which may be further
@@ -1106,6 +1335,173 @@ class Value(Annotatable, BoolMixin, UnicodeMixin):
         if self.service is None:
             raise errors.UnboundValue
         raise NotImplementedError
+
+    def get_model(self):
+        """Returns the model that contains this value
+
+        If this Value is bound to a service then the model associated
+        with the servie is returned.  If unbound, then the model in
+        which the Value's type was declared is returned instead.
+        Property values use the containing EntityType, not the type of
+        the property itself.  In the case of types that are not bound to
+        a model at all (such as unbond values of primitive types) then
+        None is returned."""
+        model = None
+        if self.service:
+            model = self.service.model
+        if model is None:
+            entity = self.get_entity(path=[])
+            if entity is not None:
+                model = entity.type_def.get_model()
+        if model is None:
+            model = self.type_def.get_model()
+        return model
+
+    def get_annotation(self, aname):
+        """Looks up an annotation by name
+
+        aname
+            A text string that must start with '@' and consist of the
+            qualified term name followed by and optional
+            #qualifier or an existing :class:`TermRef` instance.
+
+        Returns a (possibly *frozen*) :class:`Value` instance of the
+        appropriate type as defined by the Term declaration or None if
+        the annotation does not apply to this value.
+
+        Use this method when you want to look up the value of an
+        annotation.  If the annotation has not been applied to the value
+        directly then annotations applied to the Value's type (or
+        declaration) are looked up in the metadata model including the
+        evaluation of any dynamic expressions or Term defaults.  The
+        resulting instance may be computed from related values or shared
+        amongst multiple instances (e.g., in the case of a Term default)
+        and so may be frozen to prevent changes.
+
+        If the annotation value is computed from a dynamic expression
+        the expression is re-evaluated each time this method is
+        called."""
+        if is_text(aname):
+            aname = TermRef.from_str(aname)
+        value = self._annotations.get(aname, None)
+        if value is None:
+            # TODO: if value is a property value, look up annotations in
+            # the property definition too perhaps?
+            for t in self.type_def.declared_bases():
+                # look up the annotation in the value's type
+                a = t.annotations.get(aname, None)
+                if a is None:
+                    continue
+                value = self.Evaluator.evaluate_annotation(a, self).get_value()
+                # freeze this value before returning it
+                value.freeze()
+                break
+        return value
+
+    def get_updatable_annotation(self, term, qualifier=None, default=False):
+        """Looks up an annotation by name
+
+        term
+            The :class:`Term` that defines this annotation
+
+        qualifier (None)
+            The optional qualifier to use with this instance of the term.
+
+        default (False)
+            Compute a default value for the annotation if it has not had
+            a value assigned already.  Otherwise a null value is
+            assigned.  (The default is the value that would be returned
+            by :meth:`get_annotation``.)
+
+        Returns an updatable :class:`Value` instance of the appropriate
+        type as defined by the Term declaration.  The annotation is
+        applied to this value if it does not already apply.
+
+        Use this method when you want to set the value of the annotation
+        as applied to this value only.  The return value becomes the
+        value of this annotation for the remaining life of the Value
+        instance and will be returned by all future calls to both this
+        method and :meth:`get_annotation`, therefore, updating it
+        changes the value of the annotation for this isntance.
+
+        If the annotation value can be computed from the metadata model
+        then it will be updated to the computed value before being
+        returned only if *default* is True."""
+        aname = TermRef(name=QualifiedName.from_str(term.qname),
+                        qualifier=qualifier)
+        value = self._annotations.get(aname, None)
+        if default:
+            computed_value = self.get_annotation(aname)
+        else:
+            computed_value = None
+        if value is None:
+            # create a new value instance for this term
+            value = term.type_def()
+            self._annotations[aname] = value
+        if computed_value is not None:
+            value.assign(computed_value)
+        return value
+
+    def remove_updatable_annotation(self, aname):
+        """Removes an annotation from this value by name
+
+        aname
+            See :meth:`get_annotation`.
+
+        This method removes any updateable annotation applied to this
+        specific value.  After this call, get_annotation may still
+        return a value if it can be computed from an Annotation
+        expression applied to the value's type.
+
+        Use this method to remove an annotation that was applied using
+        :meth:`get_updatable_annotation`."""
+        if is_text(aname):
+            aname = TermRef.from_str(aname)
+        self._annotations.pop(aname, None)
+
+    def get_annotations(self, apattern):
+        """Looks up a set of annotations by pattern
+
+        apattern
+            A pattern that satisfies the syntax for the
+            odata.include-annotations Prefer header.  A comma separated
+            list of qualified term names with optional #qualifiers that
+            may contain the wild card character "*" on its own or after
+            a schema name and/or be prefixed with the exclusion
+            character "-".
+
+        Returns a dictionary mapping annotation :class:`TermRef` tuples
+        onto Value instances.  See :meth:`get_annotation` for further
+        information on the way values are calculated."""
+        raise NotImplementedError
+
+    def get_callable(self, qname, params=None):
+        """Returns a :class:`model.CallableValue` bound to this value
+
+        qname
+            The qualified name of the action or function (callable)
+
+        params
+            An optional list or iterable of non-binding parameter names
+            (strings) used to disambiguate function overloads."""
+        if self.service is None:
+            raise errors.UnboundValue
+        cdef = self.service.model.qualified_get(qname)
+        if cdef is None:
+            raise KeyError
+        if cdef.is_action():
+            if params is not None:
+                raise errors.ODataError(
+                    "Can't use params for action overload resolution")
+            c = cdef.resolve(self)
+        else:
+            c = cdef.resolve(self, params)
+        if c is None:
+            raise errors.ODataError("No matching callable declared")
+        cv = c()
+        cv.set_callable_binding(self)
+        cv.bind_to_service(self.service)
+        return cv
 
 
 class SelectItem(UnicodeMixin):
@@ -1303,7 +1699,7 @@ class EntityOptions(object):
             # no select means select default structural properties
             return not nav and self.select_default
         if is_text(qname):
-            qname = NameTable.split_qname(qname)
+            qname = QualifiedName.from_str(qname)
         result = self._selected.get((qname, pname), None)
         if result is not None:
             return result
@@ -1638,7 +2034,7 @@ class EntityOptions(object):
         if not self.expand:
             return None
         if is_text(qname):
-            qname = NameTable.split_qname(qname)
+            qname = QualifiedName.from_str(qname)
         result = self._nav_expanded.get((qname, pname), None)
         if result is not None:
             return result
@@ -1835,6 +2231,7 @@ class Operator(xsi.Enumeration):
         "member": 19,
         "method": 20,
         "lambda_bind": 21,
+        "collection": 22,
     }
 
     aliases = {
@@ -1857,6 +2254,9 @@ class CommonExpression(SortableMixin):
             return other.sortkey()
         else:
             return NotImplemented
+
+    def evaluate(self, evaluator):
+        raise NotImplementedError("Evaluation of %s" % repr(self))
 
 
 class NameExpression(CommonExpression):
@@ -1896,6 +2296,9 @@ class LiteralExpression(CommonExpression):
     def __init__(self, value):
         self.value = value
 
+    def evaluate(self, evaluator):
+        return evaluator.primitive(self.value)
+
 
 class OperatorExpression(CommonExpression):
 
@@ -1926,6 +2329,7 @@ class OperatorExpression(CommonExpression):
         Operator.member: 8,
         Operator.has: 8,
         Operator.method: 8,
+        Operator.collection: 8,
         }
 
     def sortkey(self):
@@ -1982,3 +2386,44 @@ class CallExpression(OperatorExpression):
         return "%s(%s)" % (
             self.name,
             ",".join(operand_strs))
+
+
+class CollectionExpression(OperatorExpression):
+
+    """Class representing an expression that evaluates to a collection
+
+    Not used in inline syntax where JSON formatted arrays are treated as
+    literals but available in Annotation expressions through use of the
+    <Collection> element."""
+
+    def __init__(self):
+        OperatorExpression.__init__(self, Operator.collection)
+
+    def format_expr(self, operand_strs):
+        return "[%s]" % (",".join(operand_strs))
+
+
+class APathExpression(LiteralExpression):
+
+    """An expression that evaluates to an AnnotationPath
+
+    Not used in inline syntax where paths are decomposed and evaluated
+    using the notional member operator.  Instead, AnnotationPath
+    expressions evaluate to the path itself hence they are treated
+    as a special type of literal expression."""
+    pass
+
+
+class PathExpression(CommonExpression):
+
+    """An expression that evaluates a path
+
+    We actually store the expression's value as a tuple (as per the
+    return value of :func:`path_from_str`) but when evaluated a path
+    expression is evaluated in the current context by path traversal."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def evaluate(self, evaluator):
+        return evaluator.resolve_path(self.path)

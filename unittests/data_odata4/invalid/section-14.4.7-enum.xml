@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Annotation Term="Vocab.Enum">
+            <!-- An enumeration member expression MUST be assigned a
+            value that consists of the qualified name of the enumeration
+            type, followed by a forward slash and the name of the
+            enumeration member -->
+            <EnumMember>Vocab.OneTwoThreeFour/One</EnumMember>
+          </Annotation>
+          <Term Name="Enum" Type="Vocab.OneTwoThree"/>
+          <EnumType Name="OneTwoThree">
+            <Member Name="One"/>
+          </EnumType>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

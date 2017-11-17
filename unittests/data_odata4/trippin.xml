@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+    <edmx:Reference Uri="core.xml">
+        <edmx:Include Namespace="Org.OData.Core.V1" Alias="Core"/>
+    </edmx:Reference>
     <edmx:DataServices>
         <Schema Namespace="Microsoft.OData.Service.Sample.TrippinInMemory.Models"
             xmlns="http://docs.oasis-open.org/odata/ns/edm" Alias="Trippin">

@@ -844,6 +844,11 @@ class Parser(BasicParser):
                 # just some random word that we don't understand
                 self.parser_error("primitive literal")
 
+    # Line 829
+    def require_primitive_value(self):
+        """Parses production: primitiveValue"""
+        raise NotImplementedError
+
     # Line 856
     #: Matches production: nullValue
     null_value = 'null'

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Annotation Term="Vocab.Guid">
+            <!-- guid expression MUST be assigned a value conforming to
+            the rule guidValue -->
+            <Guid>{21EC2020-3AEA-1069-A2DD-08002B30309D}</Guid>
+          </Annotation>
+          <Term Name="Guid" Type="Edm.Guid"/>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

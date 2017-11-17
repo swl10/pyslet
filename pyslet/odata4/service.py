@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import logging
 
 from . import errors
 from . import metadata as csdlxml
@@ -135,13 +136,15 @@ class DataService(object):
         # look for interesting annotations
         tag = self.container.annotations.qualified_get(
             "Org.OData.Core.V1.DereferenceableIDs")
-        if tag and tag.value:
-            self.dereferenceable_ids = tag.value.get_value()
+        if tag:
+            self.dereferenceable_ids = csdl.Evaluator.evaluate_annotation(
+                tag, container).get_value()
         tag = self.container.annotations.qualified_get(
             "Org.OData.Core.V1.ConventionalIDs")
-        if tag and tag.value:
+        if tag:
             # we have a tag with a non-null value
-            self.conventional_ids = tag.value.get_value()
+            self.conventional_ids = csdl.Evaluator.evaluate_annotation(
+                tag, container).get_value()
 
     def root_url(self):
         """Creates an OData URL representing the service root"""
@@ -257,8 +260,6 @@ class DataService(object):
     def open(self, name):
         """Opens an item advertised by this service
 
-        Deprecated: use self.container[name]() instead
-
         The return type depends on the type of the item being exposed.
         For an EntitySet the return type is an
         :class:`model.EntitySetValue` object, for a Singleton the return
@@ -270,10 +271,7 @@ class DataService(object):
 
         This method is shorthand for::
 
-            self.container[name]()
-
-        and is likely to be removed before this branch is merged to
-        pyslet master."""
+            self.container[name]()"""
         return self.container[name]()
 
     def get_entity_collection(self, entity_set, next_link=None):
@@ -361,6 +359,20 @@ class DataService(object):
         values."""
         raise NotImplementedError
 
+    def get_entity(self, entity):
+        """Creates a request to retrieve an existing entity
+
+        entity
+            An entity value object previously returned by the service.
+
+        The entity is reloaded (according to any select/expand options
+        already specifed on creation).
+
+        Returns a :class:`DataRequest` instance.  When executed, the
+        result of the request is *entity* updated with the current
+        values of the requested properties."""
+        raise NotImplementedError
+
     def update_entity(self, entity, merge=True):
         """Create a request to update an entity
 
@@ -402,6 +414,174 @@ class DataService(object):
         the effect is to delete the entity with *key* outright."""
         raise NotImplementedError
 
+    def call_function(self, function):
+        """Creates a request for a function call
+
+        function
+            A :class:`CallableValue` object representing a function call.
+
+        Returns a :class:`DataRequest` instance.  When executed, the
+        result of of the request is a :class:`Value` object of the
+        appropriate return type or an appropriate exception."""
+        raise NotImplementedError
+
+    def call_action(self, action):
+        """Creates a request for an action call
+
+        action
+            A :class:`CallableValue` object representing an action call.
+
+        Returns a :class:`DataRequest` instance.  When executed, the
+        result of of the request is a :class:`Value` object of the
+        appropriate return type or an appropriate exception."""
+        raise NotImplementedError
+
+    def get_entity_id(self, entity):
+        """Returns the ID (an entity reference) for an entity
+
+        A transient entity will return None, otherwise a string is
+        returned representing the entity reference.  If the entity is
+        not transient but has not been bound to this service (yet) then
+        it is bound by this method before the ID is returned.
+
+        If the reference cannot be determined then
+        :class:`errors.InvalidEntityID` exception will be raised meaning
+        the entity is neither known to be transient nor has an odata.id.
+        Sadly this can happen, one option is to fix this using
+        :meth:`fix_entity_id` if the parent entity set is known or can
+        be guessed."""
+        id = entity.get_annotation("@odata.id")
+        if id is not None:
+            if id.is_null():
+                # transient entity!
+                return None
+            if id.value:
+                # entity with a known id
+                if entity.service is None:
+                    # bind it to this service
+                    entity.bind_to_service(self)
+                return id.value
+            # an empty string is not acceptable here
+        if entity.entity_binding:
+            # if there is no id then we must have all the key fields
+            # AND the url is just the canonical url of the entity
+            # set or singleton
+            url = self.url_from_str(
+                to_text(entity.entity_binding.get_url()))
+            if isinstance(entity.entity_binding, csdl.EntitySet):
+                # for entity sets only, add the key
+                key = entity.type_def.get_key_dict(entity.get_key())
+                url.add_key_predicate(key)
+            if entity.service is None:
+                entity.bind_to_service(self)
+            return to_text(url)
+        # if we are a named property of a parent then we are a contained
+        # singleton, the id is obtained from the parent
+        if entity.parent:
+            url = self.get_value_url(entity.parent())
+            url.add_path_segment(entity.name)
+            id = to_text(url)
+            # fix up the missing odata.id attribute
+            term = self.model.qualified_get("odata.id")
+            odata_id = entity.get_updatable_annotation(term)
+            odata_id.set_value(id)
+            if entity.service is None:
+                entity.bind_to_service(self)
+            return id
+        # otherwise we're swimming in a collection with no id
+        raise errors.InvalidEntityID
+
+    def fix_entity_id(self, entity, parent):
+        """Fixes the ID of the entity based on a parent object
+
+        The parent object must be a value with a resolvable location (e.g.,
+        a navigation property of an entity in a bound entity set).  The
+        id of the entity is calculated by adding a key-predicate to the
+        parent's location, effectively binding the entity on the fly.
+
+        On success, the odata.id annotation of the entity is updated to
+        reflect the new binding and the entity is bound to this service
+        if it is not already bound."""
+        url = self.get_value_url(parent)
+        if isinstance(parent, (csdl.EntitySetValue, csdl.CollectionValue)):
+            # we need to add the key
+            key = entity.type_def.get_key_dict(entity.get_key())
+            url.add_key_predicate(key)
+        id = to_text(url)
+        term = self.model.qualified_get("odata.id")
+        odata_id = entity.get_updatable_annotation(term)
+        logging.warning("Fixing missing ID for entity %s" % id)
+        odata_id.set_value(id)
+        if entity.service is None:
+            entity.bind_to_service(self)
+
+    def get_value_url(self, value, edit=False):
+        """Calculates the read or edit link of a value
+
+        We follow the guidance in Part 1; 4.2 when determining the link
+        for a property of an entity.  For entity sets we use the URLs
+        returned in the service document.  For entities we follow the
+        annotation conventions in JSON 4.5.8; other payload types ensure
+        they generate the appropriate annotations during
+        deserialization."""
+        url = None
+        if value.parent is not None:
+            # this is a named property of an entity or structured type
+            path = []
+            entity = value.get_entity(path)
+            if entity is None:
+                raise errors.UnboundValue
+            url = self.get_value_url(entity, edit=edit)
+            for seg in path:
+                url.add_path_segment(seg)
+        elif isinstance(value, csdl.EntityContainerValue) and \
+                value.entity_binding:
+            # this is just an entity set or singleton read/edit url in
+            # service doc
+            url = self.url_from_str(
+                to_text(value.entity_binding.get_url()))
+        elif isinstance(value, csdl.EntityValue):
+            if not edit:
+                # check for an explicit readLink
+                read_link = value.get_annotation("@odata.readLink")
+                if read_link:
+                    url = self.url_from_str(
+                        to_text(read_link.value.get_value()))
+            if not url:
+                edit_link = value.get_annotation("@odata.editLink")
+                if edit_link:
+                    url = self.url_from_str(
+                        to_text(edit_link.value.get_value()))
+            if not url:
+                # default is the entity-id with a cast if required
+                id = value.get_annotation("@odata.id")
+                if id is not None:
+                    if id.is_null():
+                        # transient entity!
+                        raise errors.ServiceError(
+                            "Can't read or edit a transient entity")
+                    url = self.url_from_str(
+                        to_text(id.get_value()))
+                    if (value.entity_binding and
+                            value.entity_binding.entity_type is not
+                            value.type_def):
+                        url.add_path_segment(value.type_def.qname)
+            if not url and value.entity_binding:
+                # if there is no id then we must have all the key fields
+                # AND the url is just the canonical url of the entity
+                # set or singleton
+                url = self.url_from_str(
+                    to_text(value.entity_binding.get_url()))
+                if isinstance(value.entity_binding, csdl.EntitySet):
+                    # for entity sets only, add the key
+                    key = value.type_def.get_key_dict(value.get_key())
+                    url.add_key_predicate(key)
+            if not url:
+                raise errors.ODataError("Can't read or edit unbound entity")
+        else:
+            raise errors.ODataError("Can't calculate target URL")
+        return url
+
     # TBC below
 
     def get_entity_by_ref(self, entity_ref, type_cast=None, options=None):
@@ -421,20 +601,6 @@ class DataService(object):
         Returns a :class:`DataRequest` instance.  When executed, the
         result of the request is an :class:`model.EntityValue` or an
         appropriate :class:`errors.ServiceError` instance."""
-        raise NotImplementedError
-
-    def get_entity(self, entity):
-        """Creates a request to retrieve an existing entity
-
-        entity
-            An entity value object previously returned by the service.
-
-        The entity is reloaded (according to any select/expand options
-        already specifed on creation).
-
-        Returns a :class:`DataRequest` instance.  When executed, the
-        result of the request is *entity* updated with the current
-        values of the requested properties."""
         raise NotImplementedError
 
     def get_entity_ref_by_key(self, entity_set_value, key):
@@ -569,71 +735,6 @@ class DataRequest(object):
         using a callback)."""
         raise NotImplementedError
 
-    def get_value_url(self, value, edit=False):
-        """Calculates the read or edit link of a value
-
-        We follow the guidance in Part 1; 4.2 when determining the link
-        for a property of an entity.  For entity sets we use the URLs
-        returned in the service document.  For entities we follow the
-        annotation conventions in JSON 4.5.8; other payload types ensure
-        they generate the appropriate annotations during
-        deserialization."""
-        url = None
-        if value.parent is not None:
-            # this is a named property of an entity or structured type
-            path = []
-            entity = value.get_entity(path)
-            if entity is None:
-                raise errors.UnboundValue
-            url = self.get_value_url(entity, edit=edit)
-            for seg in path:
-                url.add_path_segment(seg)
-        elif isinstance(value, csdl.EntityContainerValue) and \
-                value.entity_binding:
-            # this is just an entity set or singleton read/edit url in
-            # service doc
-            url = self.service.url_from_str(
-                to_text(value.entity_binding.get_url()))
-        elif isinstance(value, csdl.EntityValue):
-            if not edit:
-                # check for an explicit readLink
-                read_link = value.annotations.qualified_get("odata.readLink")
-                if read_link and not read_link.value.is_null():
-                    url = self.service.url_from_str(
-                        to_text(read_link.value.get_value()))
-            if not url:
-                edit_link = value.annotations.qualified_get("odata.editLink")
-                if edit_link and not edit_link.value.is_null():
-                    url = self.service.url_from_str(
-                        to_text(edit_link.value.get_value()))
-            if not url:
-                # default is the entity-id with a cast if required
-                id = value.annotations.qualified_get("odata.id")
-                if id:
-                    if id.value.is_null():
-                        # transient entity!
-                        raise errors.ServiceError(
-                            "Can't read or edit a transient entity")
-                    url = self.service.url_from_str(
-                        to_text(id.value.get_value()))
-                    if value.entity_binding.entity_type is not value.type_def:
-                        url.add_path_segment(value.type_def.qname)
-            if not url and value.entity_binding:
-                # if there is no id then we must have all the key fields
-                # AND the url is just the canonical url of the entity
-                # set or singleton
-                url = self.service.url_from_str(
-                    to_text(value.entity_binding.get_url()))
-                if isinstance(value.entity_binding, csdl.EntitySet):
-                    # for entity sets only, add the key
-                    key = value.type_def.get_key_dict(value.get_key())
-                    url.add_key_predicate(key)
-            else:
-                raise errors.ODataError("Can't read or edit unbound entity")
-        else:
-            raise errors.ODataError("Can't calculate target URL")
-        return url
-
 
 class ChangeSet(DataRequest):
 
@@ -711,7 +812,7 @@ class ODataURL(object):
     """Represents an OData URL"""
 
     def __init__(self, service):
-        #: the context (EntityModel) that defines the service
+        #: the service this URL refers to
         self.service = service
         #: the resource path, an array of decoded text strings
         self.resource_path = []
@@ -771,15 +872,30 @@ class ODataURL(object):
         index = len(self.resource_path_segments) - 1
         seg = self.resource_path_segments[index]
         if seg.params:
-            raise errors.URLError("URL already has a key predicate")
+            raise errors.URLError("URL already has a key or params")
         seg.params = key_dict
         # update the formatted version of this segment
         if len(key_dict) > 1:
             kp_str = "(%s)" % ",".join(
-                "%s=%s" % (n, v.literal_string()) for n, v in key_dict)
+                "%s=%s" % (n, v.literal_string()) for n, v in key_dict.items())
         else:
             kp_str = "(%s)" % key_dict[""].literal_string()
         self.resource_path[index] += kp_str
+
+    def add_inline_params(self, params):
+        """Adds a set of inline params to the resource path"""
+        index = len(self.resource_path_segments) - 1
+        seg = self.resource_path_segments[index]
+        if seg.params:
+            raise errors.URLError("URL already has key or params")
+        seg.params = params
+        # update the formatted version of this segment
+        if len(params) > 1:
+            p_str = "(%s)" % ",".join(
+                "%s=%s" % (n, v.literal_string()) for n, v in params.items())
+        else:
+            p_str = "()"
+        self.resource_path[index] += p_str
 
     def set_query_option(self, name, value):
         """Set a query option from a name/value pair (as decoded strings)"""
