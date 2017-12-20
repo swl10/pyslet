@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="test.pyslet.org" Alias="Self">
+            <EntityType Name="Person">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" Nullable="false"/>
+                <Property Name="IsMale" Type="Edm.Boolean"/>
+                <Property Name="IsFemale" Type="Edm.Boolean"/>
+                <Property Name="IsMarried" Type="Edm.Boolean"/>
+                <Property Name="Price" Type="Edm.Int32"/>
+                <Property Name="Email" Type="Collection(Edm.String)"/>
+                <NavigationProperty Name="Customer" Type="Self.Customer"/>
+                <Annotation Term="Vocab.IsMarriedMale">
+                    <And><Path>IsMale</Path><Path>IsMarried</Path></And>
+                </Annotation>
+                <Annotation Term="Vocab.IsMaleOrMarried">
+                    <Or><Path>IsMale</Path><Path>IsMarried</Path></Or>
+                </Annotation>
+                <Annotation Term="Vocab.IsNotMale">
+                    <Not><Path>IsMale</Path></Not>
+                </Annotation>
+                <Annotation Term="Vocab.GenderUnknown">
+                    <Eq><Null/><Path>IsMale</Path></Eq>
+                </Annotation>
+                <Annotation Term="Vocab.GenderKnown">
+                    <Ne><Null/><Path>IsMale</Path></Ne>
+                </Annotation>
+                <Annotation Term="Vocab.Gender">
+                    <If>
+                        <Path>IsFemale</Path>
+                        <String>Female</String>
+                        <String>Male</String>
+                    </If>
+                </Annotation>
+                <Annotation Term="Vocab.Genders">
+                    <Collection>
+                        <If>
+                            <Path>IsFemale</Path>
+                            <String>Female</String>
+                        </If>
+                        <If>
+                            <Path>IsMale</Path>
+                            <String>Male</String>
+                        </If>
+                    </Collection>
+                </Annotation>
+                <Annotation Term="Vocab.NotCheap">
+                    <Gt><Path>Price</Path><Int>20</Int></Gt>
+                </Annotation>
+                <Annotation Term="Vocab.NotVeryCheap">
+                    <Ge><Path>Price</Path><Int>10</Int></Ge>
+                </Annotation>
+                <Annotation Term="Vocab.Cheap">
+                    <Lt><Path>Price</Path><Int>20</Int></Lt>
+                </Annotation>
+                <Annotation Term="Vocab.Affordable">
+                    <Le><Path>Price</Path><Int>100</Int></Le>
+                </Annotation>
+                <Annotation Term="Vocab.IsPreferredCustomer">
+                    <IsOf Type="Self.PreferredCustomer">
+                        <Path>Customer</Path>
+                    </IsOf>
+                </Annotation>
+            </EntityType>
+            <EntityType Name="Product">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="ProductName" Type="Edm.String"
+                    Nullable="false"/>
+                <Property Name="Available" Type="test.pyslet.org.QUnit"
+                    Nullable="false"/>
+                <Property Name="Average" Type="Edm.Double"
+                    Nullable="false"/>
+                <NavigationProperty Name="Supplier"
+                    Type="test.pyslet.org.Supplier"/>
+                <NavigationProperty Name="Customers"
+                    Type="Collection(test.pyslet.org.Customer)"/>
+                <Annotation Term="Vocab.People" Qualifier="Contacts">
+                    <Collection>
+                        <AnnotationPath>Supplier/@Vocab.Contact</AnnotationPath>
+                        <AnnotationPath>Customers/@Vocab.Contact</AnnotationPath>
+                    </Collection>
+                </Annotation>
+                <Annotation Term="Vocab.DisplayName">
+                    <Apply Function="odata.concat">
+                        <String>Product: </String>
+                        <Path>ProductName</Path>
+                        <String> (</String>
+                        <Path>Available/Quantity</Path>
+                        <String> </String>
+                        <Path>Available/Unit</Path>
+                        <String> available)</String>
+                    </Apply>
+                </Annotation>
+                <Annotation Term="Vocab.Threshold">
+                    <Cast Type="Edm.Decimal" Precision="4" Scale="3">
+                        <Path>Average</Path>
+                    </Cast>
+                </Annotation>           
+            </EntityType>
+            <ComplexType Name="QUnit">
+                <Property Name="Quantity" Type="Edm.Decimal" Nullable="false"/>                
+                <Property Name="Unit" Type="test.pyslet.org.Unit"
+                    Nullable="false"/>                
+            </ComplexType>
+            <EnumType Name="Unit">
+                <Member Name="m"/>
+                <Member Name="kg"/>
+                <Member Name="l"/>
+            </EnumType>
+            <EntityType Name="Supplier">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <NavigationProperty Name="AccountManager"
+                    Type="test.pyslet.org.Person"/>
+                <NavigationProperty Name="OtherContacts"
+                    Type="Collection(test.pyslet.org.Person)"/>
+                <Annotation Term="Vocab.Contact">
+                    <Path>AccountManager</Path>
+                </Annotation>
+            </EntityType>
+            <EntityType Name="Customer">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="FirstName" Type="Edm.String" Nullable="false"/>
+                <NavigationProperty Name="PrimaryContact"
+                    Type="test.pyslet.org.Person"/>
+                <NavigationProperty Name="OtherContacts"
+                    Type="Collection(test.pyslet.org.Person)"/>
+                <Annotation Term="Vocab.Contact">
+                    <Path>PrimaryContact</Path>
+                </Annotation>
+                <Annotation Term="Vocab.DisplayName">
+                    <LabeledElement Name="CustomerFirstName"
+                        Path="FirstName" />
+                </Annotation>
+                <Annotation Term="Vocab.AltName">
+                    <LabeledElementReference>Self.CustomerFirstName</LabeledElementReference>
+                </Annotation>
+            </EntityType>
+            <EntityType Name="PreferredCustomer" BaseType="Self.Customer">
+                <Property Name="Status" Type="Edm.String" Nullable="false"/>                
+            </EntityType>
+            <EntityType Name="MovieCharacter">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="CharacterName" Type="Edm.String"
+                    Nullable="false"/>
+                <NavigationProperty Name="Actor"
+                    Type="test.pyslet.org.Person"/>
+                <Annotation Term="Vocab.ActorURL">
+                    <Apply Function="odata.fillUriTemplate">
+                        <String>http://host/someAPI/Actors/{actorName}/CV</String>
+                        <LabeledElement Name="actorName" Path="Actor/Name"/>
+                    </Apply>
+                </Annotation>
+                <Annotation Term="Vocab.HyperLink"
+                    NavigationPropertyPath="Actor" />
+                <Annotation Term="Vocab.IsMarriedMale">
+                    <Null/>
+                </Annotation>
+            </EntityType>
+            <EntityType Name="Movie">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="NameOfMovieGenre" Type="Edm.String"
+                    Nullable="false"/>
+                <Annotation Term="Vocab.GenreURL">
+                    <Apply Function="odata.fillUriTemplate">
+                        <String>http://host/service/Genres({genreName})</String>
+                        <LabeledElement Name="genreName">
+                            <Apply Function="odata.uriEncode" >
+                                <Path>NameOfMovieGenre</Path>
+                            </Apply>
+                        </LabeledElement>
+                    </Apply>
+                </Annotation>
+            </EntityType>
+            <EntityContainer Name="MyDB">
+                <EntitySet Name="Products"
+                        EntityType="test.pyslet.org.Product">
+                    <Annotation Term="Capabilities.UpdateRestrictions">
+                        <Record>
+                            <PropertyValue Property="NonUpdatableNavigationProperties">
+                                <Collection>
+                                    <NavigationPropertyPath>Supplier</NavigationPropertyPath>
+                                    <NavigationPropertyPath>Customers</NavigationPropertyPath>
+                                </Collection>
+                            </PropertyValue>
+                        </Record>
+                    </Annotation>
+                </EntitySet>
+            </EntityContainer>            
+        </Schema>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Term Name="IsMarriedMale" Type="Edm.Boolean"/>
+          <Term Name="IsMaleOrMarried" Type="Edm.Boolean"/>
+          <Term Name="IsNotMale" Type="Edm.Boolean"/>
+          <Term Name="Gender" Type="Edm.String"/>
+          <Term Name="Genders" Type="Collection(Edm.String)"/>
+          <Term Name="GenderUnknown" Type="Edm.Boolean"/>
+          <Term Name="GenderKnown" Type="Edm.Boolean"/>
+          <Term Name="NotCheap" Type="Edm.Boolean"/>
+          <Term Name="NotVeryCheap" Type="Edm.Boolean"/>
+          <Term Name="Cheap" Type="Edm.Boolean"/>
+          <Term Name="Affordable" Type="Edm.Boolean"/>
+          <Term Name="Contact" Type="test.pyslet.org.Person"/>
+          <Term Name="People" Type="Collection(Edm.AnnotationPath)"/>
+          <Term Name="DisplayName" Type="Edm.String"/>
+          <Term Name="AltName" Type="Edm.String"/>
+          <Term Name="ActorURL" Type="Edm.String"/>
+          <Term Name="GenreURL" Type="Edm.String"/>
+          <Term Name="Threshold" Type="Edm.Decimal"/>
+          <Term Name="IsPreferredCustomer" Type="Edm.Boolean"/>
+          <Term Name="HyperLink" Type="Edm.NavigationPropertyPath"/>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

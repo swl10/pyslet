@@ -3,10 +3,13 @@
 import logging
 import unittest
 
-from pyslet.odata4 import model as csdl
-from pyslet.odata4 import errors
-from pyslet.odata4 import service
-from pyslet.odata4 import types
+from pyslet.odata4 import (
+    errors,
+    model as csdl,
+    names,
+    service,
+    types,
+    )
 from pyslet.py2 import (
     is_text,
     to_text,
@@ -154,7 +157,7 @@ class URITests(unittest.TestCase):
             "http://host/People/my.schema.Manager")
         self.assertTrue(len(odata_url.resource_path) == 2)
         seg = odata_url.resource_path_segments[1]
-        self.assertTrue(isinstance(seg.name, types.QualifiedName))
+        self.assertTrue(isinstance(seg.name, names.QualifiedName))
         self.assertTrue(seg.name[0] == "my.schema")
         self.assertTrue(seg.name[1] == "Manager")
         self.assertFalse(seg.params)
@@ -173,7 +176,7 @@ class URITests(unittest.TestCase):
         odata_url.set_select(options.select)
         self.assertTrue(to_text(odata_url) == "/?%24select=PropertyA")
         options.add_select_path(
-            ("PropertyB", types.QualifiedName("Schema", "Subtype")))
+            ("PropertyB", names.QualifiedName("Schema", "Subtype")))
         odata_url.set_select(options.select)
         self.assertTrue(to_text(odata_url) ==
                         "/?%24select=PropertyA%2CPropertyB%2FSchema.Subtype")
@@ -200,8 +203,8 @@ class URITests(unittest.TestCase):
         suboptions = types.ExpandOptions()
         suboptions.top = 10
         options.add_expand_path(
-            ("PropertyC", types.QualifiedName("Schema", "Subtype")),
-            qualifier=types.PathQualifier.ref, options=suboptions)
+            ("PropertyC", names.QualifiedName("Schema", "Subtype")),
+            qualifier=names.PathQualifier.ref, options=suboptions)
         odata_url.set_expand(options.expand)
         self.assertTrue(
             to_text(odata_url) ==
@@ -209,7 +212,7 @@ class URITests(unittest.TestCase):
             "PropertyC%2FSchema.Subtype%2F%24ref(%24top%3D10)",
             to_text(odata_url))
         options.add_expand_path(
-            "PropertyC/PropertyC1", types.PathQualifier.count)
+            "PropertyC/PropertyC1", names.PathQualifier.count)
         odata_url.set_expand(options.expand)
         self.assertTrue(
             to_text(odata_url) ==

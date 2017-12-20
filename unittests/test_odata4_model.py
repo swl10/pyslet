@@ -11,12 +11,17 @@ from pyslet.iso8601 import (
     Time,
     TimePoint
     )
-from pyslet.odata4 import errors as errors
-from pyslet.odata4 import geotypes as geo
-from pyslet.odata4 import metadata as csdl
-from pyslet.odata4 import model as odata
-from pyslet.odata4 import primitive
-from pyslet.odata4 import types
+from pyslet.odata4 import (
+    data,
+    errors,
+    geotypes as geo,
+    metadata as csdl,
+    model as odata,
+    names,
+    parser,
+    primitive,
+    types,
+    )
 from pyslet.py2 import (
     to_text,
     u8,
@@ -36,6 +41,7 @@ def suite():
         unittest.makeSuite(StructuredValueTests, 'test'),
         unittest.makeSuite(EntitySetTests, 'test'),
         unittest.makeSuite(EnumerationTests, 'test'),
+        unittest.makeSuite(EvaluatorTests, 'test'),
         ))
 
 
@@ -141,7 +147,7 @@ class EntityModelTests(unittest.TestCase):
             self.fail("Schema.declare with bad name")
         except ValueError:
             pass
-        n = types.Named()
+        n = names.Named()
         try:
             n.declare(em, "BadType")
             self.fail("Named.declare in EntityModel")
@@ -168,31 +174,29 @@ class EntityModelTests(unittest.TestCase):
         em = odata.EntityModel()
         self.assertTrue(em.qualified_get("com.example._X.x") is None)
         nsx = odata.Schema()
-        nsy = odata.Schema()
-        x = types.NominalType()
-        x.declare(nsx, "x")
-        y = types.NominalType()
-        y.declare(nsy, "y")
-        z = types.NominalType()
         nsx.declare(em, "com.example._X")
+        nsy = odata.Schema()
+        nsy.declare(em, "_Y")
+        x = types.NominalType(value_type=data.Value)
+        x.declare(nsx, "x")
+        y = types.NominalType(value_type=data.Value)
+        y.declare(nsy, "y")
+        z = types.NominalType(value_type=data.Value)
         em.qualified_tell("com.example._X.x", c)
         self.assertTrue(c.call_count == 1)
         self.assertTrue(em.qualified_get("com.example._X.x") is x)
         self.assertTrue(
-            em.qualified_get(types.QualifiedName("com.example._X", "x")) is x)
+            em.qualified_get(names.QualifiedName("com.example._X", "x")) is x)
         self.assertTrue(c.last_value is x)
         em.qualified_tell("com.example._X.z", c)
         em.qualified_tell("_Y.y", c)
         em.qualified_tell("_Y.ciao", c)
         em.qualified_tell("_Z.ciao", c)
-        self.assertTrue(c.call_count == 1)
-        self.assertTrue(c.last_value is x)
-        z.declare(nsx, "z")
         self.assertTrue(c.call_count == 2)
-        self.assertTrue(c.last_value is z)
-        nsy.declare(em, "_Y")
-        self.assertTrue(c.call_count == 3)
         self.assertTrue(c.last_value is y)
+        z.declare(nsx, "z")
+        self.assertTrue(c.call_count == 3)
+        self.assertTrue(c.last_value is z)
         nsy.close()
         self.assertTrue(c.call_count == 4)
         self.assertTrue(c.last_value is None)
@@ -254,7 +258,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_checks(self):
         ns = odata.Schema()
-        n = types.Named()
+        n = names.Named()
         try:
             n.declare(ns, "Hello")
             self.fail("check_type failed")
@@ -263,7 +267,7 @@ class SchemaTests(unittest.TestCase):
         except TypeError:
             # correct, that was a good identifier but a bad value
             pass
-        n = types.NominalType()
+        n = types.NominalType(value_type=data.Value)
         try:
             n.declare(ns, "")
             self.fail("Named.declare with no name")
@@ -304,7 +308,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_qname(self):
         ns = odata.Schema()
-        n = types.NominalType()
+        n = types.NominalType(value_type=data.Value)
         # if the schema has no name, the qualified name is just name
         n.declare(ns, "Hello")
         self.assertTrue(n.qname == "Hello")
@@ -323,7 +327,7 @@ class SchemaTests(unittest.TestCase):
         self.assertTrue(n.name == "Hello")
         self.assertTrue(n.nametable() is None)
         self.assertTrue(n.qname == "Hello")
-        n = types.NominalType()
+        n = types.NominalType(value_type=data.Value)
         n.declare(ns2, "Hello")
         self.assertTrue(n.qname == "my.namespace.Hello")
 
@@ -439,77 +443,18 @@ class StructuredTypeTests(unittest.TestCase):
     def test_constructors(self):
         # structured types are composed of structural properties they
         # are themselves name tables!
-        t = odata.StructuredType()
+        t = types.StructuredType(value_type=data.StructuredValue)
         # abstract class
         self.assertTrue(isinstance(t, types.NominalType),
                         "structured types are nominal types")
-        self.assertTrue(isinstance(t, types.NameTable),
+        self.assertTrue(isinstance(t, names.NameTable),
                         "structured types define scope")
-        pt = primitive.PrimitiveType()
-        p = odata.Property()
-        self.assertTrue(isinstance(p, types.Named), "properties are nameable")
+        pt = types.PrimitiveType(value_type=primitive.PrimitiveValue)
+        p = types.Property()
+        self.assertTrue(isinstance(p, names.Named), "properties are nameable")
         self.assertTrue(p.type_def is None)
         p.set_type(pt)
         self.assertTrue(p.type_def is pt)
-
-    def test_declare(self):
-        t = odata.StructuredType()
-        # fake declaration
-        t.name = "TypeA"
-        # they require properties with simple identifier names
-        n = types.NominalType()
-        try:
-            n.declare(t, "Dimension")
-            self.fail("NominalType declared in StructuredType")
-        except TypeError:
-            pass
-        pt = primitive.PrimitiveType()
-        p = odata.Property()
-        p.set_type(pt)
-        try:
-            p.declare(t, "Max.Dimension")
-            self.fail("Property declared with bad name")
-        except ValueError:
-            pass
-        p.declare(t, "Dimension")
-        self.assertTrue(p.qname == "TypeA/Dimension")
-        np = odata.NavigationProperty()
-        np.declare(t, "Related")
-        self.assertTrue(np.qname == "TypeA/Related")
-        self.assertTrue(t["Dimension"] is p)
-        self.assertTrue(t["Related"] is np)
-
-    def test_base(self):
-        ta = odata.StructuredType()
-        pa = odata.Property()
-        pa.set_type(odata.edm['PrimitiveType'])
-        pa.declare(ta, "PA1")
-        tb = odata.StructuredType()
-        pb = odata.Property()
-        pb.declare(tb, "PB1")
-        pb.set_type(odata.edm['PrimitiveType'])
-        pt = primitive.PrimitiveType()
-        try:
-            tb.set_base(pt)
-            self.fail("StructuredType with PrimitiveType base")
-        except TypeError:
-            pass
-        self.assertTrue(len(tb) == 1)
-        tb.set_base(ta)
-        self.assertTrue(len(tb) == 1)
-        self.assertFalse("PA1" in tb)
-        self.assertTrue(tb.base is ta)
-        # the additional properties appear on closure only
-        try:
-            tb.close()
-            # the base is incomplete
-        except errors.ModelError:
-            pass
-        ta.close()
-        tb.close()
-        self.assertTrue(len(tb) == 2)
-        self.assertTrue("PA1" in tb)
-        self.assertTrue(tb.base is ta)
 
     def test_derived(self):
         dpath = TEST_DATA_DIR.join('valid', 'atest.xml')
@@ -541,7 +486,7 @@ class StructuredTypeTests(unittest.TestCase):
         x = em['test.pyslet.org']['TypeX']
         np = x.resolve_nppath(["XP"], em)
         self.assertTrue(np.name == "XP")
-        self.assertTrue(isinstance(np, odata.NavigationProperty))
+        self.assertTrue(isinstance(np, types.NavigationProperty))
         self.assertTrue(np is x["XP"])
         # simple case resulting in simple property
         try:
@@ -566,7 +511,7 @@ class StructuredTypeTests(unittest.TestCase):
             pass
         # now follow a path using a derived complex type
         np = x.resolve_nppath(
-            ["X2", types.QualifiedName("test.pyslet.org", "TypeB"), "BP"], em)
+            ["X2", names.QualifiedName("test.pyslet.org", "TypeB"), "BP"], em)
         self.assertTrue(np is b['BP'])
         # but if we miss the type cast segment it fails...
         try:
@@ -576,19 +521,19 @@ class StructuredTypeTests(unittest.TestCase):
             pass
         # derived types inherit properties so it's ok to do this...
         np = x.resolve_nppath(
-            ["X2", types.QualifiedName("test.pyslet.org", "TypeB"), "AP"], em)
+            ["X2", names.QualifiedName("test.pyslet.org", "TypeB"), "AP"], em)
         self.assertTrue(np is a['AP'])
         self.assertTrue(np is b['AP'])
         # it is OK to do a nop-cast like this too
         np = x.resolve_nppath(
-            ["X2", types.QualifiedName("test.pyslet.org", "TypeA"), "AP"], em)
+            ["X2", names.QualifiedName("test.pyslet.org", "TypeA"), "AP"], em)
         self.assertTrue(np is a['AP'])
         # but a cast to a parent is not OK as it opens the door to
         # further casts that descend a different branch of the type tree
         # resulting in a type that is (derived from) TypeX.
         try:
             x.resolve_nppath(
-                ["X3", types.QualifiedName("test.pyslet.org", "TypeA"), "AP"],
+                ["X3", names.QualifiedName("test.pyslet.org", "TypeA"), "AP"],
                 em)
             self.fail("TypeX/X3/TypeA/AP")
         except errors.PathError:
@@ -597,7 +542,7 @@ class StructuredTypeTests(unittest.TestCase):
         # ...but doing so places derived type properties out of reach
         try:
             x.resolve_nppath(
-                ["X3", types.QualifiedName("test.pyslet.org", "TypeA"), "BP"],
+                ["X3", names.QualifiedName("test.pyslet.org", "TypeA"), "BP"],
                 em)
             self.fail("TypeX/X3/TypeA/BP")
         except errors.PathError:
@@ -611,63 +556,63 @@ class StructuredValueTests(unittest.TestCase):
         self.s = odata.Schema()
         self.s.declare(self.em, "Schema")
         # an entity type
-        et = odata.EntityType()
+        et = types.EntityType(value_type=data.EntityValue)
         et.declare(self.s, "TypeX")
-        p = odata.Property()
+        p = types.Property()
         p.set_type(odata.edm['Int32'])
         p.set_nullable(False)
         p.declare(et, "ID")
         et.add_key(("ID", ))
-        p = odata.Property()
+        p = types.Property()
         p.set_type(odata.edm['String'])
         p.set_nullable(True)
         p.declare(et, "Info")
         et.close()
         # a complex type
-        st = odata.ComplexType()
+        st = types.ComplexType(value_type=data.ComplexValue)
         st.declare(self.s, "TypeA")
-        p = odata.Property()
+        p = types.Property()
         p.set_type(odata.edm['String'])
         p.set_nullable(True)
         p.set_default(p.type_def("Hello"))
         p.declare(st, "DefNullable")
-        p = odata.Property()
+        p = types.Property()
         p.set_type(odata.edm['String'])
         p.set_nullable(False)
         p.set_default(p.type_def("Hello"))
         p.declare(st, "DefNonNullable")
-        p = odata.Property()
+        p = types.Property()
         p.set_type(odata.edm['String'])
         p.set_nullable(True)
         p.declare(st, "Nullable")
-        p = odata.Property()
+        p = types.Property()
         p.set_type(odata.edm['String'])
         p.set_nullable(False)
         p.declare(st, "NonNullable")
-        np = odata.NavigationProperty()
+        np = types.NavigationProperty()
         np.set_type(et, collection=False, contains_target=True)
         np.set_nullable(True)
         np.declare(st, "NullableSingleton")
-        np = odata.NavigationProperty()
+        np = types.NavigationProperty()
         np.set_type(et, collection=False, contains_target=True)
         np.set_nullable(False)
         np.declare(st, "NonNullableSingleton")
         st.close()
         # more complex object
-        st = odata.ComplexType()
+        st = types.ComplexType(value_type=data.ComplexValue)
         st.declare(self.s, "TypeB")
-        p = odata.Property()
+        p = types.Property()
         p.set_type(odata.edm['Int32'])
         p.declare(st, "Int32Property")
-        p = odata.Property()
+        p = types.Property()
         p.set_nullable(True)
         p.set_type(self.em["Schema"]["TypeA"])
         p.declare(st, "Nullable")
-        p = odata.Property()
+        p = types.Property()
         p.set_nullable(False)
         p.set_type(self.em["Schema"]["TypeA"])
         p.declare(st, "NonNullable")
-        np = odata.NavigationProperty()
+        np = types.NavigationProperty()
         np.declare(st, "Related")
         st.close()
         self.s.close()
@@ -675,7 +620,7 @@ class StructuredValueTests(unittest.TestCase):
 
     def test_constructor(self):
         st = self.em.qualified_get("Schema.TypeA")
-        sv = odata.StructuredValue(type_def=st)
+        sv = data.StructuredValue(type_def=st)
         self.assertTrue(len(sv) == 0, "empty on construction")
         self.assertTrue(sv.is_null())
         self.assertTrue(sv.base_def is st)
@@ -692,7 +637,7 @@ class StructuredValueTests(unittest.TestCase):
 
     def test_primitives(self):
         # tests private implementation for setting options
-        sv = odata.StructuredValue(type_def=self.em['Schema']['TypeA'])
+        sv = data.StructuredValue(type_def=self.em['Schema']['TypeA'])
         self.assertTrue(sv.is_null())
         self.assertTrue(len(sv) == 0, repr(sv.keys()))
         # by default, all structural values are selected
@@ -725,7 +670,7 @@ class StructuredValueTests(unittest.TestCase):
         self.assertTrue(pv.is_null(), "No default value: null anyway")
 
     def test_complex(self):
-        sv = odata.StructuredValue(type_def=self.em['Schema']['TypeB'])
+        sv = data.StructuredValue(type_def=self.em['Schema']['TypeB'])
         # start out as null
         self.assertTrue(sv.is_null())
         self.assertTrue(len(sv) == 0, repr(sv.keys()))
@@ -737,7 +682,7 @@ class StructuredValueTests(unittest.TestCase):
         self.assertTrue(sv['Int32Property'].is_null())
         pv = sv['Nullable']
         # a nullable complex type is created as null
-        self.assertTrue(isinstance(pv, odata.ComplexValue), repr(pv))
+        self.assertTrue(isinstance(pv, data.ComplexValue), repr(pv))
         self.assertTrue(pv.type_def is self.em['Schema']['TypeA'])
         self.assertTrue(pv.base_def is self.em['Schema']['TypeA'])
         self.assertTrue(pv.service is None)
@@ -764,7 +709,7 @@ class StructuredValueTests(unittest.TestCase):
         self.assertTrue(pv["DefNullable"].dirty is False)
 
     def test_navigation(self):
-        sv = odata.StructuredValue(type_def=self.em['Schema']['TypeA'])
+        sv = data.StructuredValue(type_def=self.em['Schema']['TypeA'])
         options = types.EntityOptions()
         # suppress structural properties
         options.select_default = False
@@ -778,7 +723,7 @@ class StructuredValueTests(unittest.TestCase):
         self.assertFalse("DefNullable" in sv)
         # a nullable *contained* singleton is created as a null entity value
         npv = sv['NullableSingleton']
-        self.assertTrue(isinstance(npv, odata.EntityValue), repr(npv))
+        self.assertTrue(isinstance(npv, data.EntityValue), repr(npv))
         self.assertTrue(npv.type_def is self.em['Schema']['TypeX'])
         self.assertTrue(npv.base_def is self.em['Schema']['TypeX'])
         self.assertTrue(npv.service is None)
@@ -792,7 +737,7 @@ class StructuredValueTests(unittest.TestCase):
         # a non-nullable *contained* singleton is created as default
         # entity value
         npv = sv['NonNullableSingleton']
-        self.assertTrue(isinstance(npv, odata.EntityValue), repr(npv))
+        self.assertTrue(isinstance(npv, data.EntityValue), repr(npv))
         self.assertTrue(npv.type_def is self.em['Schema']['TypeX'])
         self.assertTrue(npv.base_def is self.em['Schema']['TypeX'])
         self.assertTrue(npv.service is None)
@@ -818,19 +763,19 @@ class CollectionTests(unittest.TestCase):
     def test_constructor(self):
         # collection types are collection wrappers for some other
         # primitive, complex or enumeration type.
-        pt = primitive.PrimitiveType()
-        t = odata.CollectionType(pt)
+        pt = types.PrimitiveType(value_type=primitive.PrimitiveValue)
+        t = pt.collection_type()
         self.assertTrue(isinstance(t, types.NominalType),
                         "Collection types are nominal types")
         self.assertTrue(t.item_type is pt,
                         "Collection types must have an item type")
 
     def test_value(self):
-        pt = primitive.PrimitiveType()
-        t = odata.CollectionType(pt)
+        pt = types.PrimitiveType(value_type=primitive.PrimitiveValue)
+        t = pt.collection_type()
         # types are callable to obtain values
         v = t()
-        self.assertTrue(isinstance(v, odata.CollectionValue))
+        self.assertTrue(isinstance(v, data.CollectionValue))
         # never null
         self.assertTrue(v)
         self.assertFalse(v.is_null())
@@ -855,7 +800,7 @@ class EntitySetTests(unittest.TestCase):
     def test_indexable(self):
         es = odata.EntitySet()
         a = types.Annotation.from_term_ref(
-                types.TermRef.from_str(
+                names.TermRef.from_str(
                     "@Org.OData.Capabilities.V1.IndexableByKey"), self.em)
         a.set_expression(types.LiteralExpression(True))
         es.annotate(a)
@@ -864,7 +809,7 @@ class EntitySetTests(unittest.TestCase):
         # by default, entity sets are indexable by key
         self.assertTrue(es.indexable_by_key() is True)
         a = types.Annotation.from_term_ref(
-                types.TermRef.from_str(
+                names.TermRef.from_str(
                     "@Org.OData.Capabilities.V1.IndexableByKey"), self.em)
         a.set_expression(types.LiteralExpression(False))
         es.annotate(a)
@@ -877,38 +822,42 @@ class EnumerationTests(unittest.TestCase):
         # enumeration types are wrappers for one of a limited number of
         # integer types: Edm.Byte, Edm.SByte, Edm.Int16, Edm.Int32, or
         # Edm.Int64 - defaulting to Edm.Int32
-        et = odata.EnumerationType()
+        et = odata.EnumerationValue.new_type()
         self.assertTrue(isinstance(et, types.NominalType),
                         "Enumeration types are nominal types")
-        self.assertTrue(isinstance(et, types.NameTable),
+        self.assertTrue(isinstance(et, names.NameTable),
                         "Enumeration types define scope for members")
-        self.assertTrue(et.base is odata.edm['Int32'],
-                        "Default base type is Int32")
+        self.assertTrue(et.base is odata.edm['PrimitiveType'],
+                        "base type is Edm.PrimitiveType")
+        self.assertTrue(et.underlying_type is odata.edm['Int32'],
+                        "Default underlying type is Int32")
         self.assertTrue(et.assigned_values is None,
                         "Whether or not")
         self.assertTrue(et.is_flags is False, "Default to no flags")
         self.assertTrue(isinstance(et.members, list), "Members type")
         self.assertTrue(len(et.members) == 0, "No Members")
         for base in ('Byte', 'SByte', 'Int16', 'Int32', 'Int64'):
-            et = odata.EnumerationType(odata.edm[base])
-            self.assertTrue(et.base is odata.edm[base])
+            et = odata.EnumerationValue.new_type()
+            et.set_underlying_type(odata.edm[base])
+            self.assertTrue(et.underlying_type is odata.edm[base])
         for base in ('Binary', 'String', 'Guid', 'Double', 'Decimal'):
             try:
-                et = odata.EnumerationType(odata.edm[base])
+                et = odata.EnumerationValue.new_type()
+                et.set_underlying_type(odata.edm[base])
                 self.fail("EnumerationType(%s) should fail" % base)
             except errors.ModelError:
                 pass
 
     def test_declare(self):
-        et = odata.EnumerationType()
+        et = odata.EnumerationValue.new_type()
         # they require Members with simple identifier names
-        n = types.NominalType()
+        n = types.NominalType(value_type=data.Value)
         try:
             n.declare(et, "Dimension")
             self.fail("NominalType declared in EnumerationType")
         except TypeError:
             pass
-        m = odata.Member()
+        m = types.Member()
         try:
             m.declare(et, "Game.Rock")
             self.fail("Member declared with bad name")
@@ -917,8 +866,8 @@ class EnumerationTests(unittest.TestCase):
         m.declare(et, "Rock")
 
     def test_auto_members(self):
-        et = odata.EnumerationType()
-        m0 = odata.Member()
+        et = odata.EnumerationValue.new_type()
+        m0 = types.Member()
         self.assertTrue(m0.value is None, "No value by default")
         m0.declare(et, "Rock")
         self.assertTrue(et.assigned_values is True)
@@ -926,10 +875,10 @@ class EnumerationTests(unittest.TestCase):
         self.assertTrue(et.members[0] is m0)
         self.assertTrue(et['Rock'] is m0)
         self.assertTrue(m0.value == 0, "Auto-assigned starts at 0")
-        m1 = odata.Member()
+        m1 = types.Member()
         m1.declare(et, "Paper")
         self.assertTrue(m1.value == 1, "Auto-assigned 1")
-        m2 = odata.Member()
+        m2 = types.Member()
         m2.value = 2
         try:
             m2.declare(et, "Scissors")
@@ -941,9 +890,9 @@ class EnumerationTests(unittest.TestCase):
         self.assertTrue(m2.value == 2)
 
     def test_auto_value(self):
-        et = odata.EnumerationType()
+        et = odata.EnumerationValue.new_type()
         for n in ("Rock", "Paper", "Scissors"):
-            m = odata.Member()
+            m = types.Member()
             m.declare(et, n)
         v = et()
         self.assertTrue(isinstance(v, odata.EnumerationValue))
@@ -985,8 +934,8 @@ class EnumerationTests(unittest.TestCase):
             pass
 
     def test_manual_members(self):
-        et = odata.EnumerationType()
-        m3 = odata.Member()
+        et = odata.EnumerationValue.new_type()
+        m3 = types.Member()
         m3.value = 3
         m3.declare(et, "Rock")
         self.assertTrue(et.assigned_values is False)
@@ -994,25 +943,25 @@ class EnumerationTests(unittest.TestCase):
         self.assertTrue(et.members[0] is m3)
         self.assertTrue(et['Rock'] is m3)
         self.assertTrue(m3.value == 3, "Manual value 3")
-        m2 = odata.Member()
+        m2 = types.Member()
         m2.value = 2
         m2.declare(et, "Paper")
         self.assertTrue(m2.value == 2, "Manual value 2")
-        m1 = odata.Member()
+        m1 = types.Member()
         try:
             m1.declare(et, "Scissors")
             self.fail("Manual member requires value")
         except errors.ModelError:
             pass
-        m3alt = odata.Member()
+        m3alt = types.Member()
         m3alt.value = 3
         # aliases are OK
         m3alt.declare(et, "Stone")
 
     def test_manual_value(self):
-        et = odata.EnumerationType()
+        et = odata.EnumerationValue.new_type()
         for name, value in (("Rock", 3), ("Paper", 2), ("Scissors", 1)):
-            m = odata.Member()
+            m = types.Member()
             m.value = value
             m.declare(et, name)
         # we can set from an integer
@@ -1031,8 +980,8 @@ class EnumerationTests(unittest.TestCase):
     def test_flags(self):
         # If the IsFlags attribute has a value of true, a non-negative
         # integer value MUST be specified for the Value attribute
-        et = odata.EnumerationType()
-        m = odata.Member()
+        et = odata.EnumerationValue.new_type()
+        m = types.Member()
         m.declare(et, "Red")
         # you can't set is_flags if there are already members
         try:
@@ -1040,11 +989,11 @@ class EnumerationTests(unittest.TestCase):
             self.fail("flags with auto-members")
         except errors.ModelError:
             pass
-        et = odata.EnumerationType()
+        et = odata.EnumerationValue.new_type()
         et.set_is_flags()
         self.assertTrue(et.is_flags is True)
         self.assertTrue(et.assigned_values is False)
-        m = odata.Member()
+        m = types.Member()
         try:
             m.declare(et, "Red")
             self.fail("flags requires member values")
@@ -1052,20 +1001,20 @@ class EnumerationTests(unittest.TestCase):
             pass
         m.value = 1
         m.declare(et, "Red")
-        m = odata.Member()
+        m = types.Member()
         m.value = 2
         m.declare(et, "Green")
         self.assertTrue(len(et.members) == 2)
 
     def test_flag_values(self):
-        et = odata.EnumerationType()
+        et = odata.EnumerationValue.new_type()
         et.set_is_flags()
         for name, value in (
                 ("Red", 1), ("Green", 2), ("Blue", 4),
                 ("Yellow", 3), ("Magenta", 5),
                 # ("Cyan", 6),
                 ("White", 7)):
-            m = odata.Member()
+            m = types.Member()
             m.value = value
             m.declare(et, name)
         v = et()
@@ -1088,6 +1037,124 @@ class EnumerationTests(unittest.TestCase):
         # otherwise use the composed flags preserving definition order
         self.assertTrue(str(v) == "Green,Blue")
 
+
+class EvaluatorTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        self.em = odata.EntityModel()
+        self.s = odata.Schema()
+        self.s.declare(self.em, "test.model")
+        s10 = primitive.edm_string.derive_type()
+        s10.set_base(odata.edm['String'])
+        s10.set_max_length(10)
+        s10.declare(self.s, "String10")
+        self.s.close()
+        self.em.close()
+
+    def test_bool_common_expressions(self):
+        for estr, value in (
+                ("2 eq 2", True),
+                ("2 eq 3", False),
+                ("null eq null", True),
+                ("null eq 3", False),
+                ("2 ne 3", True),
+                ("2 ne 2", False),
+                ("null ne 3", True),
+                ("null ne null", False),
+                ("3 gt 2", True),
+                ("3 gt 3", False),
+                ("2 gt null", None),
+                ("null gt 2", None),
+                ("null gt null", None),
+                # For Boolean Values, true is greater than false
+                ("true gt false", True),
+                ("3 ge 2", True),
+                ("3 ge 3", True),
+                ("3 ge 4", False),
+                ("2 ge null", None),
+                ("null ge 2", None),
+                # If both operands are null it return true
+                ("null ge null", True),
+                ("2 lt 3", True),
+                ("2 lt 2", False),
+                ("2 lt null", None),
+                ("null lt 2", None),
+                ("null lt null", None),
+                ("2 le 3", True),
+                ("2 le 2", True),
+                ("2 le 1", False),
+                ("2 le null", None),
+                ("null le 2", None),
+                # If both operands are null it return true
+                ("null le null", True),
+                ("false and false", False),
+                ("false and true", False),
+                ("true and false", False),
+                ("true and true", True),
+                # if one operand evaluates to null and the other operand
+                # to false the and operator returns false
+                ("false and null", False),
+                ("null and false", False),
+                # all other combinations with null return null
+                ("true and null", None),
+                ("null and true", None),
+                ("null and null", None),
+                ("false or false", False),
+                ("false or true", True),
+                ("true or false", True),
+                ("true or true", True),
+                # if one operand evaluates to null and the other operand
+                # to true the or operator returns true
+                ("true or null", True),
+                ("null or true", True),
+                # All other combinations with null return null
+                ("false or null", None),
+                ("null or false", None),
+                ("null or null", None),
+                ("not true", False),
+                ("not false", True),
+                # not null returns null
+                ("not null", None),
+                ):
+            try:
+                e = parser.Parser(estr).require_bool_common_expr()
+            except parser.ParserError as err:
+                self.fail(
+                    "%s failed to parse: %s" % (repr(estr), to_text(err)))
+            result = odata.Evaluator().evaluate(e)
+            self.assertTrue(isinstance(result, primitive.BooleanValue),
+                            "%s returned %s" % (repr(estr), repr(result)))
+            self.assertTrue(
+                result.value is value, "%s returned %s" %
+                (repr(estr), to_text(result) if result else 'null'))
+
+    def test_cast(self):
+        # The null value can be cast to any type
+        e = parser.Parser("cast(Edm.String)").require_common_expr()
+        it = primitive.Int64Value()
+        result = odata.Evaluator(it).evaluate(e)
+        self.assertTrue(isinstance(result, primitive.StringValue))
+        self.assertTrue(result.is_null())
+        # Primitives use literal representation
+        it.set_value(3)
+        result = odata.Evaluator(it).evaluate(e)
+        self.assertTrue(isinstance(result, primitive.StringValue))
+        self.assertTrue(result.get_value() == "3")
+        # and WKT for Geo types
+        p = geo.PointLiteral(4326, geo.Point(-127.89734578345, 45.234534534))
+        it = primitive.GeographyPointValue(p)
+        result = odata.Evaluator(it).evaluate(e)
+        self.assertTrue(isinstance(result, primitive.StringValue))
+        self.assertTrue(result.get_value() ==
+                        "SRID=4326;Point(-127.89734578345 45.234534534)")
+        # cast fails if the target type specifies insufficient length
+        e = parser.Parser("cast(test.model.String10)").require_common_expr()
+        it = primitive.Int64Value(12345678901)
+        result = odata.Evaluator(it, self.em).evaluate(e)
+        self.assertTrue(isinstance(result, primitive.StringValue))
+        self.assertTrue(result.is_null())
+        # the rest of the cast tests are done by testing the cast
+        # method on the appropriate Value instances.
 
 if __name__ == "__main__":
     logging.basicConfig(

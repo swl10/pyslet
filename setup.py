@@ -36,7 +36,7 @@ else:
                                    'unicode5_blocks3.pck',
                                    'unicode5_catogories3.pck'],
                         'pyslet.odata2': ['streamstore.xml'],
-                        'pyslet.odata4': ['core.xml']},
+                        'pyslet.odata4': ['core.xml', 'capabilities.xml']},
           classifiers=['Development Status :: 3 - Alpha',
                        'Intended Audience :: Developers',
                        'Natural Language :: English',

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="test.pyslet.org">
+            <EntityType Name="Person">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="MovieCharacter">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="CharacterName" Type="Edm.String"
+                    Nullable="false"/>
+                <NavigationProperty Name="Actor"
+                    Type="test.pyslet.org.Person"/>
+                <Annotation Term="Vocab.ActorURL">
+                    <Apply Function="odata.fillUriTemplate">
+                        <!-- The first argument to odata.fillUriTemplate
+                        MUST be of type Edm.String, the other arguments
+                        MUST be edm:LabeledElement expressions-->
+                        <String>http://host/someAPI/Actors/{actorName}/CV</String>
+                        <Path>Actor/Name</Path>
+                    </Apply>
+                </Annotation>
+            </EntityType>
+        </Schema>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Term Name="ActorURL" Type="Edm.String"/>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

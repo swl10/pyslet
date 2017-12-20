@@ -91,9 +91,24 @@ class NameTableClosed(ModelError):
     pass
 
 
+class NameTableNonEmpty(ModelError):
+
+    """Raised when an attempt to declare a non-empty nametable is made"""
+    pass
+
+
 class InheritanceCycleDetected(ModelError):
 
     """Raised when an inheritance cycle is detected in a model."""
+    pass
+
+
+class ExpressionError(ODataError):
+
+    """Raised when an expression can't be evaluated
+
+    For example, wrong number of arguments or type mismatch for function
+    call, etc."""
     pass
 
 
@@ -606,7 +621,7 @@ Requirement.type_qname_s = (
     "The qualified type name MUST be unique within a model (%s)")
 Req40.type_qname_s = (
     "4.0 P3 4.1 #2; 4.0 P3 5.1.1 #3; 4.0 P3 8.1.1 #2; 4.0 P3 9.1.1 #2; "
-    "4.0 P3 10.1.1 #2; 4.0 P3 11.1.1 #2 (%s)")
+    "4.0 P3 10.1.1 #2; 4.0 P3 11.1.1 #2; 4.0 P3 14.5.8.1 (%s)")
 
 # UNTESTED - violations are indistinguishable from the use of undeclared
 # names
@@ -763,7 +778,7 @@ Req40.nav_type_resolved_s = "4.0 P3 7.1.2 #2 (%s)"
 Requirement.nav_type_related = (
     "The related entities MUST be of the specified entity type or one of "
     "its subtypes")
-Req40.nav_type_resolved_s = "4.0 P3 7.1.2 #3"
+Req40.nav_type_related = "4.0 P3 7.1.2 #3"
 
 Requirement.nav_collection_exists_s = (
     "A navigation property whose Type attribute specifies a collection "
@@ -811,7 +826,7 @@ Req40.nav_partner_bidirection_s = "4.0 P3 7.1.4 #7 (%s)"
 
 Requirement.nav_contains_s = (
     "Complex types declaring a containment navigation property MUST NOT "
-    "be used as the type of a collection-valued property")
+    "be used as the type of a collection-valued property (%s)")
 Req40.nav_contains_s = "4.0 P3 7.1.5 #1 (%s)"
 
 Requirement.nav_contains_binding_s = (
@@ -1383,10 +1398,171 @@ Requirement.annotation_time_s = (
     "rule timeOfDayValue (%s)")
 Req40.annotation_time_s = "4.0 P3 14.4.12 (%s)"
 
+Requirement.annotation_and_or = (
+    "The And and Or elements require two child expressions that evaluate "
+    "to Boolean values")
+Req40.annotation_and_or = "4.0 P3 14.5.1 #1"
+
+Requirement.annotation_not = (
+    "The Not element requires a single child expression that evaluates "
+    "to a Boolean value")
+Req40.annotation_not = "4.0 P3 14.5.1 #2"
+
+Requirement.annotation_comparison_s = (
+    "The elements representing the comparison operators require two "
+    "child expressions that evaluate to comparable values (%s)")
+Req40.annotation_comparison_s = "4.0 P3 14.5.1 #3 (%s)"
+
 Requirement.annotation_path_s = (
     "The edm:AnnotationPath expression uses the same syntax as edm:Path "
     "except that the last path segment MUST be a term cast (%s)")
 Req40.annotation_path_s = "4.0 P3 14.5.2 (%s)"
+
+Requirement.annotation_apply_expr_s = (
+    "The Apply expression MUST contain at least one expression (%s)")
+Req40.annotation_apply_expr_s = "4.0 P3 14.5.3 #1 (%s)"
+
+# Never raised: detected as Requirement.annotation_apply_expr_s
+Requirement.annotation_apply_expr_notation = (
+    "The edm:Apply expression MUST be written with element notation")
+Req40.annotation_apply_expr_notation = "4.0 P3 14.5.3 #2"
+
+Requirement.annotation_func_name = (
+    "The edm:Apply expression MUST include a Function attribute whose "
+    "value is a QualifiedName")
+Req40.annotation_func_name = "4.0 P3 14.5.3.1 #1"
+
+Requirement.annotation_func_additional_s = (
+    "Additional functions MUST be qualified with a namespace or alias "
+    "other than odata (%s)")
+Req40.annotation_func_additional_s = "4.0 P3 14.5.3.1 #2 (%s)"
+
+Requirement.annotation_concat_args_s = (
+    "The odata.concat standard client-side function takes two or more "
+    "expressions as arguments. Each argument MUST evaluate to a primitive "
+    "or enumeration type (%s)")
+Req40.annotation_concat_args_s = "4.0 P3 14.5.3.1.1 (%s)"
+
+Requirement.annotation_fill_uri_template_args_s = (
+    "The first argument to odata.fillUriTemplate MUST be of type "
+    "Edm.String, the other arguments MUST be edm:LabeledElement "
+    "expressions (%s)")
+Req40.annotation_fill_uri_template_args_s = "4.0 P3 14.5.3.1.2 (%s)"
+
+Requirement.cast_signature = (
+    "The cast expression MUST specify a Type attribute and contain exactly "
+    "one expression")
+Req40.cast_signature = "4.0 P3 14.5.4 #1"
+
+# Never raised: detected as Requirement.cast_signature
+Requirement.cast_notation = (
+    "The cast expression MUST be written with element notation")
+Req40.cast_notation = "4.0 P3 14.5.4 #2"
+
+Requirement.cast_type = (
+    "The edm:Cast expression MUST specify a Type attribute whose value "
+    "is a TypeName in scope (%s)")
+Req40.cast_type = "4.0 P3 14.5.4.1 (%s)"
+
+Requirement.collection_expression_s = (
+    "The values of the child expressions MUST all be type compatible (%s)")
+Req40.collection_expression_s = "4.0 P3 14.5.5 #1 (%s)"
+
+# Never raised: there is no Collection attribute available
+Requirement.collection_notation = (
+    "The collection expression MUST be written with element notation")
+Req40.collection_notation = "4.0 P3 14.5.5 #2"
+
+Requirement.if_three = (
+    "The edm:If expression MUST contain exactly three child elements "
+    "unless it is a direction child of a Collection in which case the "
+    "third child element MAY be omitted")
+Req40.if_three = "4.0 P3 14.5.6 #1"
+
+Requirement.if_test_s = (
+    "The first child of an edm:If expression is the conditional expression "
+    "and MUST evaluate to a Boolean result (%s)")
+Req40.if_test_s = "4.0 P3 14.5.6 #2 (%s)"
+
+# Not raised: duplicates requirements on expected types
+Requirement.if_test_type = (
+    "The result of an edm:If expression MUST be type compatible with the "
+    "type expected.")
+Req40.if_test_type = "4.0 P3 14.5.6 #3"
+
+# Summarised here, raised only in unittest see test_section_14_5
+Requirement.if_test_result = (
+    "If the conditional expression of edm:If is true, the second child "
+    "element MUST be returned.  If false, the third child element MUST be "
+    "returned if present")
+Req40.if_test_result = "4.0 P3 14.5.6 #4"
+
+# Never raised
+Requirement.if_test_notation = (
+    "The edm:If expression MUST be written with element notation")
+Req40.if_test_notation = "4.0 P3 14.5.6 #5"
+
+Requirement.isof_test_type = (
+    "The edm:IsOf expression MUST specify a Type attribute and contain "
+    "exactly one child expression")
+Req40.isof_test_type = "4.0 P3 14.5.7 #1"
+
+# Raised only in unittest see test_section_14_5
+Requirement.isof_test_result_s = (
+    "The edm:IsOf expression MUST return true if the child expression "
+    "returns a type that is compatible with the type named in the Type "
+    "attribute and MUST return false if it is not compatible (%s).")
+Req40.isof_test_result_s = "4.0 P3 14.5.7 #2 (%s)"
+
+# Never raised
+Requirement.isof_test_notation = (
+    "The edm:IsOf expression MUST be written with element notation")
+Req40.isof_test_notation = "4.0 P3 14.5.7 #3"
+
+Requirement.isof_type_scope_s = (
+    "The edm:IsOf expression MUST specify a Type attribute whose value is "
+    "a TypeName in scope (%s)")
+Req40.isof_type_scope_s = "4.0 P3 14.5.7.1 (%s)"
+
+Requirement.label_expr_s = (
+    "A labeled-element expression MUST contain exactly one child "
+    "expression (%s)")
+Req40.label_expr_s = "4.0 P3 14.5.8 #1 (%s)"
+
+# Never raised: there is no LabeledElement attribute available
+Requirement.label_notation = (
+    "A labeled-element expression MUST be written with element notation")
+Req40.label_notation = "4.0 P3 14.5.8 #2"
+
+# Never raised: identical to Requirement.type_qname_s
+Requirement.label_unique = (
+    "An edm:LabeledElement expression MUST provide a SimpleIdentifier value "
+    "for the Name attribute that is unique within the schema containing "
+    "the expression")
+Req40.label_notation = "4.0 P3 14.5.8.1"
+
+Requirement.label_ref_s = (
+    "The labeled-element reference expression MUST contain the "
+    "QualifiedName name of a labeled element expression in scope (%s)")
+Req40.label_ref_s = "4.0 P3 14.5.9 #1 (%s)"
+
+# Never raised: there is no LabeledElementReference attribute available
+Requirement.label_ref_notation = (
+    "The labeled-element reference expression MUST be written with element "
+    "notation")
+Req40.label_ref_notation = "4.0 P3 14.5.9 #2"
+
+# Never raised: there is no Null attribute available
+Requirement.null_notation = (
+    "The null expression MUST be written with element notation")
+Req40.null_notation = "4.0 P3 14.5.10"
+
+Requirement.navigation_path_s = (
+    "The edm:NavigationPropertyPath expression uses the same syntax as "
+    "edm:Path except that the last path segment MUST resolve to a "
+    "navigation property or to a term cast of an EntityType or collection "
+    "of EntityType (%s)")
+Req40.navigation_path_s = "4.0 P3 14.5.11 (%s)"
 
 
 #

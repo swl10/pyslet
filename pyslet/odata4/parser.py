@@ -18,8 +18,11 @@ from ..unicode5 import (
     )
 from ..xml import xsdatatypes as xsi
 
-from . import geotypes as geo
-from . import types
+from . import (
+    geotypes as geo,
+    names,
+    types,
+    )
 
 
 _oid_start_char = CharClass("_")
@@ -72,7 +75,7 @@ class Parser(BasicParser):
         if self.parse(self.STAR):
             item.path = (self.STAR, )
             if self.parse(self.ref):
-                item.qualifier = types.PathQualifier.ref
+                item.qualifier = names.PathQualifier.ref
             elif self.parse(self.OPEN):
                 # levels doesn't consume the option name
                 self.require('$levels=')
@@ -81,19 +84,19 @@ class Parser(BasicParser):
                 item.options.levels = levels
             return item
         path = self.require_expand_path()
-        if isinstance(path[-1], types.QualifiedName):
+        if isinstance(path[-1], names.QualifiedName):
             item.type_cast = path[-1]
             path = path[:-1]
         item.path = tuple(path)
         if self.parse(self.ref):
-            item.qualifier = types.PathQualifier.ref
+            item.qualifier = names.PathQualifier.ref
             if self.parse(self.OPEN):
                 item.options.set_option(*self.require_expand_ref_option())
                 while self.parse(self.SEMI):
                     item.options.set_option(*self.require_expand_ref_option())
                 self.require(self.CLOSE)
         elif self.parse(self.count):
-            item.qualifier = types.PathQualifier.count
+            item.qualifier = names.PathQualifier.count
             if self.parse(self.OPEN):
                 item.options.set_option(*self.require_expand_count_option())
                 while self.parse(self.SEMI):
@@ -438,7 +441,7 @@ class Parser(BasicParser):
                 continue
             # this name is done
             if len(name) > 1:
-                name = types.QualifiedName(".".join(name[:-1]), name[-1])
+                name = names.QualifiedName(".".join(name[:-1]), name[-1])
             else:
                 name = name[0]
             path.append(name)
@@ -465,8 +468,20 @@ class Parser(BasicParser):
 
         Returns a CommonExpression object."""
         expr = self._require_common_expr()
-        # TODO: validate that this is a boolean common expression!
-        return expr
+        if isinstance(expr, types.ReservedExpression):
+            # the reserved names 'false' and 'true' are interpreted as
+            # their constant values in preference to being property
+            # names.  Other reserved names are converted to property
+            # names enabling an entity to define property names like
+            # 'INF' and 'NaN' but *not* 'false', 'true' and 'null'.
+            if expr.name in ('true', 'false'):
+                return types.LiteralExpression(expr.name == 'true')
+            elif expr.name == 'null':
+                return types.LiteralExpression(None)
+            else:
+                return types.NameExpression(expr.name)
+        else:
+            return expr
 
     BinaryOperators = set(
         ("eq", "ne", "lt", "le", "gt", "ge", "has", "and", "or", "add",
@@ -487,6 +502,9 @@ class Parser(BasicParser):
             if self.match(self.SQUOTE):
                 # unambiguous, must be string primitiveLiteral
                 right_op = types.LiteralExpression(self.require_string())
+            elif self.match_digit():
+                right_op = types.LiteralExpression(
+                    self.require_primitive_literal())
             elif self.parse(self.AT):
                 # must be parameterAlias
                 right_op = types.ParameterExpression(
@@ -545,7 +563,8 @@ class Parser(BasicParser):
                         qname = [name]
                         while self.parse('.'):
                             qname.append(self.require_odata_identifier())
-                        qname = types.QualifiedName(qname[:-1], qname[-1])
+                        qname = names.QualifiedName(
+                            ".".join(qname[:-1]), qname[-1])
                     else:
                         qname = None
                     if self.match(self.SQUOTE):
@@ -590,7 +609,7 @@ class Parser(BasicParser):
                     elif qname is None and name in (
                             'true', 'false', 'null', 'INF', 'NaN'):
                         right_op = types.ReservedExpression(name)
-                    elif qname is None and name == "not" and self.parse_rws():
+                    elif qname is None and name == "not" and self.parse_bws():
                         # always the not operator
                         right_op = types.UnaryExpression(
                             types.Operator.bool_not)
@@ -705,7 +724,7 @@ class Parser(BasicParser):
         result.append(self.require_odata_identifier())
         while self.parse("."):
             result.append(self.require_odata_identifier())
-        return types.QualifiedName(".".join(result[:-1]), result[-1])
+        return names.QualifiedName(".".join(result[:-1]), result[-1])
 
     # Line 707
     def require_namespace(self):
@@ -785,7 +804,7 @@ class Parser(BasicParser):
                 self.require("'")
                 enum_value = self.require_enum_value()
                 self.require("'")
-                return types.EnumLiteral(qname, tuple(enum_value))
+                return names.EnumLiteral(qname, tuple(enum_value))
             elif self.match_one("-"):
                 # must be a guid again (8HEXDIGIT could look like a name)
                 self.setpos(save_pos)

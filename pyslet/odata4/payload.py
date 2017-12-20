@@ -14,11 +14,14 @@ from ..py2 import (
 from ..rfc2396 import URI
 from ..xml import xsdatatypes as xsi
 
-from . import errors
-from . import geotypes as geo
-from . import model as csdl
-from . import primitive
-from . import types
+from . import (
+    data,
+    errors,
+    geotypes as geo,
+    model as csdl,
+    primitive,
+    types,
+    )
 
 
 class MetadataAmount(xsi.Enumeration):
@@ -114,23 +117,23 @@ class Payload(object):
         else:
             self.charset = "utf-8"
 
-    def obj_from_bytes(self, obj, data):
+    def obj_from_bytes(self, obj, jdata):
         """Decodes a model object from a bytes string of data
 
         obj
             The expected model object
 
-        data
+        jdata
             A bytes string containing the serialized representation of
             the object.
 
         There is no return value."""
-        if isinstance(obj, csdl.EntityValue) and self.etag is not None:
+        if isinstance(obj, data.EntityValue) and self.etag is not None:
             # set the etag on this entity
             term = self.service.model.qualified_get("odata.etag")
             a = obj.get_updatable_annotation(term)
             a.set_value(to_text(self.etag))
-        jdict = json.loads(data.decode(self.charset))
+        jdict = json.loads(jdata.decode(self.charset))
         self.obj_from_json_value(obj, jdict)
 
     def _resolve_in_context(self, url):
@@ -191,7 +194,7 @@ class Payload(object):
             if target:
                 target_dict = annotations.setdefault(target, {})
                 target_dict[to_text(tref)] = value
-            elif isinstance(obj, types.Value):
+            elif isinstance(obj, data.Value):
                 term = self.service.model.qualified_get(tref.name)
                 a_value = obj.get_updatable_annotation(term, tref.qualifier)
                 self.obj_from_json_value(a_value, value)
@@ -216,11 +219,11 @@ class Payload(object):
                 url = URI.from_octets(feed["url"]).resolve(context_url)
                 item = container[name]
                 item.set_url(url)
-        elif isinstance(obj, csdl.ContainerValue):
+        elif isinstance(obj, data.ContainerValue):
             # we are parsing a simple (ordered) collection
             with obj.loading(next_link) as new_value:
                 self.obj_from_json_value(new_value, jdict['value'])
-        elif isinstance(obj, csdl.StructuredValue):
+        elif isinstance(obj, data.StructuredValue):
             with obj.loading() as new_value:
                 for name, value in jdict.items():
                     if '@' in name:
@@ -234,7 +237,7 @@ class Payload(object):
                             # this property
                             pdict["value"] = value
                             self.obj_from_json_dict(pvalue, pdict)
-                        elif isinstance(pvalue, csdl.ContainerValue):
+                        elif isinstance(pvalue, data.ContainerValue):
                             # no next link!
                             with pvalue.loading() as new_pvalue:
                                 self.obj_from_json_value(new_pvalue, value)
@@ -300,7 +303,8 @@ class Payload(object):
             obj.clean()
         elif is_text(jvalue):
             if isinstance(obj, csdl.EnumerationValue):
-                new_obj = obj.type_def.value_from_str(jvalue)
+                new_obj = obj.type_def()
+                new_obj.value_from_str(jvalue)
             else:
                 new_obj = obj.from_str(jvalue)
             # update the existing instance with the new value
@@ -310,10 +314,12 @@ class Payload(object):
             obj.set_value(jvalue)
             obj.clean()
         elif isinstance(jvalue, list):
-            if isinstance(obj, csdl.ContainerValue):
+            if isinstance(obj, data.ContainerValue):
                 for item in jvalue:
                     value = obj.new_item()
+                    # load the item first: we may be type cast!
                     self.obj_from_json_value(value, item)
+                    value.bind_to_service(self.service)
                     obj.load_item(value)
             else:
                 raise errors.FormatError(
@@ -325,10 +331,10 @@ class Payload(object):
     def to_json(self, obj, type_def=None, patch=False):
         self._patch_mode = patch
         output = io.BytesIO()
-        for data in self.generate_json(obj, type_def=type_def):
-            if is_unicode(data):
-                logging.error("Generator returned text: %s" % repr(data))
-            output.write(data)
+        for jdata in self.generate_json(obj, type_def=type_def):
+            if is_unicode(jdata):
+                logging.error("Generator returned text: %s" % repr(jdata))
+            output.write(jdata)
         output.seek(0)
         return output
 
@@ -348,9 +354,9 @@ class Payload(object):
                 return (str(obj.value).encode(self.charset), )
             else:
                 return (json.dumps(to_text(obj)).encode(self.charset), )
-        elif isinstance(obj, csdl.StructuredValue):
+        elif isinstance(obj, data.StructuredValue):
             return self.generate_structured(obj, type_def=type_def)
-        elif isinstance(obj, csdl.CollectionValue):
+        elif isinstance(obj, data.CollectionValue):
             return self.generate_collection(obj, type_def=type_def)
         elif isinstance(obj, csdl.CallableValue):
             return self.generate_callable(obj)
@@ -411,7 +417,7 @@ class Payload(object):
             ptype = None
             odata_type = None
             if self._patch_mode:
-                if isinstance(pdef, csdl.Property):
+                if isinstance(pdef, types.Property):
                     if not pvalue.dirty:
                         continue
                 else:
@@ -421,9 +427,9 @@ class Payload(object):
                 yield b','
             else:
                 comma = True
-            if isinstance(pdef, csdl.Property):
+            if isinstance(pdef, types.Property):
                 ptype = pdef.structural_type
-                if isinstance(ptype, csdl.ComplexType):
+                if isinstance(ptype, types.ComplexType):
                     if pdef.collection:
                         ptype = pvalue.item_type
                         if ptype is not pvalue.type_def.item_type:
@@ -434,8 +440,8 @@ class Payload(object):
                     yield b"@odata.type:%s," % json.dumps(
                         odata_type).encode(self.charset)
             yield b"%s:" % json.dumps(pname).encode(self.charset)
-            for data in self.generate_json(pvalue, type_def=ptype):
-                yield data
+            for jdata in self.generate_json(pvalue, type_def=ptype):
+                yield jdata
         yield b'}'
 
     def generate_callable(self, cvalue):
@@ -450,10 +456,10 @@ class Payload(object):
             else:
                 comma = True
             odata_type = None
-            if isinstance(pvalue, csdl.StructuredValue) and \
+            if isinstance(pvalue, data.StructuredValue) and \
                     pvalue.base_def != pvalue.type_def:
                 odata_type = pvalue.type_def.get_odata_type_fragment()
-            elif isinstance(pvalue, csdl.CollectionValue) and \
+            elif isinstance(pvalue, data.CollectionValue) and \
                     pvalue.item_type != pvalue.type_def.item_type:
                 odata_type = "Collection(%s)" % pvalue.item_type.\
                     get_odata_type_fragment()
@@ -461,8 +467,8 @@ class Payload(object):
                 yield b"@odata.type:%s," % json.dumps(
                     odata_type).encode(self.charset)
             yield b"%s:" % json.dumps(pname).encode(self.charset)
-            for data in self.generate_json(pvalue, type_def=pvalue.type_def):
-                yield data
+            for jdata in self.generate_json(pvalue, type_def=pvalue.type_def):
+                yield jdata
         yield b'}'
 
     def generate_collection(self, collection, type_def=None):
@@ -473,6 +479,6 @@ class Payload(object):
                 yield b','
             else:
                 comma = True
-            for data in self.generate_json(item, type_def=type_def):
-                yield data
+            for jdata in self.generate_json(item, type_def=type_def):
+                yield jdata
         yield b']'

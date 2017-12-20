@@ -2,13 +2,16 @@
 
 import logging
 
-from . import errors
-from . import metadata as csdlxml
-from . import model as csdl
-from . import parser
-from . import primitive
-from . import types
-
+from . import (
+    data,
+    errors,
+    metadata as csdlxml,
+    model as csdl,
+    names,
+    parser,
+    primitive,
+    types,
+    )
 from ..py2 import (
     is_text,
     to_text,
@@ -239,7 +242,7 @@ class DataService(object):
         if type_url.fragment:
             # if this is a simple identifier we have a built-in
             # primitive type
-            if types.NameTable.is_simple_identifier(type_url.fragment):
+            if names.NameTable.is_simple_identifier(type_url.fragment):
                 # ignore the actual URL
                 return self.model["Edm"].get(type_url.fragment, None)
             else:
@@ -249,7 +252,7 @@ class DataService(object):
                 if type_context == self.context_base:
                     type_def = self.model.qualified_get(qname)
                     if collection:
-                        return csdl.CollectionType(type_def)
+                        return types.CollectionType(type_def)
                     else:
                         return type_def
                 else:
@@ -262,7 +265,7 @@ class DataService(object):
 
         The return type depends on the type of the item being exposed.
         For an EntitySet the return type is an
-        :class:`model.EntitySetValue` object, for a Singleton the return
+        :class:`data.EntitySetValue` object, for a Singleton the return
         type is a :class:`model.SingletonValue`.
 
         The returned objects are bound to this service and all data
@@ -351,7 +354,7 @@ class DataService(object):
         """Create a request to create an entity in a collection
 
         entity_collection
-            An :class:`model.EntitySetValue` or a collection of
+            An :class:`data.EntitySetValue` or a collection of
             entities.
 
         Returns a :class:`DataRequest` instance.  When executed, the
@@ -377,7 +380,7 @@ class DataService(object):
         """Create a request to update an entity
 
         entity
-            An :class:`model.EntityValue`.
+            An :class:`data.EntityValue`.
 
         merge
             Whether or not to use merge semantics (PATCH).  Defaults to
@@ -412,6 +415,22 @@ class DataService(object):
         exposed in the service document or a collection-valued
         navigation property that *contains* the related entities then
         the effect is to delete the entity with *key* outright."""
+        raise NotImplementedError
+
+    def delete_entity(self, entity):
+        """Create a request to delete an entity
+
+        entity
+            An :class:`data.EntityValue`.
+
+        Returns a :class:`DataRequest` instance.  There is no return
+        result.  Unlike :meth:`delete_entity_by_key` this method always
+        deletes the entity from the entity set that *contains* it, even
+        if the *entity* value was obtained from non-containment
+        navigation property.  This form of deletion is required for
+        entities that use optimistic concurrency control on deletion as
+        the entity must be retrieved (with the associated ETag) before
+        it can be deleted."""
         raise NotImplementedError
 
     def call_function(self, function):
@@ -503,7 +522,7 @@ class DataService(object):
         reflect the new binding and the entity is bound to this service
         if it is not already bound."""
         url = self.get_value_url(parent)
-        if isinstance(parent, (csdl.EntitySetValue, csdl.CollectionValue)):
+        if isinstance(parent, (data.EntitySetValue, data.CollectionValue)):
             # we need to add the key
             key = entity.type_def.get_key_dict(entity.get_key())
             url.add_key_predicate(key)
@@ -534,13 +553,13 @@ class DataService(object):
             url = self.get_value_url(entity, edit=edit)
             for seg in path:
                 url.add_path_segment(seg)
-        elif isinstance(value, csdl.EntityContainerValue) and \
+        elif isinstance(value, data.EntityContainerValue) and \
                 value.entity_binding:
             # this is just an entity set or singleton read/edit url in
             # service doc
             url = self.url_from_str(
                 to_text(value.entity_binding.get_url()))
-        elif isinstance(value, csdl.EntityValue):
+        elif isinstance(value, data.EntityValue):
             if not edit:
                 # check for an explicit readLink
                 read_link = value.get_annotation("@odata.readLink")
@@ -599,7 +618,7 @@ class DataService(object):
             An optional :class:`types.EntityOptions` object.
 
         Returns a :class:`DataRequest` instance.  When executed, the
-        result of the request is an :class:`model.EntityValue` or an
+        result of the request is an :class:`data.EntityValue` or an
         appropriate :class:`errors.ServiceError` instance."""
         raise NotImplementedError
 
@@ -936,13 +955,13 @@ class ODataURL(object):
     @staticmethod
     def expand_item_to_str(expand_item):
         result = []
-        result.append(types.path_to_str(expand_item.path))
+        result.append(names.path_to_str(expand_item.path))
         if expand_item.type_cast:
             result.append("/")
             result.append(to_text(expand_item.type_cast))
         if expand_item.qualifier:
             result.append("/$")
-            result.append(types.PathQualifier.to_str(expand_item.qualifier))
+            result.append(names.PathQualifier.to_str(expand_item.qualifier))
         # now go through the options
         options = []
         if expand_item.options.select:
@@ -1000,7 +1019,7 @@ class ODataURL(object):
     @staticmethod
     def select_item_to_str(select_item):
         result = []
-        result.append(types.path_to_str(select_item.path))
+        result.append(names.path_to_str(select_item.path))
         if select_item.type_cast:
             result.append("/")
             result.append(to_text(select_item.type_cast))
@@ -1093,7 +1112,7 @@ class ODataURL(object):
                 ops.append(op_str)
             return expr.format_expr(ops)
         elif isinstance(expr, types.LiteralExpression):
-            if isinstance(expr.value, types.EnumLiteral):
+            if isinstance(expr.value, names.EnumLiteral):
                 return to_text(expr.value)
             else:
                 return primitive.PrimitiveValue.from_value(

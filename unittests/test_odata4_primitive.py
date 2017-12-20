@@ -12,12 +12,15 @@ from pyslet.iso8601 import (
     Time,
     TimePoint
     )
-from pyslet.odata4 import errors
-from pyslet.odata4 import geotypes as geo
-from pyslet.odata4 import metadata as csdl
-from pyslet.odata4 import model as odata
-from pyslet.odata4 import primitive
-from pyslet.odata4 import types
+from pyslet.odata4 import (
+    data,
+    errors,
+    geotypes as geo,
+    metadata as csdl,
+    model as odata,
+    primitive,
+    types,
+    )
 from pyslet.py2 import (
     BoolMixin,
     long2,
@@ -33,7 +36,6 @@ from pyslet.xml.xsdatatypes import Duration
 
 def suite():
     return unittest.TestSuite((
-        unittest.makeSuite(PrimitiveTypeTests, 'test'),
         unittest.makeSuite(PrimitiveValueTests, 'test'),
         unittest.makeSuite(OperatorTests, 'test'),
         ))
@@ -144,407 +146,6 @@ ALL_TYPES = (
     )
 
 
-class PrimitiveTypeTests(unittest.TestCase):
-
-    def test_constructor(self):
-        t = primitive.PrimitiveType()
-        self.assertTrue(t.base is None, "No base by default")
-        self.assertTrue(t.max_length is None, "No MaxLength by default")
-        # callable, returns a null of PrimitiveValue
-        v = t()
-        self.assertTrue(isinstance(v, primitive.PrimitiveValue))
-        self.assertTrue(v.type_def is t)
-        self.assertTrue(v.is_null())
-
-    def test_max_length_binary(self):
-        # For binary or stream properties this is the octet length of
-        # the binary data
-        t = primitive.edm_binary
-        self.assertTrue(t.max_length is None, "No MaxLength by default")
-        # create a derived class with max_length
-        t1 = primitive.PrimitiveType()
-        # should inherit the value_type from t
-        t1.set_base(t)
-        # max_length is None, unknown restriction
-        v = t1()
-        self.assertTrue(isinstance(v, primitive.BinaryValue))
-        v.set_value(b'Hello')
-        # set a weak value: max_length of 3
-        t1.set_max_length(3, can_override=True)
-        v = t1()
-        try:
-            v.set_value(b'Hello')
-            self.fail("Would truncate")
-        except ValueError:
-            pass
-        v.set_value(b'Hel')
-        # 0 => max size, treated the same as None in our case
-        t1.set_max_length(0)
-        v = t1()
-        v.set_value(b'Hello')
-        try:
-            t1.set_max_length(4)
-            self.fail("Strong facet redefined")
-        except errors.ModelError:
-            pass
-
-    def test_max_length_stream(self):
-        # TODO
-        pass
-
-    def test_max_length_string(self):
-        cafe = ul('Caf\xe9')
-        t = primitive.edm_string
-        self.assertTrue(t.max_length is None, "No MaxLength by default")
-        # create a derived class with max_length
-        t1 = primitive.PrimitiveType()
-        # should inherit the value_type from t
-        t1.set_base(t)
-        # max_length is None, unknown restriction
-        v = t1()
-        self.assertTrue(isinstance(v, primitive.StringValue))
-        v.set_value(cafe)
-        # set a weak value
-        t1.set_max_length(4, can_override=True)
-        v = t1()
-        v.set_value(cafe)     # OK as character length is 4, utf8 length check
-        # set another weak value
-        t1.set_max_length(3, can_override=True)
-        try:
-            v.set_value(cafe)
-            self.fail("Would truncate")
-        except ValueError:
-            pass
-        v.set_value(cafe[1:])
-        # 0 => max size, treated the same as None in our case
-        t1.set_max_length(0)
-        v = t1()
-        v.set_value(cafe)
-        try:
-            t1.set_max_length(4)
-            self.fail("Strong facet redefined")
-        except errors.ModelError:
-            pass
-
-    def test_precision_datetimeoffset(self):
-        """For a temporal property the value of this attribute specifies
-        the number of decimal places allowed in the seconds portion of
-        the property's value..."""
-        dt20 = TimePoint.from_str("2017-06-05T20:44:14.12345678901234567890Z")
-        t = primitive.edm_date_time_offset
-        self.assertTrue(t.precision is None, "Default unspecified Precision")
-        # create a derived class (does not inherit precision)
-        t1 = primitive.PrimitiveType()
-        t1.set_base(t)
-        v = t1()
-        self.assertTrue(isinstance(v, primitive.DateTimeOffsetValue))
-        # If no value is specified, the temporal property has a
-        # precision of zero.
-        v.set_value(dt20)
-        self.assertTrue(v.value == "2017-06-05T20:44:14Z")
-        self.assertFalse(v.value == dt20)
-        # set a weak value for precision
-        t1.set_precision(6, can_override=True)
-        v = t1()
-        v.set_value(dt20)
-        self.assertTrue(v.value == "2017-06-05T20:44:14.123456Z",
-                        v.value.time.second)
-        self.assertFalse(v.value == dt20)
-        # set a strong value for precision
-        try:
-            t1.set_precision(15)
-            self.fail("Max temporal precision")
-        except errors.ModelError:
-            pass
-        t1.set_precision(12)
-        # max precision is 12
-        v = t1()
-        v.set_value(dt20)
-        self.assertTrue(v.value == "2017-06-05T20:44:14.123456789012Z")
-        self.assertFalse(v.value == dt20)
-        # set another strong value should now fail
-        try:
-            t1.set_precision(6)
-            self.fail("Strong Precision redefined")
-        except errors.ModelError:
-            pass
-
-    def test_precision_duration(self):
-        d20 = Duration("PT0.12345678901234567890S")
-        t = primitive.edm_duration
-        self.assertTrue(t.precision is None, "Default unspecified Precision")
-        # create a derived class with precision
-        t1 = primitive.PrimitiveType()
-        t1.set_base(t)
-        v = t1()
-        self.assertTrue(isinstance(v, primitive.DurationValue))
-        # If no value is specified, the temporal property has a
-        # precision of zero.
-        v.set_value(d20)
-        self.assertTrue(v.value == "PT0S", str(v.value))
-        self.assertFalse(v.value == d20)
-        # set a weak value for precision
-        t1.set_precision(6, can_override=True)
-        v = t1()
-        v.set_value(d20)
-        self.assertTrue(v.value == "PT0.123456S")
-        self.assertFalse(v.value == d20)
-        # set a strong value for precision
-        try:
-            t1.set_precision(15)
-            self.fail("Max temporal precision")
-        except errors.ModelError:
-            pass
-        t1.set_precision(12)
-        # max precision is 12
-        v = t1()
-        v.set_value(d20)
-        self.assertTrue(v.value == "PT0.123456789012S")
-        self.assertFalse(v.value == d20)
-        # set another strong value should now fail
-        try:
-            t1.set_precision(6)
-            self.fail("Strong Precision redefined")
-        except errors.ModelError:
-            pass
-
-    def test_precision_timeofday(self):
-        t20 = Time.from_str("20:44:14.12345678901234567890")
-        t = primitive.edm_time_of_day
-        self.assertTrue(t.precision is None, "Default unspecified Precision")
-        # create a derived class with precision
-        t1 = primitive.PrimitiveType()
-        t1.set_base(t)
-        v = t1()
-        self.assertTrue(isinstance(v, primitive.TimeOfDayValue))
-        # If unspecified the precision is 0
-        v.set_value(t20)
-        self.assertTrue(v.value == "20:44:14")
-        self.assertFalse(v.value == t20)
-        # set a weak value for precision
-        t1.set_precision(6, can_override=True)
-        v = t1()
-        v.set_value(t20)
-        self.assertTrue(v.value == "20:44:14.123456")
-        self.assertFalse(v.value == t20)
-        # set a strong value for precision
-        try:
-            t1.set_precision(15)
-            self.fail("Max temporal precision")
-        except errors.ModelError:
-            pass
-        t1.set_precision(12)
-        # max precision is 12
-        v = t1()
-        v.set_value(t20)
-        self.assertTrue(v.value == "20:44:14.123456789012")
-        self.assertFalse(v.value == t20)
-        # set another strong value should now fail
-        try:
-            t1.set_precision(6)
-            self.fail("Strong Precision redefined")
-        except errors.ModelError:
-            pass
-
-    def test_decimal_precision(self):
-        """For a decimal property the value of this attribute specifies
-        the maximum number of significant decimal digits of the
-        property's value"""
-        self.assertTrue(getcontext().prec >= 28,
-                        "Tests require decimal precision of 28 or greater")
-        d20str = "0.12345678901234567890"
-        i20str = "12345678901234567890"
-        f20str = "1234567890.1234567890"
-        d20 = Decimal(d20str)
-        i20 = Decimal(i20str)
-        f20 = Decimal(f20str)
-        t = primitive.edm_decimal
-        self.assertTrue(t.precision is None, "No Precision by default")
-        t1 = primitive.PrimitiveType()
-        t1.set_base(t)
-        v = t1()
-        self.assertTrue(isinstance(v, primitive.DecimalValue))
-        # If no value is specified, the decimal property has unspecified
-        # precision.  Python's default of 28 is larger than the 20 used
-        # in these tests.  The scale property, however, defaults to 0!
-        v.set_value(d20)
-        self.assertTrue(v.value == Decimal("0"))
-        v.set_value(i20)
-        self.assertTrue(v.value == i20)
-        v.set_value(f20)
-        self.assertTrue(v.value == Decimal("1234567890"))
-        # a specified precision, unspecified scale defaults to 0
-        t1.set_precision(6, can_override=True)
-        v = t1()
-        # these results should be rounded
-        v.set_value(d20)
-        self.assertTrue(v.value == Decimal("0"))
-        self.assertFalse(v.value == d20)
-        try:
-            v.set_value(i20)
-            self.fail("Integer larger than precision")
-        except ValueError:
-            pass
-        # a specified precision with a variable scale
-        t1.set_precision(6, -1, can_override=True)
-        v = t1()
-        v.set_value(d20)
-        self.assertTrue(v.value == Decimal("0.123457"))
-        v.set_value(i20)
-        self.assertTrue(v.value == Decimal("12345700000000000000"))
-        v.set_value(f20)
-        self.assertTrue(v.value == Decimal("1234570000"))
-        # if we exceed the digits we had originally we do not add 0s as
-        # this is a maximum number of digits, not an absolute number of
-        # digits.
-        t1.set_precision(42, 21, can_override=True)
-        v = t1()
-        v.set_value(d20)
-        self.assertTrue(v.value == d20)
-        self.assertTrue(str(v) == d20str, str(v))
-        v.set_value(i20)
-        self.assertTrue(v.value == i20)
-        self.assertTrue(str(v) == i20str, str(v))
-        v.set_value(f20)
-        self.assertTrue(v.value == f20)
-        self.assertTrue(str(v) == f20str, str(v))
-        # Unspecified precision, variable scale (uses -1)
-        # sig fig limited by python defaults, decimal places unlimited
-        t1.set_precision(None, -1, can_override=True)
-        v = t1()
-        v.set_value(d20)
-        self.assertTrue(v.value == d20)
-        self.assertTrue(str(v) == d20str, str(v))
-        v.set_value(i20)
-        self.assertTrue(v.value == i20)
-        self.assertTrue(str(v) == i20str, str(v))
-        v.set_value(f20)
-        self.assertTrue(v.value == f20)
-        self.assertTrue(str(v) == f20str, str(v))
-        # unspecified precision, scale is OK
-        t1.set_precision(None, 3, can_override=True)
-        v = t1()
-        v.set_value(d20)
-        self.assertTrue(v.value == Decimal("0.123"))
-        v.set_value(i20)
-        self.assertTrue(v.value == i20)
-        v.set_value(f20)
-        self.assertTrue(v.value == Decimal("1234567890.123"))
-        try:
-            t1.set_precision(2, 3, can_override=True)
-            self.fail("scale must be <= precision")
-        except errors.ModelError:
-            pass
-        # try scale > 0
-        t1.set_precision(6, 3, can_override=True)
-        v = t1()
-        v.set_value(d20)
-        # scale beats precision
-        self.assertTrue(v.value == Decimal("0.123"))
-        try:
-            v.set_value(i20)
-            self.fail("Value exceeds precision-scale left digitis")
-        except ValueError:
-            pass
-        v.set_value(Decimal("123.4567"))
-        self.assertTrue(v.value == Decimal("123.457"))
-        # try scale = 0
-        t1.set_precision(6, 0, can_override=True)
-        v = t1()
-        v.set_value(d20)
-        self.assertTrue(v.value == Decimal("0"))
-        try:
-            v.set_value(f20)
-            self.fail("Value exceeds precision-scale left digitis")
-        except ValueError:
-            pass
-        # try scale = precision
-        t1.set_precision(6, 6, can_override=True)
-        v = t1()
-        v.set_value(d20)
-        self.assertTrue(v.value == Decimal("0.123457"))
-        try:
-            v.set_value(1)
-            self.fail("Value exceeds precision-scale left digitis")
-        except ValueError:
-            pass
-        # There's a strange note about negative scale in the
-        # specification.  Internally Python can support negative scale
-        # but the suggestion is that this translates to a Precision
-        # value that exceeds the maximum supported native precision.
-        # For example, if Python's default precision is 28 then we could
-        # allow precision to be set to 30 with an implied negative scale
-        # of -2, this would result in values being rounded such that the
-        # last two digits are always zero.  Given that scale cannot be
-        # negative it would have to be omitted (implied 0 behaviour).
-        t1.set_precision(getcontext().prec + 2)
-        xstr = "1" * (getcontext().prec + 2)
-        v.set_value(Decimal(xstr))
-        self.assertTrue(v.value == Decimal(xstr[:-2] + "00"))
-        # TOD: testing of strong values in set_precision
-
-    def test_unicode_string(self):
-        cafe = ul('Caf\xe9')
-        t = primitive.edm_string
-        self.assertTrue(t.unicode is None, "Facet unspecified by default")
-        t1 = primitive.PrimitiveType()
-        # should inherit the value_type from t
-        t1.set_base(t)
-        # by default we accept unicode characters
-        v = t1()
-        self.assertTrue(isinstance(v, primitive.StringValue))
-        v.set_value(cafe)
-        # set a weak value
-        t1.set_unicode(False, can_override=True)
-        v = t1()
-        try:
-            v.set_value(cafe)
-            self.fail("ASCII required")
-        except ValueError:
-            pass
-        v.set_value(cafe[:-1])    # OK
-        # set a strong value
-        t1.set_unicode(True)
-        v = t1()
-        v.set_value(cafe)
-        try:
-            t1.set_unicode(False)
-            self.fail("Strong facet can't be changed")
-        except errors.ModelError:
-            pass
-
-    def test_srid_geo(self):
-        for t, pv, default in ALL_TYPES:
-            if issubclass(t, (primitive.GeographyValue,
-                              primitive.GeometryValue)):
-                geodef = t().type_def
-                self.assertTrue(geodef.value_type is t)
-                self.assertTrue(geodef.srid is None)
-                t1 = primitive.PrimitiveType()
-                t1.set_base(geodef)
-                # value_type inherited from geodef
-                self.assertTrue(t1.value_type is geodef.value_type)
-                self.assertTrue(t1.srid is None)
-                v = t1()
-                self.assertTrue(isinstance(v, t))
-                v.set_value(pv)
-                if issubclass(t, primitive.GeographyValue):
-                    def_srid = 4326
-                else:
-                    def_srid = 0
-                self.assertTrue(v.value.srid == def_srid)
-                # make up a similar value with a different srid
-                pv1 = pv.__class__(27700, pv[1])
-                v.set_value(pv1)
-                # we don't force points to match the implied default!
-                self.assertTrue(v.value.srid == 27700)
-                # but we will convert raw points to literals with the
-                # default SRID
-                v.set_value(pv1[1])
-                self.assertTrue(v.value.srid == def_srid)
-                self.assertTrue(v.value == pv)
-
-
 class GoodBytes(object):
 
     def __str__(self):
@@ -594,7 +195,7 @@ class PrimitiveValueTests(unittest.TestCase):
         # construct without a property declaration
         v = primitive.PrimitiveValue()
         # this is a NULL value of an unspecified type
-        self.assertTrue(isinstance(v, types.Value))
+        self.assertTrue(isinstance(v, data.Value))
         self.assertFalse(v)
         self.assertTrue(v.is_null())
         self.assertTrue(v.value is None, "Null value on construction")
@@ -621,7 +222,7 @@ class PrimitiveValueTests(unittest.TestCase):
     def test_all_constructors(self):
         for t, pv, default in ALL_TYPES:
             t_def = t().type_def
-            self.assertTrue(isinstance(t_def, primitive.PrimitiveType))
+            self.assertTrue(isinstance(t_def, types.PrimitiveType))
             v = t()
             self.assertTrue(isinstance(v, primitive.PrimitiveValue))
             self.assertFalse(v)
@@ -772,6 +373,38 @@ class PrimitiveValueTests(unittest.TestCase):
              (b'Caf\xc3\xa9', 'Q2Fmw6k='),
              (b'ab?de>g', 'YWI_ZGU-Zw==')))
 
+    def test_max_length_binary(self):
+        # For binary or stream properties this is the octet length of
+        # the binary data
+        t = primitive.edm_binary
+        self.assertTrue(t.max_length is None, "No MaxLength by default")
+        # create a derived class with max_length
+        t1 = primitive.BinaryValue.new_type()
+        # should inherit the value_type from t
+        t1.set_base(t)
+        # max_length is None, unknown restriction
+        v = t1()
+        self.assertTrue(isinstance(v, primitive.BinaryValue))
+        v.set_value(b'Hello')
+        # set a weak value: max_length of 3
+        t1.set_max_length(3, can_override=True)
+        v = t1()
+        try:
+            v.set_value(b'Hello')
+            self.fail("Would truncate")
+        except ValueError:
+            pass
+        v.set_value(b'Hel')
+        # 0 => max size, treated the same as None in our case
+        t1.set_max_length(0)
+        v = t1()
+        v.set_value(b'Hello')
+        try:
+            t1.set_max_length(4)
+            self.fail("Strong facet redefined")
+        except errors.ModelError:
+            pass
+
     def test_boolean(self):
         """Boolean values"""
         self.do_set(
@@ -873,7 +506,7 @@ class PrimitiveValueTests(unittest.TestCase):
              (rome_time, '-0752-04-21T16:00:00+01:00'),
              (eagle_time_ms, '1969-07-20T20:17:40.000000Z')))
         # check the correct operation of leap seconds with high precision
-        t = primitive.PrimitiveType()
+        t = primitive.DateTimeOffsetValue.new_type()
         t.set_base(primitive.edm_date_time_offset)
         t.set_precision(6)
         v = t()
@@ -881,6 +514,49 @@ class PrimitiveValueTests(unittest.TestCase):
         self.assertTrue(v.value == leap_fadjusted)
         v.set_value(eagle_time_ms)
         self.assertTrue(to_text(v) == '1969-07-20T20:17:40.000000Z')
+
+    def test_precision_datetimeoffset(self):
+        """For a temporal property the value of this attribute specifies
+        the number of decimal places allowed in the seconds portion of
+        the property's value..."""
+        dt20 = TimePoint.from_str("2017-06-05T20:44:14.12345678901234567890Z")
+        t = primitive.edm_date_time_offset
+        self.assertTrue(t.precision is None, "Default unspecified Precision")
+        # create a derived class (does not inherit precision)
+        t1 = primitive.DateTimeOffsetValue.new_type()
+        t1.set_base(t)
+        v = t1()
+        self.assertTrue(isinstance(v, primitive.DateTimeOffsetValue))
+        # If no value is specified, the temporal property has a
+        # precision of zero.
+        v.set_value(dt20)
+        self.assertTrue(v.value == "2017-06-05T20:44:14Z")
+        self.assertFalse(v.value == dt20)
+        # set a weak value for precision
+        t1.set_precision(6, can_override=True)
+        v = t1()
+        v.set_value(dt20)
+        self.assertTrue(v.value == "2017-06-05T20:44:14.123456Z",
+                        v.value.time.second)
+        self.assertFalse(v.value == dt20)
+        # set a strong value for precision
+        try:
+            t1.set_precision(15)
+            self.fail("Max temporal precision")
+        except errors.ModelError:
+            pass
+        t1.set_precision(12)
+        # max precision is 12
+        v = t1()
+        v.set_value(dt20)
+        self.assertTrue(v.value == "2017-06-05T20:44:14.123456789012Z")
+        self.assertFalse(v.value == dt20)
+        # set another strong value should now fail
+        try:
+            t1.set_precision(6)
+            self.fail("Strong Precision redefined")
+        except errors.ModelError:
+            pass
 
     def test_decimal(self):
         """Decimal values"""
@@ -903,6 +579,145 @@ class PrimitiveValueTests(unittest.TestCase):
             ((Decimal(0), '0'), (Decimal(1), '1'), (Decimal('1.00'), '1.00'),
              (Decimal(-1), '-1'), (Decimal('3.5'), '3.5')))
 
+    def test_decimal_precision(self):
+        """For a decimal property the value of this attribute specifies
+        the maximum number of significant decimal digits of the
+        property's value"""
+        self.assertTrue(getcontext().prec >= 28,
+                        "Tests require decimal precision of 28 or greater")
+        d20str = "0.12345678901234567890"
+        i20str = "12345678901234567890"
+        f20str = "1234567890.1234567890"
+        d20 = Decimal(d20str)
+        i20 = Decimal(i20str)
+        f20 = Decimal(f20str)
+        t = primitive.edm_decimal
+        self.assertTrue(t.precision is None, "No Precision by default")
+        t1 = primitive.DecimalValue.new_type()
+        t1.set_base(t)
+        v = t1()
+        self.assertTrue(isinstance(v, primitive.DecimalValue))
+        # If no value is specified, the decimal property has unspecified
+        # precision.  Python's default of 28 is larger than the 20 used
+        # in these tests.  The scale property defaults to 0 only for
+        # custom type definitions, we use default context scale for
+        # vanilla Edm.Decimal
+        v.set_value(d20)
+        self.assertTrue(v.value == Decimal(d20str))
+        v.set_value(i20)
+        self.assertTrue(v.value == i20)
+        v.set_value(f20)
+        self.assertTrue(v.value == Decimal(f20str))
+        # a specified precision, unspecified scale defaults to 0
+        t1.set_precision(6, can_override=True)
+        v = t1()
+        # these results should be rounded
+        v.set_value(d20)
+        self.assertTrue(v.value == Decimal("0"))
+        self.assertFalse(v.value == d20)
+        try:
+            v.set_value(i20)
+            self.fail("Integer larger than precision")
+        except ValueError:
+            pass
+        # a specified precision with a variable scale
+        t1.set_precision(6, -1, can_override=True)
+        v = t1()
+        v.set_value(d20)
+        self.assertTrue(v.value == Decimal("0.123457"))
+        v.set_value(i20)
+        self.assertTrue(v.value == Decimal("12345700000000000000"))
+        v.set_value(f20)
+        self.assertTrue(v.value == Decimal("1234570000"))
+        # if we exceed the digits we had originally we do not add 0s as
+        # this is a maximum number of digits, not an absolute number of
+        # digits.
+        t1.set_precision(42, 21, can_override=True)
+        v = t1()
+        v.set_value(d20)
+        self.assertTrue(v.value == d20)
+        self.assertTrue(str(v) == d20str, str(v))
+        v.set_value(i20)
+        self.assertTrue(v.value == i20)
+        self.assertTrue(str(v) == i20str, str(v))
+        v.set_value(f20)
+        self.assertTrue(v.value == f20)
+        self.assertTrue(str(v) == f20str, str(v))
+        # Unspecified precision, variable scale (uses -1)
+        # sig fig limited by python defaults, decimal places unlimited
+        t1.set_precision(None, -1, can_override=True)
+        v = t1()
+        v.set_value(d20)
+        self.assertTrue(v.value == d20)
+        self.assertTrue(str(v) == d20str, str(v))
+        v.set_value(i20)
+        self.assertTrue(v.value == i20)
+        self.assertTrue(str(v) == i20str, str(v))
+        v.set_value(f20)
+        self.assertTrue(v.value == f20)
+        self.assertTrue(str(v) == f20str, str(v))
+        # unspecified precision, scale is OK
+        t1.set_precision(None, 3, can_override=True)
+        v = t1()
+        v.set_value(d20)
+        self.assertTrue(v.value == Decimal("0.123"))
+        v.set_value(i20)
+        self.assertTrue(v.value == i20)
+        v.set_value(f20)
+        self.assertTrue(v.value == Decimal("1234567890.123"))
+        try:
+            t1.set_precision(2, 3, can_override=True)
+            self.fail("scale must be <= precision")
+        except errors.ModelError:
+            pass
+        # try scale > 0
+        t1.set_precision(6, 3, can_override=True)
+        v = t1()
+        v.set_value(d20)
+        # scale beats precision
+        self.assertTrue(v.value == Decimal("0.123"))
+        try:
+            v.set_value(i20)
+            self.fail("Value exceeds precision-scale left digitis")
+        except ValueError:
+            pass
+        v.set_value(Decimal("123.4567"))
+        self.assertTrue(v.value == Decimal("123.457"))
+        # try scale = 0
+        t1.set_precision(6, 0, can_override=True)
+        v = t1()
+        v.set_value(d20)
+        self.assertTrue(v.value == Decimal("0"))
+        try:
+            v.set_value(f20)
+            self.fail("Value exceeds precision-scale left digitis")
+        except ValueError:
+            pass
+        # try scale = precision
+        t1.set_precision(6, 6, can_override=True)
+        v = t1()
+        v.set_value(d20)
+        self.assertTrue(v.value == Decimal("0.123457"))
+        try:
+            v.set_value(1)
+            self.fail("Value exceeds precision-scale left digitis")
+        except ValueError:
+            pass
+        # There's a strange note about negative scale in the
+        # specification.  Internally Python can support negative scale
+        # but the suggestion is that this translates to a Precision
+        # value that exceeds the maximum supported native precision.
+        # For example, if Python's default precision is 28 then we could
+        # allow precision to be set to 30 with an implied negative scale
+        # of -2, this would result in values being rounded such that the
+        # last two digits are always zero.  Given that scale cannot be
+        # negative it would have to be omitted (implied 0 behaviour).
+        t1.set_precision(getcontext().prec + 2)
+        xstr = "1" * (getcontext().prec + 2)
+        v.set_value(Decimal(xstr))
+        self.assertTrue(v.value == Decimal(xstr[:-2] + "00"))
+        # TOD: testing of strong values in set_precision
+
     def test_duration(self):
         """Duration values"""
         t12345 = Duration("P1DT2H3M4.5S")
@@ -921,13 +736,52 @@ class PrimitiveValueTests(unittest.TestCase):
             ((t12345, 'P1DT2H3M4.5S'),
              (t1234, 'P1DT2H3M4S')))
         # check the correct operation of precision
-        t = primitive.PrimitiveType()
+        t = primitive.DurationValue.new_type()
         t.set_base(primitive.edm_duration)
         t.set_precision(1)
         v = t()
         v.set_value(t12345)
         self.assertTrue(v.value == t12345)
         self.assertTrue(to_text(v) == 'P1DT2H3M4.5S')
+
+    def test_precision_duration(self):
+        d20 = Duration("PT0.12345678901234567890S")
+        t = primitive.edm_duration
+        self.assertTrue(t.precision is None, "Default unspecified Precision")
+        # create a derived class with precision
+        t1 = primitive.DurationValue.new_type()
+        t1.set_base(t)
+        v = t1()
+        self.assertTrue(isinstance(v, primitive.DurationValue))
+        # If no value is specified, the temporal property has a
+        # precision of zero.
+        v.set_value(d20)
+        self.assertTrue(v.value == "PT0S", str(v.value))
+        self.assertFalse(v.value == d20)
+        # set a weak value for precision
+        t1.set_precision(6, can_override=True)
+        v = t1()
+        v.set_value(d20)
+        self.assertTrue(v.value == "PT0.123456S")
+        self.assertFalse(v.value == d20)
+        # set a strong value for precision
+        try:
+            t1.set_precision(15)
+            self.fail("Max temporal precision")
+        except errors.ModelError:
+            pass
+        t1.set_precision(12)
+        # max precision is 12
+        v = t1()
+        v.set_value(d20)
+        self.assertTrue(v.value == "PT0.123456789012S")
+        self.assertFalse(v.value == d20)
+        # set another strong value should now fail
+        try:
+            t1.set_precision(6)
+            self.fail("Strong Precision redefined")
+        except errors.ModelError:
+            pass
 
     def test_float_value(self):
         """Double and Single values"""
@@ -955,6 +809,36 @@ class PrimitiveValueTests(unittest.TestCase):
             self.do_text(
                 cls,
                 ((1.0, '1.0'), (0.0, '0.0'), (-1.0, '-1.0')))
+
+    def test_srid_geo(self):
+        for t, pv, default in ALL_TYPES:
+            if issubclass(t, (primitive.GeographyValue,
+                              primitive.GeometryValue)):
+                geodef = t().type_def
+                self.assertTrue(geodef.value_type is t)
+                self.assertTrue(geodef.srid is None)
+                t1 = geodef.derive_type()
+                # value_type inherited from geodef
+                self.assertTrue(t1.value_type is geodef.value_type)
+                self.assertTrue(t1.srid is None)
+                v = t1()
+                self.assertTrue(isinstance(v, t))
+                v.set_value(pv)
+                if issubclass(t, primitive.GeographyValue):
+                    def_srid = 4326
+                else:
+                    def_srid = 0
+                self.assertTrue(v.value.srid == def_srid)
+                # make up a similar value with a different srid
+                pv1 = pv.__class__(27700, pv[1])
+                v.set_value(pv1)
+                # we don't force points to match the implied default!
+                self.assertTrue(v.value.srid == 27700)
+                # but we will convert raw points to literals with the
+                # default SRID
+                v.set_value(pv1[1])
+                self.assertTrue(v.value.srid == def_srid)
+                self.assertTrue(v.value == pv)
 
     def test_point(self):
         """Geography and Geometry points"""
@@ -1339,6 +1223,10 @@ class PrimitiveValueTests(unittest.TestCase):
                   "SRID=4326;Collection()")
                  ))
 
+    def test_max_length_stream(self):
+        # TODO
+        pass
+
     def test_guid(self):
         """Guid values"""
         u1 = uuid.UUID(int=1)
@@ -1392,6 +1280,69 @@ class PrimitiveValueTests(unittest.TestCase):
              (ucafe, ucafe),
              ))
 
+    def test_max_length_string(self):
+        cafe = ul('Caf\xe9')
+        t = primitive.edm_string
+        self.assertTrue(t.max_length is None, "No MaxLength by default")
+        # create a derived class with max_length
+        t1 = primitive.StringValue.new_type()
+        # should inherit the value_type from t
+        t1.set_base(t)
+        # max_length is None, unknown restriction
+        v = t1()
+        self.assertTrue(isinstance(v, primitive.StringValue))
+        v.set_value(cafe)
+        # set a weak value
+        t1.set_max_length(4, can_override=True)
+        v = t1()
+        v.set_value(cafe)     # OK as character length is 4, utf8 length check
+        # set another weak value
+        t1.set_max_length(3, can_override=True)
+        try:
+            v.set_value(cafe)
+            self.fail("Would truncate")
+        except ValueError:
+            pass
+        v.set_value(cafe[1:])
+        # 0 => max size, treated the same as None in our case
+        t1.set_max_length(0)
+        v = t1()
+        v.set_value(cafe)
+        try:
+            t1.set_max_length(4)
+            self.fail("Strong facet redefined")
+        except errors.ModelError:
+            pass
+
+    def test_unicode_string(self):
+        cafe = ul('Caf\xe9')
+        t = primitive.edm_string
+        self.assertTrue(t.unicode is None, "Facet unspecified by default")
+        # should inherit the value_type from t
+        t1 = t.derive_type()
+        # by default we accept unicode characters
+        v = t1()
+        self.assertTrue(isinstance(v, primitive.StringValue))
+        v.set_value(cafe)
+        # set a weak value
+        t1.set_unicode(False, can_override=True)
+        v = t1()
+        try:
+            v.set_value(cafe)
+            self.fail("ASCII required")
+        except ValueError:
+            pass
+        v.set_value(cafe[:-1])    # OK
+        # set a strong value
+        t1.set_unicode(True)
+        v = t1()
+        v.set_value(cafe)
+        try:
+            t1.set_unicode(False)
+            self.fail("Strong facet can't be changed")
+        except errors.ModelError:
+            pass
+
     def test_time(self):
         """TimeOfDay values"""
         slast = Time.from_str("235959")
@@ -1419,7 +1370,7 @@ class PrimitiveValueTests(unittest.TestCase):
             primitive.TimeOfDayValue,
             ((eagle_time, '20:17:40'), (eagle_time_ms, '20:17:40.000000')))
         # check the correct operation of precision
-        t = primitive.PrimitiveType()
+        t = primitive.TimeOfDayValue.new_type()
         t.set_base(primitive.edm_time_of_day)
         t.set_precision(6)
         v = t()
@@ -1430,6 +1381,32 @@ class PrimitiveValueTests(unittest.TestCase):
         v.set_value(eagle_time_ms)
         self.assertTrue(v.value == eagle_time_ms)
         self.assertTrue(to_text(v) == '20:17:40.000000')
+
+    def test_precision_timeofday(self):
+        t20 = Time.from_str("20:44:14.12345678901234567890")
+        t = primitive.edm_time_of_day
+        self.assertTrue(t.precision is None, "Default unspecified Precision")
+        # create a derived class with precision
+        t1 = primitive.TimeOfDayValue.new_type()
+        t1.set_base(t)
+        v = t1()
+        self.assertTrue(isinstance(v, primitive.TimeOfDayValue))
+        # If unspecified the precision is 0
+        v.set_value(t20)
+        self.assertTrue(v.value == "20:44:14")
+        self.assertFalse(v.value == t20)
+        # set a weak value for precision
+        t1.set_precision(6, can_override=True)
+        v = t1()
+        v.set_value(t20)
+        self.assertTrue(v.value == "20:44:14.123456")
+        self.assertFalse(v.value == t20)
+        t1.set_precision(12)
+        # max precision is 12
+        v = t1()
+        v.set_value(t20)
+        self.assertTrue(v.value == "20:44:14.123456789012")
+        self.assertFalse(v.value == t20)
 
 
 NUMERIC_TYPES = (

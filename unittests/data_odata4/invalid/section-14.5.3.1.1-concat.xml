@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="test.pyslet.org">
+            <EntityType Name="Product">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="ProductName" Type="Edm.String"
+                    Nullable="false"/>
+                <Property Name="Available" Type="test.pyslet.org.QUnit"
+                    Nullable="false"/>
+                <Annotation Term="Vocab.DisplayName">
+                    <!-- The odata.concat standard client-side function
+                    takes two or more expressions as arguments. -->
+                    <Apply Function="odata.concat">
+                        <String>Product: </String>
+                    </Apply>
+                </Annotation>
+            </EntityType>
+            <ComplexType Name="QUnit">
+                <Property Name="Quantity" Type="Edm.Decimal" Nullable="false"/>                
+                <Property Name="Unit" Type="test.pyslet.org.Unit"
+                    Nullable="false"/>                
+            </ComplexType>
+            <EnumType Name="Unit">
+                <Member Name="m"/>
+                <Member Name="kg"/>
+                <Member Name="l"/>
+            </EnumType>
+        </Schema>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Term Name="DisplayName" Type="Edm.String"/>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

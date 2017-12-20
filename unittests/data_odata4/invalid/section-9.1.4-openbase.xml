@@ -6,6 +6,8 @@
             <ComplexType Name="TypeA" OpenType="true">
                 <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
             </ComplexType>
+            <!-- A complex type derived from an open complex type MUST
+            NOT provide a value of false for the OpenType attribute. -->
             <ComplexType Name="TypeB" BaseType="test.pyslet.org.TypeA"
                 OpenType="false">
                 <Property Name="Info" Type="Edm.String" Nullable="false"/>            

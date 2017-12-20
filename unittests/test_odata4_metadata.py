@@ -7,11 +7,16 @@ import unittest
 import uuid
 
 from pyslet import iso8601 as iso
-from pyslet.odata4 import errors
-from pyslet.odata4 import geotypes as geo
-from pyslet.odata4 import model as odata
-from pyslet.odata4 import metadata as csdl
-from pyslet.odata4 import primitive
+from pyslet.odata4 import (
+    data,
+    errors,
+    geotypes as geo,
+    model as odata,
+    metadata as csdl,
+    names,
+    primitive,
+    types,
+    )
 from pyslet.rfc2396 import URI
 from pyslet.vfs import OSFilePath
 from pyslet.xml.namespace import XMLNSParser
@@ -117,6 +122,13 @@ class CSDLDocumentTests(unittest.TestCase):
     def tearDown(self):     # noqa
         errors.Requirement = self.save_req
 
+    def load_model(self, fname):
+        fpath = TEST_DATA_DIR.join('valid', fname)
+        uri = URI.from_virtual_path(fpath)
+        doc = csdl.CSDLDocument(base_uri=uri)
+        doc.read()
+        return doc.root.entity_model
+
     def test_container(self):
         # The metadata document contains a single entity container
         # TODO
@@ -152,11 +164,7 @@ class CSDLDocumentTests(unittest.TestCase):
         self.assertTrue(len(e.ReferenceContent) == 0, "initially empty")
         # TODO check directly referenced definitions are in the
         # entity_model
-        dpath = TEST_DATA_DIR.join('valid', 'section-3.3-direct.xml')
-        uri = URI.from_virtual_path(dpath)
-        doc = csdl.CSDLDocument(base_uri=uri)
-        doc.read()
-        em = doc.root.entity_model
+        em = self.load_model('section-3.3-direct.xml')
         # types.pyslet.org is reference and should be present
         self.assertTrue("types.pyslet.org" in em)
         # other namespaces defined or referenced there should not be
@@ -213,11 +221,7 @@ class CSDLDocumentTests(unittest.TestCase):
         # If no value is specified for a property whose Type attribute
         # does not specify a collection, the Nullable attribute defaults
         # to true
-        fpath = TEST_DATA_DIR.join('valid', 'section-6.2.1.xml')
-        uri = URI.from_virtual_path(fpath)
-        doc = csdl.CSDLDocument(base_uri=uri)
-        doc.read()
-        em = doc.root.entity_model
+        em = self.load_model('section-6.2.1.xml')
         # Measurement.Dimension should be nullable
         s = em['test.pyslet.org']
         p = s['Measurement']['Dimension']
@@ -240,11 +244,7 @@ class CSDLDocumentTests(unittest.TestCase):
     def test_section_6_2_7_defaults(self):
         # A primitive or enumeration property MAY define a value for the
         # DefaultValue attribute.
-        fpath = TEST_DATA_DIR.join('valid', 'section-6.2.7-defaults.xml')
-        uri = URI.from_virtual_path(fpath)
-        doc = csdl.CSDLDocument(base_uri=uri)
-        doc.read()
-        em = doc.root.entity_model
+        em = self.load_model('section-6.2.7-defaults.xml')
         s = em['test.pyslet.org']
         data = (
             ('BinaryTest', primitive.BinaryValue, b'Caf\xc3\xa9'),
@@ -367,11 +367,7 @@ class CSDLDocumentTests(unittest.TestCase):
     def test_section_13_1_2_cycle(self):
         # services should not introduce cycles with Extends. Clients
         # should be prepared to process cycles introduced with Extends.
-        fpath = TEST_DATA_DIR.join('valid', 'section-13.1.2-cycle.xml')
-        uri = URI.from_virtual_path(fpath)
-        doc = csdl.CSDLDocument(base_uri=uri)
-        doc.read()
-        em = doc.root.entity_model
+        em = self.load_model('section-13.1.2-cycle.xml')
         s = em['test.pyslet.org']
         container_a = s['ContainerA']
         container_b = s['ContainerB']
@@ -379,6 +375,182 @@ class CSDLDocumentTests(unittest.TestCase):
         # definitions in A are in B *and* vice versa
         self.assertTrue(len(container_a) == 2)
         self.assertTrue(len(container_b) == 2)
+
+    def test_section_14_5(self):
+        em = self.load_model('section-14.5.xml')
+        person = em['test.pyslet.org']['Person']()
+        person.set_defaults()
+        person['Name'].set_value("Laura Ipsem")
+        person['IsMale'].set_value(True)
+        person['IsFemale'].set_value(False)
+        person['IsMarried'].set_value(True)
+        person['Price'].set_value(17)
+        # now look at the annotations
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.IsMarriedMale')).get_value() is True)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.IsMaleOrMarried')).get_value() is True)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.IsNotMale')).get_value() is False)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.Gender')).get_value() == "Male",
+            errors.Requirement.if_test_result)
+        a = person.get_annotation(em.canonicalize_term_ref('@Vocab.Genders'))
+        self.assertTrue(isinstance(a, data.CollectionValue))
+        self.assertTrue(len(a) == 1)
+        glist = [g.get_value() for g in a]
+        self.assertTrue(glist == ["Male"], errors.Requirement.if_test_result)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.GenderUnknown')).get_value() is False)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.GenderKnown')).get_value() is True)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.NotCheap')).get_value() is False)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.NotVeryCheap')).get_value() is True)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.Cheap')).get_value() is True)
+        self.assertTrue(
+            person.get_annotation(
+                em.canonicalize_term_ref(
+                    '@Vocab.Affordable')).get_value() is True)
+        product = em['test.pyslet.org']['Product']()
+        product.set_defaults()
+        product['ProductName'].set_value("Broad Beans")
+        product['Average'].set_value(3.125)
+        product['Available']['Quantity'].set_value(500)
+        product['Available']['Unit'].set_value("kg")
+        a = product.get_annotation(
+                em.canonicalize_term_ref('@Vocab.People#Contacts'))
+        self.assertTrue(isinstance(a, data.CollectionValue))
+        self.assertTrue(len(a) == 2)
+        plist = []
+        for p in a:
+            self.assertTrue(isinstance(p, primitive.AnnotationPathValue))
+            p_value = p.get_value()
+            self.assertTrue(isinstance(p_value, tuple))
+            plist.append(names.path_to_str(p_value))
+        self.assertTrue(plist == ["Supplier/@Vocab.Contact",
+                                  "Customers/@Vocab.Contact"])
+        a = product.get_annotation(
+                em.canonicalize_term_ref('@Vocab.DisplayName'))
+        self.assertTrue(isinstance(a, primitive.StringValue))
+        self.assertTrue(
+            a.get_value() == "Product: Broad Beans (500 kg available)",
+            a.get_value())
+        a = product.get_annotation(
+            em.canonicalize_term_ref('@Vocab.Threshold'))
+        self.assertTrue(isinstance(a, primitive.DecimalValue))
+        self.assertTrue(a.get_value() == 3.125, a.get_value())
+        character = em['test.pyslet.org']['MovieCharacter']()
+        character.expand("Actor")
+        character.set_defaults()
+        character['CharacterName'].set_value("Lady with Umbrella")
+        character["Actor"].change(person)
+        movie = em['test.pyslet.org']['Movie']()
+        movie.set_defaults()
+        movie['NameOfMovieGenre'].set_value("Romantic Comedy")
+        a1 = character.get_annotation(
+                em.canonicalize_term_ref('@Vocab.ActorURL'))
+        self.assertTrue(isinstance(a1, primitive.StringValue))
+        a2 = movie.get_annotation(
+                em.canonicalize_term_ref('@Vocab.GenreURL'))
+        self.assertTrue(isinstance(a2, primitive.StringValue))
+        try:
+            import uritemplate      # noqa
+            fill_uri_template = True
+        except ImportError:
+            logging.warning(
+                "Client function odata.fillUriTemplate not supported\n    "
+                "Try: pip install uritemplate")
+            fill_uri_template = False
+        if fill_uri_template:
+            self.assertTrue(
+                a1.get_value() ==
+                "http://host/someAPI/Actors/Laura%20Ipsem/CV", a1.get_value())
+            self.assertTrue(
+                a2.get_value() ==
+                "http://host/service/Genres(%27Romantic%20Comedy%27)",
+                a2.get_value())
+        else:
+            self.assertTrue(a1.is_null())
+            self.assertTrue(a2.is_null())
+        # start with preferred customer being null, notice that we still
+        # have to expand the Customer navigation property
+        person.expand('Customer')
+        a = person.get_annotation(
+                em.canonicalize_term_ref('@Vocab.IsPreferredCustomer'))
+        self.assertTrue(isinstance(a, primitive.BooleanValue))
+        self.assertTrue(a.get_value() is False,
+                        errors.Requirement.isof_test_result_s % "null")
+        customer = em['test.pyslet.org']['Customer']()
+        customer.set_defaults()
+        customer['FirstName'].set_value('Cuthbert')
+        person['Customer'].change(customer)
+        a = person.get_annotation(
+                em.canonicalize_term_ref('@Vocab.IsPreferredCustomer'))
+        self.assertTrue(a.get_value() is False,
+                        errors.Requirement.isof_test_result_s % "Customer")
+        pcustomer = em['test.pyslet.org']['PreferredCustomer']()
+        pcustomer.set_defaults()
+        person['Customer'].change(pcustomer)
+        a = person.get_annotation(
+                em.canonicalize_term_ref('@Vocab.IsPreferredCustomer'))
+        self.assertTrue(
+            a.get_value() is True,
+            errors.Requirement.isof_test_result_s % "PreferredCustomer")
+        # check the labelled expression is declared
+        expr = em['test.pyslet.org']['CustomerFirstName']
+        self.assertTrue(isinstance(expr, types.LabeledExpression))
+        a = odata.Evaluator(customer, em=em).evaluate(expr.expression)
+        self.assertTrue(isinstance(a, primitive.StringValue))
+        self.assertTrue(a.get_value() == "Cuthbert")
+        # check that the reference works
+        a = customer.get_annotation(
+                em.canonicalize_term_ref('@Vocab.AltName'))
+        self.assertTrue(isinstance(a, primitive.StringValue), repr(a))
+        self.assertTrue(a.get_value() == "Cuthbert")
+        # null
+        a = character.get_annotation(
+                em.canonicalize_term_ref('@Vocab.IsMarriedMale'))
+        self.assertTrue(isinstance(a, primitive.BooleanValue))
+        self.assertTrue(a.is_null(), repr(a))
+        # check NavigationPropertyPath
+        a = character.get_annotation(
+                em.canonicalize_term_ref('@Vocab.HyperLink'))
+        self.assertTrue(isinstance(a, primitive.NavigationPropertyPathValue))
+        self.assertTrue(a.get_value() == ("Actor", ), repr(a.get_value()))
+        # get an entity set value, so we can use get_annotation...
+        products = em['test.pyslet.org']['MyDB']['Products']()
+        a = products.get_annotation(
+            em.canonicalize_term_ref('@Capabilities.UpdateRestrictions'))
+        self.assertTrue(isinstance(a, data.ComplexValue))
+        self.assertTrue(
+            a.type_def.qname ==
+            "Org.OData.Capabilities.V1.UpdateRestrictionsType")
+        self.assertTrue(a['Updatable'].get_value() is True)
+        nps = a['NonUpdatableNavigationProperties']
+        self.assertTrue(len(nps) == 2)
+        nps_list = [i.get_value() for i in nps]
+        self.assertTrue(nps_list == [('Supplier', ), ('Customers', )])
 
     def test_valid_examples(self):
         dpath = TEST_DATA_DIR.join('valid')

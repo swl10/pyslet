@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="test.pyslet.org" Alias="Self">
+            <EntityType Name="Person">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" Nullable="false"/>
+                <NavigationProperty Name="Customer" Type="Self.Customer"/>
+                <Annotation Term="Vocab.IsPreferredCustomer">
+                    <!-- The edm:IsOf expression MUST specify a Type
+                    attribute whose value is a TypeName in scope -->
+                    <IsOf Type="Self.PreferredCustomer">
+                        <Path>Customer</Path>
+                    </IsOf>
+                </Annotation>
+            </EntityType>
+            <EntityType Name="Customer">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            </EntityType>
+        </Schema>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Term Name="IsPreferredCustomer" Type="Edm.Boolean"/>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

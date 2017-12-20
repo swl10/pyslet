@@ -8,11 +8,6 @@ import math
 import sys
 import uuid
 
-from . import errors
-from . import geotypes as geo
-from . import parser
-from . import types
-
 from ..iso8601 import (
     Date,
     DateTimeError,
@@ -27,328 +22,17 @@ from ..py2 import (
     )
 from ..xml import xsdatatypes as xsi
 
-
-class PrimitiveType(types.NominalType):
-
-    """A Primitive Type declaration
-
-    Instances represent primitive type delcarations, such as those made
-    by a TypeDefinition.  The built-in Edm Schema contains instances
-    representing the base primitie types themselves and properties use
-    this class to create undeclared types to constrain their values.
-
-    The base type, and facet values are frozen when the type is first
-    declared and the methods that modify them will raise errors if
-    called after that."""
-
-    # used for Decimal rounding, overridden by instance variables for
-    # actual Decimal types.
-    dec_nleft = decimal.getcontext().Emax + 1
-    dec_nright = 0
-    dec_digits = (1, ) * decimal.getcontext().prec
-
-    # default used for temporal rounding (no fractional seconds)
-    temporal_q = decimal.Decimal((0, (1, ), 0))
-
-    def __init__(self, **kwargs):
-        super(PrimitiveType, self).__init__(**kwargs)
-        self.value_type = PrimitiveValue
-        #: the specified MaxLength facet or None if unspecified
-        self.max_length = None
-        self._max_length = 0
-        #: the specified Unicode facet or None if unspecified
-        self.unicode = None
-        self._unicode = True
-        #: the specified Precision facet or None if unspecified
-        self.precision = None
-        #: the specified Scale facet or None if unspecified
-        self.scale = None
-        #: the specified SRID facet or None if unspecified.  The value
-        #: -1 means variable
-        self.srid = None
-        self._srid = 0
-
-    def set_base(self, base):
-        """Sets the base type of this type
-
-        The base must also be a PrimitiveType."""
-        if self.name:
-            raise errors.ObjectDeclaredError(self.qname)
-        if not isinstance(base, PrimitiveType):
-            raise TypeError(
-                "%s is not a suitable base for a PrimitiveType" % base.qname)
-        # TODO: if not base.name:
-        #    raise errors.ObjectNotDeclaredError("Base type must be declared")
-        # update the value_type, impose a further restriction that the
-        # new value_type (copied from base) MUST be a subclass of the
-        # previous value_type.  In other words, you can't have a type
-        # based on Edm.String and use set_base to 'rebase' it to
-        # Edm.Int64
-        if not issubclass(base.value_type, self.value_type):
-            raise TypeError(
-                "Mismatched value types: can't base %s on %s" %
-                (self.name, base.qname))
-        self.value_type = base.value_type
-        if issubclass(self.value_type, GeographyValue) and self.srid is None:
-            # unspecified SRID, default for Geography is 4326
-            self.set_srid(4326, can_override=True)
-        elif issubclass(self.value_type,
-                        (DateTimeOffsetValue, DurationValue,
-                         TimeOfDayValue)):
-            # weak value
-            self.set_precision(0, can_override=True)
-        # now copy over strongly specified facets
-        if base.max_length is not None:
-            self.set_max_length(base.max_length)
-        if base.unicode is not None:
-            self.set_unicode(base.unicode)
-        if base.precision is not None or base.scale is not None:
-            self.set_precision(base.precision, base.scale)
-        if base.srid is not None:
-            self.set_srid(base.srid)
-        super(PrimitiveType, self).set_base(base)
-
-    def set_max_length(self, max_length, can_override=False):
-        """Sets the MaxLength facet of this type.
-
-        max_length
-            A positive integer or 0 indicating 'max'
-
-        can_override
-            Used to control whether or not sub-types can override the
-            value.  Defaults to False.  The value True is used to set
-            limits on the primitives of the builtin Edm namespace which
-            can be overridden by sub-types and/or property
-            definitions.
-
-        Can only be set for primitive types with underlying type Binary,
-        Stream or String."""
-        if self.name:
-            raise errors.ObjectDeclaredError(self.qname)
-        if not issubclass(
-                self.value_type,
-                (BinaryValue, StreamValue, StringValue)):
-            logging.warning("MaxLength cannot be specified for %s",
-                            self.value_type.__name__)
-            return
-        if max_length < 0:
-            raise ValueError(
-                "MaxLength facet must be a positive integer or 'max': %s" %
-                repr(max_length))
-        if can_override:
-            # sets a weak value, ignored if already specified
-            if self.max_length is not None:
-                return
-        else:
-            # sets a strong value, error if already specified
-            if self.max_length is not None:
-                raise errors.ModelError(
-                    errors.Requirement.td_facet_s % "MaxLength")
-            self.max_length = max_length
-        self._max_length = max_length
-
-    def set_unicode(self, unicode_facet, can_override=False):
-        """Sets the Unicode facet of this type
-
-        unicode_facet
-            A boolean
-
-        can_override
-            See :meth:`set_max_length` for details
-
-        Can only be set on primitive types with underlying type
-        String."""
-        if self.name:
-            raise errors.ObjectDeclaredError(self.qname)
-        if not issubclass(self.value_type, StringValue):
-            logging.warning("Unicode facet cannot be specified for %s",
-                            self.value_type.__name__)
-            return
-        if can_override:
-            # sets a weak value, ignored if already specified
-            if self.unicode is not None:
-                return
-        else:
-            # sets a strong value, error if already specified
-            if self.unicode is not None:
-                raise errors.ModelError(
-                    errors.Requirement.td_facet_s % "Unicode")
-            self.unicode = unicode_facet
-        self._unicode = unicode_facet
-
-    def set_precision(self, precision, scale=None, can_override=False):
-        """Sets the Precision and (optionally) Scale facets
-
-        precision
-            A non-negative integer
-
-        scale
-            An non-negative integer or -1 indicating variable scale
-
-        can_override
-            See :meth:`set_max_length` for details
-
-        Precision and Scale can only be set on primitive types with
-        underlying type Decimal.  Precision on its own can be set on
-        types with underlying temporal type.
-
-        There is no explicit constraint in the specification that says
-        you cannot set Scale without Precision for Decimal types.
-        Therefore we allow prevision=None and use our default internal
-        limit (typically 28 in the Python decimal module) instead.
-
-        """
-        if self.name:
-            raise errors.ObjectDeclaredError(self.qname)
-        if issubclass(self.value_type, DecimalValue):
-            if precision is not None:
-                if precision <= 0:
-                    raise errors.ModelError(
-                        errors.Requirement.decimal_precision)
-                if scale is not None and scale > precision:
-                    raise errors.ModelError(
-                        errors.Requirement.scale_gt_precision)
-        elif issubclass(self.value_type,
-                        (DateTimeOffsetValue, DurationValue,
-                         TimeOfDayValue)):
-            if precision is not None and (precision < 0 or precision > 12):
-                raise errors.ModelError(
-                    errors.Requirement.temporal_precision)
-        if can_override:
-            # weak values are overridden by existing strong values
-            if self.precision is not None:
-                precision = self.precision
-            if self.scale is not None:
-                scale = self.scale
-        else:
-            # strong values
-            if precision is None:
-                precision = self.precision
-            else:
-                if self.precision is not None:
-                    raise errors.ModelError(
-                        errors.Requirement.td_facet_s % "Precision")
-                self.precision = precision
-            if scale is None:
-                scale = self.scale
-            else:
-                if self.scale is not None:
-                    raise errors.ModelError(
-                        errors.Requirement.td_facet_s % "Scale")
-                self.scale = scale
-        if issubclass(self.value_type, DecimalValue):
-            # precision must be positive (or None)
-            if precision is None:
-                if scale is None:
-                    # both unspecified, scale implied 0 (default)
-                    self.dec_nright = PrimitiveType.dec_nright
-                elif scale < 0:
-                    # variable scale, no limit on right digits as
-                    # precision is also unlimited.
-                    self.dec_nright = -(decimal.getcontext().Emin -
-                                        decimal.getcontext().prec + 1)
-                else:
-                    # what is undefined - scale?  don't limit left
-                    # digits, could perhaps throw an error here!
-                    # scale must be <= precision, limit right digits
-                    self.dec_nright = scale
-                self.dec_nleft = PrimitiveType.dec_nleft
-                self.dec_digits = PrimitiveType.dec_digits
-            else:
-                if scale is None:
-                    # just precision specified, scale is implied 0
-                    self.dec_nleft = precision
-                    self.dec_nright = 0
-                elif scale < 0:
-                    # variable scale, up to precision on the right
-                    self.dec_nleft = PrimitiveType.dec_nleft
-                    self.dec_nright = precision
-                else:
-                    self.dec_nleft = precision - scale
-                    self.dec_nright = scale
-                self.dec_digits = (1, ) * min(decimal.getcontext().prec,
-                                              precision)
-        elif issubclass(self.value_type,
-                        (DateTimeOffsetValue, DurationValue,
-                         TimeOfDayValue)):
-            # precision must be non-negative (max 12)
-            if precision is None:
-                # no precision = 0
-                self.temporal_q = decimal.Decimal((0, (1, ), 0))
-            else:
-                # overload the class attribute
-                self.temporal_q = decimal.Decimal(
-                    (0, (1, ) * (precision + 1), -precision))
-        elif scale is not None:
-            logging.warning("Precision/Scale cannot be specified for %s",
-                            self.value_type.__name__)
-        else:
-            logging.warning("Precision cannot be specified for %s",
-                            self.value_type.__name__)
-
-    def set_srid(self, srid, can_override=False):
-        """Sets the SRID facet of this property
-
-        srid
-            A non-negative integer or -1 for variable
-
-        can_override
-            See :meth:`set_max_length` for details"""
-        if self.name:
-            raise errors.ObjectDeclaredError(self.qname)
-        if not issubclass(self.value_type,
-                          (GeographyValue, GeometryValue)):
-            logging.warning("SRID cannot be specified for %s",
-                            self.value_type.__name__)
-            return
-        if srid < -1:
-            raise errors.ModelError(errors.Requirement.srid_value)
-        if can_override:
-            # sets a weak value, ignored if already specified
-            if self.srid is not None:
-                return
-        else:
-            # sets a strong value, error if already specified
-            if self.srid is not None:
-                raise errors.ModelError(errors.Requirement.td_facet_s % "SRID")
-            self.srid = srid
-        self._srid = srid
-
-    def match(self, other):
-        """Returns True if this primitive type matches other
-
-        Other must also be a PrimtiveType.  PrimitiveTypes match if they
-        use the same underlying value type and any constrained facets
-        are constrained in the same way.  If a facet is specified by
-        only one of the types they are considered matching."""
-        if not isinstance(other, PrimitiveType):
-            return False
-        if self.value_type is not other.value_type:
-            return False
-        if issubclass(self.value_type, StringValue):
-            if self.unicode is None or other.unicode is None:
-                # if either values are unspecified consider it a match
-                return True
-            if self.max_length is None or other.max_length is None:
-                return True
-            return (self.unicode == other.unicode and
-                    self.max_length == other.max_length)
-        elif issubclass(self.value_type, DecimalValue):
-            return (self.dec_nleft == other.dec_nleft and
-                    self.dec_nright == other.dec_nright and
-                    self.dec_digits == other.dec_digits)
-        elif issubclass(self.value_type,
-                        (DateTimeOffsetValue, DurationValue,
-                         TimeOfDayValue)):
-            return self.temporal_q == other.temporal_q
-        elif issubclass(self.value_type,
-                        (GeographyValue, GeometryValue)):
-            return self.srid == other.srid
-        else:
-            return True
+from . import (
+    data,
+    errors,
+    geotypes as geo,
+    names,
+    parser,
+    types,
+    )
 
 
-class PrimitiveValue(types.Value):
+class PrimitiveValue(data.Value):
 
     """Class to represent a primitive value in OData.
 
@@ -358,7 +42,7 @@ class PrimitiveValue(types.Value):
     the child classes directly to create a new value from an apporpriate
     python value using the default primitive type definition (i.e., with
     no additional constraining facets).  Otherwise, create instances by
-    calling an instance of :class:`PrimitiveType`.
+    calling an instance of :class:`types.PrimitiveType`.
 
     If you do instantiate this class directly it will create a special
     type-less null value.
@@ -367,6 +51,15 @@ class PrimitiveValue(types.Value):
     according to the primitiveValue ABNF defined in the specification.
     null values will raise a ValueError and cannot be serialised as
     strings."""
+
+    #: Boolean indicating whether or not this value can be used in an
+    #: entity key
+    key_type = False
+
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.PrimitiveType` instance."""
+        return types.PrimitiveType(value_type=cls)
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -402,7 +95,11 @@ class PrimitiveValue(types.Value):
         for some primitive value types where there would be an ambiguity
         in representation.  The default implementation assumes they are
         the same so this implementation is overridden in the types that
-        require qualification."""
+        require qualification.
+
+        One notable difference is that, unlike the default string
+        conversion function, the null value *does* have a literal
+        representation and will return 'null'."""
         if self.is_null():
             return "null"
         else:
@@ -646,13 +343,21 @@ class PrimitiveValue(types.Value):
             return super(PrimitiveValue, self).cast(type_def)
 
     @classmethod
+    def compatible(cls, other):
+        """Returns True if primitive types are compatible
+
+        By default, returns True only if other is the same class but
+        overridden to implement class-specific rules such as
+        compatibility of numeric types."""
+        return cls is other
+
+    @classmethod
     def edm_type(cls):
-        type_def = PrimitiveType()
+        type_def = cls.new_type()
         if cls is PrimitiveValue:
             type_def.set_abstract(True)
         else:
             type_def.set_base(edm_primitive_type)
-            type_def.value_type = cls
         return type_def
 
 
@@ -704,6 +409,11 @@ class NumericValue(PrimitiveValue):
         else:
             return super(NumericValue, self).cast(type_def)
 
+    @classmethod
+    def compatible(cls, other):
+        """Returns True if other is also a NumericValue sub-class"""
+        return issubclass(other, NumericValue)
+
 
 class IntegerValue(NumericValue):
 
@@ -723,6 +433,12 @@ class IntegerValue(NumericValue):
     negative value."""
 
     _pytype = None      # override for each integer type
+
+    key_type = True
+
+    @classmethod
+    def new_type(cls):
+        return types.IntegerType(value_type=cls)
 
     def set_value(self, value):
         if isinstance(value, self._num_types):
@@ -807,6 +523,11 @@ class BinaryValue(PrimitiveValue):
     builtin bytes function.  For consistency, BinaryValues can *not* be
     set from instances of PrimitiveValue."""
 
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.BinaryType` instance."""
+        return types.BinaryType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_binary
@@ -867,6 +588,8 @@ class BooleanValue(PrimitiveValue):
     PrimitiveValue instances), the resulting value is the logical
     evaluation of the input value.  E.g., empty strings and lists are
     False, non-zero integer values True, etc."""
+
+    key_type = True
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -943,6 +666,13 @@ class DecimalValue(NumericValue):
     following types: int (bool, see :class:`IntegerValue` for details),
     long (Python 2), float and Decimal."""
 
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.DecimalType` instance."""
+        return types.DecimalType(value_type=cls)
+
+    key_type = True
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_decimal
@@ -979,11 +709,11 @@ class DecimalValue(NumericValue):
         if value is None:
             self.value = None
         elif isinstance(value, (int, bool, long2)):
-            self.value = self._round(decimal.Decimal(value))
+            self.value = self.type_def.round(decimal.Decimal(value))
         elif isinstance(value, decimal.Decimal):
-            self.value = self._round(value)
+            self.value = self.type_def.round(value)
         elif isinstance(value, float):
-            self.value = self._round(decimal.Decimal(repr(value)))
+            self.value = self.type_def.round(decimal.Decimal(repr(value)))
         else:
             raise TypeError("Can't set Decimal from %s" % repr(value))
         self.touch()
@@ -1008,9 +738,8 @@ class DecimalValue(NumericValue):
 
     @classmethod
     def edm_type(cls):
-        type_def = PrimitiveType()
+        type_def = cls.new_type()
         type_def.set_base(edm_primitive_type)
-        type_def.value_type = cls
         type_def.set_precision(None, -1, can_override=True)
         return type_def
 
@@ -1206,6 +935,8 @@ class DateValue(PrimitiveValue):
     of datetime.date so can also be used (the time component being
     discarded)."""
 
+    key_type = True
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_date
@@ -1279,6 +1010,13 @@ class DateTimeOffsetValue(PrimitiveValue):
     :py:meth:`~pyslet.iso8601.TimePoint.from_unix_time` factory method of
     TimePoint for more information."""
 
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.DateTimeOffsetType` instance."""
+        return types.DateTimeOffsetType(value_type=cls)
+
+    key_type = True
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_date_time_offset
@@ -1309,12 +1047,11 @@ class DateTimeOffsetValue(PrimitiveValue):
                     # leap second!
                     if isinstance(s, float):
                         # max precision
-                        s = _struncate(
-                            self.type_def.temporal_q, 59.999999999999)
+                        s = self.type_def.truncate(59.999999999999)
                     else:
                         s = 59
                 elif isinstance(s, float):
-                    s = _struncate(self.type_def.temporal_q, s)
+                    s = self.type_def.truncate(s)
                 self.value = TimePoint(
                     date=date.expand(xdigits=-1),
                     time=Time(hour=h, minute=m, second=s, zdirection=zd,
@@ -1346,8 +1083,7 @@ class DateTimeOffsetValue(PrimitiveValue):
                 time=Time(
                     hour=value.hour,
                     minute=value.minute,
-                    second=_struncate(
-                        self.type_def.temporal_q,
+                    second=self.type_def.truncate(
                         value.second + (value.microsecond / 1000000.0)),
                     zdirection=zdirection,
                     zhour=zhour,
@@ -1368,7 +1104,7 @@ class DateTimeOffsetValue(PrimitiveValue):
         elif isinstance(value, (int, long2, float, decimal.Decimal)):
             if value >= 0:
                 self.value = TimePoint.from_unix_time(
-                    _struncate(self.type_def.temporal_q, value))
+                    self.type_def.truncate(value))
             else:
                 raise ValueError(
                     "Can't set DateTimeOffset from %s" % str(value))
@@ -1395,9 +1131,8 @@ class DateTimeOffsetValue(PrimitiveValue):
 
     @classmethod
     def edm_type(cls):
-        type_def = PrimitiveType()
+        type_def = cls.new_type()
         type_def.set_base(edm_primitive_type)
-        type_def.value_type = cls
         type_def.set_precision(6, can_override=True)
         return type_def
 
@@ -1413,6 +1148,13 @@ class DurationValue(PrimitiveValue):
     in terms of years, months or weeks are not allowed.
 
     Duration values can be set from an existing Duration only."""
+
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.DurationType` instance."""
+        return types.DurationType(value_type=cls)
+
+    key_type = True
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -1430,8 +1172,8 @@ class DurationValue(PrimitiveValue):
                     raise ValueError("Can't set Duration from %s" % str(value))
                 else:
                     self.value = xsi.Duration(value)
-                    self.value.seconds = _struncate(
-                        self.type_def.temporal_q, self.value.seconds)
+                    self.value.seconds = self.type_def.truncate(
+                        self.value.seconds)
             except DateTimeError:
                 # must be a week-based value
                 raise ValueError("Can't set Duration from %s" % str(value))
@@ -1463,9 +1205,8 @@ class DurationValue(PrimitiveValue):
 
     @classmethod
     def edm_type(cls):
-        type_def = PrimitiveType()
+        type_def = cls.new_type()
         type_def.set_base(edm_primitive_type)
-        type_def.value_type = cls
         type_def.set_precision(6, can_override=True)
         return type_def
 
@@ -1487,7 +1228,8 @@ class GuidValue(PrimitiveValue):
     32 characters.  (In Python 2 both str and unicode types are accepted
     as hexadecimal strings, the length being used to determine if the
     source is a binary or hexadecimal representation.)"""
-    pass
+
+    key_type = True
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -1529,6 +1271,12 @@ class StreamValue(PrimitiveValue):
         The values for stream properties do not appear in the entity
         payload. Instead, the values are read or written through URLs.
     """
+
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.StreamType` instance."""
+        return types.StreamType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_stream
@@ -1555,6 +1303,13 @@ class StringValue(PrimitiveValue):
     string values.  A raw bytes object must be an ASCII-encodable
     string, otherwise ValueError is raised.  This applies to both
     Python 2 and Python 3!"""
+
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.StringType` instance."""
+        return types.StringType(value_type=cls)
+
+    key_type = True
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -1649,6 +1404,13 @@ class TimeOfDayValue(PrimitiveValue):
     including) 86400.  See the :py:class:`~pyslet.iso8601.Time` for more
     information."""
 
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.PrimitiveType` instance."""
+        return types.TimeOfDayType(value_type=cls)
+
+    key_type = True
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_time_of_day
@@ -1674,17 +1436,16 @@ class TimeOfDayValue(PrimitiveValue):
                     # leap second!
                     if isinstance(s, float):
                         # max precision
-                        s = _struncate(self.type_def.temporal_q,
-                                       59.999999999999)
+                        s = self.type_def.truncate(59.999999999999)
                     else:
                         s = 59
                 elif isinstance(s, float):
-                    s = _struncate(self.type_def.temporal_q, s)
+                    s = self.type_def.truncate(s)
                 self.value = Time(hour=h, minute=m, second=s)
         elif isinstance(value, datetime.time):
             self.value = Time(
                 hour=value.hour, minute=value.minute,
-                second=_struncate(self.type_def.temporal_q, value.second))
+                second=self.type_def.truncate(value.second))
         elif value is None:
             self.value = None
         else:
@@ -1710,7 +1471,7 @@ class TimeOfDayValue(PrimitiveValue):
 
     @classmethod
     def edm_type(cls):
-        type_def = PrimitiveType()
+        type_def = types.TimeOfDayType(value_type=cls)
         type_def.set_base(edm_primitive_type)
         type_def.value_type = cls
         type_def.set_precision(6, can_override=True)
@@ -1743,6 +1504,11 @@ class PointValue(object):
         p.require_end()
         return v
 
+    @classmethod
+    def compatible(cls, other):
+        """Returns True if other is also a PointValue sub-class"""
+        return issubclass(other, PointValue)
+
 
 class LineStringValue(object):
 
@@ -1769,6 +1535,11 @@ class LineStringValue(object):
         v = cls(p.require_full_line_string_literal())
         p.require_end()
         return v
+
+    @classmethod
+    def compatible(cls, other):
+        """Returns True if other is also a LineStringValue sub-class"""
+        return issubclass(other, LineStringValue)
 
 
 class PolygonValue(object):
@@ -1798,6 +1569,11 @@ class PolygonValue(object):
         p.require_end()
         return v
 
+    @classmethod
+    def compatible(cls, other):
+        """Returns True if other is also a PolygonValue sub-class"""
+        return issubclass(other, PolygonValue)
+
 
 class MultiPointValue(object):
 
@@ -1824,6 +1600,11 @@ class MultiPointValue(object):
         v = cls(p.require_full_multi_point_literal())
         p.require_end()
         return v
+
+    @classmethod
+    def compatible(cls, other):
+        """Returns True if other is also a MultiPointValue sub-class"""
+        return issubclass(other, MultiPointValue)
 
 
 class MultiLineStringValue(object):
@@ -1852,6 +1633,11 @@ class MultiLineStringValue(object):
         p.require_end()
         return v
 
+    @classmethod
+    def compatible(cls, other):
+        """Returns True if other is also a MultiLineStringValue sub-class"""
+        return issubclass(other, MultiLineStringValue)
+
 
 class MultiPolygonValue(object):
 
@@ -1878,6 +1664,11 @@ class MultiPolygonValue(object):
         v = cls(p.require_full_multi_polygon_literal())
         p.require_end()
         return v
+
+    @classmethod
+    def compatible(cls, other):
+        """Returns True if other is also a MultiPolygonValue sub-class"""
+        return issubclass(other, MultiPolygonValue)
 
 
 class GeoCollectionValue(object):
@@ -1906,8 +1697,18 @@ class GeoCollectionValue(object):
         p.require_end()
         return v
 
+    @classmethod
+    def compatible(cls, other):
+        """Returns True if other is also a GeoCollectionValue sub-class"""
+        return issubclass(other, GeoCollectionValue)
+
 
 class GeographyValue(PrimitiveValue):
+
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.GeographyType` instance."""
+        return types.GeographyType(value_type=cls)
 
     def literal_string(self):
         """Returns the literal string representation of the value
@@ -1918,6 +1719,17 @@ class GeographyValue(PrimitiveValue):
             return "null"
         else:
             return "geography'%s'" % to_text(self)
+
+    @classmethod
+    def edm_type(cls):
+        type_def = cls.new_type()
+        if cls is GeographyValue:
+            type_def.set_base(edm_primitive_type)
+            type_def.set_abstract(True)
+        else:
+            type_def.set_base(edm_geography)
+        # type_def.set_srid(4326, can_override=True)
+        return type_def
 
 
 class GeographyPointValue(PointValue, GeographyValue):
@@ -1985,6 +1797,11 @@ class GeographyCollectionValue(GeoCollectionValue, GeographyValue):
 
 class GeometryValue(PrimitiveValue):
 
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.GeometryType` instance."""
+        return types.GeometryType(value_type=cls)
+
     def literal_string(self):
         """Returns the literal string representation of the value
 
@@ -1994,6 +1811,17 @@ class GeometryValue(PrimitiveValue):
             return "null"
         else:
             return "geometry'%s'" % to_text(self)
+
+    @classmethod
+    def edm_type(cls):
+        type_def = cls.new_type()
+        if cls is GeometryValue:
+            type_def.set_base(edm_primitive_type)
+            type_def.set_abstract(True)
+        else:
+            type_def.set_base(edm_geometry)
+        # type_def.set_srid(0, can_override=True)
+        return type_def
 
 
 class GeometryPointValue(PointValue, GeometryValue):
@@ -2059,6 +1887,110 @@ class GeometryCollectionValue(GeoCollectionValue, GeometryValue):
             value=value, type_def=type_def, **kwargs)
 
 
+class PathValue(PrimitiveValue):
+
+    """Class to represent a path-type value in OData"""
+
+    def assign(self, value):
+        """Sets this value from another PathValue instance.
+
+        The path type must match exactly."""
+        if value.is_null():
+            self.set_value(None)
+        elif type(self) is type(value):
+            self.set_value(value.get_value())
+        else:
+            raise TypeError(
+                "Can't assign path %s from %s" %
+                (to_text(self.type_def), to_text(value.type_def)))
+
+
+class AnnotationPathValue(PathValue):
+
+    def __init__(self, value=None, type_def=None, **kwargs):
+        if type_def is None:
+            type_def = edm_annotation_path
+        super(AnnotationPathValue, self).__init__(
+            value=value, type_def=type_def, **kwargs)
+
+    def set_value(self, value):
+        """Sets the value from a python 'native' value representation
+
+        AnnotationPaths can be set from path tuples or from strings that
+        can be converted to path tuples using
+        :func:`names.annotation_path_from_str`. Path tuples are checked to
+        ensure that they terminate in a term reference."""
+        if self.frozen:
+            raise errors.FrozenValueError
+        if is_text(value):
+            value = names.annotation_path_from_str(value)
+        if value is None:
+            self.value = None
+        elif isinstance(value, tuple):
+            happy_ending = False
+            for seg in value:
+                if isinstance(seg, names.QualifiedName):
+                    happy_ending = False
+                    continue
+                elif isinstance(seg, names.TermRef):
+                    happy_ending = True
+                    continue
+                elif is_text(seg):
+                    if names.simple_identifier_from_str(seg):
+                        happy_ending = False
+                        continue
+                    raise ValueError("%s is not a valid path segment" % seg)
+                else:
+                    raise TypeError(
+                        "%s is not a valid path segment" % repr(seg))
+            if not happy_ending:
+                raise ValueError(
+                    errors.Requirement.annotation_path_s % repr(value))
+            self.value = value
+        else:
+            raise ValueError(
+                "Can't set AnnotationPath with %s" % str(value))
+        self.touch()
+
+
+class NavigationPropertyPathValue(PathValue):
+
+    def __init__(self, value=None, type_def=None, **kwargs):
+        if type_def is None:
+            type_def = edm_navigation_property_path
+        super(NavigationPropertyPathValue, self).__init__(
+            value=value, type_def=type_def, **kwargs)
+
+    def set_value(self, value):
+        """Sets the value from a python 'native' value representation
+
+        NavigationPropertyPaths can be set from path tuples or from
+        strings that can be converted to path tuples using
+        :func:`names.path_from_str`."""
+        if self.frozen:
+            raise errors.FrozenValueError
+        if is_text(value):
+            value = names.path_from_str(value)
+        if value is None:
+            self.value = None
+        elif isinstance(value, tuple):
+            for seg in value:
+                if isinstance(seg, (names.QualifiedName, names.TermRef)):
+                    continue
+                elif is_text(seg):
+                    if names.simple_identifier_from_str(seg):
+                        continue
+                    raise ValueError("%s is not a valid path segment" % seg)
+                else:
+                    raise TypeError(
+                        "%s is not a valid path segment" % repr(seg))
+            self.value = value
+        else:
+            raise ValueError(
+                "Can't set NavigationPropertyPath with %s" % str(value))
+        self.touch()
+
+
 edm_primitive_type = PrimitiveValue.edm_type()
 edm_binary = BinaryValue.edm_type()
 edm_boolean = BooleanValue.edm_type()
@@ -2094,6 +2026,6 @@ edm_geometry_multi_line_string = GeometryMultiLineStringValue.edm_type()
 edm_geometry_multi_polygon = GeometryMultiPolygonValue.edm_type()
 edm_geometry_collection = GeometryCollectionValue.edm_type()
 # vocabulary only types are derived from StringValue
-edm_annotation_path = StringValue.edm_type()
+edm_annotation_path = AnnotationPathValue.edm_type()
+edm_navigation_property_path = NavigationPropertyPathValue.edm_type()
 edm_property_path = StringValue.edm_type()
-edm_navigation_property_path = StringValue.edm_type()

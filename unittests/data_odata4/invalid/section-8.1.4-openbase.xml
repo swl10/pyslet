@@ -9,6 +9,8 @@
                 </Key>
                 <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
             </EntityType>
+			<!-- An entity type derived from an open entity type MUST
+			NOT provide a value of false for the OpenType attribute.-->
             <EntityType Name="TypeB" BaseType="test.pyslet.org.TypeA"
                 OpenType="false">
                 <Property Name="Info" Type="Edm.String" Nullable="false"/>            

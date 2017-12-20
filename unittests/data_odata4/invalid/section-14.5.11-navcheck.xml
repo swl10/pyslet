@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="test.pyslet.org" Alias="Self">
+            <EntityType Name="Product">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="ProductName" Type="Edm.String"
+                    Nullable="false"/>
+                <NavigationProperty Name="Supplier"
+                    Type="test.pyslet.org.Supplier"/>
+                <NavigationProperty Name="Category"
+                    Type="test.pyslet.org.Category"/>
+            </EntityType>
+            <EntityType Name="Supplier">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" />
+            </EntityType>
+            <EntityType Name="Category">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" />
+            </EntityType>
+            <EntityContainer Name="MyDB">
+                <EntitySet Name="Products"
+                        EntityType="test.pyslet.org.Product">
+                    <Annotation Term="Capabilities.UpdateRestrictions">
+                        <Record>
+                            <PropertyValue Property="NonUpdatableNavigationProperties">
+                                <Collection>
+                                    <NavigationPropertyPath>Supplier</NavigationPropertyPath>
+                                    <NavigationPropertyPath>ProductName</NavigationPropertyPath>
+                                </Collection>
+                            </PropertyValue>
+                        </Record>
+                    </Annotation>
+                </EntitySet>
+            </EntityContainer>            
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

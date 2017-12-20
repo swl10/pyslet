@@ -3,13 +3,15 @@
 import logging
 import unittest
 
-from pyslet.odata4 import client
-from pyslet.odata4 import errors
-from pyslet.odata4 import metadata as csdlxml
-from pyslet.odata4 import model as csdl
-from pyslet.odata4 import primitive
-from pyslet.odata4 import service as odata
-
+from pyslet.odata4 import (
+    client,
+    data,
+    errors,
+    metadata as csdlxml,
+    model as csdl,
+    primitive,
+    service as odata,
+    )
 from pyslet.py2 import (
     to_text
     )
@@ -46,7 +48,10 @@ class TripPinTests(unittest.TestCase):
         self.assertTrue(isinstance(svc.container, csdl.EntityContainer))
         self.assertTrue(isinstance(svc.metadata, csdlxml.CSDLDocument))
         # There should be a single Schema
-        self.assertTrue(len(svc.model) == 3, "Single schema (+Edm +odata)")
+        self.assertTrue(
+            len(svc.model) == 5,
+            "Single schema (+Edm +odata +Core x2): %r" %
+            len(svc.model))
         self.assertTrue(self.trippin_ns in svc.model)
         # To preserve context we now execute other tests directly
         self.subtest_requesting_data(svc)
@@ -147,7 +152,7 @@ class TripPinTests(unittest.TestCase):
         self.assertTrue('Trips' in scottketchum)
         trips = scottketchum['Trips']
         # Trips is neither contained nor bound to an EntitySet...
-        self.assertTrue(isinstance(trips, csdl.CollectionValue))
+        self.assertTrue(isinstance(trips, data.CollectionValue))
         trips.set_orderby("EndsAt desc")
         for t in trips:
             logging.info("Trip Name: %s (%s)", t['Name'].get_value(),
@@ -175,7 +180,7 @@ class TripPinTests(unittest.TestCase):
         self.assertTrue(len(people) == 20)
         # Lambda Operators (and Singletons!)
         me = svc.open('Me')
-        self.assertTrue(isinstance(me, csdl.SingletonValue))
+        self.assertTrue(isinstance(me, data.SingletonValue))
         me.expand('Friends')
         my_friends = me()['Friends']
         my_friends.set_filter("Friends/any(f:f/FirstName eq 'Scott')")

@@ -7,11 +7,8 @@
                 BaseType="test.pyslet.org.TypeB"/>
             <!-- An entity type MUST NOT introduce an inheritance cycle
             via the base type attribute -->
-            <EntityType Name="TypeB" BaseType="test.pyslet.org.TypeA">
-                <Key>
-                    <PropertyRef Name="ID"/>
-                </Key>
-                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+            <EntityType Name="TypeB" Abstract="true"
+            	BaseType="test.pyslet.org.TypeA">
                 <Property Name="Info" Type="Edm.String" Nullable="false"/>                
             </EntityType>
         </Schema>

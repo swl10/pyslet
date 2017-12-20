@@ -2,10 +2,13 @@
 
 import logging
 
-from . import errors
-from . import metadata as csdlxml
-from . import model as csdl
-from . import parser
+from . import (
+    data,
+    errors,
+    metadata as csdlxml,
+    model as csdl,
+    parser,
+    )
 from .payload import Payload
 from .service import (
     DataRequest,
@@ -200,6 +203,11 @@ class Client(DataService):
         request = DeleteByKeyRequest(self, (entity_set, key))
         return request
 
+    def delete_entity(self, entity):
+        """Create a request to delete an entity"""
+        request = DeleteEntityRequest(self, entity)
+        return request
+
     def call_function(self, function):
         """Creates a request for an unbound function call"""
         request = FunctionCallRequest(self, function)
@@ -335,15 +343,20 @@ class SingletonRequest(ClientDataRequest):
         self.http_request = http.ClientRequest(str(self.url))
 
     def set_response(self):
-        if self.http_request.status != 200:
+        if self.http_request.status == 204:
+            # relationship terminates on a single entity but none is
+            # related: No content
+            self.result = None
+        elif self.http_request.status != 200:
             self.result = UnexpectedHTTPResponse(
                 to_text(self.url),
                 self.http_request.status, self.http_request.response.reason)
-            return
-        payload = Payload.from_message(
-            self.http_request.url, self.http_request.response, self.service)
-        payload.obj_from_bytes(self.entity, self.http_request.res_body)
-        self.result = self.entity
+        else:
+            payload = Payload.from_message(
+                self.http_request.url, self.http_request.response,
+                self.service)
+            payload.obj_from_bytes(self.entity, self.http_request.res_body)
+            self.result = self.entity
 
 
 class EntityByKeyRequest(ClientDataRequest):
@@ -458,12 +471,15 @@ class DeleteByKeyRequest(ClientDataRequest):
                 "Entity does not exist", 404,
                 self.http_request.response.reason)
             return
+        elif self.http_request.status in (412, 428):
+            self.result = errors.OptimisticConcurrencyError()
         elif self.http_request.status != 204:
             self.result = UnexpectedHTTPResponse(
                 to_text(self.url),
                 self.http_request.status, self.http_request.response.reason)
             return
-        self.result = None
+        else:
+            self.result = None
 
 
 class PropertyRequest(ClientDataRequest):
@@ -622,6 +638,36 @@ class PatchEntityRequest(ClientDataRequest):
             self.target.remove_updatable_annotation("@odata.etag")
 
 
+class DeleteEntityRequest(ClientDataRequest):
+
+    def create_request(self):
+        # target is an entity value
+        self.url = self.service.get_value_url(self.target, edit=True)
+        self.http_request = http.ClientRequest(
+            str(self.url), "DELETE")
+        odata_etag = self.target.get_annotation("@odata.etag")
+        if odata_etag:
+            # add an If-Match header
+            self.http_request.set_header(
+                "If-Match", odata_etag.get_value())
+
+    def set_response(self):
+        if self.http_request.status == 404:
+            self.result = errors.ServiceError(
+                "Entity does not exist", 404,
+                self.http_request.response.reason)
+            return
+        elif self.http_request.status in (412, 428):
+            self.result = errors.OptimisticConcurrencyError()
+        elif self.http_request.status != 204:
+            self.result = UnexpectedHTTPResponse(
+                to_text(self.url),
+                self.http_request.status, self.http_request.response.reason)
+            return
+        else:
+            self.result = None
+
+
 class FunctionCallRequest(ClientDataRequest):
 
     def create_request(self):
@@ -642,7 +688,7 @@ class FunctionCallRequest(ClientDataRequest):
         # create a null/empty return value
         function = self.target
         return_value = function.new_return_value()
-        collection = isinstance(return_value, csdl.CollectionValue)
+        collection = isinstance(return_value, data.CollectionValue)
         if self.http_request.status == 204:
             # single-valued function (with a nullable return-type)
             if not collection:
@@ -699,7 +745,7 @@ class ActionCallRequest(ClientDataRequest):
         # create a null/empty return value
         action = self.target
         return_value = action.new_return_value()
-        collection = isinstance(return_value, csdl.CollectionValue)
+        collection = isinstance(return_value, data.CollectionValue)
         if self.http_request.status == 204:
             # nullable or no return value
             if collection:

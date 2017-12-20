@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="test.pyslet.org">
+            <EntityType Name="Person">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" Nullable="false"/>
+                <Property Name="IsMale" Type="Edm.Boolean"/>
+                <Property Name="IsFemale" Type="Edm.Boolean"/>
+                <Property Name="IsMarried" Type="Edm.Boolean"/>
+                <Annotation Term="Vocab.Gender">
+                    <If>
+                        <Path>IsFemale</Path>
+                        <String>Female</String>
+                        <!-- The edm:If expression ... MUST contain
+                        exactly three child elements -->
+                    </If>
+                </Annotation>
+            </EntityType>
+        </Schema>
+        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="vocab.pyslet.org" Alias="Vocab">
+          <Term Name="Gender" Type="Edm.String"/>
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>
