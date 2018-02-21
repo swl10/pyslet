@@ -6,6 +6,7 @@ import unittest
 import weakref
 
 from pyslet.odata4 import (
+    comex,
     data,
     errors,
     model,
@@ -27,8 +28,8 @@ def suite():
         unittest.makeSuite(NominalTypeTests, 'test'),
         unittest.makeSuite(CollectionTypeTests, 'test'),
         unittest.makeSuite(PrimitiveTypeTests, 'test'),
+        unittest.makeSuite(EnumerationTypeTests, 'test'),
         unittest.makeSuite(StructuredTypeTests, 'test'),
-        unittest.makeSuite(SystemQueryTests, 'test'),
         ))
 
 
@@ -138,7 +139,7 @@ class AnnotationTests(unittest.TestCase):
 
     def test_expression(self):
         a = types.Annotation(self.term)
-        e = types.LiteralExpression(None)
+        e = comex.NullExpression()
         a.set_expression(e)
         self.assertTrue(a.expression is e)
 
@@ -1152,7 +1153,52 @@ class CollectionTypeTests(unittest.TestCase):
             "Collection(org.pyslet.test.TypeA)")
 
 
+class MockPrimitiveType(types.PrimitiveType):
+
+    def validate_max_length(self, max_length):
+        pass
+
+    def validate_unicode(self, unicode_facet):
+        pass
+
+    def validate_precision(self, precision, scale):
+        pass
+
+    def validate_srid(self, srid):
+        pass
+
+
+class MockLoggingHandler(logging.Handler):
+    """Mock logging handler to check for expected logs.
+
+    See: https://stackoverflow.com/questions/899067/\
+how-should-i-verify-a-log-message-when-testing-python-code-under-nose"""
+
+    def __init__(self, *args, **kwargs):
+        self.reset()
+        logging.Handler.__init__(self, *args, **kwargs)
+
+    def emit(self, record):
+        self.messages[record.levelname.lower()].append(record.getMessage())
+
+    def reset(self):
+        self.messages = {
+            'debug': [],
+            'info': [],
+            'warning': [],
+            'error': [],
+            'critical': [],
+        }
+
+
 class PrimitiveTypeTests(unittest.TestCase):
+
+    def setUp(self):        # noqa
+        self.logging = MockLoggingHandler()
+        logging.getLogger().addHandler(self.logging)
+
+    def tearDown(self):     # noqa
+        logging.getLogger().removeHandler(self.logging)
 
     def test_constructor(self):
         t = types.PrimitiveType(value_type=MockValue)
@@ -1186,11 +1232,16 @@ class PrimitiveTypeTests(unittest.TestCase):
         self.assertTrue(t2.scale is None)
         self.assertTrue(t2.srid is None)
         # now set the facets and check they're inherited
+        self.logging.reset()
         t1 = types.PrimitiveType(value_type=MockValue)
         t1.set_max_length(255)
+        self.assertTrue(len(self.logging.messages['warning']) == 1)
         t1.set_unicode(True)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
         t1.set_precision(6, 10)
+        self.assertTrue(len(self.logging.messages['warning']) == 3)
         t1.set_srid(4326)
+        self.assertTrue(len(self.logging.messages['warning']) == 4)
         t2 = t1.derive_type()
         self.assertTrue(t2.max_length == 255)
         self.assertTrue(t2.unicode is True)
@@ -1199,7 +1250,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         self.assertTrue(t2.srid == 4326)
 
     def test_max_length(self):
-        t1 = types.PrimitiveType(value_type=MockValue)
+        t1 = MockPrimitiveType(value_type=MockValue)
         self.assertTrue(t1.max_length is None, "No value specified")
         self.assertTrue(t1.get_max_length() == 0, "Default 0")
         try:
@@ -1217,7 +1268,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         t1.set_max_length(255, can_override=True)
         self.assertTrue(t1.max_length == 0)
         self.assertTrue(t1.get_max_length() == 0, "Strong 0")
-        t2 = types.PrimitiveType(value_type=MockValue)
+        t2 = MockPrimitiveType(value_type=MockValue)
         t2.set_max_length(255, can_override=True)
         self.assertTrue(t2.get_max_length() == 255, "Weak 255")
         self.assertTrue(t2.max_length is None)
@@ -1230,9 +1281,24 @@ class PrimitiveTypeTests(unittest.TestCase):
             self.fail("max_length respecified")
         except errors.ModelError:
             pass
+        # you can't set max_length if the type has been declared already
+        ns = MockSchema()
+        t3 = MockPrimitiveType(value_type=MockValue)
+        t3.declare(ns, "T3")
+        self.assertTrue(t3.max_length is None)
+        try:
+            t3.set_max_length(255, can_override=True)
+            self.fail("weak set_max_length after declaration")
+        except errors.ModelError:
+            pass
+        try:
+            t3.set_max_length(255)
+            self.fail("strong set_max_length after declaration")
+        except errors.ModelError:
+            pass
 
     def test_unicode(self):
-        t1 = types.PrimitiveType(value_type=MockValue)
+        t1 = MockPrimitiveType(value_type=MockValue)
         self.assertTrue(t1.unicode is None, "No value specified")
         self.assertTrue(t1.get_unicode() is True, "Default True")
         t1.set_unicode(False)
@@ -1242,7 +1308,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         t1.set_unicode(True, can_override=True)
         self.assertTrue(t1.unicode is False)
         self.assertTrue(t1.get_unicode() is False, "Strong False")
-        t2 = types.PrimitiveType(value_type=MockValue)
+        t2 = MockPrimitiveType(value_type=MockValue)
         t2.set_unicode(True, can_override=True)
         self.assertTrue(t2.get_unicode() is True, "Weak True")
         self.assertTrue(t2.unicode is None)
@@ -1255,9 +1321,25 @@ class PrimitiveTypeTests(unittest.TestCase):
             self.fail("unicode respecified")
         except errors.ModelError:
             pass
+        # you can't set unicode facet if the type has been declared
+        # already
+        ns = MockSchema()
+        t3 = MockPrimitiveType(value_type=MockValue)
+        t3.declare(ns, "T3")
+        self.assertTrue(t3.unicode is None)
+        try:
+            t3.set_unicode(True, can_override=True)
+            self.fail("weak set_unicode after declaration")
+        except errors.ModelError:
+            pass
+        try:
+            t3.set_unicode(True)
+            self.fail("strong set_unicode after declaration")
+        except errors.ModelError:
+            pass
 
     def test_precision(self):
-        t1 = types.PrimitiveType(value_type=MockValue)
+        t1 = MockPrimitiveType(value_type=MockValue)
         self.assertTrue(t1.precision is None, "No value specified")
         self.assertTrue(t1.scale is None, "No value specified")
         t1.set_precision(9)
@@ -1268,7 +1350,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         self.assertTrue(t1.precision == 9)
         self.assertTrue(t1.scale == 6)
         # and reverse...
-        t2 = types.PrimitiveType(value_type=MockValue)
+        t2 = MockPrimitiveType(value_type=MockValue)
         t2.set_precision(None, 6)
         self.assertTrue(t2.precision is None)
         self.assertTrue(t2.scale == 6)
@@ -1280,7 +1362,7 @@ class PrimitiveTypeTests(unittest.TestCase):
         self.assertTrue(t2.precision == 9)
         self.assertTrue(t2.scale == 6)
         # and now check that weak values are replace
-        t3 = types.PrimitiveType(value_type=MockValue)
+        t3 = MockPrimitiveType(value_type=MockValue)
         t3.set_precision(10, 7, can_override=True)
         self.assertTrue(t3.precision is None)
         self.assertTrue(t3.scale is None)
@@ -1296,6 +1378,341 @@ class PrimitiveTypeTests(unittest.TestCase):
         try:
             t3.set_precision(None, 6)
             self.fail("Scale respecified")
+        except errors.ModelError:
+            pass
+        # you can't set precision/scale if the type has been declared
+        # already
+        ns = MockSchema()
+        t4 = MockPrimitiveType(value_type=MockValue)
+        t4.declare(ns, "T4")
+        self.assertTrue(t4.precision is None)
+        self.assertTrue(t4.scale is None)
+        try:
+            t4.set_precision(10, 7, can_override=True)
+            self.fail("weak set_precision after declaration")
+        except errors.ModelError:
+            pass
+        try:
+            t4.set_precision(10, 7)
+            self.fail("strong set_precision after declaration")
+        except errors.ModelError:
+            pass
+
+    def test_srid(self):
+        t1 = MockPrimitiveType(value_type=MockValue)
+        self.assertTrue(t1.srid is None, "No value specified")
+        self.assertTrue(t1.get_srid() == -1, "Default variable")
+        try:
+            # must be -1 (variable) or greater
+            t1.set_srid(-2)
+            self.fail("Negative SRID")
+        except errors.ModelError:
+            pass
+        t1.set_srid(4326)
+        self.assertTrue(t1.srid == 4326)
+        self.assertTrue(t1.get_srid() == 4326, "Strong value")
+        # weak value is ignored
+        t1.set_srid(0, can_override=True)
+        self.assertTrue(t1.srid == 4326)
+        self.assertTrue(t1.get_srid() == 4326, "Weak value ignored")
+        t2 = MockPrimitiveType(value_type=MockValue)
+        t2.set_srid(4326, can_override=True)
+        self.assertTrue(t2.get_srid() == 4326, "Weak value")
+        self.assertTrue(t2.srid is None)
+        t2.set_srid(-1)
+        self.assertTrue(t2.get_srid() == -1, "Weak value replaced")
+        self.assertTrue(t2.srid == -1)
+        # strong on strong: error
+        try:
+            t2.set_srid(0)
+            self.fail("srid respecified")
+        except errors.ModelError:
+            pass
+        # when deriving types we have slightly different rules
+        base = types.PrimitiveType(value_type=MockValue)
+        t3 = types.GeometryType(value_type=MockValue)
+        self.assertTrue(t3.srid is None, "No value specified")
+        self.assertTrue(t3.get_srid() == 0, "Default 0")
+        # when we set the base the default does not change
+        t3.set_base(base)
+        self.assertTrue(t3.srid is None, "No value specified")
+        self.assertTrue(t3.get_srid() == 0, "Default 0")
+        t4 = types.GeographyType(value_type=MockValue)
+        self.assertTrue(t4.srid is None, "No value specified")
+        self.assertTrue(t4.get_srid() == 4326, "Default 4326")
+        # when we set the base the default does not change
+        t4.set_base(base)
+        self.assertTrue(t4.srid is None, "No value specified")
+        self.assertTrue(t4.get_srid() == 4326, "Default 4326")
+        # you can't set srid if the type has been declared
+        # already
+        ns = MockSchema()
+        t5 = MockPrimitiveType(value_type=MockValue)
+        t5.declare(ns, "T5")
+        self.assertTrue(t5.srid is None)
+        try:
+            t5.set_srid(0, can_override=True)
+            self.fail("weak set_srid after declaration")
+        except errors.ModelError:
+            pass
+        try:
+            t5.set_srid(0)
+            self.fail("strong set_srid after declaration")
+        except errors.ModelError:
+            pass
+
+    def test_compatibility(self):
+        t1 = types.PrimitiveType(value_type=MockValue)
+        self.assertTrue(t1.compatible(t1))
+        t2 = t1.collection_type()
+        self.assertFalse(t1.compatible(t2))
+        t3 = types.NominalType(value_type=MockValue)
+        self.assertFalse(t1.compatible(t3))
+
+        class SubType1(types.PrimitiveType):
+            pass
+
+        class SubType2(types.PrimitiveType):
+            pass
+
+        st1 = SubType1(value_type=MockValue)
+        st2 = SubType2(value_type=MockValue)
+        self.assertTrue(st1.compatible(st1))
+        self.assertTrue(st2.compatible(st2))
+        # abstract primitive is compatible with any subtype
+        self.assertTrue(t1.compatible(st1))
+        self.assertTrue(st1.compatible(t1))
+        # but two subtypes are not compatible with each other
+        self.assertFalse(st1.compatible(st2))
+        self.assertFalse(st2.compatible(st1))
+
+    def test_numeric_compatibility(self):
+        tlist = [
+            types.PrimitiveType(value_type=MockValue),
+            types.NumericType(value_type=MockValue),
+            types.IntegerType(value_type=MockValue),
+            types.DecimalType(value_type=MockValue),
+            types.FloatType(value_type=MockValue),
+            ]
+        # all numeric types are equal with each other and with
+        # the abstract primitive type
+        for t1 in tlist:
+            for t2 in tlist:
+                self.assertTrue(
+                    t1.compatible(t2),
+                    "%s not compatible with %s" % (to_text(t1), to_text(t2)))
+        otherlist = [
+            types.BinaryType(value_type=MockValue),
+            types.BooleanType(value_type=MockValue),
+            types.DateType(value_type=MockValue),
+            types.DateTimeOffsetType(value_type=MockValue),
+            types.DurationType(value_type=MockValue),
+            types.GuidType(value_type=MockValue),
+            types.StringType(value_type=MockValue),
+            types.TimeOfDayType(value_type=MockValue),
+            types.GeographyType(value_type=MockValue),
+            types.GeometryType(value_type=MockValue),
+            ]
+        # but numeric types are not compatible with other primitives
+        for t1 in tlist[1:]:
+            for t2 in otherlist:
+                self.assertFalse(
+                    t1.compatible(t2),
+                    "%s is compatible with %s" % (to_text(t1), to_text(t2)))
+                self.assertFalse(t2.compatible(t1))
+
+    def test_match(self):
+        t1 = MockPrimitiveType(value_type=MockValue)
+        self.assertTrue(t1.match(t1))
+        self.assertTrue(t1.derived_match(t1))
+        t2 = MockPrimitiveType(value_type=MockValue)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        t3 = t1.collection_type()
+        self.assertFalse(t1.match(t3))
+        self.assertFalse(t1.derived_match(t3))
+        t4 = types.NominalType(value_type=MockValue)
+        self.assertFalse(t1.match(t4))
+        self.assertFalse(t1.derived_match(t4))
+
+        class SubType1(MockPrimitiveType):
+            pass
+
+        class SubType2(MockPrimitiveType):
+            pass
+
+        # SubTypes match themselves only
+        st1 = SubType1(value_type=MockValue)
+        st2 = SubType2(value_type=MockValue)
+        self.assertTrue(st1.match(st1))
+        self.assertTrue(st1.derived_match(st1))
+        self.assertTrue(st2.match(st2))
+        self.assertTrue(st2.derived_match(st2))
+        self.assertFalse(st1.match(st2))
+        self.assertFalse(st1.derived_match(st2))
+        self.assertFalse(st1.match(t1))
+        self.assertFalse(st1.derived_match(t1))
+        self.assertFalse(t1.match(st1))
+        self.assertFalse(t1.derived_match(st1))
+
+        class SubValue(MockValue):
+            pass
+
+        # Value types must also match
+        t5 = MockPrimitiveType(value_type=SubValue)
+        self.assertFalse(t1.match(t5))
+        self.assertFalse(t1.derived_match(t5))
+        self.assertFalse(t5.match(t1))
+        self.assertFalse(t5.derived_match(t1))
+        # All facets match if specified on one type only
+        t1.set_max_length(31)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertTrue(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        # a weak non-matching value also matches
+        t2.set_max_length(255, can_override=True)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertTrue(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        t1.set_unicode(True)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertTrue(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        t2.set_unicode(False, can_override=True)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertTrue(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        t1.set_precision(20, 3)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertTrue(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        t2.set_precision(20, 6, can_override=True)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertTrue(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        t1.set_srid(0)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertTrue(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        t2.set_srid(4326, can_override=True)
+        self.assertTrue(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertTrue(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        # but non-matching strong values fail the match
+        t2.set_max_length(255)
+        self.assertFalse(t1.match(t2))
+        self.assertTrue(t1.derived_match(t2))
+        self.assertFalse(t2.match(t1))
+        self.assertFalse(t2.derived_match(t1))
+        t1 = MockPrimitiveType(value_type=MockValue)
+        t1.set_unicode(True)
+        t2 = MockPrimitiveType(value_type=MockValue)
+        t2.set_unicode(False)
+        self.assertFalse(t1.match(t2))
+        self.assertFalse(t1.derived_match(t2))
+        self.assertFalse(t2.match(t1))
+        self.assertTrue(t2.derived_match(t1))
+        ps_list = [(3, -1), (6, -1), (3, 3), (6, 3)]
+        m_result = (
+            True, False, False, False,
+            False, True, False, False,
+            False, False, True, False,
+            False, False, False, True)
+        dm_result = (
+            True, True, False, False,
+            False, True, False, False,
+            True, True, True, True,
+            False, True, False, True)
+        i = 0
+        for p1, s1 in ps_list:
+            for p2, s2 in ps_list:
+                t1 = MockPrimitiveType(value_type=MockValue)
+                t1.set_precision(p1, s1)
+                t2 = MockPrimitiveType(value_type=MockValue)
+                t2.set_precision(p2, s2)
+                self.assertTrue(t1.match(t2) is m_result[i])
+                self.assertTrue(t2.match(t1) is m_result[i])
+                self.assertTrue(
+                    t1.derived_match(t2) is dm_result[i],
+                    "(precision=%i, scale=%i).derived_match("
+                    "precision=%i, scale=%i) != %s" %
+                    (p1, s1, p2, s2, to_text(dm_result[i])))
+                i += 1
+        t1 = MockPrimitiveType(value_type=MockValue)
+        t1.set_srid(0)
+        t2 = MockPrimitiveType(value_type=MockValue)
+        t2.set_srid(4326)
+        self.assertFalse(t1.match(t2))
+        self.assertFalse(t1.derived_match(t2))
+        self.assertFalse(t2.match(t1))
+        self.assertFalse(t2.derived_match(t1))
+
+    def test_binary(self):
+        self.logging.reset()
+        t1 = types.BinaryType(value_type=MockValue)
+        # binary type suppresses warnings for max_length
+        t1.set_max_length(255)
+        self.assertTrue(len(self.logging.messages['warning']) == 0)
+        t1.set_unicode(True)
+        self.assertTrue(len(self.logging.messages['warning']) == 1)
+        t1.set_precision(6, 10)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+        t1.set_srid(4326)
+        self.assertTrue(len(self.logging.messages['warning']) == 3)
+
+    def test_decimal(self):
+        self.logging.reset()
+        t1 = types.DecimalType(value_type=MockValue)
+        # decimal type suppresses warnings for precision/scale
+        t1.set_max_length(255)
+        self.assertTrue(len(self.logging.messages['warning']) == 1)
+        t1.set_unicode(True)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+        t1.set_precision(6, 3)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+        t1.set_srid(4326)
+        self.assertTrue(len(self.logging.messages['warning']) == 3)
+        t2 = types.DecimalType(value_type=MockValue)
+        # check validation
+        try:
+            t2.set_precision(0)
+            self.fail("0 precision not allowed")
+        except errors.ModelError:
+            pass
+        self.assertTrue(t2.precision is None)
+        self.assertTrue(t2.scale is None)
+        try:
+            t2.set_precision(6, 7)
+            self.fail("scale exceeds precision")
+        except errors.ModelError:
+            pass
+        self.assertTrue(t2.precision is None)
+        self.assertTrue(t2.scale is None)
+        t2.set_precision(6)
+        self.assertTrue(t2.precision == 6)
+        self.assertTrue(t2.scale is None)
+        try:
+            t2.set_precision(None, 7)
+            self.fail("scale exceeds existing precision")
+        except errors.ModelError:
+            pass
+        self.assertTrue(t2.precision == 6)
+        self.assertTrue(t2.scale is None)
+        t3 = types.DecimalType(value_type=MockValue)
+        t3.set_precision(None, 7)
+        self.assertTrue(t3.precision is None)
+        self.assertTrue(t3.scale == 7)
+        try:
+            t3.set_precision(6, None)
+            self.fail("existing scale exceeds precision")
         except errors.ModelError:
             pass
 
@@ -1400,9 +1817,58 @@ class PrimitiveTypeTests(unittest.TestCase):
         # of -2, this would result in values being rounded such that the
         # last two digits are always zero.  Given that scale cannot be
         # negative it would have to be omitted (implied 0 behaviour).
-        t.set_precision(getcontext().prec + 2)
+        t.set_precision(getcontext().prec + 2, can_override=True)
         xstr = "1" * (getcontext().prec + 2)
         self.assertTrue(t.round(Decimal(xstr)) == Decimal(xstr[:-2] + "00"))
+        # check that weak values are ignored if strong ones exist
+        t.set_precision(6, -1)
+        self.assertTrue(t.round(d20) == Decimal("0.123457"))
+        self.assertTrue(t.round(i20) == Decimal("12345700000000000000"))
+        self.assertTrue(t.round(f20) == Decimal("1234570000"))
+        t.set_precision(7, 3, can_override=True)
+        self.assertTrue(t.round(d20) == Decimal("0.123457"))
+        self.assertTrue(t.round(i20) == Decimal("12345700000000000000"))
+        self.assertTrue(t.round(f20) == Decimal("1234570000"))
+
+    def test_temporal_seconds(self):
+        self.logging.reset()
+        t1 = types.TemporalSecondsType(value_type=MockValue)
+        # temporal seconds type suppresses warnings for precision only
+        t1.set_max_length(255)
+        self.assertTrue(len(self.logging.messages['warning']) == 1)
+        t1.set_unicode(True)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+        t1.set_precision(6, can_override=True)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+        t1.set_precision(6, None, can_override=True)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+        t1.set_precision(6, 3, can_override=True)
+        self.assertTrue(len(self.logging.messages['warning']) == 3)
+        t1.set_srid(4326)
+        self.assertTrue(len(self.logging.messages['warning']) == 4)
+        t2 = types.TemporalSecondsType(value_type=MockValue)
+        # check validation
+        try:
+            t2.set_precision(-1)
+            self.fail("negative precision not allowed")
+        except errors.ModelError:
+            pass
+        self.assertTrue(t2.precision is None)
+        self.assertTrue(t2.scale is None)
+        try:
+            t2.set_precision(13)
+            self.fail("precision exceeds 12")
+        except errors.ModelError:
+            pass
+        self.assertTrue(t2.precision is None)
+        self.assertTrue(t2.scale is None)
+        t2.set_precision(0)
+        self.assertTrue(t2.precision == 0)
+        self.assertTrue(t2.scale is None)
+        t3 = types.TemporalSecondsType(value_type=MockValue)
+        t3.set_precision(12)
+        self.assertTrue(t3.precision == 12)
+        self.assertTrue(t3.scale is None)
 
     def test_seconds_round(self):
         i2 = 14
@@ -1428,47 +1894,389 @@ class PrimitiveTypeTests(unittest.TestCase):
         t.set_precision(12, can_override=True)
         # max precision is 12
         self.assertTrue("%.14f" % t.truncate(t20) == "14.12345678901200")
+        # check that weak values are ignored if strong ones exist
+        t.set_precision(6)
+        self.assertTrue("%.10f" % t.truncate(t20) == "14.1234560000")
+        t.set_precision(7, can_override=True)
+        self.assertTrue("%.10f" % t.truncate(t20) == "14.1234560000")
+        t.set_precision(None, can_override=True)
+        self.assertTrue("%.10f" % t.truncate(t20) == "14.1234560000")
+        # an unspecified 'strong' value uses the default of 0
+        t = types.TemporalSecondsType(value_type=MockValue)
+        t.set_precision(None)
+        self.assertTrue("%.10f" % t.truncate(t20) == "14.0000000000")
 
-    def test_srid(self):
-        t1 = types.PrimitiveType(value_type=MockValue)
-        self.assertTrue(t1.srid is None, "No value specified")
-        self.assertTrue(t1.get_srid() == -1, "Default variable")
+    def test_geo(self):
+        self.logging.reset()
+        t1 = types.GeoType(value_type=MockValue)
+        # geo types suppresses warnings for srid
+        t1.set_max_length(255)
+        self.assertTrue(len(self.logging.messages['warning']) == 1)
+        t1.set_unicode(True)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+        t1.set_precision(6, 10)
+        self.assertTrue(len(self.logging.messages['warning']) == 3)
         t1.set_srid(4326)
-        self.assertTrue(t1.srid == 4326)
-        self.assertTrue(t1.get_srid() == 4326, "Strong value")
-        # weak value is ignored
-        t1.set_srid(0, can_override=True)
-        self.assertTrue(t1.srid == 4326)
-        self.assertTrue(t1.get_srid() == 4326, "Weak value ignored")
-        t2 = types.PrimitiveType(value_type=MockValue)
-        t2.set_srid(4326, can_override=True)
-        self.assertTrue(t2.get_srid() == 4326, "Weak value")
-        self.assertTrue(t2.srid is None)
-        t2.set_srid(-1)
-        self.assertTrue(t2.get_srid() == -1, "Weak value replaced")
-        self.assertTrue(t2.srid == -1)
-        # strong on strong: error
+        self.assertTrue(len(self.logging.messages['warning']) == 3)
+
+    def test_stream(self):
+        self.logging.reset()
+        t1 = types.StreamType(value_type=MockValue)
+        # stream type suppresses warnings for max_length
+        t1.set_max_length(255)
+        self.assertTrue(len(self.logging.messages['warning']) == 0)
+        t1.set_unicode(True)
+        self.assertTrue(len(self.logging.messages['warning']) == 1)
+        t1.set_precision(6, 10)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+        t1.set_srid(4326)
+        self.assertTrue(len(self.logging.messages['warning']) == 3)
+
+    def test_string(self):
+        self.logging.reset()
+        t1 = types.StringType(value_type=MockValue)
+        # string type suppresses warnings for max_length and unicode
+        t1.set_max_length(255)
+        self.assertTrue(len(self.logging.messages['warning']) == 0)
+        t1.set_unicode(True)
+        self.assertTrue(len(self.logging.messages['warning']) == 0)
+        t1.set_precision(6, 10)
+        self.assertTrue(len(self.logging.messages['warning']) == 1)
+        t1.set_srid(4326)
+        self.assertTrue(len(self.logging.messages['warning']) == 2)
+
+
+class EnumerationTypeTests(unittest.TestCase):
+
+    def test_constructor(self):
         try:
-            t2.set_srid(0)
-            self.fail("srid respecified")
+            t = types.EnumerationType(value_type=MockValue)
+            self.fail("Enumeration requires underlying type")
+        except TypeError:
+            pass
+        underlying_type = types.PrimitiveType(value_type=MockValue)
+        try:
+            t = types.EnumerationType(
+                value_type=MockValue, underlying_type=underlying_type)
+            self.fail("Enumeration requires Integer underlying type")
         except errors.ModelError:
             pass
-        # when deriving types we have slightly different rules
-        base = types.PrimitiveType(value_type=MockValue)
-        t3 = types.GeometryType(value_type=MockValue)
-        self.assertTrue(t3.srid is None, "No value specified")
-        self.assertTrue(t3.get_srid() == 0, "Default 0")
-        # when we set the base the default does not change
-        t3.set_base(base)
-        self.assertTrue(t3.srid is None, "No value specified")
-        self.assertTrue(t3.get_srid() == 0, "Default 0")
-        t4 = types.GeographyType(value_type=MockValue)
-        self.assertTrue(t4.srid is None, "No value specified")
-        self.assertTrue(t4.get_srid() == 4326, "Default 4326")
-        # when we set the base the default does not change
-        t4.set_base(base)
-        self.assertTrue(t4.srid is None, "No value specified")
-        self.assertTrue(t4.get_srid() == 4326, "Default 4326")
+        underlying_type = types.IntegerType(value_type=MockValue)
+        t = types.EnumerationType(
+            value_type=MockValue, underlying_type=underlying_type)
+        self.assertTrue(isinstance(t, names.NameTable),
+                        "Enumeration types define scope for members")
+        self.assertTrue(isinstance(t, types.NominalType),
+                        "Enumeration types are nominal types")
+        self.assertTrue(t.base is None)
+        self.assertTrue(t.value_type is MockValue)
+        self.assertTrue(t.abstract is False)
+        self.assertTrue(t.service_ref is None)
+        self.assertTrue(t.closed is False)
+        self.assertTrue(t.underlying_type is underlying_type)
+        self.assertTrue(t.is_flags is False, "Default to no flags")
+        self.assertTrue(isinstance(t.members, list), "Members type")
+        self.assertTrue(len(t.members) == 0, "No members on construction")
+
+    def test_str(self):
+        ut1 = types.IntegerType(value_type=MockValue)
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        self.assertTrue(to_text(t) == "<EnumerationType>")
+
+    def test_derive(self):
+        # You cannot derive a type from an Enumeration!
+        ut1 = types.IntegerType(value_type=MockValue)
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        try:
+            t.derive_type()
+            self.fail("Type derived from Enumeration")
+        except errors.ModelError:
+            pass
+        self.assertTrue(t.abstract is False)
+        t.set_abstract(False)
+        self.assertTrue(t.abstract is False)
+        # and hence you can't make them abstract
+        try:
+            t.set_abstract(True)
+            self.fail("Abstract Enumeration")
+        except TypeError:
+            pass
+        self.assertTrue(t.abstract is False)
+
+    def test_base(self):
+        ut1 = types.IntegerType(value_type=MockValue)
+        t1 = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        pt = types.PrimitiveType(value_type=MockValue)
+
+        class SubType(types.PrimitiveType):
+            pass
+
+        st = SubType(value_type=MockValue)
+        t2 = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        ns = MockSchema()
+        pt.declare(ns, "PrimitiveType")
+        st.declare(ns, "OtherPrimitiveType")
+        t2.declare(ns, "OtherEnumType")
+        # you can only set the base to a PrimitiveType, not a subclass
+        # of PrimitiveType and *not* another enumeration type!
+        try:
+            t1.set_base(t2)
+            self.fail("Enumeration derived from Enumeration")
+        except errors.ModelError:
+            pass
+        try:
+            t1.set_base(st)
+            self.fail("Enumeration derived from other Primitive sub-type")
+        except errors.ModelError:
+            pass
+        t1.set_base(pt)
+        self.assertTrue(t1.base is pt)
+
+    def test_member_declare(self):
+        ut1 = types.IntegerType(value_type=MockValue)
+        t1 = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        m1 = names.Named()
+        try:
+            m1.declare(t1, "Red")
+            self.fail("Plain Named instance declared in EnumerationType")
+        except TypeError:
+            pass
+        self.assertTrue(m1.qname is None)
+        m2 = types.Member()
+        try:
+            m2.declare(t1, "Colour.Red")
+            self.fail("Member declared with bad name")
+        except ValueError:
+            pass
+        self.assertTrue(m2.qname is None)
+        m2.declare(t1, "Red")
+        # t1 is undeclared so qname is just the member name
+        self.assertTrue(m2.qname == "'Red'")
+        # now test the qnames with a declared type
+        qtable = MockEntityModel()
+        ns = MockSchema()
+        ns.declare(qtable, "org.pyslet.test")
+        t2 = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        t2.declare(ns, "TypeA")
+        m3 = types.Member()
+        m3.declare(t2, "Red")
+        self.assertTrue(m3.qname == "org.pyslet.test.TypeA'Red'")
+
+        class MockIntegerValue(MockValue):
+
+            def set_value(self, value):
+                if value > 10:
+                    raise ValueError
+                super(MockIntegerValue, self).set_value(value)
+
+        # the member's value must be a valid value of the underlying type
+        ut2 = types.IntegerType(value_type=MockIntegerValue)
+        t3 = types.EnumerationType(value_type=MockValue, underlying_type=ut2)
+        m4 = types.Member()
+        m4.value = 11
+        try:
+            m4.declare(t3, "Red")
+            self.fail("Bad member value")
+        except errors.ModelError:
+            pass
+        # if you start declaring without defined values you can't switch
+        # to defined values and vice versa
+        m4.value = 1
+        m4.declare(t3, "Red")
+        m5 = types.Member()
+        try:
+            m5.declare(t3, "Green")
+            self.fail("Required member value")
+        except errors.ModelError:
+            pass
+        m5.value = 2
+        m5.declare(t3, "Green")
+        t4 = types.EnumerationType(value_type=MockValue, underlying_type=ut2)
+        m6 = types.Member()
+        m6.declare(t4, "Red")
+        m7 = types.Member()
+        m7.value = 2
+        try:
+            m7.declare(t4, "Green")
+            self.fail("Member must not have value")
+        except errors.ModelError:
+            pass
+        m7.value = None
+        m7.declare(t4, "Green")
+
+    def test_underlying_type(self):
+        ut1 = types.IntegerType(value_type=MockValue)
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        self.assertTrue(t.underlying_type is ut1)
+        try:
+            t.set_underlying_type(None)
+            self.fail("set_underlying_type(None)")
+        except errors.ModelError:
+            pass
+        self.assertTrue(t.underlying_type is ut1)
+        try:
+            t.set_underlying_type(types.PrimitiveType(value_type=MockValue))
+            self.fail("set_underlying_type(PrimitiveType)")
+        except errors.ModelError:
+            pass
+        self.assertTrue(t.underlying_type is ut1)
+
+        class IntegerSubType(types.IntegerType):
+            pass
+
+        ut2 = IntegerSubType(value_type=MockValue)
+        t.set_underlying_type(ut2)
+        self.assertTrue(t.underlying_type is ut2)
+        # If you've already declared a member the underlying type is fixed
+        v = types.Member()
+        v.declare(t, "Member")
+        ut3 = types.IntegerType(value_type=MockValue)
+        try:
+            t.set_underlying_type(ut3)
+            self.fail("set_underlying_type with declared Member")
+        except errors.ModelError:
+            pass
+        # If the type itself is declared you can't change the underlying
+        # type
+        ns = MockSchema()
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        t.declare(ns, "MyEnum")
+        try:
+            t.set_underlying_type(ut2)
+            self.fail("set_underlying_type on declared type")
+        except errors.ModelError:
+            pass
+
+    def test_compatibility(self):
+        ut1 = types.IntegerType(value_type=MockValue)
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        # we're not compatible with our underlying type
+        self.assertFalse(t.compatible(ut1))
+        self.assertTrue(t.compatible(t))
+        # but we are compatible with a generic PrimitiveType because all
+        # EnumerationTypes are a special type of primitive and are
+        # derived from Edm.PrimitiveType in the model
+
+    def test_is_flags(self):
+        ut1 = types.IntegerType(value_type=MockValue)
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        self.assertTrue(t.is_flags is False)
+        t.set_is_flags()
+        self.assertTrue(t.is_flags is True)
+        # If you've already declared a member the flags status is fixed
+        v = types.Member()
+        v.value = 1
+        v.declare(t, "Member")
+        try:
+            t.set_is_flags()
+            self.fail("set_is_flags with declared Member")
+        except errors.ModelError:
+            pass
+        # If the type itself is declared you can't change the underlying
+        # type either
+        ns = MockSchema()
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        t.declare(ns, "MyEnum")
+        try:
+            t.set_is_flags()
+            self.fail("set_is_flags on declared type")
+        except errors.ModelError:
+            pass
+        # if you are using is_flags members must have values
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut1)
+        t.set_is_flags()
+        v = types.Member()
+        try:
+            v.declare(t, "Member")
+            self.fail("is_flags Members require values")
+        except errors.ModelError:
+            pass
+        v.value = 1
+        v.declare(t, "Member")
+
+    def test_lookup(self):
+        ut = types.IntegerType(value_type=MockValue)
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut)
+        m1 = types.Member()
+        m1.value = 1
+        m1.declare(t, "Red")
+        m2 = types.Member()
+        m2.value = 2
+        m2.declare(t, "Green")
+        m3 = types.Member()
+        m3.value = 3
+        m3.declare(t, "Blue")
+        m4 = types.Member()
+        m4.value = 3
+        m4.declare(t, "Azure")
+        self.assertTrue(t.lookup("Red") is m1)
+        self.assertTrue(t.lookup("Blue") is m3)
+        self.assertTrue(t.lookup("Azure") is m4)
+        self.assertTrue(t.lookup(2) is m2)
+        self.assertTrue(t.lookup(3) is m3)
+        try:
+            t.lookup("Purple")
+            self.fail("lookup with unknown value")
+        except KeyError:
+            self.fail("lookup should raise ValueError, not KeyError")
+        except ValueError:
+            pass
+        try:
+            t.lookup(m1)
+            self.fail("lookup requires string or value")
+        except ValueError:
+            pass
+
+    def test_lookup_flags(self):
+        ut = types.IntegerType(value_type=MockValue)
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut)
+        t.set_is_flags()
+        m1 = types.Member()
+        m1.value = 1
+        m1.declare(t, "Red")
+        m2 = types.Member()
+        m2.value = 2
+        m2.declare(t, "Green")
+        m3 = types.Member()
+        m3.value = 4
+        m3.declare(t, "Blue")
+        m4 = types.Member()
+        m4.value = 4
+        m4.declare(t, "Azure")
+        m5 = types.Member()
+        m5.value = 3
+        m5.declare(t, "Yellow")
+        self.assertTrue(len(t.lookup_flags(2)) == 1)
+        self.assertTrue(t.lookup_flags(2)[0] is m2)
+        self.assertTrue(len(t.lookup_flags(3)) == 1)
+        self.assertTrue(t.lookup_flags(3)[0] is m5)
+        self.assertTrue(len(t.lookup_flags(5)) == 2)
+        self.assertTrue(t.lookup_flags(5)[0] is m1)
+        self.assertTrue(t.lookup_flags(5)[1] is m3)
+        self.assertTrue(len(t.lookup_flags(7)) == 2)
+        self.assertTrue(t.lookup_flags(7)[0] is m3)
+        self.assertTrue(t.lookup_flags(7)[1] is m5)
+        try:
+            t.lookup_flags(8)
+            self.fail("lookup with unknown value")
+        except KeyError:
+            self.fail("lookup_flags should raise ValueError, not KeyError")
+        except ValueError:
+            pass
+        try:
+            t.lookup_flags("Yellow")
+            self.fail("lookup_flags requires integer not string")
+        except ValueError:
+            pass
+        t = types.EnumerationType(value_type=MockValue, underlying_type=ut)
+        m1 = types.Member()
+        m1.value = 1
+        m1.declare(t, "Red")
+        try:
+            t.lookup_flags(1)
+            self.fail("lookup_flags requires is_flags")
+        except TypeError:
+            pass
 
 
 class StructuredTypeTests(unittest.TestCase):
@@ -1892,274 +2700,6 @@ class StructuredTypeTests(unittest.TestCase):
         p4.declare(t4, "P4")
         t4.close()
         t4.check_navigation()
-
-
-class SystemQueryTests(unittest.TestCase):
-
-    def test_entity_options(self):
-        options = types.ExpandOptions()
-        self.assertTrue(isinstance(options.select, list))
-        self.assertTrue(len(options.select) == 0)
-        self.assertTrue(isinstance(options.expand, list))
-        self.assertTrue(len(options.expand) == 0)
-
-    def test_select_path(self):
-        options = types.ExpandOptions()
-        options.add_select_path(("PropertyA", ))
-        self.assertTrue(len(options.select) == 1)
-        sitem = options.select[0]
-        self.assertTrue(isinstance(sitem, types.SelectItem))
-        self.assertTrue(len(sitem.path) == 1)
-        self.assertTrue(sitem.type_cast is None)
-        options.add_select_path(
-            ("PropertyB", names.QualifiedName("Schema", "Subtype")))
-        self.assertTrue(len(options.select) == 2)
-        sitem = options.select[1]
-        self.assertTrue(len(sitem.path) == 1)
-        self.assertTrue(sitem.type_cast == ("Schema", "Subtype"))
-        # allow strings
-        options.add_select_path("PropertyC/PropertyC1")
-        sitem = options.select[2]
-        self.assertTrue(len(sitem.path) == 2)
-        self.assertTrue(sitem.type_cast is None)
-        # but don't allow non-iterabls objects
-        try:
-            options.add_select_path(object())
-            self.fail("select path accepts object")
-        except TypeError:
-            pass
-        # and don't allow empty paths
-        try:
-            options.add_select_path("")
-            self.fail("select path accepts empty path")
-        except ValueError:
-            pass
-        options.clear_select()
-        self.assertTrue(len(options.select) == 0)
-
-    def test_selected(self):
-        options = types.ExpandOptions()
-        # implicit select rules
-        self.assertTrue(options.selected(None, "PropertyA") is True)
-        self.assertTrue(options.selected("Schema.Type", "PropertyA") is True)
-        self.assertTrue(options.selected(None, "NavX", nav=True) is False)
-        # explicit select rules
-        options.add_select_path("NavY")
-        self.assertTrue(options.selected(None, "PropertyA") is False)
-        self.assertTrue(options.selected("Schema.Type", "PropertyA") is False)
-        self.assertTrue(options.selected(None, "NavX", nav=True) is False)
-        self.assertTrue(options.selected(None, "NavY", nav=True) is True)
-        # check cache by rereading...
-        self.assertTrue(options.selected(None, "PropertyA") is False)
-        self.assertTrue(options.selected("Schema.Type", "PropertyA") is False)
-        self.assertTrue(options.selected(None, "NavX", nav=True) is False)
-        self.assertTrue(options.selected(None, "NavY", nav=True) is True)
-        # check rules are not cached on change
-        options.add_select_path("*")
-        self.assertTrue(options.selected(None, "PropertyA") is True)
-        self.assertTrue(options.selected("Schema.Type", "PropertyA") is True)
-        self.assertTrue(options.selected(None, "NavX", nav=True) is False)
-        self.assertTrue(options.selected(None, "NavY", nav=True) is True)
-        options.clear_select()
-        self.assertTrue(options.selected(None, "PropertyA") is True)
-        self.assertTrue(options.selected(None, "NavY", nav=True) is False)
-        # test type cast
-        options.add_select_path("Schema.Type/PropertyA")
-        self.assertTrue(options.selected(None, "PropertyA") is False)
-        self.assertTrue(options.selected("Schema.Type", "PropertyA") is True)
-        options.add_select_path("PropertyB")
-        self.assertTrue(options.selected(None, "PropertyB") is True)
-        self.assertTrue(options.selected("Schema.Type", "PropertyB") is False)
-        # complex paths should raise an error if matched
-        options.add_select_path("PropertyP/PropertyQ")
-        self.assertTrue(options.selected(None, "PropertyB") is True)
-        try:
-            options.selected(None, "PropertyP")
-            self.fail("Complex match")
-        except errors.PathError:
-            pass
-
-    def test_expand_path(self):
-        options = types.ExpandOptions()
-        options.add_expand_path(("PropertyA", ))
-        self.assertTrue(len(options.expand) == 1)
-        xitem = options.expand[0]
-        self.assertTrue(isinstance(xitem, types.ExpandItem))
-        self.assertTrue(isinstance(xitem.path, tuple))
-        self.assertTrue(len(xitem.path) == 1)
-        self.assertTrue(xitem.path == ("PropertyA", ))
-        self.assertTrue(xitem.type_cast is None)
-        self.assertTrue(xitem.qualifier is None)
-        self.assertTrue(isinstance(xitem.options, types.ExpandOptions))
-        options.add_expand_path(("PropertyB", "PropertyB1"))
-        self.assertTrue(len(options.expand) == 2)
-        xitem = options.expand[1]
-        self.assertTrue(len(xitem.path) == 2)
-        suboptions = types.ExpandOptions()
-        suboptions.top = 10
-        options.add_expand_path(
-            ("PropertyC", names.QualifiedName("Schema", "Subtype")),
-            qualifier=names.PathQualifier.ref, options=suboptions)
-        self.assertTrue(len(options.expand) == 3)
-        xitem = options.expand[2]
-        self.assertTrue(len(xitem.path) == 1)
-        self.assertTrue(to_text(xitem.type_cast) == "Schema.Subtype")
-        self.assertTrue(xitem.qualifier == names.PathQualifier.ref)
-        self.assertTrue(xitem.options is suboptions)
-        self.assertTrue(xitem.options.top == 10)
-        options.add_expand_path(
-            "PropertyC/PropertyC1", names.PathQualifier.count)
-        xitem = options.expand[3]
-        self.assertTrue(len(xitem.path) == 2)
-        self.assertTrue(xitem.type_cast is None)
-        # but don't allow non-iterable objects
-        try:
-            options.add_expand_path(object())
-            self.fail("expand path accepts object")
-        except TypeError:
-            pass
-        options.clear_expand()
-        self.assertTrue(len(options.expand) == 0)
-
-    def test_complex_selected(self):
-        options = types.ExpandOptions()
-        # implicit select rules
-        suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        self.assertTrue(isinstance(suboptions, types.ExpandOptions))
-        # degenerate case, options are explicit for complex types!
-        self.assertFalse(suboptions.select_default)
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(type_cast is None)
-        # check cache
-        suboptions_cached, type_cast = options.complex_selected(
-            None, "PropertyA")
-        self.assertTrue(suboptions_cached is suboptions, "Cache check")
-        suboptions, type_cast = options.complex_selected(
-            "Schema.Type", "PropertyA")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(type_cast is None)
-        # explicit select rules, setup auto cache clear check
-        suboptionsB, type_cast = options.complex_selected(None, "PropertyB")
-        options.add_select_path("PropertyB")
-        suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        self.assertTrue(suboptions is None)
-        suboptions, type_cast = options.complex_selected(
-            "Schema.Type", "PropertyA")
-        self.assertTrue(suboptions is None)
-        suboptions, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(suboptions is not suboptionsB, "auto cache clear")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        options.clear_select()
-        options.add_select_path("*")
-        suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        suboptions, type_cast = options.complex_selected(
-            "Schema.Type", "PropertyA")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        suboptions, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertFalse(suboptions is suboptionsB, "cache clear check")
-        options.clear_select()
-        options.add_select_path("Schema.Type/PropertyA")
-        options.add_select_path("PropertyB")
-        suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        self.assertTrue(suboptions is None)
-        suboptions, type_cast = options.complex_selected(
-            "Schema.Type", "PropertyA")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(type_cast is None)
-        suboptions, type_cast = options.complex_selected(
-            "Schema.Type2", "PropertyA")
-        self.assertTrue(suboptions is None)
-        suboptions, type_cast = options.complex_selected(
-            "Schema.Type", "PropertyB")
-        self.assertTrue(suboptions is None)
-        suboptions, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        # select individual complex property
-        options.add_select_path("PropertyC/PropertyC1")
-        suboptions, type_cast = options.complex_selected(None, "PropertyC")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("PropertyC1", ))
-        self.assertTrue(type_cast is None)
-        # select a complex property with type cast
-        options.add_select_path("PropertyD/Schema.Type1")
-        suboptions, type_cast = options.complex_selected(None, "PropertyD")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(isinstance(type_cast, names.QualifiedName))
-        self.assertTrue(type_cast == ("Schema", "Type1"))
-        # check conflict
-        options.add_select_path("PropertyD/Schema.Type2")
-        try:
-            suboptions, type_cast = options.complex_selected(
-                None, "PropertyD")
-            self.fail("Conflicting type-cast rules")
-        except errors.PathError:
-            pass
-
-    def test_complex_expanded(self):
-        options = types.ExpandOptions()
-        options.add_expand_path("*")
-        suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        # PropertyA selected (by default) so will contain expand rule
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(len(suboptions.expand) == 1)
-        self.assertTrue(suboptions.expand[0].path == ("*", ))
-        options.add_select_path("PropertyB")
-        suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        # PropertyA no longer selected so expand rule does not propagate
-        self.assertTrue(suboptions is None)
-        suboptionsB, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(len(suboptionsB.select) == 1)
-        self.assertTrue(suboptionsB.select[0].path == ("*", ))
-        self.assertTrue(len(suboptionsB.expand) == 1)
-        self.assertTrue(suboptionsB.expand[0].path == ("*", ))
-        options.clear_expand()
-        # check negative cache clear
-        suboptions, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(suboptions is not suboptionsB)
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(len(suboptions.expand) == 0)
-        options.clear_select()
-        options.add_expand_path("PropertyA/NavX")
-        options.add_expand_path("Schema.Type1/PropertyA/NavY")
-        options.add_expand_path("NavZ")
-        suboptions, type_cast = options.complex_selected(None, "PropertyA")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(len(suboptions.expand) == 1)
-        self.assertTrue(suboptions.expand[0].path == ("NavX", ))
-        suboptions, type_cast = options.complex_selected(None, "PropertyB")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(len(suboptions.expand) == 0)
-        suboptions, type_cast = options.complex_selected(
-            "Schema.Type1", "PropertyA")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(len(suboptions.expand) == 1)
-        self.assertTrue(suboptions.expand[0].path == ("NavY", ))
-        suboptions, type_cast = options.complex_selected(
-            "Schema.Type2", "PropertyA")
-        self.assertTrue(len(suboptions.select) == 1)
-        self.assertTrue(suboptions.select[0].path == ("*", ))
-        self.assertTrue(len(suboptions.expand) == 0)
-        try:
-            suboptions, type_cast = options.complex_selected(None, "NavZ")
-            self.fail("Complex path matches expand rule")
-        except errors.PathError:
-            pass
 
 
 if __name__ == "__main__":

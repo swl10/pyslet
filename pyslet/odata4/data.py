@@ -14,6 +14,7 @@ from . import (
     errors,
     names,
     parser,
+    query,
     types,
     )
 
@@ -38,10 +39,10 @@ class Value(BoolMixin, UnicodeMixin):
     def new_type(cls):
         """Creates a new :class:`types.NominalType` instance
 
-        The Value class hierarchy has a corresponding Type class hierarchy that
-        contains the declarations of the Values' types.  Each Value class has
-        one (and only one) corresponding Type class used to represent it's
-        declaration but the reverse is not true!
+        The Value class hierarchy has a corresponding Type class
+        hierarchy that contains the declarations of the Values' types.
+        Each Value class has one (and only one) corresponding Type class
+        used to represent it's declaration but the reverse is not true!
 
         While building models dynamically, including when parsing
         metadata files, we create new types using this factory method."""
@@ -111,6 +112,12 @@ class Value(BoolMixin, UnicodeMixin):
 
         This is an abstract method that is overridden in each value
         type."""
+        raise NotImplementedError
+
+    def get_value_expression(self):
+        """Returns a :class:`comex.CommonExpression` representation
+
+        The returned expression evaluates to an equivalent value."""
         raise NotImplementedError
 
     def freeze(self):
@@ -319,11 +326,11 @@ class Value(BoolMixin, UnicodeMixin):
         """Returns the model that contains this value
 
         If this Value is bound to a service then the model associated
-        with the servie is returned.  If unbound, then the model in
-        which the Value's type was declared is returned instead.
-        Property values use the containing EntityType, not the type of
-        the property itself.  In the case of types that are not bound to
-        a model at all (such as unbond values of primitive types) then
+        with the service is returned.  If unbound, then the model is
+        obtained from the value's type definition instead.  Property
+        values use the containing EntityType, not the type of the
+        property itself.  In the case of types that are not bound to a
+        model at all (such as unbond values of primitive types) then
         None is returned."""
         model = None
         if self.service:
@@ -473,15 +480,18 @@ class Value(BoolMixin, UnicodeMixin):
             if params is not None:
                 raise errors.ODataError(
                     "Can't use params for action overload resolution")
-            c = cdef.resolve(self)
+            c = cdef.resolve(self.type_def)
         else:
-            c = cdef.resolve(self, params)
+            c = cdef.resolve(self.type_def, params)
         if c is None:
             raise errors.ODataError("No matching callable declared")
         cv = c()
         cv.set_callable_binding(self)
         cv.bind_to_service(self.service)
         return cv
+
+
+types.NullType.edm_base = null_type = types.NullType(value_type=Value)
 
 
 class CompositeValue(Value):
@@ -504,7 +514,7 @@ class CompositeValue(Value):
         self.is_collection = True
 
     #: the class to use for the options attribute
-    OptionsType = types.CollectionOptions
+    OptionsType = query.CollectionOptions
 
     def _clone_options(self):
         if self.options:
@@ -620,12 +630,12 @@ class CompositeValue(Value):
         for path in paths[:-1]:
             # add a simple expand item for each parent path if it isn't
             # already expanded
-            xitem = options.get_expand_item(path)
+            xitem = options.get_expand_item(tuple(path))
             if xitem is None:
-                xitem = options.add_expand_path(path)
+                xitem = options.add_expand_path(tuple(path))
             options = xitem.options
         path = paths[-1]
-        options.add_select_path(path)
+        options.add_select_path(tuple(path))
         self.clear_cache()
 
     def select_default(self, xpath=None):
@@ -710,12 +720,14 @@ class CompositeValue(Value):
         for path in paths[:-1]:
             # add a simple expand item for each parent path if it isn't
             # already expanded
-            xitem = options.get_expand_item(path)
+            xitem = options.get_expand_item(tuple(path))
             if xitem is None:
-                xitem = options.add_expand_path(path)
+                xitem = options.add_expand_path(tuple(path))
             options = xitem.options
         path = paths[-1]
-        options.add_expand_path(path, qualifier=qualifier)
+        if qualifier is not None:
+            path.append(names.PathQualifier.to_str(qualifier))
+        options.add_expand_path(tuple(path))
         self.clear_cache()
 
     def collapse(self, path):
@@ -736,20 +748,20 @@ class CompositeValue(Value):
             self._clone_options()
         options = self.options
         for path in paths[:-1]:
-            xitem = options.get_expand_item(path)
+            xitem = options.get_expand_item(tuple(path))
             if xitem is None:
                 # we're done, we weren't even expanded
                 return
             options = xitem.options
         path = paths[-1]
-        options.remove_expand_path(path)
+        options.remove_expand_path(tuple(path))
         self.clear_cache()
 
     def set_filter(self, filter_expr, xpath=None):
         """Sets the filter for this value (or a related value)
 
         filter_expr
-            A :class:`types.CommonExpression` instance or a string
+            A :class:`comex.CommonExpression` instance or a string
             from which one can be parsed.
 
         xpath (None)
@@ -787,7 +799,7 @@ class CompositeValue(Value):
         """Sets the orderby expression for the result set
 
         orderby_expr
-            A list or iterable of :class:`types.OrderByItem` instances
+            A list or iterable of :class:`query.OrderByItem` instances
             or a string from which one can be parsed.
 
         xpath (None)
@@ -867,9 +879,9 @@ class CompositeValue(Value):
             self._clone_options()
         options = self.options
         for path in paths:
-            xitem = options.get_expand_item(path)
+            xitem = options.get_expand_item(tuple(path))
             if xitem is None:
-                xitem = options.add_expand_path(path)
+                xitem = options.add_expand_path(tuple(path))
             options = xitem.options
         return options
 
@@ -1004,6 +1016,37 @@ class CollectionValue(collections.MutableSequence, ContainerValue):
 
     The CollectionValue object is blessed with Python's Sequence
     behaviour."""
+
+    @classmethod
+    def from_values(cls, value_list):
+        """Returns a CollectionValue instance from multiple values
+
+        value_list
+            An iterable of Value instances containing the values that
+            make up the collection.
+
+        The values must be type compatible,  In the case of collections
+        of numeric values type promotion is used to ensure that all
+        values in the resulting collection have the same numeric type.
+
+        If any of the values are null then they are ignored for the
+        purposes of determining the type of the collection as null
+        values can be cast to any type."""
+        type_list = []
+        for value in value_list:
+            if value.is_null():
+                # special rule here, ignore this one
+                continue
+            type_list.append(value.type_def)
+        type_def = types.CollectionType.from_types(type_list)
+        result = type_def()
+        item_type = type_def.item_type
+        for value in value_list:
+            if value.type_def.is_derived_from(item_type):
+                result.append(value)
+            else:
+                result.append(value.cast(item_type))
+        return result
 
     def __init__(self, **kwargs):
         super(CollectionValue, self).__init__(**kwargs)
@@ -1307,6 +1350,13 @@ class StructuredValue(collections.MutableMapping, CompositeValue):
         no guarantee that all entities in the collection come from the
         same entity set and hence no guarantee that the keys are unique."""
 
+    @classmethod
+    def edm_type(cls):
+        type_def = cls.new_type()
+        type_def.set_abstract(True)
+        type_def.close()
+        return type_def
+
     def __init__(self, **kwargs):
         super(StructuredValue, self).__init__(**kwargs)
         #: the (initial) base type definition
@@ -1405,14 +1455,11 @@ class StructuredValue(collections.MutableMapping, CompositeValue):
                 qname = ptype.nametable().qname
             else:
                 qname = None
-            options, qname = self.options.complex_selected(qname, pname)
+            options = self.options.complex_selected(qname, pname)
             if options:
                 if pname not in self:
                     self._cache[pname] = p = ptype(self_ref)
                     p._set_options(options)
-                    if qname:
-                        type_def = self.options.resolve_type(qname)
-                        p.type_cast(type_def)
             elif pname in self:
                 del self._cache[pname]
         elif pname not in self:
@@ -1426,22 +1473,19 @@ class StructuredValue(collections.MutableMapping, CompositeValue):
                 qname = ptype.nametable().qname
             else:
                 qname = None
-            selected = self.options.selected(qname, pname, nav=True)
-            xitem = self.options.nav_expanded(qname, pname)
+            xitem, cast_qname, qualifier = self.options.expanded(qname, pname)
             if xitem is not None:
                 if pname not in self:
-                    self._cache[pname] = p = ptype(self_ref, xitem.qualifier)
-                    if xitem.type_cast:
-                        type_cast = p.type_cast(
-                            self.options.resolve_type(xitem.type_cast))
+                    self._cache[pname] = p = ptype(self_ref, qualifier)
+                    if cast_qname:
+                        type_cast = types.NominalType.resolve_type(
+                            cast_qname, self.get_model())
                     else:
                         type_cast = None
                     p._set_options(xitem.options, type_cast=type_cast)
-            elif selected:
-                # just selected for link, same as no qualifier
-                # service request will be deferred
+            elif self.options.nav_selected(qname, pname):
                 if pname not in self:
-                    self._cache[pname] = p = ptype(self_ref)
+                    self._cache[pname] = ptype(self_ref)
             elif pname in self:
                 del self._cache[pname]
         elif pname in self:
@@ -1534,7 +1578,7 @@ class StructuredValue(collections.MutableMapping, CompositeValue):
     def set_defaults(self):
         """Sets default values for all properties
 
-        For a null value his method automatically triggers the creation
+        For a null value this method automatically triggers the creation
         of the selected/expanded property values in the property
         dictionary with their default values set.  The structured value
         as a whole is marked as being dirty but the individual values
@@ -1816,14 +1860,19 @@ class ComplexValue(StructuredValue):
 
     Instances behave like dictionaries of property values."""
 
+    @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.ComplexType` instance"""
+        return types.ComplexType(value_type=cls)
+
     def __init__(self, type_def=None, **kwargs):
         if type_def is not None and \
                 not isinstance(type_def, types.ComplexType):
             raise errors.ModelError(
                 "ComplexValue requires ComplexType: %s" % repr(type_def))
         super(ComplexValue, self).__init__(
-            type_def=edm_complex_type if type_def is None else type_def,
-            **kwargs)
+            type_def=types.ComplexType.edm_base if type_def is None else
+            type_def, **kwargs)
 
     def touch(self):
         """Implements touch behaviour
@@ -1859,6 +1908,11 @@ class EntityValue(StructuredValue):
     service."""
 
     @classmethod
+    def new_type(cls):
+        """Creates a new :class:`types.EntityType` instance"""
+        return types.EntityType(value_type=cls)
+
+    @classmethod
     def singleton_class(cls):
         """Returns the class to use for Singleton values"""
         return SingletonValue
@@ -1873,8 +1927,8 @@ class EntityValue(StructuredValue):
             raise errors.ModelError(
                 "EntityValue requires EntityType: %s" % repr(type_def))
         super(EntityValue, self).__init__(
-            type_def=edm_complex_type if type_def is None else type_def,
-            **kwargs)
+            type_def=types.ComplexType.edm_base if type_def is None else
+            type_def, **kwargs)
         self.entity_binding = None
 
     def set_entity_binding(self, entity_binding):
@@ -1982,7 +2036,7 @@ class EntityContainerValue(ContainerValue):
         #: the optional entity set or singleton we're bound to
         self.entity_binding = None
 
-    OptionsType = types.EntityOptions
+    OptionsType = query.EntityOptions
 
     def set_entity_binding(self, entity_binding):
         """Binds this value to an entity set or singleton
@@ -2053,7 +2107,7 @@ class EntitySetValue(collections.MutableMapping, EntityContainerValue):
         if self.options:
             self.options = self.options.clone()
         else:
-            self.options = types.CollectionOptions()
+            self.options = query.CollectionOptions()
         self._options_inherited = False
 
     def bind_to_service(self, service):
@@ -2334,9 +2388,107 @@ class SingletonValue(EntityContainerValue):
         self.touch()
 
 
-edm_complex_type = types.ComplexType(value_type=ComplexValue)
-edm_complex_type.set_abstract(True)
-edm_complex_type.close()
+class CallableValue(collections.Mapping, Value):
+
+    """Abstract class that represents a function or action call
+
+    This class represents the invocation of the callable, *not* the
+    result.  As such it behaves like a dictionary of non-binding
+    parameter values keyed on parameter name.  On construction the value
+    is pre-populated with parameter values set to null.  The value
+    itself is never null.
+
+    The type_def of a callable value is the :class:`CallableType` object
+    that declares its signature.  There is no equivalent object in the
+    OData URL syntax because a callable with parameters is implicitly
+    called and resolves to the return value.  This object behaves more
+    like a bound-method in Python except that it is bound to all
+    parameters at once.  To obtain the return value you have to call the
+    object.
+
+    To call the value you use Python's call syntax (the parameters are
+    already bound to the object so there are no parameters).  The call
+    is made immediately and the return value is a :class:`Value`
+    instance of the appropriate return type.  The result of a callable
+    is *never* cached so calling it multiple times will call the service
+    multiple times, each time returning a new object.
+
+    For composable functions the return value is bound to the service
+    via the parent callable and can be reloaded (reinvoking the function)
+    to refresh its value.
+
+    For non-composable functions and actions a transient result is
+    typically returned (i.e., a value that is not bound to the service
+    and cannot be reloaded).  An action *may* return a bound entity of
+    course but, in that case, the entity is bound through the owning
+    entity set and reloading its value will not invoke the action a
+    second time.  For example, an action that exists for the purposes of
+    creating an entity in an entity set in a special way will return a
+    bound entity but reloading that entity will not cause it to be
+    recreated.
+
+    Composable functions that return entities or collections may have
+    query options applied but these options are applied to the return
+    value *not* to the callable.  To create the return value without
+    calling the function you use the :meth:`deferred_call` method."""
+
+    def __init__(self, **kwargs):
+        super(CallableValue, self).__init__(**kwargs)
+        self.binding = None
+        self._params = {}
+        plist = self.type_def.params
+        if self.type_def.is_bound:
+            plist = plist[1:]
+        for p in plist:
+            self._params[p.name] = p()
+
+    def is_null(self):
+        """Callable values are never null."""
+        return False
+
+    def set_callable_binding(self, binding):
+        self.binding = binding
+
+    def __len__(self):
+        return len(self._params)
+
+    def __getitem__(self, key):
+        return self._params[key]
+
+    def __iter__(self):
+        for k in self._params:
+            yield k
+
+    def new_return_value(self):
+        """Creates and returns a new return value"""
+        if self.type_def.return_type:
+            return self.type_def.return_type()
+        else:
+            return None
+
+    def __call__(self):
+        service = self.service
+        if service is None and self.binding is not None:
+            service = self.binding.service
+        if service is None and self.type_def.service_ref is not None:
+            # take the type_def from our type
+            service = self.type_def.service_ref()
+        if service is None:
+            raise errors.UnboundValue(to_text(self))
+        if self.type_def.is_action():
+            request = service.call_action(self)
+        else:
+            request = service.call_function(self)
+        request.execute_request()
+        if isinstance(request.result, Exception):
+            raise request.result
+        if isinstance(self.type_def, types.Function):
+            # the result of this function is parented to allow reloading
+            request.result.set_parent(weakref.ref(self), name="")
+        return request.result
+
+
+edm_complex_type = types.ComplexType.edm_base = ComplexValue.edm_type()
 
 edm_entity_type = types.EntityType(value_type=EntityValue)
 edm_entity_type.set_abstract(True)

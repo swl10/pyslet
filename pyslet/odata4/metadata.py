@@ -13,8 +13,10 @@ from ..xml import structures as xml
 from ..xml import xsdatatypes as xsi
 
 from . import (
+    comex,
     data,
     errors,
+    evaluator,
     model as odata,
     names,
     primitive,
@@ -272,7 +274,8 @@ class FacetsMixin(object):
         return changed
 
     def create_type(self, type_obj):
-        if isinstance(type_obj, types.PrimitiveType):
+        if isinstance(type_obj, types.PrimitiveType) and \
+                not isinstance(type_obj, types.EnumerationType):
             # add the facets to this type
             ptype = type_obj.derive_type()
             if self.set_type_facets(ptype):
@@ -328,45 +331,45 @@ class GInlineExpressionsMixin(object):
                 raise errors.ModelError(
                     "Ambiguous attribute notation for Annotation (%s & %s)" %
                     (to_text(result), to_text(a)))
-            else:
-                result = types.LiteralExpression(a.get_value())
+            result = a.get_value_expression()
         if self.enum_member:
             # the odd case of the enum_member, must be looked up
             if result is not None:
                 raise errors.ModelError(
                     "Ambiguous attribute notation for Annotation (%s & %s)" %
                     (to_text(result), self.enum_member))
-            result = types.LiteralExpression(self.enum_member)
+            result = comex.EnumExpression(self.enum_member)
         if self.annotation_path:
             if result is not None:
                 raise errors.ModelError(
                     "Ambiguous attribute notation for Annotation (%s & %s)" %
                     (to_text(result), to_text(self.annotation_path)))
-            result = types.APathExpression(self.annotation_path)
+            result = comex.AnnotationPathExpression(self.annotation_path)
         if self.path:
             if result is not None:
                 raise errors.ModelError(
                     "Ambiguous attribute notation for Annotation (%s & %s)" %
                     (to_text(result), to_text(self.path)))
-            result = types.PathExpression(self.path)
+            result = comex.PathExpression(self.path)
         if self.property_path:
             if result is not None:
                 raise errors.ModelError(
                     "Ambiguous attribute notation for Annotation (%s & %s)" %
                     (to_text(result), to_text(self.property_path)))
-            result = types.PPathExpression(self.property_path)
+            result = comex.PropertyPathExpression(self.property_path)
         if self.navigation_property_path:
             if result is not None:
                 raise errors.ModelError(
                     "Ambiguous attribute notation for Annotation (%s & %s)" %
                     (to_text(result), to_text(self.navigation_property_path)))
-            result = types.NPPathExpression(self.navigation_property_path)
+            result = comex.NavigationPropertyPathExpression(
+                self.navigation_property_path)
         if self.url_ref:
             if result is not None:
                 raise errors.ModelError(
                     "Ambiguous attribute notation for Annotation (%s & %s)" %
                     (to_text(result), to_text(self.url_ref)))
-            result = types.URLRefExpression(self.url_ref)
+            result = comex.URLRefExpression(self.url_ref)
         return result
 
 
@@ -470,7 +473,7 @@ class Annotation(
             if expr is not None:
                 a.set_expression(expr)
                 # does this expression work in the context of target?
-                tcheck = odata.TypeChecker(target)
+                tcheck = evaluator.TypeChecker(target)
                 atype = tcheck.evaluate(expr)
                 # is atype type-compatible with the Term's type?
                 if atype is not None and \
@@ -510,7 +513,7 @@ class ConstantExpression(GExpression):
     XMLCONTENT = xml.ElementType.Mixed
 
     def get_expression(self):
-        return types.LiteralExpression(self.get_value())
+        return self.get_value().get_value_expression()
 
 
 class BinaryConstant(ConstantExpression):
@@ -519,7 +522,7 @@ class BinaryConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.BinaryValue.from_str(
-                super(BinaryConstant, self).get_value()).get_value()
+                super(BinaryConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_binary_s % to_text(err))
@@ -531,7 +534,7 @@ class BoolConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.BooleanValue.from_str(
-                super(BoolConstant, self).get_value()).get_value()
+                super(BoolConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_bool_s % to_text(err))
@@ -543,7 +546,7 @@ class DateConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.DateValue.from_str(
-                super(DateConstant, self).get_value()).get_value()
+                super(DateConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_date_s % to_text(err))
@@ -555,7 +558,7 @@ class DateTimeOffsetConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.DateTimeOffsetValue.from_str(
-                super(DateTimeOffsetConstant, self).get_value()).get_value()
+                super(DateTimeOffsetConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_datetime_s % to_text(err))
@@ -567,7 +570,7 @@ class DecimalConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.DecimalValue.from_str(
-                super(DecimalConstant, self).get_value()).get_value()
+                super(DecimalConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_decimal_s % to_text(err))
@@ -579,7 +582,7 @@ class DurationConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.DurationValue.from_str(
-                super(DurationConstant, self).get_value()).get_value()
+                super(DurationConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_duration_s % to_text(err))
@@ -623,7 +626,7 @@ class FloatConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.DoubleValue.from_str(
-                super(FloatConstant, self).get_value()).get_value()
+                super(FloatConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_float_s % to_text(err))
@@ -635,7 +638,7 @@ class GuidConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.GuidValue.from_str(
-                super(GuidConstant, self).get_value()).get_value()
+                super(GuidConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_guid_s % to_text(err))
@@ -647,7 +650,7 @@ class IntConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.Int64Value.from_str(
-                super(IntConstant, self).get_value()).get_value()
+                super(IntConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_int_s % to_text(err))
@@ -658,7 +661,7 @@ class StringConstant(ConstantExpression):
 
     def get_value(self):
         return primitive.StringValue.from_str(
-            super(StringConstant, self).get_value()).get_value()
+            super(StringConstant, self).get_value())
 
 
 class TimeOfDayConstant(ConstantExpression):
@@ -667,7 +670,7 @@ class TimeOfDayConstant(ConstantExpression):
     def get_value(self):
         try:
             return primitive.TimeOfDayValue.from_str(
-                super(TimeOfDayConstant, self).get_value()).get_value()
+                super(TimeOfDayConstant, self).get_value())
         except ValueError as err:
             raise errors.ModelError(
                 errors.Requirement.annotation_time_s % to_text(err))
@@ -678,7 +681,7 @@ class PathExpression(GExpression):
     XMLCONTENT = xml.ElementType.Mixed
 
     def get_expression(self):
-        return types.PathExpression(
+        return comex.PathExpression(
             names.path_from_str(super(PathExpression, self).get_value()))
 
 
@@ -688,7 +691,7 @@ class AnnotationPath(GExpression):
 
     def get_expression(self):
         try:
-            return types.APathExpression(
+            return comex.AnnotationPathExpression(
                 names.annotation_path_from_str(self.get_value()))
         except ValueError as err:
             raise errors.ModelError(
@@ -733,35 +736,33 @@ class Apply(AnnotatedExpression):
             raise errors.ModelError(
                 errors.Requirement.annotation_apply_expr_s %
                 to_text(self.function))
-        if self.function.namespace == "odata":
-            fname = to_text(self.function)
-        else:
-            # always called on model close so should be OK
-            fname = to_text(self.get_model().canonicalize_qname(self.function))
-        expr = types.CallExpression(fname)
+        expr = comex.CallExpression()
+        expr.add_operand(comex.QNameExpression(self.function))
+        args = comex.ArgsExpression()
+        expr.add_operand(args)
         if self.function.name == "fillUriTemplate":
             if self.GExpression:
-                expr.add_operand(self.GExpression[0].get_expression())
+                args.add_operand(self.GExpression[0].get_expression())
             for e in self.GExpression[1:]:
-                bind = types.BinaryExpression(types.Operator.bind)
+                bind = comex.BindExpression()
                 if not isinstance(e, LabeledElement):
                     raise errors.ModelError(
                         errors.
                         Requirement.annotation_fill_uri_template_args_s %
                         to_text(e))
-                bind.add_operand(types.NameExpression(e.name))
+                bind.add_operand(comex.IdentifierExpression(e.name))
                 bind.add_operand(e.get_expression())
-                expr.add_operand(bind)
+                args.add_operand(bind)
         elif self.function.name == "concat":
             if len(self.GExpression) < 2:
                 raise errors.ModelError(
                     errors.Requirement.annotation_concat_args_s %
                     ("%i found" % len(self.GExpression)))
             for e in self.GExpression:
-                expr.add_operand(e.get_expression())
+                args.add_operand(e.get_expression())
         else:
             for e in self.GExpression:
-                expr.add_operand(e.get_expression())
+                args.add_operand(e.get_expression())
         return expr
 
 
@@ -785,8 +786,12 @@ class CastExpression(CastOrIsOfExpression):
             qname, collection = "", False
         if collection or not qname or len(self.GExpression) != 1:
             raise errors.ModelError(errors.Requirement.cast_signature)
-        expr = types.CallExpression("cast")
-        expr.add_operand(self.GExpression[0].get_expression())
+        expr = comex.CallExpression()
+        args = comex.ArgsExpression()
+        expr.add_operand(
+            comex.QNameExpression(names.QualifiedName("odata", "cast")))
+        expr.add_operand(args)
+        args.add_operand(self.GExpression[0].get_expression())
         em = self.get_entity_model()
 
         def set_type(type_obj):
@@ -797,7 +802,7 @@ class CastExpression(CastOrIsOfExpression):
                 raise errors.ModelError(
                     errors.Requirement.cast_type % to_text(self.type_name))
             to_type = self.create_type(type_obj)
-            expr.add_operand(types.TypeExpression(to_type))
+            args.add_operand(comex.TypeExpression(to_type))
 
         # we return this expression incomplete, the Type may be added
         # later when the type referred to is defined
@@ -819,7 +824,7 @@ class CollectionExpression(GExpression):
             yield child
 
     def get_expression(self):
-        expr = types.CollectionExpression()
+        expr = comex.CollectionExpression()
         for e in self.GExpression:
             expr.add_operand(e.get_expression())
         return expr
@@ -832,7 +837,7 @@ class IfExpression(AnnotatedExpression):
         AnnotatedExpression.__init__(self, parent)
 
     def get_expression(self):
-        expr = types.IfExpression()
+        expr = comex.IfExpression()
         if len(self.GExpression) < 3:
             if len(self.GExpression) < 2 or \
                     not isinstance(self.parent, CollectionExpression):
@@ -859,7 +864,7 @@ class EqExpression(TwoChildrenExpression):
     XMLNAME = (EDM_NAMESPACE, 'Eq')
 
     def get_expression(self):
-        expr = types.BinaryExpression(types.Operator.eq)
+        expr = comex.EqExpression()
         if len(self.GExpression) != 2:
             raise errors.ModelError(
                 errors.Requirement.annotation_comparison_s %
@@ -873,7 +878,7 @@ class NeExpression(TwoChildrenExpression):
     XMLNAME = (EDM_NAMESPACE, 'Ne')
 
     def get_expression(self):
-        expr = types.BinaryExpression(types.Operator.ne)
+        expr = comex.NeExpression()
         if len(self.GExpression) != 2:
             raise errors.ModelError(
                 errors.Requirement.annotation_comparison_s %
@@ -887,7 +892,7 @@ class GeExpression(TwoChildrenExpression):
     XMLNAME = (EDM_NAMESPACE, 'Ge')
 
     def get_expression(self):
-        expr = types.BinaryExpression(types.Operator.ge)
+        expr = comex.GeExpression()
         if len(self.GExpression) != 2:
             raise errors.ModelError(
                 errors.Requirement.annotation_comparison_s %
@@ -901,7 +906,7 @@ class GtExpression(TwoChildrenExpression):
     XMLNAME = (EDM_NAMESPACE, 'Gt')
 
     def get_expression(self):
-        expr = types.BinaryExpression(types.Operator.gt)
+        expr = comex.GtExpression()
         if len(self.GExpression) != 2:
             raise errors.ModelError(
                 errors.Requirement.annotation_comparison_s %
@@ -915,7 +920,7 @@ class LeExpression(TwoChildrenExpression):
     XMLNAME = (EDM_NAMESPACE, 'Le')
 
     def get_expression(self):
-        expr = types.BinaryExpression(types.Operator.le)
+        expr = comex.LeExpression()
         if len(self.GExpression) != 2:
             raise errors.ModelError(
                 errors.Requirement.annotation_comparison_s %
@@ -929,7 +934,7 @@ class LtExpression(TwoChildrenExpression):
     XMLNAME = (EDM_NAMESPACE, 'Lt')
 
     def get_expression(self):
-        expr = types.BinaryExpression(types.Operator.lt)
+        expr = comex.LtExpression()
         if len(self.GExpression) != 2:
             raise errors.ModelError(
                 errors.Requirement.annotation_comparison_s %
@@ -943,7 +948,7 @@ class AndExpression(TwoChildrenExpression):
     XMLNAME = (EDM_NAMESPACE, 'And')
 
     def get_expression(self):
-        expr = types.BinaryExpression(types.Operator.bool_and)
+        expr = comex.AndExpression()
         if len(self.GExpression) != 2:
             raise errors.ModelError(errors.Requirement.annotation_and_or)
         for e in self.GExpression:
@@ -955,7 +960,7 @@ class OrExpression(TwoChildrenExpression):
     XMLNAME = (EDM_NAMESPACE, 'Or')
 
     def get_expression(self):
-        expr = types.BinaryExpression(types.Operator.bool_or)
+        expr = comex.OrExpression()
         if len(self.GExpression) != 2:
             raise errors.ModelError(errors.Requirement.annotation_and_or)
         for e in self.GExpression:
@@ -980,7 +985,7 @@ class NotExpression(OneChildExpression):
     XMLNAME = (EDM_NAMESPACE, 'Not')
 
     def get_expression(self):
-        expr = types.UnaryExpression(types.Operator.bool_not)
+        expr = comex.NotExpression()
         if self.GExpression is None:
             raise errors.ModelError(errors.Requirement.annotation_not)
         expr.add_operand(self.GExpression.get_expression())
@@ -997,8 +1002,12 @@ class IsOfExpression(CastOrIsOfExpression):
             qname, collection = "", False
         if collection or not qname or len(self.GExpression) != 1:
             raise errors.ModelError(errors.Requirement.isof_test_type)
-        expr = types.CallExpression("isof")
-        expr.add_operand(self.GExpression[0].get_expression())
+        expr = comex.CallExpression()
+        expr.add_operand(
+            comex.QNameExpression(names.QualifiedName("odata", "isof")))
+        args = comex.ArgsExpression()
+        expr.add_operand(args)
+        args.add_operand(self.GExpression[0].get_expression())
         em = self.get_entity_model()
 
         def set_type(type_obj):
@@ -1008,7 +1017,7 @@ class IsOfExpression(CastOrIsOfExpression):
                     errors.Requirement.isof_type_scope_s %
                     to_text(self.type_name))
             test_type = self.create_type(type_obj)
-            expr.add_operand(types.TypeExpression(test_type))
+            args.add_operand(comex.TypeExpression(test_type))
 
         # we return this expression incomplete, the Type may be added
         # later when the type referred to is defined
@@ -1074,7 +1083,7 @@ class LabeledElementReference(GExpression):
         if not qname:
             raise errors.ModelError(
                 errors.Requirement.label_ref_s % to_text(qname))
-        expr = types.ReferenceExpression(qname)
+        expr = comex.ReferenceExpression(qname)
         em = self.get_entity_model()
 
         def check_ref(label):
@@ -1091,7 +1100,7 @@ class NullExpression(GExpression, Annotated):
     XMLNAME = (EDM_NAMESPACE, 'Null')
 
     def get_expression(self):
-        return types.LiteralExpression(None)
+        return comex.NullExpression()
 
 
 class NavigationPropertyPath(PathExpression):
@@ -1099,7 +1108,7 @@ class NavigationPropertyPath(PathExpression):
 
     def get_expression(self):
         try:
-            return types.NPPathExpression(
+            return comex.NavigationPropertyPathExpression(
                 names.path_from_str(self.get_value()))
         except ValueError as err:
             raise errors.ModelError(
@@ -1111,7 +1120,7 @@ class PropertyPathExpression(PathExpression):
 
     def get_expression(self):
         try:
-            return types.PPathExpression(
+            return comex.PropertyPathExpression(
                 names.path_from_str(self.get_value()))
         except ValueError as err:
             raise errors.ModelError(
@@ -1135,15 +1144,15 @@ class RecordExpression(GExpression):
             yield child
 
     def get_expression(self):
-        expr = types.RecordExpression()
+        expr = comex.RecordExpression()
         for e in self.RecordContent:
             if isinstance(e, Annotation):
                 continue
             if not isinstance(e, PropertyValue):
                 raise errors.ModelError(
                     errors.Requirement.record_args_s % to_text(e))
-            bind = types.BinaryExpression(types.Operator.bind)
-            bind.add_operand(types.NameExpression(e.property))
+            bind = comex.MemberBindExpression()
+            bind.add_operand(comex.IdentifierExpression(e.property))
             bind.add_operand(e.get_expression())
             expr.add_operand(bind)
         return expr
@@ -1912,7 +1921,7 @@ class ReferentialConstraint(NavigationPropertyContent, Annotated):
 class OnDelete(NavigationPropertyContent, Annotated):
     XMLNAME = (EDM_NAMESPACE, 'OnDelete')
 
-    XMLATTR_Action = ('action', odata.OnDeleteAction.from_str, str)
+    XMLATTR_Action = ('action', types.OnDeleteAction.from_str, str)
     # enumeration: Cascade, None, SetDefault, SetNull
 
     def __init__(self, parent):
@@ -2029,9 +2038,9 @@ class EnumType(SchemaContent, Type):
                 raise errors.ModelError(errors.Requirement.ent_type_s % qname)
         else:
             base_type = None
-        self._ent = odata.EnumerationValue.new_type()
+        self._ent = primitive.EnumerationValue.new_type()
         # types.EnumerationType(
-        #    value_type=odata.EnumerationValue, underlying_type=base_type)
+        #    value_type=primitive.EnumerationValue, underlying_type=base_type)
         if base_type:
             self._ent.set_underlying_type(base_type)
         if self.is_flags:
@@ -2162,7 +2171,7 @@ class Parameter(ActionFunctionContent, FacetsMixin, Annotated):
             if self.name is None:
                 raise errors.ModelError("Parameter with no name")
             c = self.parent.get_callable()
-            self._parameter = odata.Parameter()
+            self._parameter = types.Parameter()
             c.add_parameter(self._parameter, self.name)
         return self._parameter
 
@@ -2204,7 +2213,7 @@ class Action(SchemaContent, ActionFunction):
         if self._callable is None:
             if self.name is None:
                 raise errors.ModelError("Action requires Name")
-            self._callable = odata.Action(value_type=odata.CallableType)
+            self._callable = types.Action(value_type=data.CallableValue)
             self._callable.set_is_bound(self.is_bound)
             if self.entity_set_path:
                 self._callable.set_entity_set_path(self.entity_set_path)
@@ -2234,7 +2243,7 @@ class Function(SchemaContent, ActionFunction):
         if self._callable is None:
             if self.name is None:
                 raise errors.ModelError("Function requires Name")
-            self._callable = odata.Function(value_type=odata.CallableValue)
+            self._callable = types.Function(value_type=data.CallableValue)
             self._callable.set_is_bound(self.is_bound)
             if self.entity_set_path:
                 self._callable.set_entity_set_path(self.entity_set_path)
@@ -2401,7 +2410,7 @@ class Annotations(SchemaContent, Annotated):
                         raise KeyError("Bad type cast %s" % p)
                     elif isinstance(
                             target,
-                            (odata.ActionOverload, odata.FunctionOverload)):
+                            (types.ActionOverload, types.FunctionOverload)):
                         # applies to all overloads defining the parameter
                         new_target = []
                         for t in target.callables:
@@ -2422,7 +2431,7 @@ class Annotations(SchemaContent, Annotated):
             # now apply the annotations to this target
             if isinstance(
                     target,
-                    (odata.ActionOverload, odata.FunctionOverload)):
+                    (types.ActionOverload, types.FunctionOverload)):
                 # expand to a list of Functions and Actions
                 target = [c for c in target.callables]
             elif not isinstance(target, list):
@@ -2643,7 +2652,7 @@ class ActionImport(EntityContainerContent, ActionFunctionImportMixin,
         em = self.get_entity_model()
 
         def found_callable(callable):
-            if not isinstance(callable, odata.ActionOverload):
+            if not isinstance(callable, types.ActionOverload):
                 # not the right sort of thing
                 raise errors.ModelError("Expected Action")
             schema = callable.nametable()
@@ -2692,7 +2701,7 @@ class FunctionImport(EntityContainerContent, ActionFunctionImportMixin,
         em = self.get_entity_model()
 
         def found_callable(callable):
-            if not isinstance(callable, odata.FunctionOverload):
+            if not isinstance(callable, types.FunctionOverload):
                 # not the right sort of thing
                 raise errors.ModelError("Expected Function")
             schema = callable.nametable()

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<edmx:Edmx xmlns="http://docs.oasis-open.org/odata/ns/edm"
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+    <edmx:DataServices>
+        <Schema Namespace="regression.pyslet.org" Alias="Self">
+            <EntityType Name="Person">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="FirstName" Type="Edm.String" />
+                <Property Name="LastName" Type="Edm.String" />
+                <Property Name="Address" Type="Self.Address" Nullable="false"/>
+                <Property Name="Region" Type="Self.Region" Nullable="false"/>
+                <Annotation Term="Self.DisplayName">
+                    <LabeledElement Name="LastCommaFirst">
+                        <Apply Function="odata.concat">
+                            <Path>LastName</Path>
+                            <String>, </String>
+                            <Path>FirstName</Path>
+                        </Apply>
+                    </LabeledElement>
+                </Annotation>
+                <Annotation Term="Self.FullName">
+                    <Apply Function="odata.concat">
+                        <String>[</String>
+                        <Path>ID</Path>
+                        <String>] </String>
+                        <LabeledElementReference>Self.LastCommaFirst</LabeledElementReference>
+                    </Apply>
+                </Annotation>
+            </EntityType>
+            <EntityType Name="Customer" BaseType="Self.Person">
+                <Property Name="CustomerNumber" Type="Edm.String" />
+            </EntityType>
+            <EntityType Name="Employee" BaseType="Self.Person">
+                <Property Name="EmployeeNumber" Type="Edm.String" />
+            </EntityType>
+            <EntityType Name="Company">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="Name" Type="Edm.String" Nullable="false"/>
+                <NavigationProperty Name="Contacts"
+                    Type="Collection(Self.Person)"/>
+            </EntityType>
+            <EntityType Name="Order">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Int32" Nullable="false"/>
+                <Property Name="WhenReceived" Type="Edm.DateTimeOffset"
+                    Nullable="false"/>
+                <Property Name="ShippingAddress" Type="Self.Address"/>
+                <Property Name="ShippingMethod" Type="Self.ShippingMethod"/>
+                <NavigationProperty Name="Customer" Type="Self.Customer"/>
+                <NavigationProperty Name="Salesperson" Type="Self.Employee"/>
+                <NavigationProperty Name="ShippingAgent" Type="Self.Company"/>
+            </EntityType>
+            <ComplexType Name="Location">
+                <Property Name="Country" Type="Edm.String" />
+            </ComplexType>
+            <ComplexType Name="Address" BaseType="Self.Location">
+                <Property Name="Street1" Type="Edm.String" />
+                <Property Name="Street2" Type="Edm.String" />                
+            </ComplexType>
+            <ComplexType Name="Region" BaseType="Self.Location">
+                <Property Name="AreaCode" Type="Edm.Int64" />
+            </ComplexType>
+            <ComplexType Name="AllPrimitives">
+                <Property Name="Binary" Type="Edm.Binary"/>
+                <Property Name="Boolean" Type="Edm.Boolean"/>
+                <Property Name="Byte" Type="Edm.Byte"/>
+                <Property Name="Decimal" Type="Edm.Decimal"/>
+                <Property Name="Double" Type="Edm.Double"/>
+                <Property Name="Int16" Type="Edm.Int16"/>
+                <Property Name="Int32" Type="Edm.Int32"/>
+                <Property Name="Int64" Type="Edm.Int64"/>
+                <Property Name="SByte" Type="Edm.SByte"/>
+                <Property Name="Single" Type="Edm.Single"/>
+                <Property Name="Date" Type="Edm.Date"/>
+                <Property Name="DateTimeOffset" Type="Edm.DateTimeOffset"/>
+                <Property Name="Duration" Type="Edm.Duration"/>
+                <Property Name="Guid" Type="Edm.Guid"/>
+                <Property Name="Stream" Type="Edm.Stream"/>
+                <Property Name="String" Type="Edm.String"/>
+                <Property Name="TimeOfDay" Type="Edm.TimeOfDay"/>
+                <Property Name="GeographyPoint"
+                    Type="Edm.GeographyPoint"/>
+                <Property Name="GeographyLineString"
+                    Type="Edm.GeographyLineString"/>
+                <Property Name="GeographyPolygon"
+                    Type="Edm.GeographyPolygon"/>
+                <Property Name="GeographyMultiPoint"
+                    Type="Edm.GeographyMultiPoint"/>
+                <Property Name="GeographyMultiLineString"
+                    Type="Edm.GeographyMultiLineString"/>
+                <Property Name="GeographyMultiPolygon"
+                    Type="Edm.GeographyMultiPolygon"/>
+                <Property Name="GeographyCollection"
+                    Type="Edm.GeographyCollection"/>
+                <Property Name="GeometryPoint"
+                    Type="Edm.GeometryPoint"/>
+                <Property Name="GeometryLineString"
+                    Type="Edm.GeometryLineString"/>
+                <Property Name="GeometryPolygon"
+                    Type="Edm.GeometryPolygon"/>
+                <Property Name="GeometryMultiPoint"
+                    Type="Edm.GeometryMultiPoint"/>
+                <Property Name="GeometryMultiLineString"
+                    Type="Edm.GeometryMultiLineString"/>
+                <Property Name="GeometryMultiPolygon"
+                    Type="Edm.GeometryMultiPolygon"/>
+                <Property Name="GeometryCollection"
+                    Type="Edm.GeometryCollection"/>
+            </ComplexType>
+            <TypeDefinition Name="String10" UnderlyingType="Edm.String"
+                MaxLength="10"/>
+            <EnumType Name="RGB" UnderlyingType="Edm.Int32" IsFlags="true">
+                <Member Name="Red" Value="1" />
+                <Member Name="Green" Value="2" />
+                <Member Name="Blue" Value="4" />
+            </EnumType>
+            <EnumType Name="ShippingMethod">
+                <Member Name="FirstClass" />
+                <Member Name="TwoDay" />
+                <Member Name="Overnight" />
+            </EnumType>
+            <EnumType Name="FileAccess" UnderlyingType="Edm.Int32"
+                IsFlags="true">
+                <Member Name="Read" Value="1" />
+                <Member Name="Write" Value="2" />
+                <Member Name="Create" Value="4" />
+                <Member Name="Delete" Value="8" />
+            </EnumType>
+            <Function Name="PreviousAddresses" IsBound="true"
+                    IsComposable="true">
+                <Parameter Name="binding" Type="Self.Person"/>
+                <ReturnType Type="Collection(Self.Address)" />
+            </Function>
+            <Function Name="TopSalesperson" IsBound="false"
+                IsComposable="true">
+                <ReturnType Type="Self.Employee" />
+            </Function>
+            <EntityContainer Name="RegressionDB">
+                <EntitySet Name="People" EntityType="Self.Person"/>
+                <EntitySet Name="Companies" EntityType="Self.Company">
+                    <NavigationPropertyBinding Path="Contacts"
+                        Target="People"/>
+                </EntitySet>
+                <FunctionImport Name="TopSalesperson"
+                    Function="Self.TopSalesperson"/>
+            </EntityContainer>
+            <Term Name="DisplayName" Type="Edm.String" />
+            <Term Name="FullName" Type="Edm.String" />
+            <Term Name="HomeAddress" Type="Self.Address" />
+        </Schema>
+    </edmx:DataServices>
+</edmx:Edmx>

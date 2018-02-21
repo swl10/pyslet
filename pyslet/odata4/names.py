@@ -161,9 +161,15 @@ class PathQualifier(xsi.Enumeration):
     For more methods see :py:class:`~pyslet.xml.xsdatatypes.Enumeration`"""
 
     decode = {
-        "count": 1,
-        "ref": 2,
-        "value": 3,
+        "$count": 1,
+        "$ref": 2,
+        "$value": 3,
+    }
+
+    aliases = {
+        "count": "$count",
+        "ref": "$ref",
+        "value": "$value",
     }
 
 
@@ -188,7 +194,87 @@ def path_from_str(src):
 
     Returns a (possibly empty) tuple of simple identifiers,
     QualifiedName or TermRef segments followed by a single, optional,
-    :class:`PathQualifier` as a $-prefixed *string*."""
+    :class:`PathQualifier` as either a $-prefixed *string* or the
+    special symbol "*"."""
+    if not src:
+        return tuple()
+    segments = []
+    path_end = False
+    star = False
+    for segment in src.split('/'):
+        if path_end or (star and not segment.startswith('$')):
+            # there can be nothing after a path qualifier and only a
+            # path qualifier may follow *
+            raise ValueError(
+                "Unexpected path segment after qualifier or *: %s" % src)
+        elif segment.startswith('@'):
+            segment = TermRef.from_str(segment)
+        elif segment.startswith('$'):
+            # will force error if not a valid path qualifier
+            PathQualifier.from_str(segment)
+            path_end = True
+        elif segment == "*":
+            star = True
+        elif '.' in segment:
+            segment = QualifiedName.from_str(segment)
+        else:
+            segment = simple_identifier_from_str(segment)
+        segments.append(segment)
+    return tuple(segments)
+
+
+class TargetedTermRef(
+        UnicodeMixin,
+        collections.namedtuple('TargetedTermRef', ['target', 'term_ref'])):
+
+    """Represents a targeted term reference
+
+    This is a Python namedtuple consisting of a simple identifier
+    and a :class:`TermRef` instance (another named tuple).  No syntax
+    checking is done on the values at creation.  When converting to
+    str (and unicode for Python 2) the components are simply
+    joined, e.g.::
+
+        str(TargetedTermRef(
+            'TargetProperty',
+            TermRef(QualifiedName('Schema', 'Term'), 'Print'))) ==
+            'TargetProperty@Schema.Term#Print'
+    """
+
+    __slots__ = ()
+
+    def __unicode__(self):
+        t, tref = self
+        return force_text("%s%s" % (t, to_text(tref)))
+
+    @classmethod
+    def from_str(cls, src):
+        """Parses a TargetedTermRef from a source string"
+
+        Raises ValueError if src is not a valid TargetedTermRef."""
+        try:
+            atpos = src.index('@')
+            return cls(
+                target=simple_identifier_from_str(src[:atpos]),
+                term_ref=TermRef.from_str(src[atpos:]))
+        except ValueError:
+            raise ValueError("Bad targeted term reference: %s" % src)
+
+
+path_expr_to_str = path_to_str
+#: synonym for path_to_str
+
+
+def path_expr_from_str(src):
+    """Simple function for converting a string to a path expression
+
+    src
+        A text string
+
+    Returns a (possibly empty) tuple of simple identifiers,
+    QualifiedName, TermRef *or TargetedTermRef* segments followed by a
+    single, optional, :class:`PathQualifier` as a $-prefixed *string*
+    (the special symbol "*" is not allowed)."""
     if not src:
         return tuple()
     segments = []
@@ -200,9 +286,13 @@ def path_from_str(src):
                 "Unexpected path segment after qualifier: %s" % src)
         elif segment.startswith('@'):
             segment = TermRef.from_str(segment)
+        elif '@' in segment:
+            segment = TargetedTermRef.from_str(segment)
         elif segment.startswith('$'):
             # will force error if not a valid path qualifier
-            PathQualifier.from_str(segment[1:])
+            if segment != "$count":
+                raise ValueError(
+                    "%r not allowed in path expression" % segment)
             path_end = True
         elif '.' in segment:
             segment = QualifiedName.from_str(segment)
@@ -223,11 +313,44 @@ def annotation_path_from_str(src):
         A text string
 
     Returns a non-empty tuple of simple identifiers, QualifiedName or
-    TermRef segments guaranteeing that the last segment is a TermRef."""
-    apath = path_from_str(src)
+    TermRef or TargetedTermRef segments guaranteeing that the last
+    segment is a TermRef."""
+    apath = path_expr_from_str(src)
     if not len(apath) or not isinstance(apath[-1], TermRef):
         raise ValueError("Bad AnnotationPath: %s" % src)
     return apath
+
+
+navigation_path_to_str = path_to_str
+#: synonym for path_to_str
+
+
+def navigation_path_from_str(src):
+    return property_path_from_str(src, "NavigationProperty")
+
+
+property_path_to_str = path_to_str
+#: synonym for path_to_str
+
+
+def property_path_from_str(src, _ptype="Property"):
+    """Simple function for converting a string to a property path
+
+    src
+        A text string
+
+    _ptype
+        Used internally to customise the error message.
+
+    Returns a non-empty tuple of simple identifiers, QualifiedName,
+    TermRef or TargetedTermRef segments guaranteeing that the last
+    segment is a simple identifier or TermRef."""
+    ppath = path_expr_from_str(src)
+    if (not len(ppath) or
+            not (isinstance(ppath[-1], TermRef) or
+                 (is_text(ppath[-1]) and not ppath[-1].startswith('$')))):
+        raise ValueError("Bad %s: %s" % (_ptype, src))
+    return ppath
 
 
 class EnumLiteral(

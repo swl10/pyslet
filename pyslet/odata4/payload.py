@@ -291,7 +291,11 @@ class Payload(object):
 
     def obj_from_json_value(self, obj, jvalue):
         if isinstance(jvalue, dict):
-            self.obj_from_json_dict(obj, jvalue)
+            if isinstance(obj, data.StructuredValue):
+                with obj.loading() as new_obj:
+                    self.obj_from_json_dict(new_obj, jvalue)
+            else:
+                self.obj_from_json_dict(obj, jvalue)
         elif jvalue is None:
             obj.set_value(None)
             obj.clean()
@@ -302,7 +306,7 @@ class Payload(object):
             obj.set_value(False)
             obj.clean()
         elif is_text(jvalue):
-            if isinstance(obj, csdl.EnumerationValue):
+            if isinstance(obj, primitive.EnumerationValue):
                 new_obj = obj.type_def()
                 new_obj.value_from_str(jvalue)
             else:
@@ -317,9 +321,8 @@ class Payload(object):
             if isinstance(obj, data.ContainerValue):
                 for item in jvalue:
                     value = obj.new_item()
-                    # load the item first: we may be type cast!
-                    self.obj_from_json_value(value, item)
                     value.bind_to_service(self.service)
+                    self.obj_from_json_value(value, item)
                     obj.load_item(value)
             else:
                 raise errors.FormatError(
@@ -345,7 +348,7 @@ class Payload(object):
         elif obj.is_null():
             return (b'null', )
         elif isinstance(obj, (primitive.PrimitiveValue,
-                              csdl.EnumerationValue)):
+                              primitive.EnumerationValue)):
             if isinstance(obj, primitive.BooleanValue):
                 return (b'true' if obj.value else b'false', )
             elif isinstance(obj, primitive.StringValue):
@@ -358,7 +361,7 @@ class Payload(object):
             return self.generate_structured(obj, type_def=type_def)
         elif isinstance(obj, data.CollectionValue):
             return self.generate_collection(obj, type_def=type_def)
-        elif isinstance(obj, csdl.CallableValue):
+        elif isinstance(obj, data.CallableValue):
             return self.generate_callable(obj)
         else:
             logging.error(

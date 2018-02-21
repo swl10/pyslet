@@ -366,8 +366,7 @@ class EntityByKeyRequest(ClientDataRequest):
         target_set, target_key = self.target
         entity_type = target_set.item_type
         key = entity_type.get_key_dict(target_key)
-        if target_set.entity_binding and \
-                target_set.entity_binding.indexable_by_key and \
+        if self.service.indexable_by_key(target_set) and \
                 (target_set.options is None or
                  target_set.options.filter is None):
             # we are bound to an entity set (even if we are actually a
@@ -435,8 +434,7 @@ class DeleteByKeyRequest(ClientDataRequest):
         entity_type = target_set.item_type
         key = entity_type.get_key_dict(target_key)
         id = None
-        if target_set.entity_binding and \
-                target_set.entity_binding.indexable_by_key:
+        if self.service.indexable_by_key(target_set):
             # we are bound to an entity set (even if we are actually a
             # navigation property) that is indexable by key so we will
             # just use the key-predicate to get the entity reference

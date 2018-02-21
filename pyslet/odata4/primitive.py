@@ -19,10 +19,12 @@ from ..py2 import (
     long2,
     py2,
     to_text,
+    ul,
     )
 from ..xml import xsdatatypes as xsi
 
 from . import (
+    comex,
     data,
     errors,
     geotypes as geo,
@@ -59,11 +61,14 @@ class PrimitiveValue(data.Value):
     @classmethod
     def new_type(cls):
         """Creates a new :class:`types.PrimitiveType` instance."""
+        if cls is not PrimitiveValue:
+            raise NotImplementedError(
+                "%s must override new_type" % to_text(cls))
         return types.PrimitiveType(value_type=cls)
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_primitive_type
+            type_def = types.PrimitiveType.edm_base
         super(PrimitiveValue, self).__init__(type_def=type_def, **kwargs)
         self.value = None
         if value is not None:
@@ -343,21 +348,12 @@ class PrimitiveValue(data.Value):
             return super(PrimitiveValue, self).cast(type_def)
 
     @classmethod
-    def compatible(cls, other):
-        """Returns True if primitive types are compatible
-
-        By default, returns True only if other is the same class but
-        overridden to implement class-specific rules such as
-        compatibility of numeric types."""
-        return cls is other
-
-    @classmethod
     def edm_type(cls):
         type_def = cls.new_type()
         if cls is PrimitiveValue:
             type_def.set_abstract(True)
         else:
-            type_def.set_base(edm_primitive_type)
+            type_def.set_base(types.PrimitiveType.edm_base)
         return type_def
 
 
@@ -436,10 +432,6 @@ class IntegerValue(NumericValue):
 
     key_type = True
 
-    @classmethod
-    def new_type(cls):
-        return types.IntegerType(value_type=cls)
-
     def set_value(self, value):
         if isinstance(value, self._num_types):
             v = self._pytype(value)
@@ -456,6 +448,12 @@ class IntegerValue(NumericValue):
                 "can't set %s from %s" %
                 (to_text(self.type_def), repr(value)))
         self.touch()
+
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.Int64Expression(self.value)
 
 
 class FloatValue(NumericValue):
@@ -508,6 +506,12 @@ class FloatValue(NumericValue):
                 "can't set %s from %s" % (repr(self), repr(value)))
         self.touch()
 
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.DoubleExpression(self.value)
+
 
 class BinaryValue(PrimitiveValue):
 
@@ -553,6 +557,12 @@ class BinaryValue(PrimitiveValue):
             self.value = new_value
         self.touch()
 
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.BindaryDataExpression(self.value)
+
     @classmethod
     def from_str(cls, src):
         p = parser.Parser(src)
@@ -591,6 +601,10 @@ class BooleanValue(PrimitiveValue):
 
     key_type = True
 
+    @classmethod
+    def new_type(cls):
+        return types.BooleanType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_boolean
@@ -605,6 +619,12 @@ class BooleanValue(PrimitiveValue):
         else:
             self.value = True if value else False
         self.touch()
+
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.BooleanExpression(self.value)
 
     def assign(self, value):
         """Sets this value from another Value instance.."""
@@ -642,6 +662,10 @@ class ByteValue(IntegerValue):
     MAX = 255
 
     _pytype = int
+
+    @classmethod
+    def new_type(cls):
+        return types.ByteType(value_type=cls)
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -718,6 +742,12 @@ class DecimalValue(NumericValue):
             raise TypeError("Can't set Decimal from %s" % repr(value))
         self.touch()
 
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.DecimalExpression(self.value)
+
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string
@@ -739,7 +769,7 @@ class DecimalValue(NumericValue):
     @classmethod
     def edm_type(cls):
         type_def = cls.new_type()
-        type_def.set_base(edm_primitive_type)
+        type_def.set_base(types.PrimitiveType.edm_base)
         type_def.set_precision(None, -1, can_override=True)
         return type_def
 
@@ -769,6 +799,10 @@ class DoubleValue(FloatValue):
     DECIMAL_MAX = decimal.Decimal(repr(MAX))
     DECIMAL_MIN = decimal.Decimal(repr(MIN))
 
+    @classmethod
+    def new_type(cls):
+        return types.DoubleType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_double
@@ -793,6 +827,10 @@ class Int16Value(IntegerValue):
         _pytype = long2 if MAX > sys.maxint else int
     else:
         _pytype = int
+
+    @classmethod
+    def new_type(cls):
+        return types.Int16Type(value_type=cls)
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -819,6 +857,10 @@ class Int32Value(IntegerValue):
     else:
         _pytype = int
 
+    @classmethod
+    def new_type(cls):
+        return types.Int32Type(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_int32
@@ -844,6 +886,10 @@ class Int64Value(IntegerValue):
     else:
         _pytype = int
 
+    @classmethod
+    def new_type(cls):
+        return types.Int64Type(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_int64
@@ -865,6 +911,10 @@ class SByteValue(IntegerValue):
     MAX = 127
 
     _pytype = int
+
+    @classmethod
+    def new_type(cls):
+        return types.SByteType(value_type=cls)
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -900,6 +950,10 @@ class SingleValue(FloatValue):
 
     DECIMAL_MAX = decimal.Decimal(repr(MAX))
     DECIMAL_MIN = decimal.Decimal(repr(MIN))
+
+    @classmethod
+    def new_type(cls):
+        return types.SingleType(value_type=cls)
 
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
@@ -937,6 +991,10 @@ class DateValue(PrimitiveValue):
 
     key_type = True
 
+    @classmethod
+    def new_type(cls):
+        return types.DateType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_date
@@ -959,6 +1017,12 @@ class DateValue(PrimitiveValue):
         else:
             raise TypeError("Can't set Date from %s" % repr(value))
         self.touch()
+
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.DateExpression(self.value)
 
     @classmethod
     def from_str(cls, src):
@@ -1112,6 +1176,12 @@ class DateTimeOffsetValue(PrimitiveValue):
             raise TypeError("Can't set DateTimeOffset from %s" % repr(value))
         self.touch()
 
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.DateTimeOffsetExpression(self.value)
+
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
@@ -1132,7 +1202,7 @@ class DateTimeOffsetValue(PrimitiveValue):
     @classmethod
     def edm_type(cls):
         type_def = cls.new_type()
-        type_def.set_base(edm_primitive_type)
+        type_def.set_base(types.PrimitiveType.edm_base)
         type_def.set_precision(6, can_override=True)
         return type_def
 
@@ -1181,6 +1251,12 @@ class DurationValue(PrimitiveValue):
             raise TypeError("Can't set Duration from %s" % repr(value))
         self.touch()
 
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.DurationExpression(self.value)
+
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string
@@ -1206,7 +1282,7 @@ class DurationValue(PrimitiveValue):
     @classmethod
     def edm_type(cls):
         type_def = cls.new_type()
-        type_def.set_base(edm_primitive_type)
+        type_def.set_base(types.PrimitiveType.edm_base)
         type_def.set_precision(6, can_override=True)
         return type_def
 
@@ -1231,6 +1307,10 @@ class GuidValue(PrimitiveValue):
 
     key_type = True
 
+    @classmethod
+    def new_type(cls):
+        return types.GuidType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
             type_def = edm_guid
@@ -1251,6 +1331,12 @@ class GuidValue(PrimitiveValue):
         else:
             raise TypeError("Can't set Guid from %s" % repr(value))
         self.touch()
+
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.GuidExpression(self.value)
 
     @classmethod
     def from_str(cls, src):
@@ -1347,6 +1433,12 @@ class StringValue(PrimitiveValue):
                 raise ValueError("MaxLength exceeded for string value")
             self.value = new_value
         self.touch()
+
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.StringExpression(self.value)
 
     def assign(self, value):
         """Sets this value from another Value instance.."""
@@ -1452,6 +1544,12 @@ class TimeOfDayValue(PrimitiveValue):
             raise TypeError("Can't set TimeOfDay from %s" % repr(value))
         self.touch()
 
+    def get_value_expression(self):
+        if self.value is None:
+            return comex.NullExpression()
+        else:
+            return comex.TimeOfDayExpression(self.value)
+
     @classmethod
     def from_str(cls, src):
         """Constructs a value from a string"""
@@ -1472,7 +1570,7 @@ class TimeOfDayValue(PrimitiveValue):
     @classmethod
     def edm_type(cls):
         type_def = types.TimeOfDayType(value_type=cls)
-        type_def.set_base(edm_primitive_type)
+        type_def.set_base(types.PrimitiveType.edm_base)
         type_def.value_type = cls
         type_def.set_precision(6, can_override=True)
         return type_def
@@ -1721,76 +1819,154 @@ class GeographyValue(PrimitiveValue):
             return "geography'%s'" % to_text(self)
 
     @classmethod
+    def from_value(cls, value):
+        """Constructs a primitive geography value from a geo type
+
+        The returned type depends on the input value:
+
+        None
+            A type-less null (GeographyValue instance)
+        pyslet.odata4.geotypes.PointLiteral instance
+            GeographyPointValue instance.
+        pyslet.odata4.geotypes.LineStringLiteral instance
+            GeographyLineStringValue instance.
+        pyslet.odata4.geotypes.PolygonLiteral instance
+            GeographyPolygonValue instance.
+        pyslet.odata4.geotypes.MultiPointLiteral instance
+            GeographyMultiPointValue instance.
+        pyslet.odata4.geotypes.MultiLineStringLiteral instance
+            GeographyMultiLineStringValue instance.
+        pyslet.odata4.geotypes.MultiPolygonLiteral instance
+            GeographyMultiPolygonValue instance.
+        pyslet.odata4.geotypes.GeoCollectionLiteral instance
+            GeographyCollectionValue instance.
+
+        All other input values raise TypeError."""
+        if value is None:
+            result = GeographyValue()
+        elif isinstance(value, geo.PointLiteral):
+            result = GeographyPointValue()
+            result.set_value(value)
+        elif isinstance(value, geo.LineStringLiteral):
+            result = GeographyLineStringValue()
+            result.set_value(value)
+        elif isinstance(value, geo.PolygonLiteral):
+            result = GeographyPolygonValue()
+            result.set_value(value)
+        elif isinstance(value, geo.MultiPointLiteral):
+            result = GeographyMultiPointValue()
+            result.set_value(value)
+        elif isinstance(value, geo.MultiLineStringLiteral):
+            result = GeographyMultiLineStringValue()
+            result.set_value(value)
+        elif isinstance(value, geo.MultiPolygonLiteral):
+            result = GeographyMultiPolygonValue()
+            result.set_value(value)
+        elif isinstance(value, geo.GeoCollectionLiteral):
+            result = GeographyCollectionValue()
+            result.set_value(value)
+        else:
+            raise TypeError
+        return result
+
+    @classmethod
     def edm_type(cls):
         type_def = cls.new_type()
         if cls is GeographyValue:
-            type_def.set_base(edm_primitive_type)
+            type_def.set_base(types.PrimitiveType.edm_base)
             type_def.set_abstract(True)
         else:
-            type_def.set_base(edm_geography)
-        # type_def.set_srid(4326, can_override=True)
+            type_def.set_base(types.GeographyType.edm_base)
         return type_def
 
 
 class GeographyPointValue(PointValue, GeographyValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeographyPointType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geography_point
+            type_def = types.GeographyPointType.edm_base
         super(GeographyPointValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeographyLineStringValue(LineStringValue, GeographyValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeographyLineStringType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geography_line_string
+            type_def = types.GeographyLineStringType.edm_base
         super(GeographyLineStringValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeographyPolygonValue(PolygonValue, GeographyValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeographyPolygonType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geography_polygon
+            type_def = types.GeographyPolygonType.edm_base
         super(GeographyPolygonValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeographyMultiPointValue(MultiPointValue, GeographyValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeographyMultiPointType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geography_multi_point
+            type_def = types.GeographyMultiPointType.edm_base
         super(GeographyMultiPointValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeographyMultiLineStringValue(MultiLineStringValue, GeographyValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeographyMultiLineStringType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geography_multi_line_string
+            type_def = types.GeographyMultiLineStringType.edm_base
         super(GeographyMultiLineStringValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeographyMultiPolygonValue(MultiPolygonValue, GeographyValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeographyMultiPolygonType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geography_multi_polygon
+            type_def = types.GeographyMultiPolygonType.edm_base
         super(GeographyMultiPolygonValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeographyCollectionValue(GeoCollectionValue, GeographyValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeographyCollectionType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geography_collection
+            type_def = types.GeographyCollectionType.edm_base
         super(GeographyCollectionValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
@@ -1813,83 +1989,285 @@ class GeometryValue(PrimitiveValue):
             return "geometry'%s'" % to_text(self)
 
     @classmethod
+    def from_value(cls, value):
+        """Constructs a primitive geometry value from a geo type
+
+        The returned type depends on the input value:
+
+        None
+            A type-less null (GeometryValue instance)
+        pyslet.odata4.geotypes.PointLiteral instance
+            GeometryPointValue instance.
+        pyslet.odata4.geotypes.LineStringLiteral instance
+            GeometryLineStringValue instance.
+        pyslet.odata4.geotypes.PolygonLiteral instance
+            GeometryPolygonValue instance.
+        pyslet.odata4.geotypes.MultiPointLiteral instance
+            GeometryMultiPointValue instance.
+        pyslet.odata4.geotypes.MultiLineStringLiteral instance
+            GeometryMultiLineStringValue instance.
+        pyslet.odata4.geotypes.MultiPolygonLiteral instance
+            GeometryMultiPolygonValue instance.
+        pyslet.odata4.geotypes.GeoCollectionLiteral instance
+            GeometryCollectionValue instance.
+
+        All other input values raise TypeError."""
+        if value is None:
+            result = GeometryValue()
+        elif isinstance(value, geo.PointLiteral):
+            result = GeometryPointValue()
+            result.set_value(value)
+        elif isinstance(value, geo.LineStringLiteral):
+            result = GeometryLineStringValue()
+            result.set_value(value)
+        elif isinstance(value, geo.PolygonLiteral):
+            result = GeometryPolygonValue()
+            result.set_value(value)
+        elif isinstance(value, geo.MultiPointLiteral):
+            result = GeometryMultiPointValue()
+            result.set_value(value)
+        elif isinstance(value, geo.MultiLineStringLiteral):
+            result = GeometryMultiLineStringValue()
+            result.set_value(value)
+        elif isinstance(value, geo.MultiPolygonLiteral):
+            result = GeometryMultiPolygonValue()
+            result.set_value(value)
+        elif isinstance(value, geo.GeoCollectionLiteral):
+            result = GeometryCollectionValue()
+            result.set_value(value)
+        else:
+            raise TypeError
+        return result
+
+    @classmethod
     def edm_type(cls):
         type_def = cls.new_type()
         if cls is GeometryValue:
-            type_def.set_base(edm_primitive_type)
+            type_def.set_base(types.PrimitiveType.edm_base)
             type_def.set_abstract(True)
         else:
-            type_def.set_base(edm_geometry)
-        # type_def.set_srid(0, can_override=True)
+            type_def.set_base(types.GeometryType.edm_base)
         return type_def
 
 
 class GeometryPointValue(PointValue, GeometryValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeometryPointType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geometry_point
+            type_def = types.GeometryPointType.edm_base
         super(GeometryPointValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeometryLineStringValue(LineStringValue, GeometryValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeometryLineStringType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geometry_line_string
+            type_def = types.GeometryLineStringType.edm_base
         super(GeometryLineStringValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeometryPolygonValue(PolygonValue, GeometryValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeometryPolygonType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geometry_polygon
+            type_def = types.GeometryPolygonType.edm_base
         super(GeometryPolygonValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeometryMultiPointValue(MultiPointValue, GeometryValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeometryMultiPointType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geometry_multi_point
+            type_def = types.GeometryMultiPointType.edm_base
         super(GeometryMultiPointValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeometryMultiLineStringValue(MultiLineStringValue, GeometryValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeometryMultiLineStringType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geometry_multi_line_string
+            type_def = types.GeometryMultiLineStringType.edm_base
         super(GeometryMultiLineStringValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeometryMultiPolygonValue(MultiPolygonValue, GeometryValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeometryMultiPolygonType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geometry_multi_polygon
+            type_def = types.GeometryMultiPolygonType.edm_base
         super(GeometryMultiPolygonValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
 
 
 class GeometryCollectionValue(GeoCollectionValue, GeometryValue):
 
+    @classmethod
+    def new_type(cls):
+        return types.GeometryCollectionType(value_type=cls)
+
     def __init__(self, value=None, type_def=None, **kwargs):
         if type_def is None:
-            type_def = edm_geometry_collection
+            type_def = types.GeometryCollectionType.edm_base
         super(GeometryCollectionValue, self).__init__(
             value=value, type_def=type_def, **kwargs)
+
+
+class EnumerationValue(PrimitiveValue):
+
+    """Represents the value of an Enumeration type"""
+
+    #: enumeration values are allowed as keys
+    key_type = True
+
+    @classmethod
+    def new_type(cls):
+        type_def = types.EnumerationType(
+            value_type=cls, underlying_type=edm_int32)
+        # all enumeration types are derived from primitive type
+        type_def.set_base(types.PrimitiveType.edm_base)
+        return type_def
+
+    def __init__(self, value=None, **kwargs):
+        super(EnumerationValue, self).__init__(**kwargs)
+        self.value = None
+        if value is not None:
+            self.set_value(value)
+
+    def is_null(self):
+        return self.value is None
+
+    def __unicode__(self):
+        if self.value is None:
+            raise ValueError("null value has no text representation")
+        elif self.type_def.is_flags:
+            return ul(',').join([v.name for
+                                 v in self.type_def.lookup_flags(self.value)])
+        else:
+            return self.type_def.lookup(self.value).name
+
+    def literal_string(self):
+        """Returns the literal string representation of the value
+
+        The literal string representation of an enum value is the
+        qualified name of the enum type followed by the quoted enum
+        value."""
+        if self.value is None:
+            return "null"
+        else:
+            return "%s'%s'" % (self.type_def.qname, to_text(self))
+
+    def get_value(self):
+        """Returns a representation of the value
+
+        The result is a string or, for flags enumerations, a tuple
+        of strings or None if the value is null."""
+        if self.value is None:
+            return None
+        elif self.type_def.is_flags:
+            return tuple(
+                m.name for m in self.type_def.lookup_flags(self.value))
+        else:
+            return self.type_def.lookup(self.value).name
+
+    def set_value(self, value):
+        """Sets the value from a python 'native' value representation
+
+        Accepts None (meaning null), integer, string or iterable objects
+        that yield integer and/or strings (mixtures are acceptable).
+        Other types raise TypeError.
+
+        Strings and values are converted to enum members through look-up
+        and (for flags) bitwise OR operation.  If a value is not
+        defined in the enumeration then ValueError is raised.  Note
+        that with flags enumerations you may *only* set the (integer) value
+        to an integer representing multiple flags *if* that value has
+        a defined name.  For example, if you have Red=1 and Blue=2 as
+        members then you may::
+
+            v.set_value(1)
+            v.set_value(2)
+            v.set_value((1, 2))
+
+        however, you may *not*::
+
+            v.set_value(3)
+
+        This rule has implications for the use of 0 which, for a flags
+        enumeration, means no flags are set.  You *must* define a member
+        with value of 0 if you want to use this value.  E.g., extending
+        the above example define Black=0 if you want to do this::
+
+            v.set_value(0)"""
+        if value is None:
+            self.value = value
+        elif is_text(value) or isinstance(value, (int, long2)):
+            self.value = self.type_def.lookup(value).value
+        elif self.type_def.is_flags:
+            # iterate over the values
+            total_value = 0
+            count = 0
+            try:
+                for v in value:
+                    count += 1
+                    total_value |= self.type_def.lookup(v).value
+            except TypeError:
+                raise TypeError("int, str or iterable thereof required")
+            if not count:
+                raise ValueError("Enum member name or value expected")
+            self.value = total_value
+        else:
+            raise TypeError("Enum member or value expected")
+
+    def value_from_str(self, src):
+        """Constructs an enumeration value from a source string"""
+        p = parser.Parser(src)
+        mlist = p.require_enum_value()
+        p.require_end()
+        if not self.type_def.is_flags:
+            if len(mlist) != 1:
+                raise errors.ModelError(
+                    "Enum member: expected single name or value")
+            self.set_value(mlist[0])
+        else:
+            self.set_value(mlist)
 
 
 class PathValue(PrimitiveValue):
 
     """Class to represent a path-type value in OData"""
+
+    @classmethod
+    def new_type(cls):
+        return types.PathType(value_type=cls)
 
     def assign(self, value):
         """Sets this value from another PathValue instance.
@@ -1991,40 +2369,44 @@ class NavigationPropertyPathValue(PathValue):
         self.touch()
 
 
-edm_primitive_type = PrimitiveValue.edm_type()
-edm_binary = BinaryValue.edm_type()
-edm_boolean = BooleanValue.edm_type()
-edm_byte = ByteValue.edm_type()
-edm_date = DateValue.edm_type()
-edm_date_time_offset = DateTimeOffsetValue.edm_type()
-edm_decimal = DecimalValue.edm_type()
-edm_double = DoubleValue.edm_type()
-edm_duration = DurationValue.edm_type()
-edm_guid = GuidValue.edm_type()
-edm_int16 = Int16Value.edm_type()
-edm_int32 = Int32Value.edm_type()
-edm_int64 = Int64Value.edm_type()
-edm_single = SingleValue.edm_type()
-edm_sbyte = SByteValue.edm_type()
-edm_stream = StreamValue.edm_type()
-edm_string = StringValue.edm_type()
-edm_time_of_day = TimeOfDayValue.edm_type()
-edm_geography = GeographyValue.edm_type()
-edm_geography_point = GeographyPointValue.edm_type()
-edm_geography_line_string = GeographyLineStringValue.edm_type()
-edm_geography_polygon = GeographyPolygonValue.edm_type()
-edm_geography_multi_point = GeographyMultiPointValue.edm_type()
-edm_geography_multi_line_string = GeographyMultiLineStringValue.edm_type()
-edm_geography_multi_polygon = GeographyMultiPolygonValue.edm_type()
-edm_geography_collection = GeographyCollectionValue.edm_type()
-edm_geometry = GeometryValue.edm_type()
-edm_geometry_point = GeometryPointValue.edm_type()
-edm_geometry_line_string = GeometryLineStringValue.edm_type()
-edm_geometry_polygon = GeometryPolygonValue.edm_type()
-edm_geometry_multi_point = GeometryMultiPointValue.edm_type()
-edm_geometry_multi_line_string = GeometryMultiLineStringValue.edm_type()
-edm_geometry_multi_polygon = GeometryMultiPolygonValue.edm_type()
-edm_geometry_collection = GeometryCollectionValue.edm_type()
+edm_primitive_type = types.PrimitiveType.edm_base = PrimitiveValue.edm_type()
+edm_binary = types.BinaryType.edm_base = BinaryValue.edm_type()
+edm_boolean = types.BooleanType.edm_base = BooleanValue.edm_type()
+edm_byte = types.ByteType.edm_base = ByteValue.edm_type()
+edm_date = types.DateType.edm_base = DateValue.edm_type()
+edm_date_time_offset = types.DateTimeOffsetType.edm_base = \
+    DateTimeOffsetValue.edm_type()
+edm_decimal = types.DecimalType.edm_base = DecimalValue.edm_type()
+edm_double = types.DoubleType.edm_base = DoubleValue.edm_type()
+edm_duration = types.DurationType.edm_base = DurationValue.edm_type()
+edm_guid = types.GuidType.edm_base = GuidValue.edm_type()
+edm_int16 = types.Int16Type.edm_base = Int16Value.edm_type()
+edm_int32 = types.Int32Type.edm_base = Int32Value.edm_type()
+edm_int64 = types.Int64Type.edm_base = Int64Value.edm_type()
+edm_single = types.SingleType.edm_base = SingleValue.edm_type()
+edm_sbyte = types.SByteType.edm_base = SByteValue.edm_type()
+edm_stream = types.StreamType.edm_base = StreamValue.edm_type()
+edm_string = types.StringType.edm_base = StringValue.edm_type()
+edm_time_of_day = types.TimeOfDayType.edm_base = TimeOfDayValue.edm_type()
+edm_geography = types.GeographyType.edm_base = GeographyValue.edm_type()
+types.GeographyPointType.edm_base = GeographyPointValue.edm_type()
+types.GeographyLineStringType.edm_base = GeographyLineStringValue.edm_type()
+types.GeographyPolygonType.edm_base = GeographyPolygonValue.edm_type()
+types.GeographyMultiPointType.edm_base = GeographyMultiPointValue.edm_type()
+types.GeographyMultiLineStringType.edm_base = \
+    GeographyMultiLineStringValue.edm_type()
+types.GeographyMultiPolygonType.edm_base = \
+    GeographyMultiPolygonValue.edm_type()
+types.GeographyCollectionType.edm_base = GeographyCollectionValue.edm_type()
+types.GeometryType.edm_base = GeometryValue.edm_type()
+types.GeometryPointType.edm_base = GeometryPointValue.edm_type()
+types.GeometryLineStringType.edm_base = GeometryLineStringValue.edm_type()
+types.GeometryPolygonType.edm_base = GeometryPolygonValue.edm_type()
+types.GeometryMultiPointType.edm_base = GeometryMultiPointValue.edm_type()
+types.GeometryMultiLineStringType.edm_base = \
+    GeometryMultiLineStringValue.edm_type()
+types.GeometryMultiPolygonType.edm_base = GeometryMultiPolygonValue.edm_type()
+types.GeometryCollectionType.edm_base = GeometryCollectionValue.edm_type()
 # vocabulary only types are derived from StringValue
 edm_annotation_path = AnnotationPathValue.edm_type()
 edm_navigation_property_path = NavigationPropertyPathValue.edm_type()

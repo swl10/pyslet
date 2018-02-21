@@ -159,6 +159,7 @@ class TripPinTests(unittest.TestCase):
                          to_text(t['EndsAt']))
         # System Query Option $top and $skip
         people.set_orderby(None)
+        import pdb;pdb.set_trace()
         people.collapse('Trips')
         people.set_page(2)
         two_people = people.values()
@@ -200,7 +201,7 @@ class TripPinTests(unittest.TestCase):
         self.assertTrue(len(russellwhyte['Trips']) == 3)
         for t in russellwhyte['Trips']:
             # just two properties
-            self.assertTrue(len(t) == 2)
+            self.assertTrue(len(t) == 2, repr(t.keys()))
             logging.info("TripName: %s (%i)", t["Name"].get_value(),
                          t["TripId"].get_value())
         # get rid of all the options

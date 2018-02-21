@@ -13,6 +13,9 @@
                 <Property Name="IsFemale" Type="Edm.Boolean"/>
                 <Annotation Term="Vocab.Gender">
                     <If>
+                    	<!-- The first child element is the conditional
+                    	expression and MUST evaluate to a Boolean result
+                    	-->
                         <Path>Name</Path>
                         <String>Female</String>
                         <String>Male</String>

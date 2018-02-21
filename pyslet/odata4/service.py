@@ -3,13 +3,16 @@
 import logging
 
 from . import (
+    comex,
     data,
     errors,
+    evaluator,
     metadata as csdlxml,
     model as csdl,
     names,
     parser,
     primitive,
+    query,
     types,
     )
 from ..py2 import (
@@ -154,7 +157,7 @@ class DataService(object):
         return ODataURL(self)
 
     def url_from_str(self, src):
-        """Creates an OData URL from a character src string
+        """Creates an OData URL from a character string
 
         src
             A character string representing the *encoded* URL."""
@@ -235,7 +238,7 @@ class DataService(object):
     def resolve_type(self, type_url):
         """Resolves an odata.type URL to a type definition
 
-        odata_type
+        type_url
             An :class:`pyslet.rfc2396.URI` instance containing the
             URL of the type."""
         # express this relative to our context
@@ -317,6 +320,36 @@ class DataService(object):
         result of of the request is an entity object or an appropriate
         exception."""
         raise NotImplementedError
+
+    def indexable_by_key(self, entity_set):
+        """Determines whether or not an entity set is indexable by key
+
+        entity_set
+            An EntitySetValue object bound to this service.  This can be
+            an entity set exposed by the service in the container or an
+            entity collection obtained through navigation.
+
+        The entity_set value must be bound to an EntitySet in the
+        container to be indexable, we also check the
+        Org.OData.Capabilities.V1.IndexableByKey annotation of that
+        EntitySet.  If this annotation has not been applied, the usual
+        case, then we return True despite encouragement in the
+        specification to return False.  In practice, this annotation is
+        not widely used despite (almost?) all services exposing
+        indexable entity sets."""
+        binding = entity_set.entity_binding
+        if binding is not None:
+            result = True
+            a = binding.annotations.qualified_get(
+                "Org.OData.Capabilities.V1.IndexableByKey")
+            if a is not None:
+                result = evaluator.Evaluator.evaluate_annotation(
+                    a, binding).get_value()
+            if result is not False:
+                result = True
+        else:
+            result = False
+        return result
 
     def get_collection(self, collection, next_link=None):
         """Creates a request to get a general collection
@@ -615,7 +648,7 @@ class DataService(object):
             type cast filter to determine the type of object to return.
 
         options
-            An optional :class:`types.EntityOptions` object.
+            An optional :class:`query.EntityOptions` object.
 
         Returns a :class:`DataRequest` instance.  When executed, the
         result of the request is an :class:`data.EntityValue` or an
@@ -840,7 +873,7 @@ class ODataURL(object):
         #: the query options, a dictionary mapping text -> text strings
         self.query_options = {}
         #: the property options represented in the query
-        self.sys_query_options = types.SystemQueryOptions()
+        self.sys_query_options = query.SystemQueryOptions()
         #: the fragment
         self.fragment = None
 
@@ -898,7 +931,7 @@ class ODataURL(object):
             kp_str = "(%s)" % ",".join(
                 "%s=%s" % (n, v.literal_string()) for n, v in key_dict.items())
         else:
-            kp_str = "(%s)" % key_dict[""].literal_string()
+            kp_str = "(%s)" % next(iter(key_dict.values())).literal_string()
         self.resource_path[index] += kp_str
 
     def add_inline_params(self, params):
@@ -939,65 +972,18 @@ class ODataURL(object):
         """Set the expand system query option
 
         expand
-            A list of :class:`types.ExpandItem`."""
+            A list of :class:`query.ExpandItem`."""
         self.sys_query_options.clear_expand()
         if expand:
             for item in expand:
                 self.sys_query_options.add_expand_item(item)
             self.query_options['$expand'] = ",".join(
-                self.expand_item_to_str(i) for i in expand)
+                to_text(i) for i in expand)
         else:
             try:
                 del self.query_options['$expand']
             except KeyError:
                 pass
-
-    @staticmethod
-    def expand_item_to_str(expand_item):
-        result = []
-        result.append(names.path_to_str(expand_item.path))
-        if expand_item.type_cast:
-            result.append("/")
-            result.append(to_text(expand_item.type_cast))
-        if expand_item.qualifier:
-            result.append("/$")
-            result.append(names.PathQualifier.to_str(expand_item.qualifier))
-        # now go through the options
-        options = []
-        if expand_item.options.select:
-            options.append("$select=" + ",".join(
-                            ODataURL.select_item_to_str(i)
-                            for i in expand_item.options.select))
-        if expand_item.options.expand:
-            options.append("$expand=" + ",".join(
-                            ODataURL.expand_item_to_str(i)
-                            for i in expand_item.options.expand))
-        if expand_item.options.top:
-            options.append("$top=%i" % expand_item.options.top)
-        if expand_item.options.skip:
-            options.append("$skip=%i" % expand_item.options.skip)
-        if expand_item.options.count is not None:
-            options.append("$count=%s" %
-                           ("true" if expand_item.options.count else "false"))
-        if expand_item.options.filter:
-            options.append(
-                "$filter=%s" %
-                ODataURL.expr_to_str(expand_item.options.filter))
-        if expand_item.options.search:
-            options.append(
-                "$search=%s" %
-                ODataURL.search_expr_to_str(expand_item.options.search))
-        if expand_item.options.orderby:
-            options.append(
-                "$orderby=%s" %
-                ODataURL.orderby_to_str(expand_item.options.orderby))
-        if expand_item.options.levels is not None:
-            options.append("$levels=%i" % expand_item.options.levels)
-        if options:
-            result.append("(")
-            result.append(";".join(options))
-            result.append(")")
-        return "".join(result)
 
     def set_select(self, select):
         """Set the select system query option
@@ -1009,21 +995,12 @@ class ODataURL(object):
             for item in select:
                 self.sys_query_options.add_select_item(item)
             self.query_options['$select'] = ",".join(
-                self.select_item_to_str(i) for i in select)
+                to_text(i) for i in select)
         else:
             try:
                 del self.query_options['$select']
             except KeyError:
                 pass
-
-    @staticmethod
-    def select_item_to_str(select_item):
-        result = []
-        result.append(names.path_to_str(select_item.path))
-        if select_item.type_cast:
-            result.append("/")
-            result.append(to_text(select_item.type_cast))
-        return "".join(result)
 
     def add_filter(self, filter):
         """Adds a filter to the query options
@@ -1046,13 +1023,13 @@ class ODataURL(object):
         """Adds an orderby clause to the query options
 
         orderby
-            An iterable of :class:`types.OrderbyItem` instances.
+            An iterable of :class:`query.OrderbyItem` instances.
 
         The value is stored in the :attr:`sys_query_options` *and*
         converted to a string and stored in the query_options
         dictionary."""
         self.sys_query_options.set_orderby(orderby)
-        if orderby is None:
+        if not orderby:
             self.query_options.pop('$orderby', None)
         else:
             self.query_options['$orderby'] = self.orderby_to_str(orderby)
@@ -1093,13 +1070,14 @@ class ODataURL(object):
 
     @staticmethod
     def expr_to_str(expr):
-        if isinstance(expr, types.CallExpression):
+        return comex.ExpressionFormatter().evaluate(expr)[1]
+        if isinstance(expr, comex.CallExpression):
             # binds strongly so is never bracketed but arguments are
             # bracketed and don't need further bracketing even though
             # they are weaker than us
             return expr.format_expr(
                 [ODataURL.expr_to_str(op) for op in expr.operands])
-        elif isinstance(expr, types.OperatorExpression):
+        elif isinstance(expr, comex.OperatorExpression):
             ops = []
             for op in expr.operands:
                 op_str = ODataURL.expr_to_str(op)
@@ -1111,16 +1089,15 @@ class ODataURL(object):
                     op_str = "(%s)" % op_str
                 ops.append(op_str)
             return expr.format_expr(ops)
-        elif isinstance(expr, types.LiteralExpression):
+        elif isinstance(expr, comex.LiteralExpression):
             if isinstance(expr.value, names.EnumLiteral):
                 return to_text(expr.value)
             else:
                 return primitive.PrimitiveValue.from_value(
                     expr.value).literal_string()
-        elif isinstance(
-                expr, (types.NameExpression, types.ReservedExpression)):
-            return expr.name
-        elif isinstance(expr, types.WordExpression):
+        elif isinstance(expr, comex.IdentifierExpression):
+            return expr.identifier
+        elif isinstance(expr, comex.WordExpression):
             # not allowed in a normal expression
             raise errors.ODataError("Unexpected WordExpression")
         else:

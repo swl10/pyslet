@@ -10,6 +10,7 @@ from pyslet import iso8601 as iso
 from pyslet.odata4 import (
     data,
     errors,
+    evaluator,
     geotypes as geo,
     model as odata,
     metadata as csdl,
@@ -353,7 +354,7 @@ class CSDLDocumentTests(unittest.TestCase):
             ('StringTest', primitive.StringValue, "Fish&Chips"),
             ('TimeOfDayTest', primitive.TimeOfDayValue,
              iso.Time(hour=4, minute=20, second=0)),
-            ('EnumTest', odata.EnumerationValue, 1)
+            ('EnumTest', primitive.EnumerationValue, 1)
             )
         for pname, ptype, default in data:
             p = s['DefaultTest'][pname]
@@ -520,7 +521,8 @@ class CSDLDocumentTests(unittest.TestCase):
         # check the labelled expression is declared
         expr = em['test.pyslet.org']['CustomerFirstName']
         self.assertTrue(isinstance(expr, types.LabeledExpression))
-        a = odata.Evaluator(customer, em=em).evaluate(expr.expression)
+        a = evaluator.Evaluator(
+            it=customer, model=em).evaluate(expr.expression)
         self.assertTrue(isinstance(a, primitive.StringValue))
         self.assertTrue(a.get_value() == "Cuthbert")
         # check that the reference works

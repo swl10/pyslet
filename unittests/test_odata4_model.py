@@ -1,10 +1,10 @@
 #! /usr/bin/env python
 
+from decimal import Decimal
 import logging
 import unittest
 import uuid
 
-from decimal import Decimal
 
 from pyslet.iso8601 import (
     Date,
@@ -18,12 +18,11 @@ from pyslet.odata4 import (
     metadata as csdl,
     model as odata,
     names,
-    parser,
     primitive,
+    query,
     types,
     )
 from pyslet.py2 import (
-    to_text,
     u8,
     ul,
     )
@@ -40,8 +39,6 @@ def suite():
         unittest.makeSuite(CollectionTests, 'test'),
         unittest.makeSuite(StructuredValueTests, 'test'),
         unittest.makeSuite(EntitySetTests, 'test'),
-        unittest.makeSuite(EnumerationTests, 'test'),
-        unittest.makeSuite(EvaluatorTests, 'test'),
         ))
 
 
@@ -710,9 +707,9 @@ class StructuredValueTests(unittest.TestCase):
 
     def test_navigation(self):
         sv = data.StructuredValue(type_def=self.em['Schema']['TypeA'])
-        options = types.EntityOptions()
+        options = query.EntityOptions()
         # suppress structural properties
-        options.select_default = False
+        options._select_default = False
         # expand all navigation properties
         options.add_expand_path("*")
         sv._set_options(options)
@@ -793,368 +790,28 @@ class EntitySetTests(unittest.TestCase):
         self.s.close()
         self.em.close()
 
-    def test_constructor(self):
-        es = odata.EntitySet()
-        self.assertTrue(es.indexable_by_key() is True)
+#     def test_constructor(self):
+#         es = odata.EntitySet()
+#         self.assertTrue(es.indexable_by_key() is True)
+#
+#     def test_indexable(self):
+#         es = odata.EntitySet()
+#         a = types.Annotation.from_term_ref(
+#                 names.TermRef.from_str(
+#                     "@Org.OData.Capabilities.V1.IndexableByKey"), self.em)
+#         a.set_expression(comex.BooleanExpression(True))
+#         es.annotate(a)
+#         self.assertTrue(es.indexable_by_key() is True)
+#         es = odata.EntitySet()
+#         # by default, entity sets are indexable by key
+#         self.assertTrue(es.indexable_by_key() is True)
+#         a = types.Annotation.from_term_ref(
+#                 names.TermRef.from_str(
+#                     "@Org.OData.Capabilities.V1.IndexableByKey"), self.em)
+#         a.set_expression(comex.BooleanExpression(False))
+#         es.annotate(a)
+#         self.assertTrue(es.indexable_by_key() is False)
 
-    def test_indexable(self):
-        es = odata.EntitySet()
-        a = types.Annotation.from_term_ref(
-                names.TermRef.from_str(
-                    "@Org.OData.Capabilities.V1.IndexableByKey"), self.em)
-        a.set_expression(types.LiteralExpression(True))
-        es.annotate(a)
-        self.assertTrue(es.indexable_by_key() is True)
-        es = odata.EntitySet()
-        # by default, entity sets are indexable by key
-        self.assertTrue(es.indexable_by_key() is True)
-        a = types.Annotation.from_term_ref(
-                names.TermRef.from_str(
-                    "@Org.OData.Capabilities.V1.IndexableByKey"), self.em)
-        a.set_expression(types.LiteralExpression(False))
-        es.annotate(a)
-        self.assertTrue(es.indexable_by_key() is False)
-
-
-class EnumerationTests(unittest.TestCase):
-
-    def test_constructor(self):
-        # enumeration types are wrappers for one of a limited number of
-        # integer types: Edm.Byte, Edm.SByte, Edm.Int16, Edm.Int32, or
-        # Edm.Int64 - defaulting to Edm.Int32
-        et = odata.EnumerationValue.new_type()
-        self.assertTrue(isinstance(et, types.NominalType),
-                        "Enumeration types are nominal types")
-        self.assertTrue(isinstance(et, names.NameTable),
-                        "Enumeration types define scope for members")
-        self.assertTrue(et.base is odata.edm['PrimitiveType'],
-                        "base type is Edm.PrimitiveType")
-        self.assertTrue(et.underlying_type is odata.edm['Int32'],
-                        "Default underlying type is Int32")
-        self.assertTrue(et.assigned_values is None,
-                        "Whether or not")
-        self.assertTrue(et.is_flags is False, "Default to no flags")
-        self.assertTrue(isinstance(et.members, list), "Members type")
-        self.assertTrue(len(et.members) == 0, "No Members")
-        for base in ('Byte', 'SByte', 'Int16', 'Int32', 'Int64'):
-            et = odata.EnumerationValue.new_type()
-            et.set_underlying_type(odata.edm[base])
-            self.assertTrue(et.underlying_type is odata.edm[base])
-        for base in ('Binary', 'String', 'Guid', 'Double', 'Decimal'):
-            try:
-                et = odata.EnumerationValue.new_type()
-                et.set_underlying_type(odata.edm[base])
-                self.fail("EnumerationType(%s) should fail" % base)
-            except errors.ModelError:
-                pass
-
-    def test_declare(self):
-        et = odata.EnumerationValue.new_type()
-        # they require Members with simple identifier names
-        n = types.NominalType(value_type=data.Value)
-        try:
-            n.declare(et, "Dimension")
-            self.fail("NominalType declared in EnumerationType")
-        except TypeError:
-            pass
-        m = types.Member()
-        try:
-            m.declare(et, "Game.Rock")
-            self.fail("Member declared with bad name")
-        except ValueError:
-            pass
-        m.declare(et, "Rock")
-
-    def test_auto_members(self):
-        et = odata.EnumerationValue.new_type()
-        m0 = types.Member()
-        self.assertTrue(m0.value is None, "No value by default")
-        m0.declare(et, "Rock")
-        self.assertTrue(et.assigned_values is True)
-        self.assertTrue(len(et.members) == 1)
-        self.assertTrue(et.members[0] is m0)
-        self.assertTrue(et['Rock'] is m0)
-        self.assertTrue(m0.value == 0, "Auto-assigned starts at 0")
-        m1 = types.Member()
-        m1.declare(et, "Paper")
-        self.assertTrue(m1.value == 1, "Auto-assigned 1")
-        m2 = types.Member()
-        m2.value = 2
-        try:
-            m2.declare(et, "Scissors")
-            self.fail("Can't declare value with auto-assigned enum")
-        except errors.ModelError:
-            pass
-        m2.value = None
-        m2.declare(et, "Scissors")
-        self.assertTrue(m2.value == 2)
-
-    def test_auto_value(self):
-        et = odata.EnumerationValue.new_type()
-        for n in ("Rock", "Paper", "Scissors"):
-            m = types.Member()
-            m.declare(et, n)
-        v = et()
-        self.assertTrue(isinstance(v, odata.EnumerationValue))
-        # is null
-        self.assertFalse(v)
-        self.assertTrue(v.is_null())
-        # we can set from string
-        v.set_value("Rock")
-        self.assertTrue(v.value == 0)
-        try:
-            v.set_value("Red")
-            self.fail("Bad enumeration string")
-        except ValueError:
-            pass
-        # can't set multiple values when is_flags is False
-        try:
-            v.set_value("Rock,Paper")
-            self.fail("Single value required")
-        except ValueError:
-            pass
-        # we can set from an integer
-        v.set_value(1)
-        self.assertTrue(v.value == 1)
-        self.assertTrue(str(v) == "Paper", to_text(v))
-        try:
-            v.set_value(4)
-            self.fail("Enum member must be a member")
-        except ValueError:
-            pass
-        try:
-            v.set_value(3)
-            self.fail("Enum value must be a member (no bitwise or)")
-        except ValueError:
-            pass
-        try:
-            v.set_value(1.0)
-            self.fail("Enum set from float")
-        except TypeError:
-            pass
-
-    def test_manual_members(self):
-        et = odata.EnumerationValue.new_type()
-        m3 = types.Member()
-        m3.value = 3
-        m3.declare(et, "Rock")
-        self.assertTrue(et.assigned_values is False)
-        self.assertTrue(len(et.members) == 1)
-        self.assertTrue(et.members[0] is m3)
-        self.assertTrue(et['Rock'] is m3)
-        self.assertTrue(m3.value == 3, "Manual value 3")
-        m2 = types.Member()
-        m2.value = 2
-        m2.declare(et, "Paper")
-        self.assertTrue(m2.value == 2, "Manual value 2")
-        m1 = types.Member()
-        try:
-            m1.declare(et, "Scissors")
-            self.fail("Manual member requires value")
-        except errors.ModelError:
-            pass
-        m3alt = types.Member()
-        m3alt.value = 3
-        # aliases are OK
-        m3alt.declare(et, "Stone")
-
-    def test_manual_value(self):
-        et = odata.EnumerationValue.new_type()
-        for name, value in (("Rock", 3), ("Paper", 2), ("Scissors", 1)):
-            m = types.Member()
-            m.value = value
-            m.declare(et, name)
-        # we can set from an integer
-        v = et()
-        v.set_value(1)
-        self.assertTrue(v.value == 1)
-        self.assertTrue(str(v) == "Scissors")
-        try:
-            v.set_value(0)
-            self.fail("No zero value")
-        except ValueError:
-            pass
-        v.set_value("Paper")
-        self.assertTrue(v.value == 2)
-
-    def test_flags(self):
-        # If the IsFlags attribute has a value of true, a non-negative
-        # integer value MUST be specified for the Value attribute
-        et = odata.EnumerationValue.new_type()
-        m = types.Member()
-        m.declare(et, "Red")
-        # you can't set is_flags if there are already members
-        try:
-            et.set_is_flags()
-            self.fail("flags with auto-members")
-        except errors.ModelError:
-            pass
-        et = odata.EnumerationValue.new_type()
-        et.set_is_flags()
-        self.assertTrue(et.is_flags is True)
-        self.assertTrue(et.assigned_values is False)
-        m = types.Member()
-        try:
-            m.declare(et, "Red")
-            self.fail("flags requires member values")
-        except errors.ModelError:
-            pass
-        m.value = 1
-        m.declare(et, "Red")
-        m = types.Member()
-        m.value = 2
-        m.declare(et, "Green")
-        self.assertTrue(len(et.members) == 2)
-
-    def test_flag_values(self):
-        et = odata.EnumerationValue.new_type()
-        et.set_is_flags()
-        for name, value in (
-                ("Red", 1), ("Green", 2), ("Blue", 4),
-                ("Yellow", 3), ("Magenta", 5),
-                # ("Cyan", 6),
-                ("White", 7)):
-            m = types.Member()
-            m.value = value
-            m.declare(et, name)
-        v = et()
-        v.set_value(1)
-        self.assertTrue(v.value == 1)
-        self.assertTrue(str(v) == "Red")
-        # you can't use a value that isn't defined even if it makes sense.
-        try:
-            v.set_value(0)
-            self.fail("0 for flags when unspecified")
-        except ValueError:
-            pass
-        v.set_value("White")
-        self.assertTrue(v.value == 7)
-        # when converting to strings, use an exact match if there is one
-        self.assertTrue(str(v) == "White")
-        v.set_value(["Red", "Green"])
-        self.assertTrue(str(v) == "Yellow")
-        v.set_value(["Green", "Blue"])
-        # otherwise use the composed flags preserving definition order
-        self.assertTrue(str(v) == "Green,Blue")
-
-
-class EvaluatorTests(unittest.TestCase):
-
-    def setUp(self):        # noqa
-        self.em = odata.EntityModel()
-        self.s = odata.Schema()
-        self.s.declare(self.em, "test.model")
-        s10 = primitive.edm_string.derive_type()
-        s10.set_base(odata.edm['String'])
-        s10.set_max_length(10)
-        s10.declare(self.s, "String10")
-        self.s.close()
-        self.em.close()
-
-    def test_bool_common_expressions(self):
-        for estr, value in (
-                ("2 eq 2", True),
-                ("2 eq 3", False),
-                ("null eq null", True),
-                ("null eq 3", False),
-                ("2 ne 3", True),
-                ("2 ne 2", False),
-                ("null ne 3", True),
-                ("null ne null", False),
-                ("3 gt 2", True),
-                ("3 gt 3", False),
-                ("2 gt null", None),
-                ("null gt 2", None),
-                ("null gt null", None),
-                # For Boolean Values, true is greater than false
-                ("true gt false", True),
-                ("3 ge 2", True),
-                ("3 ge 3", True),
-                ("3 ge 4", False),
-                ("2 ge null", None),
-                ("null ge 2", None),
-                # If both operands are null it return true
-                ("null ge null", True),
-                ("2 lt 3", True),
-                ("2 lt 2", False),
-                ("2 lt null", None),
-                ("null lt 2", None),
-                ("null lt null", None),
-                ("2 le 3", True),
-                ("2 le 2", True),
-                ("2 le 1", False),
-                ("2 le null", None),
-                ("null le 2", None),
-                # If both operands are null it return true
-                ("null le null", True),
-                ("false and false", False),
-                ("false and true", False),
-                ("true and false", False),
-                ("true and true", True),
-                # if one operand evaluates to null and the other operand
-                # to false the and operator returns false
-                ("false and null", False),
-                ("null and false", False),
-                # all other combinations with null return null
-                ("true and null", None),
-                ("null and true", None),
-                ("null and null", None),
-                ("false or false", False),
-                ("false or true", True),
-                ("true or false", True),
-                ("true or true", True),
-                # if one operand evaluates to null and the other operand
-                # to true the or operator returns true
-                ("true or null", True),
-                ("null or true", True),
-                # All other combinations with null return null
-                ("false or null", None),
-                ("null or false", None),
-                ("null or null", None),
-                ("not true", False),
-                ("not false", True),
-                # not null returns null
-                ("not null", None),
-                ):
-            try:
-                e = parser.Parser(estr).require_bool_common_expr()
-            except parser.ParserError as err:
-                self.fail(
-                    "%s failed to parse: %s" % (repr(estr), to_text(err)))
-            result = odata.Evaluator().evaluate(e)
-            self.assertTrue(isinstance(result, primitive.BooleanValue),
-                            "%s returned %s" % (repr(estr), repr(result)))
-            self.assertTrue(
-                result.value is value, "%s returned %s" %
-                (repr(estr), to_text(result) if result else 'null'))
-
-    def test_cast(self):
-        # The null value can be cast to any type
-        e = parser.Parser("cast(Edm.String)").require_common_expr()
-        it = primitive.Int64Value()
-        result = odata.Evaluator(it).evaluate(e)
-        self.assertTrue(isinstance(result, primitive.StringValue))
-        self.assertTrue(result.is_null())
-        # Primitives use literal representation
-        it.set_value(3)
-        result = odata.Evaluator(it).evaluate(e)
-        self.assertTrue(isinstance(result, primitive.StringValue))
-        self.assertTrue(result.get_value() == "3")
-        # and WKT for Geo types
-        p = geo.PointLiteral(4326, geo.Point(-127.89734578345, 45.234534534))
-        it = primitive.GeographyPointValue(p)
-        result = odata.Evaluator(it).evaluate(e)
-        self.assertTrue(isinstance(result, primitive.StringValue))
-        self.assertTrue(result.get_value() ==
-                        "SRID=4326;Point(-127.89734578345 45.234534534)")
-        # cast fails if the target type specifies insufficient length
-        e = parser.Parser("cast(test.model.String10)").require_common_expr()
-        it = primitive.Int64Value(12345678901)
-        result = odata.Evaluator(it, self.em).evaluate(e)
-        self.assertTrue(isinstance(result, primitive.StringValue))
-        self.assertTrue(result.is_null())
-        # the rest of the cast tests are done by testing the cast
-        # method on the appropriate Value instances.
 
 if __name__ == "__main__":
     logging.basicConfig(

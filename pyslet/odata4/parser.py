@@ -7,6 +7,7 @@ import uuid
 from .. import iso8601 as iso
 from ..py2 import (
     byte,
+    character,
     range3,
     uempty,
     ul,
@@ -19,9 +20,10 @@ from ..unicode5 import (
 from ..xml import xsdatatypes as xsi
 
 from . import (
+    comex,
     geotypes as geo,
     names,
-    types,
+    query,
     )
 
 
@@ -59,7 +61,7 @@ class Parser(BasicParser):
 
             expandItem *( COMMA expandItem )
 
-        Returns a list of :class:`types.ExpandItem`."""
+        Returns a list of :class:`query.ExpandItem`."""
         items = []
         items.append(self.require_expand_item())
         while self.parse(self.COMMA):
@@ -68,46 +70,49 @@ class Parser(BasicParser):
 
     # Line 246
     def require_expand_item(self):
-        """Parse theh production expandItem
+        """Parse the production expandItem
 
-        Returns a :class:`types.ExpandItem` instance."""
-        item = types.ExpandItem()
+        Returns a :class:`query.ExpandItem` instance."""
         if self.parse(self.STAR):
-            item.path = (self.STAR, )
+            path = [self.STAR, ]
             if self.parse(self.ref):
-                item.qualifier = names.PathQualifier.ref
+                path.append("$ref")
+                item = query.ExpandItem(tuple(path))
             elif self.parse(self.OPEN):
                 # levels doesn't consume the option name
+                item = query.ExpandItem(tuple(path))
                 self.require('$levels=')
                 levels = self.require_levels()
                 self.require(self.CLOSE)
-                item.options.levels = levels
+                item.options.set_levels(levels)
+            else:
+                item = query.ExpandItem(tuple(path))
             return item
         path = self.require_expand_path()
-        if isinstance(path[-1], names.QualifiedName):
-            item.type_cast = path[-1]
-            path = path[:-1]
-        item.path = tuple(path)
         if self.parse(self.ref):
-            item.qualifier = names.PathQualifier.ref
+            path.append("$ref")
+            item = query.ExpandItem(tuple(path))
             if self.parse(self.OPEN):
-                item.options.set_option(*self.require_expand_ref_option())
+                self.require_expand_ref_option(item.options)
                 while self.parse(self.SEMI):
-                    item.options.set_option(*self.require_expand_ref_option())
+                    self.require_expand_ref_option(item.options)
                 self.require(self.CLOSE)
         elif self.parse(self.count):
-            item.qualifier = names.PathQualifier.count
+            path.append("$count")
+            item = query.ExpandItem(tuple(path))
             if self.parse(self.OPEN):
-                item.options.set_option(*self.require_expand_count_option())
+                self.require_expand_count_option(item.options)
                 while self.parse(self.SEMI):
-                    item.options.set_option(
-                        *self.require_expand_count_option())
+                    self.require_expand_count_option(item.options)
                 self.require(self.CLOSE)
         elif self.parse(self.OPEN):
-            item.options.set_option(*self.require_expand_option())
+            item = query.ExpandItem(tuple(path))
+            self.require_expand_option(item.options)
             while self.parse(self.SEMI):
-                item.options.set_option(*self.require_expand_option())
+                self.require_expand_option(item.options)
             self.require(self.CLOSE)
+        else:
+            item = query.ExpandItem(tuple(path))
         return item
 
     # Line 252
@@ -158,50 +163,52 @@ class Parser(BasicParser):
         return result
 
     # Line 256
-    def require_expand_count_option(self):
+    def require_expand_count_option(self, options):
         """Parses production expandCountOption"""
         if self.parse('$filter'):
             self.require(self.EQ)
-            return '$filter', self.require_filter()
+            options.set_filter(self.require_filter())
         else:
             self.require('$search')
             self.require(self.EQ)
-            return '$search', self.require_search()
+            options.set_search(self.require_search())
 
     # Line 258
-    def require_expand_ref_option(self):
-        """Parses production expandRefOption"""
+    def require_expand_ref_option(self, options):
+        """Parses production expandRefOption
+
+        The option is updated in options."""
         if self.parse('$orderby'):
             self.require(self.EQ)
-            return '$orderby', self.require_orderby()
+            options.set_orderby(self.require_orderby())
         elif self.parse('$skip'):
             self.require(self.EQ)
-            return '$skip', self.require_skip()
+            options.set_skip(self.require_skip())
         elif self.parse('$top'):
             self.require(self.EQ)
-            return '$top', self.require_top()
+            options.set_top(self.require_top())
         elif self.parse('$inlinecount'):
             self.require(self.EQ)
-            return '$inlinecount', self.require_inlinecount()
+            options.set_inlinecount(self.require_inlinecount())
         else:
-            return self.require_expand_count_option()
+            self.require_expand_count_option(options)
 
     # Line 263
-    def require_expand_option(self):
+    def require_expand_option(self, options):
         """Parses production expandOption
 
         Returns a name, value pair."""
         if self.parse('$select'):
             self.require(self.EQ)
-            return "$select", self.require_select()
+            options.add_select_item(self.require_select())
         elif self.parse('$expand'):
             self.require(self.EQ)
-            return "$expand", self.require_expand()
+            options.add_expand_item(self.require_expand())
         elif self.parse('$levels'):
             self.require(self.EQ)
-            return "$levels", self.require_levels()
+            options.set_levels(self.require_levels())
         else:
-            return self.require_expand_ref_option()
+            return self.require_expand_ref_option(options)
 
     # Line 268
     def require_levels(self):
@@ -240,16 +247,17 @@ class Parser(BasicParser):
     # Line 273
     def require_orderby_item(self):
         """Parses production orderbyItem"""
-        item = types.OrderbyItem()
-        item.expr = self.require_common_expr()
+        expr = self.require_common_expr()
+        direction = 1
         savepos = self.pos
         if self.parse_bws():
             if self.parse('desc'):
-                item.direction = -1
+                direction = -1
             elif self.parse('asc'):
-                item.direction = 1
+                direction = 1
             else:
                 self.setpos(savepos)
+        item = query.OrderbyItem(expr, direction)
         return item
 
     # Line 288
@@ -276,7 +284,7 @@ class Parser(BasicParser):
             # step 1: find the next atom
             if self.match(self.DQUOTE):
                 # unambiguous, must be string primitiveLiteral
-                right_op = types.PhraseExpression(self.require_search_phrase())
+                right_op = comex.PhraseExpression(self.require_search_phrase())
             elif self.parse(self.OPEN):
                 self.parse_bws()
                 right_op = self.require_search_expr()
@@ -287,24 +295,24 @@ class Parser(BasicParser):
                 # be a literal
                 word = self.parse_production(self.require_search_word)
                 if word:
-                    right_op = types.WordExpression(word)
+                    right_op = comex.WordExpression(word)
                 elif self.parse('NOT'):
-                    right_op = types.SUnaryExpression(types.Operator.bool_not)
+                    right_op = comex.SUnaryExpression(comex.Operator.bool_not)
                     self.require_rws()
                 else:
                     self.parser_error()
             # step 2: find the next operator
             if not isinstance(
-                    right_op, types.UnaryExpression) or right_op.operands:
+                    right_op, comex.UnaryExpression) or right_op.operands:
                 operand = right_op
                 if self.parse_bws():
                     if self.parse('AND'):
-                        op_code = types.Operator.bool_and
-                        right_op = types.SBinaryExpression(op_code)
+                        op_code = comex.Operator.bool_and
+                        right_op = comex.SBinaryExpression(op_code)
                         self.require_rws()
                     elif self.parse('OR'):
-                        op_code = types.Operator.bool_or
-                        right_op = types.SBinaryExpression(op_code)
+                        op_code = comex.Operator.bool_or
+                        right_op = comex.SBinaryExpression(op_code)
                         self.require_rws()
                     else:
                         right_op = None
@@ -431,7 +439,7 @@ class Parser(BasicParser):
                 if path:
                     self.parser_error("identifier")
                 if name:
-                    name = types.QualfiedName('.'.join(name), self.STAR)
+                    name = names.QualfiedName('.'.join(name), self.STAR)
                 else:
                     name = self.STAR
                 return (name, )
@@ -468,24 +476,26 @@ class Parser(BasicParser):
 
         Returns a CommonExpression object."""
         expr = self._require_common_expr()
-        if isinstance(expr, types.ReservedExpression):
-            # the reserved names 'false' and 'true' are interpreted as
-            # their constant values in preference to being property
-            # names.  Other reserved names are converted to property
-            # names enabling an entity to define property names like
-            # 'INF' and 'NaN' but *not* 'false', 'true' and 'null'.
-            if expr.name in ('true', 'false'):
-                return types.LiteralExpression(expr.name == 'true')
-            elif expr.name == 'null':
-                return types.LiteralExpression(None)
-            else:
-                return types.NameExpression(expr.name)
-        else:
+        if expr.is_bool_common():
             return expr
+        else:
+            self.parser_error("boolCommonExpr; found %r" % expr)
 
-    BinaryOperators = set(
-        ("eq", "ne", "lt", "le", "gt", "ge", "has", "and", "or", "add",
-         "sub", "mul", "div", "mod"))
+    BinaryOperators = {
+        "eq": comex.EqExpression,
+        "ne": comex.NeExpression,
+        "lt": comex.LtExpression,
+        "le": comex.LeExpression,
+        "gt": comex.GtExpression,
+        "ge": comex.GeExpression,
+        "has": comex.HasExpression,
+        "and": comex.AndExpression,
+        "or": comex.OrExpression,
+        "add": comex.AddExpression,
+        "sub": comex.SubExpression,
+        "mul": comex.MulExpression,
+        "div": comex.DivExpression,
+        "mod": comex.ModExpression}
 
     def _require_common_expr(self):
         """Parses a common expression
@@ -501,41 +511,40 @@ class Parser(BasicParser):
             # step 1: find the next atom
             if self.match(self.SQUOTE):
                 # unambiguous, must be string primitiveLiteral
-                right_op = types.LiteralExpression(self.require_string())
+                right_op = comex.StringExpression(self.require_string())
             elif self.match_digit():
-                right_op = types.LiteralExpression(
-                    self.require_primitive_literal())
+                right_op = self.require_primitive_literal()
             elif self.parse(self.AT):
                 # must be parameterAlias
-                right_op = types.ParameterExpression(
+                right_op = comex.ParameterExpression(
                     self.require_odata_identifier())
             elif self.match('['):
                 # must be JSON array
-                raise NotImplementedError("JSON array expression")
+                right_op = self.require_array_or_object()
             elif self.match("{"):
                 # must be JSON object
-                raise NotImplementedError("JSON object expression")
+                right_op = self.require_array_or_object()
             elif self.parse('$'):
                 # a reserved name
                 name = self.require_odata_identifier()
                 if name == "it":
-                    right_op = types.ItExpression()
+                    right_op = comex.ItExpression()
                 elif name == "root":
-                    right_op = types.RootExpression()
+                    right_op = comex.RootExpression()
                 elif name == "count":
-                    right_op = types.CountExpression()
+                    right_op = comex.CountExpression()
                 else:
                     self.parser_error("it, root or count expression")
             elif self.match('+'):
                 # unambiguous, must be a numeric literal
                 # note: dates do not support a leading +
-                right_op = types.LiteralExpression(
-                    self.require_primitive_literal())
+                right_op = self.require_primitive_literal()
             elif self.parse(self.OPEN):
                 self.parse_bws()
                 right_op = self._require_common_expr()
                 self.parse_bws()
                 self.require(self.CLOSE)
+                right_op.bracket_hint = True
             elif self.match('-'):
                 # getting harder, could be a negative literal.  We can't
                 # just treat this as a unary negation operator because
@@ -547,12 +556,11 @@ class Parser(BasicParser):
                 if self.match_digit() or self.match('INF'):
                     # it must be a negative numeric literal
                     self.setpos(savepos)
-                    right_op = types.LiteralExpression(
-                        self.require_primitive_literal())
+                    right_op = self.require_primitive_literal()
                 else:
                     # negateExpr
                     self.parse_bws()
-                    right_op = types.UnaryExpression(types.Operator.negate)
+                    right_op = comex.NegateExpression()
             else:
                 # we expect a name (or qname) but it could still
                 # be a literal
@@ -571,87 +579,94 @@ class Parser(BasicParser):
                         # name followed by quote is duration, binary, geo...
                         # qname followed by quote is enum
                         self.setpos(savepos)
-                        right_op = types.LiteralExpression(
-                            self.require_primitive_literal())
+                        right_op = self.require_primitive_literal()
                     elif self.match('-') and len(name) == 8 and qname is None:
                         # a guid that starts off looking like a name
                         self.setpos(savepos)
-                        right_op = types.LiteralExpression(
-                            self.require_primitive_literal())
-                    elif self.parse(self.OPEN):
-                        # this is a call or key predicate
-                        if qname is None:
-                            right_op = types.CallExpression(name)
+                        right_op = self.require_primitive_literal()
+                    elif self.match(self.OPEN):
+                        # this is a call or key predicate, we actually
+                        # treat it like an operator but as the syntax is
+                        # unique and it binds more tightly than any
+                        # other we deal with it directly here
+                        if qname:
+                            callable = comex.QNameExpression(qname)
                         else:
-                            right_op = types.QCallExpression(qname)
-                        comma = False
-                        self.parse_bws()
-                        while not self.parse(self.CLOSE):
-                            if comma:
-                                self.require(self.COMMA)
-                                self.parse_bws()
-                            else:
-                                comma = True
-                            right_op.add_operand(self._require_common_expr())
+                            callable = comex.IdentifierExpression(name)
+                        while self.parse(self.OPEN):
+                            right_op = comex.CallExpression()
+                            arguments = comex.ArgsExpression()
+                            right_op.add_operand(callable)
+                            right_op.add_operand(arguments)
+                            comma = False
                             self.parse_bws()
-                    # check reserved words.  The syntax doesn't really
-                    # talk about reserved words and just allows these to
-                    # be ambiguous but the idea that you might have a
-                    # property called "null" which hides the reserved
-                    # word null in expressions is ridiculous.  The
-                    # exception we make to this is that a reserved word
-                    # followed immediately by a call or path operator
-                    # cannot be being used in the reserved sense (we already
-                    # parsed the call above).  To make it easier to
-                    # upgrade such expressions later we introduce
-                    # special expressions to handle the reserved word
-                    # cases
-                    elif qname is None and name in (
-                            'true', 'false', 'null', 'INF', 'NaN'):
-                        right_op = types.ReservedExpression(name)
+                            while not self.parse(self.CLOSE):
+                                if comma:
+                                    self.require(self.COMMA)
+                                    self.parse_bws()
+                                else:
+                                    comma = True
+                                arguments.add_operand(
+                                    self._require_common_expr())
+                                self.parse_bws()
+                            # yes, you can call the result of a callable
+                            # directly, e.g.:
+                            # schema.Top10Products(region=1)(4)
+                            # might return the Product with key 4 only
+                            # if it is in the Top10 products for region
+                            # 1.  The second call is a key-predicate
+                            # of course.
+                            callable = right_op
                     elif qname is None and name == "not" and self.parse_bws():
                         # always the not operator
-                        right_op = types.UnaryExpression(
-                            types.Operator.bool_not)
+                        right_op = comex.NotExpression()
                     elif qname:
-                        right_op = types.QNameExpression(qname)
+                        right_op = comex.QNameExpression(qname)
                     else:
-                        right_op = types.NameExpression(name)
+                        right_op = comex.IdentifierExpression(name)
                 except ValueError:
-                    self.parser_error()
+                    if isinstance(left_op, comex.NotExpression):
+                        # special case: expression ending in 'not '
+                        # we assume that not was supposed to be
+                        # an identifier, discard left_op!
+                        right_op = comex.IdentifierExpression("not")
+                        if op_stack:
+                            left_op = op_stack.pop()
+                        else:
+                            left_op = None
+                    else:
+                        self.parser_error()
             # step 2: find the next operator
             # if we have an *unbound* unary operator, skip the search
             # for a binary operator
             if not isinstance(
-                    right_op, types.UnaryExpression) or right_op.operands:
+                    right_op, comex.UnaryExpression) or right_op.operands:
                 operand = right_op
                 # start with operators that do not accept spaces
                 if self.parse('/'):
-                    right_op = types.BinaryExpression(types.Operator.member)
+                    right_op = comex.MemberExpression()
                 elif self.parse('='):
                     # yes, we have an assignment operator for binding
                     # expressions to names (in calls)
-                    right_op = types.BinaryExpression(types.Operator.bind)
+                    right_op = comex.BindExpression()
                 elif self.parse(':'):
                     self.parse_bws()
-                    right_op = types.BinaryExpression(
-                        types.Operator.lambda_bind)
+                    right_op = comex.LambdaBindExpression()
                 else:
                     savepos = self.pos
                     if self.parse_bws():
                         if self.parse(':'):
                             self.parse_bws()
-                            right_op = types.BinaryExpression(
-                                types.Operator.lambda_bind)
+                            right_op = comex.LambdaBindExpression()
                         else:
                             try:
                                 name = self.require_odata_identifier()
                                 self.require_rws()
-                                if name in self.BinaryOperators:
-                                    op_code = types.Operator.from_str(name)
+                                cls = self.BinaryOperators.get(name, None)
+                                if cls is not None:
+                                    right_op = cls()
                                 else:
                                     raise ValueError
-                                right_op = types.BinaryExpression(op_code)
                             except ValueError:
                                 self.setpos(savepos)
                                 right_op = None
@@ -677,11 +692,13 @@ class Parser(BasicParser):
             # right_op (an operator expression, never None)
             # next job, determine who binds more tightly, left or right?
             while True:
-                if left_op is None or left_op < right_op:
-                    # Example: 2 + 3 *
+                if left_op is None or left_op < right_op or operand is None:
+                    # Example: + 3 *
                     # bind the operand to the right, this causes a
                     # rotation to the left that pushes the current
                     # left_op (if any) onto the stack.
+                    # Special case: not (None) not
+                    # two unary operators must always bind to the right!
                     if operand is not None:
                         right_op.add_operand(operand)
                     if left_op is not None:
@@ -708,6 +725,389 @@ class Parser(BasicParser):
                         left_op = op_stack.pop()
                     else:
                         left_op = None
+
+    # Line 417
+    def require_root_expr(self):
+        """Parses production rootExpr
+
+        Returns a CommonExpression instance for which
+        :meth:`comex.CommonExpression.is_root` returns True."""
+        expr = self._require_common_expr()
+        if not expr.is_root():
+            self.parser_error("rootExpr, found %r" % expr)
+        return expr
+
+    # Line 419
+    def require_first_member_expr(self):
+        """Parses production firstMemberExpr
+
+        Returns a CommonExpression instance for which
+        :meth:`comex.CommonExpression.is_first_member` returns
+        True."""
+        expr = self._require_common_expr()
+        if not expr.is_first_member():
+            self.parser_error("firstMemberExpr, found %r" % expr)
+        return expr
+
+    # Line 422
+    def require_member_expr(self):
+        """Parses production memberExpr
+
+        Returns a CommonExpression instance for which
+        :meth:`comex.CommonExpression.is_member` returns
+        True."""
+        expr = self._require_common_expr()
+        if not expr.is_member():
+            self.parser_error("memberExpr, found %r" % expr)
+        return expr
+
+    # Line 427
+    def require_property_path_expr(self):
+        """Parses production propertyPathExpr
+
+        Returns a CommonExpression instance for which
+        :meth:`comex.CommonExpression.is_property_path` returns
+        True."""
+        expr = self._require_common_expr()
+        if not expr.is_property_path():
+            self.parser_error("propertyPathExpr, found %r" % expr)
+        return expr
+
+    # Line 436
+    def require_inscope_variable_expr(self):
+        """Parses production inscopeVariableExpr
+
+        Returns either an :class:`comex.ItExpression` or an
+        :class:`comex.IdentifierExpression` instance."""
+        if self.match('$'):
+            self.require(self.implicit_variable_expr)
+            return comex.ItExpression()
+        else:
+            identifier = self.require_odata_identifier()
+            return comex.IdentifierExpression(identifier)
+
+    # Line 438
+    implicit_variable_expr = "$it"
+
+    # Line 439
+    def require_lambda_variable_expr(self):
+        identifier = self.require_odata_identifier()
+        return comex.IdentifierExpression(identifier)
+
+    # Line 446
+    def require_single_navigation_expr(self):
+        """Parses production singleNavigationExpr
+
+        Returns a CommonExpression instance for which
+        :meth:`comex.CommonExpression.is_member` returns True.  Note
+        that the leading "/" operator required by the syntax is assumed
+        to have been parsed already!"""
+        return self.require_member_expr()
+
+    # Line 448
+    def require_collection_path_expr(self):
+        """Parses production collectionPathExpr
+
+        Returns a CommonExpression instance for which the
+        :meth:`comex.CommonExpression.is_collection_path` returns True.
+        Note that the leading "/" operator required by the syntax is
+        assumed to have been parsed already."""
+        expr = self._require_common_expr()
+        if not expr.is_collection_path():
+            self.parser_error("collectionPathExpr, found %r" % expr)
+        return expr
+
+    # Line 453
+    def require_complex_path_expr(self):
+        """Parses production complexPathExpr
+
+        See :meth:`require_member_expr` as the syntax is identical
+        except for the leading "/" operator which is assumed to have
+        been parsed already by this method."""
+        return self.require_member_expr()
+
+    # Line 458
+    def require_single_path_expr(self):
+        """Parses production singlePathExpr
+
+        See :meth:`require_function_expr`.  Note that the leading "/"
+        operator required by the syntax is assumed to have been parsed
+        already."""
+        return self.require_function_expr()
+
+    # Line 460
+    def require_bound_function_expr(self):
+        """Parses production boundFunctionExpr
+
+        See :meth:`require_function_expr`."""
+        return self.require_function_expr()
+
+    # Line 463
+    def require_function_expr(self):
+        """Parses production singlePathExpr
+
+        Returns a CommonExpression instance for which
+        :meth:`comex.CommonExpression.is_function` returns True."""
+        expr = self._require_common_expr()
+        if not expr.is_function():
+            self.parser_error("functionExpr, found %r" % expr)
+        return expr
+
+    # Line 472
+    # functionExprParameters parsed only as part of functionExpr
+
+    # Line 473
+    # functionExprParameter parsed only as part of functionExpr
+
+    # Line 475
+    def require_any_expr(self):
+        """Parses production anyExpr
+
+        Returns a CallExpression instance with an IdentifierExpression
+        with identifier 'any' and with arguments that return True for
+        :meth:`comex.ArgsExpression.is_any`."""
+        expr = self._require_common_expr()
+        if isinstance(expr, comex.CallExpression) and len(expr.operands) == 2:
+            if (isinstance(expr.operands[0], comex.IdentifierExpression) and
+                    expr.operands[0].identifier == "any" and
+                    isinstance(expr.operands[1], comex.ArgsExpression) and
+                    expr.operands[1].is_any()):
+                return expr
+        self.parser_error("anyExpr, found %r" % expr)
+
+    # Line 476
+    def require_all_expr(self):
+        """Parses production allExpr
+
+        Returns a CallExpression instance with an IdentifierExpression
+        with identifier 'all' and with arguments that return True for
+        :meth:`comex.ArgsExpression.is_all()`."""
+        expr = self._require_common_expr()
+        if isinstance(expr, comex.CallExpression) and len(expr.operands) == 2:
+            if (isinstance(expr.operands[0], comex.IdentifierExpression) and
+                    expr.operands[0].identifier == "all" and
+                    isinstance(expr.operands[1], comex.ArgsExpression) and
+                    expr.operands[1].is_all()):
+                return expr
+        self.parser_error("allExpr, found %r" % expr)
+
+    # Line 477
+    def require_lambda_predicate_expr(self):
+        """Parses production lambdaPredicateExpr
+
+        See :meth:`require_bool_common_expr` as the syntax is identical."""
+        return self.require_bool_common_expr()
+
+    # Line 479
+    def require_method_call_expr(self):
+        """Parses production methodCallExpr
+
+        Returns a CallExpression instance with a method attribute that
+        is not None and with arguments that return True for
+        :meth:`comex.ArgsExpression.is_method_parameters()`.  The
+        number and type of arguments is only checked during
+        evaluation."""
+        expr = self._require_common_expr()
+        if isinstance(expr, comex.CallExpression) and len(expr.operands) == 2:
+            if (expr.method is not None and
+                    isinstance(expr.operands[1], comex.ArgsExpression) and
+                    expr.operands[1].is_method_parameters()):
+                return expr
+        self.parser_error("methodCallExpr, found %r" % expr)
+
+    # Line 582
+    def require_array_or_object(self):
+        """Parses production arrayOrObject
+
+        Returns either a :class:`comex.CollectionExpression` indicating
+        an array or a :class:`comex.RecordExpression` indicating an
+        object."""
+        self.parse_bws()
+        if self.parse("["):
+            self.parse_bws()
+            e = comex.CollectionExpression()
+            self.parse_bws()
+            item_prod = None
+            while not self.parse("]"):
+                if not item_prod:
+                    if self.match("{"):
+                        item_prod = "complexInUri"
+                        item = self.require_complex_in_uri()
+                    elif self.match("$"):
+                        # rootExpr
+                        item_prod = "rootExpr"
+                        item = self.require_root_expr()
+                    else:
+                        item_prod = "primitiveLiteralInJSON"
+                        item = self.require_primitive_literal_in_json()
+                else:
+                    self.require(self.value_separator)
+                    self.parse_bws()
+                    if item_prod == "complexInUri":
+                        item = self.require_complex_in_uri()
+                    elif item_prod == "rootExpr":
+                        item = self.require_root_expr()
+                    else:
+                        item = self.require_primitive_literal_in_json()
+                self.parse_bws()
+                e.add_operand(item)
+            return e
+        elif self.match("{"):
+            return self.require_complex_in_uri()
+        else:
+            self.parser_error("arrayOrObject")
+
+    # Line 591
+    def require_complex_in_uri(self):
+        self.parse_bws()
+        self.require("{")
+        self.parse_bws()
+        e = comex.RecordExpression()
+        while not self.parse("}"):
+            if e.operands:
+                self.require(self.value_separator)
+                self.parse_bws()
+            name = self.require_string_in_json()
+            self.parse_bws()
+            self.require(":")
+            self.parse_bws()
+            if name.startswith('@'):
+                # This is a term reference, not a simple property name
+                name = comex.TermRefExpression(names.TermRef.from_str(name))
+                if self.match_one("{["):
+                    item = self.require_array_or_object()
+                    if (isinstance(item, comex.CollectionExpression) and
+                            len(item.operands) and item.operands[0].is_root()):
+                        # you can't have a rootExpr in an annotation
+                        self.parser_error("annotationInUri")
+                else:
+                    item = self.require_primitive_literal_in_json()
+            else:
+                name = comex.IdentifierExpression(
+                    names.simple_identifier_from_str(name))
+                # arrayOrObject / rootExpr / primitiveLiteralInJSON
+                if self.match_one("{["):
+                    item = self.require_array_or_object()
+                elif self.match("$"):
+                    item = self.require_root_expr()
+                else:
+                    item = self.require_primitive_literal_in_json()
+            binding = comex.MemberBindExpression()
+            binding.add_operand(name)
+            binding.add_operand(item)
+            e.add_operand(binding)
+            self.parse_bws()
+        return e
+
+    # Line 648
+    begin_object = "{"
+
+    # Line 649
+    end_object = "}"
+
+    # Line 651
+    begin_array = "["
+
+    # Line 652
+    end_array = "]"
+
+    # Line 654
+    quotation_mark = '"'
+
+    # Line 655
+    name_separator = ":"
+
+    # Line 656
+    value_separator = ","
+
+    # Line 658
+    def require_primitive_literal_in_json(self):
+        if self.match(self.quotation_mark):
+            return comex.StringExpression(self.require_string_in_json())
+        elif self.match_digit() or self.match('-'):
+            return self.require_number_in_json()
+        elif self.match('t'):
+            self.require('true')
+            return comex.BooleanExpression(True)
+        elif self.match('f'):
+            self.require('false')
+            return comex.BooleanExpression(False)
+        elif self.match('n'):
+            self.require('null')
+            return comex.NullExpression()
+        else:
+            self.parser_error("primitiveLiteralInJSON")
+
+    # Line 664
+    def require_string_in_json(self):
+        result = []
+        self.require(self.quotation_mark)
+        while True:
+            if self.parse(self.quotation_mark):
+                break
+            elif self.the_char is not None:
+                result.append(self.require_char_in_json())
+            else:
+                self.parser_error("quotation-mark")
+        return uempty.join(result)
+
+    # Line 665
+    def require_char_in_json(self):
+        if self.parse(self.escape):
+            c = self.parse_one('"\\/bfnrt')
+            if c:
+                return {'"': '"',
+                        '\\': '\\',
+                        '/': '/',
+                        'b': ul('\x08'),
+                        'f': ul('\x0c'),
+                        'n': ul('\x0a'),
+                        'r': ul('\x0d'),
+                        't': ul('\x09')
+                        }[c]
+            if self.parse('u'):
+                h = self.parse_hex_digits(4, 4)
+                if h is None:
+                    self.parser_error("4HEXDIG")
+                return character(int(h, 16))
+            else:
+                self.parser_error("escaped charInJSON")
+        elif self.the_char is not None:
+            c = self.the_char
+            self.next_char()
+            return c
+        else:
+            self.parser_error("charInJSON")
+
+    # Line 680
+    escape = "\\"
+
+    # Line 682
+    def require_number_in_json(self):
+        sign = self.parse('-')
+        if sign is None:
+            sign = ''
+        istr = self.require_production(self.parse_digits(1), "int")
+        if self.parse("."):
+            fracstr = "." + self.require_production(
+                self.parse_digits(1), "frac")
+        else:
+            fracstr = ""
+        if self.parse_one("eE"):
+            esign = self.parse_one('-+')
+            if esign is None:
+                esign = ''
+            estr = "e" + esign + self.require_production(
+                self.parse_digits(1), "exp")
+        else:
+            estr = ''
+        value = decimal.Decimal(sign + istr + fracstr + estr)
+        if estr:
+            return comex.DoubleExpression(value)
+        elif fracstr:
+            return comex.DecimalExpression(value)
+        else:
+            return comex.Int64Expression(int(value))
 
     # Line 701-704
     def require_qualified_name(self):
@@ -756,9 +1156,8 @@ class Parser(BasicParser):
     def require_primitive_literal(self):
         """Parses production primitiveLiteral
 
-        Returns a raw value, such as an int, float, string, etc or an
-        instance of one of the primtive classes that may be freely
-        converted to a :class:`PrimitiveValue` instance."""
+        Returns a sub-class of :class:`comex.LiteralExpression` that
+        evaluates to a :class:`PrimitiveValue`."""
         save_pos = self.pos
         if self.match_one('-1234567890'):
             # try and parse an integer
@@ -766,7 +1165,8 @@ class Parser(BasicParser):
                 value = self.require_int64_value()
             except ParserError:
                 # must be -INF
-                return self.require_double_value()
+                value = self.require_double_value()
+                return comex.DoubleExpression(value)
             if self.match("."):
                 # must be decimal or float
                 self.setpos(save_pos)
@@ -775,26 +1175,70 @@ class Parser(BasicParser):
                     # must be float
                     self.setpos(save_pos)
                     value = self.require_double_value()
+                    # return an expression that preserves the literal
+                    return comex.DoubleExpression(
+                        decimal.Decimal(self.src[save_pos:self.pos]))
+                else:
+                    return comex.DecimalExpression(value)
             elif self.match("-"):
                 # could be guid, date, dateTimeOffset
+                self.setpos(save_pos)
                 value = self.parse_production(self.require_date_value)
                 if value:
                     if self.match_one("Tt"):
                         self.setpos(save_pos)
                         value = self.require_date_time_offset_value()
+                        return comex.DateTimeOffsetExpression(
+                            value, self.src[save_pos:self.pos])
+                    else:
+                        return comex.DateExpression(value)
                 else:
-                    value = self.require_guid_value()
+                    # guide that looks like a number...
+                    return comex.GuidExpression(self.require_guid_value())
             elif self.match(":"):
                 # must be time of day
                 self.setpos(save_pos)
                 value = self.require_time_of_day_value()
+                return comex.TimeOfDayExpression(
+                    value, self.src[save_pos:self.pos])
+            elif self.match_one("Ee"):
+                # might be a guid
+                value = self.parse_production(self.require_guid_value)
+                if value is None:
+                    # could be integer + exponent
+                    self.setpos(save_pos)
+                    value = self.require_double_value()
+                    # return an expression that preserves the literal
+                    return comex.DoubleExpression(
+                        decimal.Decimal(self.src[save_pos:self.pos]))
+                else:
+                    return comex.GuidExpression(value)
             elif self.match_one("ABCDEFabcdef"):
+                # must be a guid
                 self.setpos(save_pos)
-                value = self.require_guid()
-            return value
+                return comex.GuidExpression(self.require_guid_value())
+            else:
+                # must have been an integer all along
+                return comex.Int64Expression(value)
+        elif self.match("+"):
+            # must be numeric
+            value = self.require_int64_value()
+            if self.match_one(".eE"):
+                # must be decimal or float
+                self.setpos(save_pos)
+                value = self.require_decimal_value()
+                if self.match_one("eE"):
+                    # must be float
+                    self.setpos(save_pos)
+                    value = self.require_double_value()
+                    # return an expression that preserves the literal
+                    return comex.DoubleExpression(
+                        decimal.Decimal(self.src[save_pos:self.pos]))
+            else:
+                return comex.Int64Expression(value)
         elif self.match("'"):
             # a string
-            return self.require_string()
+            return comex.StringExpression(self.require_string())
         else:
             value = self.require_odata_identifier()
             if self.match_one("."):
@@ -804,19 +1248,24 @@ class Parser(BasicParser):
                 self.require("'")
                 enum_value = self.require_enum_value()
                 self.require("'")
-                return names.EnumLiteral(qname, tuple(enum_value))
+                return comex.EnumExpression(
+                    names.EnumLiteral(qname, tuple(enum_value)))
             elif self.match_one("-"):
                 # must be a guid again (8HEXDIGIT could look like a name)
                 self.setpos(save_pos)
-                return self.require_guid()
+                return comex.GuidExpression(self.require_guid_value())
             elif self.match_one("'"):
                 # must be a selector
                 value = value.lower()
                 self.next_char()
+                save_pos = self.pos
                 if value == "duration":
                     value = self.require_duration_value()
+                    value = comex.DurationExpression(
+                            value, self.src[save_pos:self.pos])
                 elif value == "binary":
-                    value = self.require_binary_value()
+                    value = comex.BinaryDataExpression(
+                        self.require_binary_value())
                 elif value == "geography" or value == "geometry":
                     srid = self.require_srid_literal()
                     if self.match_insensitive("c"):
@@ -843,22 +1292,27 @@ class Parser(BasicParser):
                     else:
                         # unknown geo type
                         self.parser_error("geo literal")
-                    return geo.GeoTypeLiteral(type=geo.GeoType[value], item=v)
+                    if value == "geography":
+                        value = comex.GeographyExpression(
+                            v, self.src[save_pos:self.pos])
+                    else:
+                        value = comex.GeometryExpression(
+                            v, self.src[save_pos:self.pos])
                 else:
                     # unknown selector
                     self.parser_error("primitive literal")
                 self.require("'")
                 return value
             elif value == "null":
-                return None
+                return comex.NullExpression()
             elif value == 'NaN':
-                return float('nan')
+                return comex.DoubleExpression(float('nan'))
             elif value == 'INF':
-                return float('inf')
+                return comex.DoubleExpression(float('inf'))
             elif value.lower() == 'true':
-                return True
+                return comex.BooleanExpression(True)
             elif value.lower() == 'false':
-                return False
+                return comex.BooleanExpression(False)
             else:
                 # just some random word that we don't understand
                 self.parser_error("primitive literal")
