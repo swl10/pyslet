@@ -1004,8 +1004,9 @@ class Client(app.Client):
     def queue_request(self, request, timeout=60):
         if not request.has_header("Accept"):
             request.set_accept(self.ACCEPT_LIST)
-        request.set_header(
-            'DataServiceVersion', '2.0; pyslet %s' % info.version)
-        request.set_header(
-            'MaxDataServiceVersion', '2.0; pyslet %s' % info.version)
+        if not request.has_header("DataServiceVeresion"):
+            request.set_header(
+                'DataServiceVersion', '2.0; pyslet %s' % info.version)
+            request.set_header(
+                'MaxDataServiceVersion', '2.0; pyslet %s' % info.version)
         super(Client, self).queue_request(request, timeout)
